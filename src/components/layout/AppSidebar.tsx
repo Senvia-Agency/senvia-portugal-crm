@@ -37,7 +37,6 @@ const allNavItems: NavItem[] = [
   { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
   { to: "/automacoes", icon: Workflow, label: "Automações" },
   { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/ecommerce", icon: Store, label: "E-commerce", moduleKey: 'ecommerce' },
   { to: "/settings", icon: Settings, label: "Definições", ottoTarget: "sidebar-settings" },
 ];
 

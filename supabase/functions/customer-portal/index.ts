@@ -41,19 +41,24 @@ serve(async (req) => {
     );
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader?.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Auth error: ${userError.message}`);
+    if (userError) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated");
+    if (!user?.email) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
     logStep("User authenticated", { email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const { organization_id } = await req.json();
+    const { data: allowed, error: permissionError } = await supabaseClient.rpc('is_org_admin', { _user_id: user.id, _org_id: organization_id });
+    if (permissionError || allowed !== true) return new Response(JSON.stringify({ error: 'Sem permissão' }), { status: 403, headers: corsHeaders });
+    const { data: org, error: bindingError } = await supabaseClient.from('organization_billing_accounts').select('stripe_customer_id').eq('organization_id', organization_id).maybeSingle();
+    if (bindingError) throw bindingError;
+    const customers = { data: org?.stripe_customer_id ? [{ id: org.stripe_customer_id }] : [] };
     if (customers.data.length === 0) {
       throw new Error("No Stripe customer found. You need an active subscription first.");
     }

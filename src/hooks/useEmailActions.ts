@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +56,7 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
    * ignorado em vez de virar uma segunda ordem.
    */
   const [pendentes, setPendentes] = useState<Set<string>>(new Set());
+  const pendingRef = useRef(new Set<string>());
 
   const marcarPendente = (id: string) =>
     setPendentes((p) => (p.has(id) ? p : new Set(p).add(id)));
@@ -63,6 +64,7 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
   /** Liberta ids: ou porque a mensagem já desapareceu, ou porque a ação falhou. */
   const libertar = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
+    ids.forEach(id => pendingRef.current.delete(id));
     setPendentes((p) => {
       let mudou = false;
       const n = new Set(p);
@@ -140,13 +142,15 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
   const destrutiva = (tipo: string, id: string, extra: Record<string, unknown> = {}) => {
     // Segundo clique enquanto o primeiro está a caminho: não é uma segunda
     // ordem, é a mesma pessoa a duvidar que a primeira pegou.
-    if (pendentes.has(id)) return Promise.resolve();
+    if (pendingRef.current.has(id)) return Promise.resolve();
+    pendingRef.current.add(id);
     marcarPendente(id);
     removeFromList(id);
     return queue(tipo, { messageId: id, ...extra }).catch((e) => {
       // Se nem chegou a ser pedido, a mensagem volta já — esconder algo que
       // ninguém vai apagar seria mentir ao contrário.
       libertar([id]);
+      qc.invalidateQueries({ queryKey: ['email-messages', folderId] });
       throw e;
     });
   };
@@ -163,7 +167,19 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
     markFolderRead: (targetFolderId: string) => { patchAll({ seen: true }); return queue('mark_folder_read', { folderId: targetFolderId }); },
     loadOlder: (targetFolderId: string, batch = 40) => queue('load_older', { folderId: targetFolderId, batch }),
     syncUnread: (targetFolderId: string) => queue('sync_unread', { folderId: targetFolderId }),
-    fetchBody: (messageId: string) => queue('fetch_body', { messageId }),
+    fetchBody: async (messageId: string) => {
+      if (!orgId || !channelId) throw new Error('Caixa não selecionada');
+      const { error } = await supabase.functions.invoke('email-fetch-body', { body: { message_id: messageId } });
+      if (error) {
+        const detail = await error.context?.json?.().catch(() => null);
+        throw new Error(detail?.error || 'Não foi possível carregar o conteúdo do email.');
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['email-message', messageId] }),
+        qc.invalidateQueries({ queryKey: ['email-messages'] }),
+        qc.invalidateQueries({ queryKey: ['email-command-failures', channelId] }),
+      ]);
+    },
     fetchAttachment: (attachmentId: string) => queue('fetch_attachment', { attachmentId }),
     send: (payload: SendPayload) => queue('send', payload as unknown as Record<string, unknown>),
     saveDraft,

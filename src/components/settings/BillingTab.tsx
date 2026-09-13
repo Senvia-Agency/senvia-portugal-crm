@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _version = '2026-06-29-force-rebuild';
@@ -151,7 +152,7 @@ export function BillingTab() {
   const isOnTrial = subscriptionStatus?.on_trial === true;
   const hasActiveSubscription = subscriptionStatus?.subscribed === true;
   // Only use plan_id as "current" if user has an active paid subscription (not trial)
-  const currentPlanId = hasActiveSubscription ? (subscriptionStatus?.plan_id || 'starter') : null;
+  const currentPlanId = hasActiveSubscription ? 'starter' : null;
   const currentIndex = currentPlanId ? STRIPE_PLANS.findIndex(p => p.id === currentPlanId) : -1;
   const hasNoSubscription = !hasChecked || !hasActiveSubscription;
 
@@ -185,6 +186,10 @@ export function BillingTab() {
 
   return (
     <div className="space-y-6">
+      <Link to="/settings?og=account&os=account-referrals" className="block rounded-xl border bg-card p-4 text-sm hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+        <span className="font-semibold text-primary">Indicações e meses gratuitos →</span>
+        <span className="mt-1 block text-muted-foreground">Copia o teu link, acompanha os pagamentos das empresas indicadas e consulta o próximo bónus.</span>
+      </Link>
       {/* Billing Exempt Status */}
       {subscriptionStatus?.billing_exempt && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 md:p-5">
@@ -197,7 +202,7 @@ export function BillingTab() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            A sua organização tem acesso vitalício ao plano Elite sem necessidade de pagamento.
+            A sua organização tem acesso vitalício ao SENVIA OS sem necessidade de pagamento.
           </p>
         </div>
       )}

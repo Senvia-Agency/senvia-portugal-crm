@@ -1,7 +1,7 @@
 import { Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
-import { useWhatsNewStore } from '@/stores/useWhatsNewStore';
 import { isPerfect2GetherOrg } from '@/lib/perfect2gether';
 import { cn } from '@/lib/utils';
 
@@ -12,20 +12,17 @@ interface WhatsNewButtonProps {
 }
 
 /**
- * Opens "O que há de novo", with a red dot while the latest announcement
- * hasn't been opened by this user. The dot clears on read, not on time.
+ * Links to the release history even when there is no active popup announcement.
  */
 export function WhatsNewButton({ className, variant = 'header' }: WhatsNewButtonProps) {
   const { organization } = useAuth();
-  const { announcement, hasUnread } = useAnnouncements();
-  const open = useWhatsNewStore((s) => s.open);
+  const { hasUnread } = useAnnouncements();
 
-  if (isPerfect2GetherOrg(organization?.id) || !announcement) return null;
+  if (isPerfect2GetherOrg(organization?.id)) return null;
 
   return (
-    <button
-      type="button"
-      onClick={open}
+    <Link
+      to="/novidades"
       title="O que há de novo"
       aria-label={hasUnread ? 'O que há de novo (novidades por ler)' : 'O que há de novo'}
       className={cn(
@@ -43,6 +40,6 @@ export function WhatsNewButton({ className, variant = 'header' }: WhatsNewButton
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
         </span>
       )}
-    </button>
+    </Link>
   );
 }

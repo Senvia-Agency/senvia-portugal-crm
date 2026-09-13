@@ -1,6 +1,6 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,7 +107,7 @@ function buildUnsubscribeUrl(token: string): string {
 }
 
 async function ensureMarketingContact(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   organizationId: string,
   email: string,
   name: string | null | undefined,
@@ -154,7 +154,7 @@ async function ensureMarketingContact(
 }
 
 async function createUnsubscribeToken(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   organizationId: string,
   contactId: string,
   emailSendId: string | null,
@@ -182,7 +182,7 @@ async function createUnsubscribeToken(
 }
 
 async function insertEmailSendRecord(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   emailSendRecord: Record<string, unknown>,
 ): Promise<string | null> {
   const primaryInsert = await supabase
@@ -390,6 +390,8 @@ serve(async (req: Request): Promise<Response> => {
     const finalSenderEmail = senderEmailOverride || org.brevo_sender_email;
     const finalSenderName = senderNameOverride || org.name;
     const formattedDate = formatDate();
+    const organizationName = org.name;
+    const brevoApiKey = org.brevo_api_key;
 
     async function processRecipient(recipient: Recipient): Promise<{ email: string; status: string; error?: string }> {
       let unsubscribeToken: string | null = null;
@@ -400,7 +402,7 @@ serve(async (req: Request): Promise<Response> => {
         const variables: Record<string, string> = {
           nome: recipient.name || "",
           email: recipient.email || "",
-          organizacao: org.name || "",
+          organizacao: organizationName || "",
           data: formattedDate,
           vendedor: vendor?.name || "",
           vendedor_email: vendor?.email || "",
@@ -453,7 +455,7 @@ serve(async (req: Request): Promise<Response> => {
           method: "POST",
           headers: {
             "accept": "application/json",
-            "api-key": org.brevo_api_key,
+            "api-key": brevoApiKey,
             "content-type": "application/json",
           },
           body: JSON.stringify(brevoPayload),

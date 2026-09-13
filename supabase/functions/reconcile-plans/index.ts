@@ -64,49 +64,20 @@ serve(async (req) => {
       }
     }
 
-    // org -> member emails
-    const { data: orgs } = await supabase
-      .from("organizations")
-      .select("id, name, plan, billing_exempt, first_paid_at");
-
-    const { data: members } = await supabase
-      .from("organization_members")
-      .select("organization_id, user_id")
-      .eq("is_active", true);
-
-    const userIds = [...new Set((members || []).map(m => m.user_id))];
-    const emailMap: Record<string, string> = {};
-    for (const uid of userIds) {
-      const { data } = await supabase.auth.admin.getUserById(uid);
-      if (data?.user?.email) emailMap[uid] = data.user.email.toLowerCase();
-    }
-
-    const orgEmails: Record<string, string[]> = {};
-    for (const m of (members || [])) {
-      const email = emailMap[m.user_id];
-      if (!email) continue;
-      (orgEmails[m.organization_id] ||= []).push(email);
-    }
-
-    // email -> {plan, status}
-    const emailToSub: Record<string, { plan: string | null; status: string }> = {};
-    for (const sub of allSubs) {
-      try {
-        const cust = await stripe.customers.retrieve(sub.customer as string);
-        if ((cust as any).deleted) continue;
-        const email = ((cust as Stripe.Customer).email || "").toLowerCase();
-        if (!email) continue;
-        const productId = sub.items.data[0]?.price?.product as string | undefined;
-        const plan = productId ? (PRODUCT_TO_PLAN[productId] ?? null) : null;
-        // Prefer a healthier status if multiple subs share an email.
-        const existing = emailToSub[email];
-        const rank = (s: string) => (s === "active" ? 3 : s === "trialing" ? 2 : 1);
-        if (!existing || rank(sub.status) > rank(existing.status)) {
-          emailToSub[email] = { plan, status: sub.status };
-        }
-      } catch (e) {
-        logStep("subscription processing error", { error: (e as Error).message });
-      }
+    const { data: orgs, error: orgError } = await supabase.from('organizations')
+      .select('id, name, plan, billing_exempt, first_paid_at');
+    if (orgError) throw orgError;
+    const { data: bindings, error: bindingError } = await supabase.from('organization_billing_accounts')
+      .select('organization_id, stripe_customer_id, stripe_subscription_id');
+    if (bindingError) throw bindingError;
+    const subByOrg: Record<string, { plan: string | null; status: string }> = {};
+    for (const binding of bindings || []) {
+      const sub = allSubs.find(s => s.id === binding.stripe_subscription_id &&
+        (typeof s.customer === 'string' ? s.customer : s.customer.id) === binding.stripe_customer_id);
+      if (!sub) continue;
+      const base = sub.items.data.find((item: any) => PRODUCT_TO_PLAN[typeof item.price.product === 'string' ? item.price.product : item.price.product.id]);
+      const productId = typeof base?.price.product === 'string' ? base.price.product : base?.price.product?.id;
+      subByOrg[binding.organization_id] = { plan: productId ? PRODUCT_TO_PLAN[productId] : null, status: sub.status };
     }
 
     let planUpdates = 0;
@@ -117,10 +88,7 @@ serve(async (req) => {
       // Demo/partner: exempt and never paid → leave exactly as configured.
       if (org.billing_exempt && !org.first_paid_at) continue;
 
-      let sub: { plan: string | null; status: string } | undefined;
-      for (const email of (orgEmails[org.id] || [])) {
-        if (emailToSub[email]) { sub = emailToSub[email]; break; }
-      }
+      const sub = subByOrg[org.id];
 
       // No live sub found → do nothing (never null an existing plan).
       if (!sub) continue;
@@ -128,7 +96,7 @@ serve(async (req) => {
       const updates: Record<string, any> = {};
 
       // Align plan to the real Stripe product (only when we recognise it).
-      if (sub.plan && sub.plan !== org.plan) {
+      if (sub.plan && sub.plan !== org.plan && !(sub.plan === 'starter' && ['pro', 'elite'].includes(org.plan))) {
         updates.plan = sub.plan;
       }
 

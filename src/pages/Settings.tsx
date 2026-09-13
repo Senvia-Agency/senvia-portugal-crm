@@ -34,6 +34,7 @@ import { OperatorsTab } from '@/components/settings/OperatorsTab';
 import { ClientDocumentTypesSettings } from '@/components/settings/ClientDocumentTypesSettings';
 import { PushNotificationsCard } from '@/components/settings/PushNotificationsCard';
 import { BillingTab } from '@/components/settings/BillingTab';
+import { ReferralProgram } from '@/components/settings/ReferralProgram';
 import { SupportTicketsTab } from '@/components/settings/SupportTicketsTab';
 
 import { ProfilesTab } from '@/components/settings/ProfilesTab';
@@ -70,6 +71,11 @@ export default function Settings() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     const billing = searchParams.get('billing');
+    if (tab === 'referrals') {
+      setActiveGroup('account');
+      setActiveSub('account-referrals');
+      setSearchParams({}, { replace: true });
+    }
     if (tab === 'billing' || billing) {
       setActiveGroup('account');
       setActiveSub('account-plan');
@@ -383,6 +389,7 @@ export default function Settings() {
       );
       case "account-company": return <CompanyContent {...companyContentProps} />;
       case "account-plan": return <BillingTab />;
+      case "account-referrals": return <ReferralProgram />;
       case "account-support": return <SupportTicketsTab />;
 
       // Módulos e Campos

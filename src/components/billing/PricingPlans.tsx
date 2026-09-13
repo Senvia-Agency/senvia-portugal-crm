@@ -130,7 +130,7 @@ export function PricingPlans({
             customVariants={revealVariants}
             className="mb-4 text-3xl font-medium text-gray-900 sm:text-4xl md:text-5xl"
           >
-            Planos que melhor se adequam ao seu{" "}
+            Um plano para o teu{" "}
             <TimelineContent
               as="span"
               animationNum={1}
@@ -148,16 +148,16 @@ export function PricingPlans({
             customVariants={revealVariants}
             className="mx-auto w-[85%] text-sm text-gray-600 sm:w-[70%] sm:text-base"
           >
-            CRM, vendas, marketing e caixas de entrada multicanal (WhatsApp, Instagram, Facebook e Email) num só lugar.
+            49 €/mês. Inclui 5 utilizadores; adiciona mais por 5 €/mês cada. CRM, vendas, marketing, financeiro e email num só lugar.
           </TimelineContent>
         </div>
       )}
 
       <TimelineContent as="div" animationNum={3} timelineRef={ref} customVariants={revealVariants}>
-        <PricingSwitch period={period} onChange={onPeriodChange} />
+        <p className="text-center text-sm text-gray-700">Faturação mensal · Utilizadores atuais mantêm os limites contratados</p>
       </TimelineContent>
 
-      <div className="relative mx-auto grid max-w-7xl gap-4 py-6 md:grid-cols-3">
+      <div className="relative mx-auto grid max-w-xl gap-4 py-6">
         {STRIPE_PLANS.map((plan, index) => {
           const popular = !!plan.highlighted;
           const isCurrent = currentPlanId === plan.id;

@@ -4,9 +4,9 @@
 
 // ─── Plan Tier Ranking ───
 export const PLAN_RANK: Record<string, number> = {
-  basic: 0,
-  starter: 0,
-  pro: 1,
+  basic: 2,
+  starter: 2,
+  pro: 2,
   elite: 2,
 };
 
@@ -22,22 +22,22 @@ export const MODULE_REQUIRED_RANK: Record<string, number> = {
 
 // ─── Module Required Plan Name (para upsell messaging) ───
 export const MODULE_REQUIRED_PLAN: Record<string, string> = {
-  marketing: 'Pro',
-  finance: 'Elite',
-  ecommerce: 'Elite',
-  prospects: 'Elite',
+  marketing: 'SENVIA OS',
+  finance: 'SENVIA OS',
+  ecommerce: 'SENVIA OS',
+  prospects: 'SENVIA OS',
 };
 
 // ─── Default Plan Features (fallback quando a BD não devolve nada) ───
 export const DEFAULT_PLAN_FEATURES = {
   id: 'starter',
-  name: 'Starter',
-  modules: { sales: true, finance: false, marketing: false, ecommerce: false },
-  integrations: { invoicing: false, meta_pixels: true, stripe: false },
-  featureFlags: { conversational_forms: false, multi_org: false, push_notifications: false, fidelization_alerts: false },
+  name: 'SENVIA OS',
+  modules: { sales: true, finance: true, marketing: true, ecommerce: false },
+  integrations: { invoicing: true, meta_pixels: true, stripe: true },
+  featureFlags: { conversational_forms: true, multi_org: true, push_notifications: true, fidelization_alerts: true },
   max_users: 5,
-  max_forms: 5,
-  max_inboxes: 2,
+  max_forms: null,
+  max_inboxes: null,
   price_monthly: 49,
 };
 
@@ -48,10 +48,10 @@ export const DEFAULT_MODULES = {
   sales: true,
   ecommerce: false,
   clients: true,
-  marketing: false,
-  finance: false,
+  marketing: true,
+  finance: true,
   energy: true,
-  prospects: false,
+  prospects: true,
   inbox: true,
 };
 

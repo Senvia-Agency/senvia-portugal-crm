@@ -20,10 +20,10 @@ export interface StripePlan {
 // Caixas de entrada são multicanal: cada caixa pode ligar WhatsApp, Instagram,
 // Facebook (Messenger) ou Email, e todas as conversas chegam num só lugar.
 export const INBOX_EXPLAINER =
-  "Caixas de entrada multicanal: liga WhatsApp, Instagram, Facebook e Email e responde a tudo num só lugar.";
+  "Caixas de entrada de email. Os canais WhatsApp, Instagram e Messenger estão em preparação.";
 
 // Annual billing is ~35% cheaper than paying month-to-month.
-export const YEARLY_DISCOUNT_PCT = 35;
+export const YEARLY_DISCOUNT_PCT = 0;
 
 export type BillingPeriod = "monthly" | "yearly";
 
@@ -31,86 +31,16 @@ export type BillingPeriod = "monthly" | "yearly";
 export const monthlyPrice = (plan: StripePlan, period: BillingPeriod) =>
   period === "yearly" ? Math.round(plan.priceYearly / 12) : plan.priceMonthly;
 
-export const STRIPE_PLANS: StripePlan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    priceId: "price_1T2uHzLWnA81DzXTHdexakfL",
-    productId: "prod_U0wAc7Tuy8w6gA",
-    priceMonthly: 49,
-    priceYearly: 384,
-    priceIdYearly: "price_1Tjgi1LWnA81DzXT4ohYyoNz",
-    description: "Ideal para começar a organizar os seus leads e clientes.",
-    modules: [
-      "CRM Base (Leads + Clientes)",
-      "Calendário",
-      "Propostas",
-      "Vendas + Comissões",
-    ],
-    integrations: ["Meta Pixels"],
-    limits: { users: "Até 5", forms: "5 formulários", inboxes: "2 caixas de entrada" },
-    features: [
-      "CRM base (Leads + Clientes)",
-      "Até 5 utilizadores",
-      "5 formulários",
-      "2 caixas de entrada (WhatsApp, Instagram, Facebook, Email)",
-      "Calendário e propostas",
-      "Vendas + Comissões",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    priceId: "price_1T2uNiLWnA81DzXTMDKqXDEI",
-    productId: "prod_U0wGoA4odOBHOZ",
-    priceMonthly: 99,
-    priceYearly: 768,
-    priceIdYearly: "price_1Tjgi2LWnA81DzXTXi3Szxoj",
-    highlighted: true,
-    description: "Para equipas que querem vender mais com automação.",
-    modules: [
-      "Tudo do Starter +",
-      "Módulo Vendas + Comissões",
-      "Módulo Marketing",
-    ],
-    integrations: ["WhatsApp", "Meta Pixels"],
-    limits: { users: "Até 15", forms: "15 formulários", inboxes: "10 caixas de entrada" },
-    features: [
-      "Tudo do Starter +",
-      "Módulo Vendas + Comissões",
-      "Módulo Marketing",
-      "Integração WhatsApp",
-      "Até 15 utilizadores",
-      "15 formulários",
-      "10 caixas de entrada (WhatsApp, Instagram, Facebook, Email)",
-    ],
-  },
-  {
-    id: "elite",
-    name: "Elite",
-    priceId: "price_1T2uO5LWnA81DzXT1V2bp77s",
-    productId: "prod_U0wG6doz0zgZFV",
-    priceMonthly: 147,
-    priceYearly: 1152,
-    priceIdYearly: "price_1Tjgi2LWnA81DzXTSqJEfPOZ",
-    description: "Controlo total do negócio, sem limites.",
-    modules: [
-      "Tudo do Pro +",
-      "Módulo Financeiro",
-      "Módulo E-commerce",
-    ],
-    integrations: ["WhatsApp", "Meta Pixels", "Faturação (KeyInvoice, InvoiceXpress)", "Pagamentos (Stripe)"],
-    limits: { users: "Ilimitados", forms: "Ilimitados", inboxes: "Caixas ilimitadas" },
-    features: [
-      "Tudo do Pro +",
-      "Módulo Financeiro",
-      "Módulo E-commerce",
-      "Utilizadores ilimitados",
-      "Formulários ilimitados",
-      "Caixas de entrada ilimitadas (WhatsApp, Instagram, Facebook, Email)",
-    ],
-  },
-];
-
-export const getPlanById = (id: string) => STRIPE_PLANS.find((p) => p.id === id);
-export const getPlanByProductId = (productId: string) => STRIPE_PLANS.find((p) => p.productId === productId);
+export const SENVIA_OS_PLAN: StripePlan = {
+  id: "starter", name: "SENVIA OS",
+  priceId: "price_1T2uHzLWnA81DzXTHdexakfL", productId: "prod_U0wAc7Tuy8w6gA",
+  priceMonthly: 49, priceYearly: 588,
+  description: "Todas as funcionalidades, com uma equipa à tua medida.",
+  modules: ["Leads e clientes", "Calendário e propostas", "Vendas e comissões", "Marketing", "Financeiro", "Prospects", "Caixa de entrada de email"],
+  integrations: ["Meta Pixels", "Faturação (KeyInvoice, InvoiceXpress)", "Pagamentos (Stripe)"],
+  limits: { users: "Até 5", forms: "Formulários ilimitados", inboxes: "Caixas ilimitadas" },
+  features: ["Todas as funcionalidades", "5 utilizadores incluídos", "Utilizadores adicionais a 5 €/mês", "Formulários e caixas de entrada ilimitados"],
+};
+export const STRIPE_PLANS: StripePlan[] = [SENVIA_OS_PLAN];
+export const getPlanById = (id: string) => ['basic', 'starter', 'pro', 'elite'].includes(id) ? STRIPE_PLANS[0] : undefined;
+export const getPlanByProductId = (id: string) => ['prod_U0wAc7Tuy8w6gA', 'prod_U0wGoA4odOBHOZ', 'prod_U0wG6doz0zgZFV'].includes(id) ? STRIPE_PLANS[0] : undefined;

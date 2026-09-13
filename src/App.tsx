@@ -38,7 +38,6 @@ const Finance = lazy(() => import("./pages/Finance"));
 const FinancePayments = lazy(() => import("./pages/finance/Payments"));
 const FinanceInvoices = lazy(() => import("./pages/finance/Invoices"));
 const FinanceExpenses = lazy(() => import("./pages/finance/Expenses"));
-const Ecommerce = lazy(() => import("./pages/Ecommerce"));
 const Marketing = lazy(() => import("./pages/Marketing"));
 const MarketingTemplates = lazy(() => import("./pages/marketing/Templates"));
 const MarketingCampaigns = lazy(() => import("./pages/marketing/Campaigns"));
@@ -47,12 +46,6 @@ const MarketingReports = lazy(() => import("./pages/marketing/Reports"));
 const MarketingLists = lazy(() => import("./pages/marketing/Lists"));
 const Automations = lazy(() => import("./pages/Automations"));
 const AutomationEditor = lazy(() => import("./pages/AutomationEditor"));
-const EcommerceProducts = lazy(() => import("./pages/ecommerce/Products"));
-const EcommerceOrders = lazy(() => import("./pages/ecommerce/Orders"));
-const EcommerceCustomers = lazy(() => import("./pages/ecommerce/Customers"));
-const EcommerceInventory = lazy(() => import("./pages/ecommerce/Inventory"));
-const EcommerceDiscounts = lazy(() => import("./pages/ecommerce/Discounts"));
-const EcommerceReports = lazy(() => import("./pages/ecommerce/Reports"));
 const PublicLeadForm = lazy(() => import("./pages/PublicLeadForm"));
 const ConversationalLeadForm = lazy(() => import("./pages/ConversationalLeadForm"));
 const Pricing = lazy(() => import("./pages/Pricing"));
@@ -154,13 +147,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                   <Route path="/financeiro/pagamentos" element={<FinancePayments />} />
                   <Route path="/financeiro/faturas" element={<FinanceInvoices />} />
                   <Route path="/financeiro/despesas" element={<FinanceExpenses />} />
-                  <Route path="/ecommerce" element={<Ecommerce />} />
-                  <Route path="/ecommerce/products" element={<EcommerceProducts />} />
-                  <Route path="/ecommerce/orders" element={<EcommerceOrders />} />
-                  <Route path="/ecommerce/customers" element={<EcommerceCustomers />} />
-                  <Route path="/ecommerce/inventory" element={<EcommerceInventory />} />
-                  <Route path="/ecommerce/discounts" element={<EcommerceDiscounts />} />
-                  <Route path="/ecommerce/reports" element={<EcommerceReports />} />
+                  <Route path="/ecommerce/*" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/templates" element={<MarketingTemplates />} />

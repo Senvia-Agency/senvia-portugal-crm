@@ -1,3 +1,4 @@
+import { toOpenClawInput, fromOpenClawResponse } from './openclaw.ts';
 // AI provider client. Model + endpoint are configurable via env vars so the
 // deploy can switch models without code changes. Defaults reproduce the legacy
 // otto-chat behaviour exactly (Gemini 2.5 Flash via the OpenAI-compat gateway).
@@ -17,6 +18,8 @@ export interface AIConfig {
   model: string;
   baseUrl: string;
   apiKey: string;
+  openclaw?: boolean;
+  responses?: boolean;
 }
 
 export interface AIConfigs {
@@ -29,7 +32,7 @@ export interface AIConfigs {
 // chat-completions endpoint this client POSTs to. A URL that already targets a
 // completions path is left untouched.
 function normalizeBase(url: string): string {
-  if (/\/(chat\/)?completions(\?|#|$)/.test(url)) return url;
+  if (/\/(responses|(chat\/)?completions)(\?|#|$)/.test(url)) return url;
   return url.replace(/\/+$/, "") + "/chat/completions";
 }
 
@@ -46,6 +49,8 @@ export function getAIConfigs(): AIConfigs {
     model: ottoModel || DEFAULT_MODEL,
     baseUrl: ottoBase ? normalizeBase(ottoBase) : DEFAULT_BASE,
     apiKey,
+    responses: Deno.env.get('OTTO_API_STYLE') === 'openclaw-responses',
+    openclaw: /^(openclaw(?:[/:]|$)|agent:)/.test(ottoModel || "") || Deno.env.get('OTTO_API_STYLE')?.startsWith('openclaw') === true,
   };
 
   // A distinct Gemini fallback only makes sense when an OTTO_* override is in play
@@ -74,8 +79,20 @@ export async function chatCompletion(cfg: AIConfig, payload: ChatPayload): Promi
   };
   if (payload.tools && payload.tools.length > 0) body.tools = payload.tools;
 
+  if (cfg.responses) {
+    const url = cfg.baseUrl.replace(/\/chat\/completions$/, '/responses');
+    const resp = await fetch(url, {
+      method: 'POST', signal: AbortSignal.timeout(90000),
+      headers: { Authorization: 'Bearer ' + cfg.apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: cfg.model, input: toOpenClawInput(payload.messages), stream: false,
+        tools: (payload.tools || []).map(tool => ({ type: 'function', ...tool.function })) }),
+    });
+    if (!resp.ok) return resp;
+    return new Response(JSON.stringify(fromOpenClawResponse(await resp.json())), { headers: { 'Content-Type': 'application/json' } });
+  }
   return await fetch(cfg.baseUrl, {
     method: "POST",
+    signal: AbortSignal.timeout(90000),
     headers: {
       Authorization: `Bearer ${cfg.apiKey}`,
       "Content-Type": "application/json",
@@ -104,6 +121,7 @@ async function attemptWithRetry(cfg: AIConfig, payload: ChatPayload): Promise<Re
     return resp;
   }
   console.error(`[otto] ${cfg.model} returned ${resp.status}; retrying once after backoff.`);
+  await resp.body?.cancel();
   await new Promise((r) => setTimeout(r, 600));
   return await chatCompletion(cfg, payload);
 }
@@ -114,13 +132,13 @@ async function attemptWithRetry(cfg: AIConfig, payload: ChatPayload): Promise<Re
 export async function chatCompletionResilient(cfgs: AIConfigs, payload: ChatPayload): Promise<ResilientResult> {
   try {
     const resp = await attemptWithRetry(cfgs.primary, payload);
-    if (resp.ok || !cfgs.fallback || resp.status === 429 || resp.status === 402) {
+    if (resp.ok || !cfgs.fallback || cfgs.primary.openclaw || resp.status === 429 || resp.status === 402) {
       return { resp, provider: "primary", model: cfgs.primary.model };
     }
     console.error(`[otto] primary AI returned ${resp.status}; falling back to Gemini.`);
     return { resp: await attemptWithRetry(cfgs.fallback, payload), provider: "fallback", model: cfgs.fallback.model };
   } catch (e) {
-    if (cfgs.fallback) {
+    if (cfgs.fallback && !cfgs.primary.openclaw) {
       console.error(`[otto] primary AI threw (${(e as Error).message}); falling back to Gemini.`);
       return { resp: await attemptWithRetry(cfgs.fallback, payload), provider: "fallback", model: cfgs.fallback.model };
     }

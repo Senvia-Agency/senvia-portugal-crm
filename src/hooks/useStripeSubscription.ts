@@ -48,7 +48,7 @@ export function useStripeSubscription() {
   const query = useQuery<SubscriptionStatus | null>({
     queryKey: ['stripe-subscription', organization?.id ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('check-subscription');
+      const { data, error } = await supabase.functions.invoke('check-subscription', { body: { organization_id: organization?.id } });
       if (error) throw error;
       return data as SubscriptionStatus;
     },
@@ -69,7 +69,7 @@ export function useStripeSubscription() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId },
+        body: { priceId, organization_id: organization?.id },
       });
       if (error) throw error;
       if (data?.url) {
@@ -90,12 +90,12 @@ export function useStripeSubscription() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, organization?.id]);
 
   const openCustomerPortal = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('customer-portal');
+      const { data, error } = await supabase.functions.invoke('customer-portal', { body: { organization_id: organization?.id } });
       if (error) throw error;
       if (data?.url) {
         const isPWA = window.matchMedia('(display-mode: standalone)').matches;
@@ -115,7 +115,7 @@ export function useStripeSubscription() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, organization?.id]);
 
   return {
     isLoading,

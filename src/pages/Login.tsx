@@ -350,6 +350,7 @@ export default function Login() {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
+            referral_code: searchParams.get('ref') || undefined,
             full_name: signupFullName,
             organization_name: organizationName,
             organization_slug: organizationSlug,

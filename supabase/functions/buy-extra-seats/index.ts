@@ -31,11 +31,11 @@ serve(async (req) => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
+      { auth: { persistSession: false } }
     );
 
     // Get user and org from JWT
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    const { data: { user }, error: userErr } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (userErr || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
@@ -49,75 +49,20 @@ serve(async (req) => {
     const body: RequestBody = await req.json();
     let orgId: string | null = body.organization_id ?? null;
 
-    if (orgId) {
-      // Duas vias legítimas para gerir lugares de uma organização: ser super
-      // admin da plataforma, ou ser administrador dessa própria organização.
-      //
-      // Antes só existia a segunda, apesar do comentário prometer a primeira —
-      // e como a agência NÃO é membro das organizações dos seus clientes, o
-      // caminho que existia para o super admin devolvia sempre 403. Gerir
-      // lugares de um cliente a partir do CRM era impossível.
-      const { data: isSuperAdmin } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .maybeSingle();
-
-      if (!isSuperAdmin) {
-        const { data: memberData } = await supabase
-          .from("organization_members")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("organization_id", orgId)
-          .eq("is_active", true)
-          .maybeSingle();
-
-        if (!memberData || memberData.role !== "admin") {
-          return new Response(
-            JSON.stringify({ error: "Apenas administradores podem gerir utilizadores extra" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
-    } else {
-      // A organização do próprio utilizador. `profiles` identifica-se por `id`,
-      // não por `user_id` — a coluna nem existe, por isso esta consulta falhava
-      // sempre e até um cliente a comprar lugares para si próprio apanhava
-      // "Organização não encontrada".
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("id", user.id)
-        .maybeSingle();
-      orgId = profile?.organization_id ?? null;
-
-      // Um utilizador pode pertencer a várias organizações e o perfil aponta
-      // apenas para uma. Se não houver, usa-se a filiação activa.
-      if (!orgId) {
-        const { data: membership } = await supabase
-          .from("organization_members")
-          .select("organization_id")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        orgId = membership?.organization_id ?? null;
-      }
-    }
-
     if (!orgId) {
-      return new Response(
-        JSON.stringify({ error: "Organização não encontrada" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const { data: memberships, error } = await supabase.from('organization_members')
+        .select('organization_id').eq('user_id', user.id).eq('is_active', true).limit(2);
+      if (error) throw error;
+      if (memberships?.length !== 1) return new Response(JSON.stringify({ error: 'Seleciona uma organização.' }), { status: 400, headers: corsHeaders });
+      orgId = memberships[0].organization_id;
     }
+    const { data: allowed, error: permissionError } = await supabase.rpc('is_org_admin', { _user_id: user.id, _org_id: orgId });
+    if (permissionError || allowed !== true) return new Response(JSON.stringify({ error: 'Sem permissão para gerir utilizadores.' }), { status: 403, headers: corsHeaders });
 
     // Get org data
     const { data: org, error: orgErr } = await supabase
       .from("organizations")
-      .select("plan, extra_seats, extra_seats_stripe_price_id, stripe_customer_id")
+      .select("plan, extra_seats, extra_seats_stripe_price_id")
       .eq("id", orgId)
       .single();
 
@@ -135,7 +80,8 @@ serve(async (req) => {
       );
     }
 
-    const quantity = Math.max(0, body.quantity ?? 0);
+    const quantity = body.quantity ?? 0;
+    if (!Number.isSafeInteger(quantity) || quantity < 0 || quantity > 10000) return new Response(JSON.stringify({ error: 'Quantidade inválida.' }), { status: 400, headers: corsHeaders });
     const currentExtra = org.extra_seats ?? 0;
 
     if (quantity === currentExtra) {
@@ -145,79 +91,29 @@ serve(async (req) => {
       );
     }
 
-    // Update org with new extra seats count
-    const { error: updateErr } = await supabase
-      .from("organizations")
-      .update({
-        extra_seats: quantity,
-        extra_seats_stripe_price_id: quantity > 0 ? EXTRA_SEAT_PRICE : null,
-      })
-      .eq("id", orgId);
-
-    if (updateErr) throw updateErr;
-
-    // If org has a Stripe customer and subscription, update the subscription item
-    if (org.stripe_customer_id) {
-      const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-      if (!stripeKey) {
-        console.warn("No STRIPE_SECRET_KEY configured — extra seats updated but no Stripe sync");
-        return new Response(
-          JSON.stringify({
-            message: "Utilizadores extra atualizados sem faturação Stripe",
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
+    const { data: binding, error: bindingError } = await supabase.from('organization_billing_accounts')
+      .select('stripe_customer_id, stripe_subscription_id').eq('organization_id', orgId).maybeSingle();
+    if (bindingError) throw bindingError;
+    if (binding?.stripe_subscription_id) {
+      const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+      if (!stripeKey) throw new Error('Stripe unavailable');
       const stripe = new Stripe(stripeKey);
-
-      if (quantity > 0) {
-        // Find or create subscription item
-        const subscriptions = await stripe.subscriptions.list({
-          customer: org.stripe_customer_id,
-          limit: 1,
-        });
-
-        if (subscriptions.data.length > 0) {
-          const sub = subscriptions.data[0];
-          const existingItem = sub.items.data.find(
-            (item: any) => item.price.id === EXTRA_SEAT_PRICE
-          );
-
-          if (existingItem) {
-            await stripe.subscriptionItems.update(existingItem.id, {
-              quantity,
-            });
-          } else if (quantity > 0) {
-            await stripe.subscriptionItems.create({
-              subscription: sub.id,
-              price: EXTRA_SEAT_PRICE,
-              quantity,
-            });
-          }
-        } else {
-          // No subscription — return success (extra seats stored, billing will be handled by webhook on next upgrade)
-          console.warn("No active subscription found for org", orgId);
-        }
-      } else {
-        // Remove all extra seat subscription items
-        const subscriptions = await stripe.subscriptions.list({
-          customer: org.stripe_customer_id,
-          limit: 1,
-        });
-
-        if (subscriptions.data.length > 0) {
-          const sub = subscriptions.data[0];
-          const extraItems = sub.items.data.filter(
-            (item: any) => item.price.id === EXTRA_SEAT_PRICE
-          );
-
-          for (const item of extraItems) {
-            await stripe.subscriptionItems.del(item.id);
-          }
-        }
+      const sub = await stripe.request('GET', '/subscriptions/' + binding.stripe_subscription_id);
+      const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
+      if (customerId !== binding.stripe_customer_id) throw new Error('Billing customer mismatch');
+      if (['active','trialing','past_due'].includes(sub.status)) {
+        const extras = sub.items.data.filter((item: any) => item.price.id === EXTRA_SEAT_PRICE);
+        if (extras.length > 1) throw new Error('Duplicate seat items require review');
+        if (quantity === 0 && extras[0]) await stripe.subscriptionItems.del(extras[0].id);
+        else if (extras[0]) await stripe.subscriptionItems.update(extras[0].id, { quantity });
+        else if (quantity > 0) await stripe.subscriptionItems.create({ subscription: sub.id, price: EXTRA_SEAT_PRICE, quantity });
       }
     }
+    // Persist only after Stripe accepted the update; errors must not grant unpaid seats.
+    const { error: updateErr } = await supabase.from('organizations').update({
+      extra_seats: quantity, extra_seats_stripe_price_id: quantity > 0 ? EXTRA_SEAT_PRICE : null,
+    }).eq('id', orgId);
+    if (updateErr) throw updateErr;
 
     return new Response(
       JSON.stringify({

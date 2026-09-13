@@ -1,4 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { loadRecipientHistory, matchRecipients, type RecipientSuggestion } from '@/lib/email-recipient-history';
+export type { RecipientSuggestion } from '@/lib/email-recipient-history';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -114,7 +117,15 @@ export const COMMAND_LABELS: Record<string, string> = {
   flag: 'Marcar com estrela', unflag: 'Remover estrela',
   mark_folder_read: 'Marcar pasta como lida', load_older: 'Carregar mais antigos',
   sync_unread: 'Procurar não lidos', fetch_attachment: 'Obter anexo',
+  fetch_body: 'Carregar conteúdo do email',
 };
+
+export function emailCommandErrorMessage(error: string | null | undefined): string | undefined {
+  if (error?.includes('tipo desconhecido: fetch_body')) {
+    return 'Esta tentativa de carregar o conteúdo falhou. Abre novamente o email.';
+  }
+  return error || undefined;
+}
 
 export function useEmailRealtime(channelId: string | null) {
   const qc = useQueryClient();
@@ -124,7 +135,9 @@ export function useEmailRealtime(channelId: string | null) {
     const channel = supabase
       .channel(`email-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'email_messages', filter: `channel_id=eq.${channelId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['email-recipient-history', channelId] });
         qc.invalidateQueries({ queryKey: ['email-messages'] });
+        qc.invalidateQueries({ queryKey: ['email-message'] });
         qc.invalidateQueries({ queryKey: ['email-folders', channelId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'email_folders', filter: `channel_id=eq.${channelId}` }, () => {
@@ -136,11 +149,18 @@ export function useEmailRealtime(channelId: string | null) {
       // The gateway marks a queued action 'error' when it fails (e.g. IMAP/SMTP
       // hiccup) — without this, the optimistic UI update (archived/deleted/etc.)
       // just silently stays wrong until the next full resync. Surface it instead.
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'email_commands', filter: `channel_id=eq.${channelId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_commands', filter: `channel_id=eq.${channelId}` }, (payload) => {
+        qc.invalidateQueries({ queryKey: ['email-command-activity', channelId] });
+        qc.invalidateQueries({ queryKey: ['email-command-failures', channelId] });
+        qc.invalidateQueries({ queryKey: ['email-message'] });
         const row = payload.new as { type?: string; status?: string; error?: string } | undefined;
+        if (row?.type === 'send' && row.status === 'done') {
+          qc.invalidateQueries({ queryKey: ['email-recipient-history', channelId] });
+          toast({ title: 'Email enviado' });
+        }
         if (row?.status !== 'error') return;
         const label = (row.type && COMMAND_LABELS[row.type]) || 'Uma ação de email';
-        toast({ title: `${label} falhou`, description: row.error || undefined, variant: 'destructive' });
+        toast({ title: `${label} falhou`, description: emailCommandErrorMessage(row.error), variant: 'destructive' });
         // The optimistic patch this command made (e.g. removing a message from
         // the list) is now known-wrong — reconcile from the DB.
         qc.invalidateQueries({ queryKey: ['email-messages'] });
@@ -151,11 +171,28 @@ export function useEmailRealtime(channelId: string | null) {
   }, [channelId, qc, toast]);
 }
 
+/** Durable queue progress survives closing the composer or reloading the page. */
+export function useEmailCommandActivity(channelId: string | null) {
+  return useQuery({
+    queryKey: ['email-command-activity', channelId],
+    enabled: !!channelId,
+    queryFn: async (): Promise<{ pending: number; sends: number }> => {
+      const { data, error } = await db.from('email_commands')
+        .select('type').eq('channel_id', channelId).in('status', ['pending', 'processing']);
+      if (error) throw error;
+      return { pending: data.length, sends: data.filter((row: { type: string }) => row.type === 'send').length };
+    },
+    refetchInterval: 5000,
+    staleTime: 3000,
+  });
+}
+
 export interface EmailCommandFailure {
   id: string;
   type: string;
   error: string | null;
   created_at: string;
+  message_id?: string | null;
 }
 
 /**
@@ -176,7 +213,7 @@ export function useEmailCommandFailures(channelId: string | null) {
       const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await db
         .from('email_commands')
-        .select('id, type, error, created_at')
+        .select('id, type, error, created_at, message_id:payload->>messageId')
         .eq('channel_id', channelId)
         .eq('status', 'error')
         .gte('created_at', desde)
@@ -184,81 +221,79 @@ export function useEmailCommandFailures(channelId: string | null) {
         .limit(20);
       if (error) throw error;
 
+      const failures = (data || []) as EmailCommandFailure[];
+      const bodyIds = failures.filter(f => f.type === 'fetch_body' && f.message_id).map(f => f.message_id!);
+      const resolvedBodies = new Set<string>();
+      if (bodyIds.length) {
+        const { data: resolved } = await db.from('email_messages').select('id').in('id', bodyIds).eq('body_fetched', true);
+        for (const message of resolved || []) resolvedBodies.add(message.id);
+      }
+
       // "Mensagem inexistente" num comando que servia para TIRAR a mensagem da
       // pasta não é uma falha: o fim que se queria já aconteceu. É o que sai
       // quando se carrega duas vezes, ou quando a mensagem foi apagada noutro
       // lado. Avisar disto é assustar com uma coisa que correu bem.
       const remocao = new Set(['delete', 'archive', 'spam', 'move']);
-      return ((data || []) as EmailCommandFailure[]).filter((f) =>
-        !(remocao.has(f.type) && /inexistente|not found|no such/i.test(f.error ?? '')));
+      return failures.filter((f) =>
+        !(f.type === 'fetch_body' && f.message_id && resolvedBodies.has(f.message_id))
+        && !(remocao.has(f.type) && /inexistente|not found|no such/i.test(f.error ?? '')));
     },
     enabled: !!channelId,
     refetchInterval: 60_000,
   });
 }
 
-export interface RecipientSuggestion {
-  name: string;
-  address: string;
-  // 'crm' = a lead/client with this email; 'recent' = someone who has emailed
-  // this caixa before. Lets the autocomplete badge show WHY it's suggested —
-  // the advantage a CRM-integrated inbox has over a plain mail client.
-  source: 'crm' | 'recent';
-}
-
-// Recipient autocomplete for the composer's To/Cc/Bcc fields: matches CRM
-// leads/clients by name or email, plus people who have previously emailed this
-// caixa (distinct senders from email_messages). Strips PostgREST filter-syntax
-// metacharacters from the query so typed text can never break/inject into the
-// .or() filter string.
+// Sent recipients are cached per mailbox, organization and signed-in user.
+// No addresses are persisted in browser storage on a shared computer.
 export function useEmailRecipientSuggestions(
   term: string,
   channelId: string | null,
   organizationId: string | undefined,
 ) {
-  const safe = term.trim().replace(/[(),*]/g, '');
-  return useQuery({
-    queryKey: ['email-recipient-suggestions', organizationId, channelId, safe],
+  const { user } = useAuth();
+  const [debouncedTerm, setDebouncedTerm] = useState(term);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedTerm(term), 200);
+    return () => window.clearTimeout(timer);
+  }, [term]);
+  const history = useQuery({
+    queryKey: ['email-recipient-history', channelId, organizationId, user?.id],
+    queryFn: () => loadRecipientHistory(db, organizationId!, channelId!, user!.id),
+    enabled: !!channelId && !!organizationId && !!user?.id,
+    staleTime: 5 * 60_000,
+  });
+  // Strip PostgREST filter metacharacters from typed text.
+  const safe = debouncedTerm.trim().replace(/[(),*%"\\]/g, '');
+  const contacts = useQuery({
+    queryKey: ['email-recipient-suggestions', organizationId, channelId, user?.id, safe],
     queryFn: async (): Promise<RecipientSuggestion[]> => {
-      if (safe.length < 2) return [];
       const results: RecipientSuggestion[] = [];
-      const seen = new Set<string>();
       const push = (name: string | null, address: string | null, source: 'crm' | 'recent') => {
         const addr = (address || '').trim().toLowerCase();
-        if (!addr || seen.has(addr)) return;
-        seen.add(addr);
-        results.push({ name: name || addr, address: addr, source });
+        if (addr) results.push({ name: name || addr, address: addr, source });
       };
-
-      if (organizationId) {
-        const [{ data: clients }, { data: leads }] = await Promise.all([
-          supabase.from('crm_clients').select('name, email')
-            .eq('organization_id', organizationId).not('email', 'is', null)
-            .or(`name.ilike.%${safe}%,email.ilike.%${safe}%`).limit(5),
-          supabase.from('leads').select('name, email')
-            .eq('organization_id', organizationId).not('email', 'is', null)
-            .or(`name.ilike.%${safe}%,email.ilike.%${safe}%`).limit(5),
-        ]);
-        for (const c of clients ?? []) push(c.name, c.email, 'crm');
-        for (const l of leads ?? []) push(l.name, l.email, 'crm');
-      }
-
-      if (channelId && results.length < 6) {
-        const { data: recents } = await db
-          .from('email_messages')
-          .select('from_name, from_address')
-          .eq('channel_id', channelId)
+      const [clients, leads, recents] = await Promise.all([
+        supabase.from('crm_clients').select('name, email')
+          .eq('organization_id', organizationId!).not('email', 'is', null)
+          .or(`name.ilike.%${safe}%,email.ilike.%${safe}%`).limit(5),
+        supabase.from('leads').select('name, email')
+          .eq('organization_id', organizationId!).not('email', 'is', null)
+          .or(`name.ilike.%${safe}%,email.ilike.%${safe}%`).limit(5),
+        channelId ? db.from('email_messages').select('from_name, from_address')
+          .eq('organization_id', organizationId).eq('channel_id', channelId)
           .or(`from_address.ilike.%${safe}%,from_name.ilike.%${safe}%`)
-          .order('date', { ascending: false })
-          .limit(20);
-        for (const r of recents ?? []) push(r.from_name, r.from_address, 'recent');
-      }
-
-      return results.slice(0, 6);
+          .order('date', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
+      ]);
+      for (const c of clients.data ?? []) push(c.name, c.email, 'crm');
+      for (const l of leads.data ?? []) push(l.name, l.email, 'crm');
+      for (const r of recents.data ?? []) push(r.from_name, r.from_address, 'recent');
+      return results;
     },
-    enabled: safe.length >= 2,
+    enabled: safe.length >= 2 && !!organizationId && !!user?.id,
     staleTime: 30_000,
   });
+  // History responds immediately; only remote CRM searches are debounced.
+  return { ...contacts, data: matchRecipients(term, history.data || [], contacts.data || []) };
 }
 
 export interface EmailDraft {

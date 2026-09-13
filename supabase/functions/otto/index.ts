@@ -1,3 +1,6 @@
+import { createClient as createAttachmentClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
+import { loadAttachmentParts } from './lib/attachments.ts';
+import { userRateLimit } from '../_shared/user-rate-limit.ts';
 // otto — Otto 2.0 platform agent. Modular successor to otto-chat:
 //   * registry-based tools (read + write + onboarding + support)
 //   * auto mode detection (onboarding vs support) from real org state
@@ -120,8 +123,9 @@ serve(async (req) => {
     // ── Load context (auth, org, permissions, onboarding, mode) ──
     const { ctx, hasDataAccess } = await loadContext(req, organization_id || null, attachment_paths);
     if (!hasDataAccess || !ctx || !ctx.userId) return jsonError("Sem acesso a esta organização", 403);
-    if (!await paidQuota(ctx.supabaseAdmin, `otto:user:${ctx.userId}`, 20, 60)
-      || !await paidQuota(ctx.supabaseAdmin, `otto:org:${ctx.orgId}`, 300, 86400)) {
+    const limitResponse = await userRateLimit(ctx.supabaseAdmin, ctx.userId, 'otto', corsHeaders);
+    if (limitResponse) return limitResponse;
+    if (!await paidQuota(ctx.supabaseAdmin, `otto:org:${ctx.orgId}`, 300, 86400)) {
       return jsonError("Limite de utilização atingido ou indisponível", 429);
     }
 
@@ -147,6 +151,20 @@ serve(async (req) => {
 
     const systemContent = buildSystemPrompt(ctx, { hasDataAccess, blockedLabels });
     let conversationMessages: any[] = [{ role: "system", content: systemContent }, ...messages];
+    if (attachment_paths?.length) {
+      const attachmentClient = createAttachmentClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: req.headers.get('Authorization')! } }, auth: { persistSession: false },
+      });
+      let parts;
+      try { parts = await loadAttachmentParts(attachmentClient.storage, attachment_paths, ctx.orgId); }
+      catch (error) { return jsonError((error as Error).message, 400); }
+      if (parts.some(part => part.type === 'file') && !aiConfigs.primary.responses) {
+        return jsonError('A leitura de PDF requer a ligação de documentos do Otto. Usa uma imagem ou um ficheiro de texto enquanto essa ligação é configurada.', 422);
+      }
+      const last = conversationMessages[conversationMessages.length - 1];
+      if (last.role !== 'user') return jsonError('Os anexos devem acompanhar uma mensagem tua.', 400);
+      last.content = [{ type: 'text', text: last.content }, ...parts];
+    }
 
     // ── Tool-calling loop ──
     for (let i = 0; i < MAX_ITERATIONS; i++) {

@@ -61,6 +61,7 @@ export function useModules() {
         }
       }
 
+      merged.ecommerce = false;
       return merged;
     },
     enabled: !!organizationId,

@@ -142,3 +142,33 @@ Omnichannel messaging built on **Chatwoot** (headless backend) + **Evolution API
 RLS mirrors `forms`: members SELECT, admins manage (`get_user_org_id` + `has_role('admin')`), super_admin full access. Edge functions (`whatsapp-connect`, `whatsapp-status`) use the service role and validate org-admin membership manually.
 
 Required Supabase secrets: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `CHATWOOT_URL`, `CHATWOOT_PLATFORM_TOKEN`.
+
+## Referral rewards (local migration, September 2026)
+
+Pending release: `20260912090000_referral_program.sql` defines permanent billing attribution. It has not been applied to production.
+
+- `referral_codes`: one random UUID invitation code per organization. Primary key/FK is `organization_id`; deleting an organization cannot cascade away its attribution.
+- `organization_referrals`: referring organization, unique referred organization, first qualifying paid invoice, optional reserved redemption invoice, redemption/revocation timestamps. Self-referrals are rejected. Invoice IDs are unique for retry safety.
+- Organization members can SELECT only their referring organization's records through RLS. Authenticated clients cannot insert/update/delete either ledger table. The dashboard RPC requires organization admin membership and returns only referred company names and reward state.
+- Signup attribution checks new organization ownership and the signup metadata code; adding a member to an existing organization does not earn a referral. Qualification and redemption RPCs are service-role only.
+- Rewards become eligible after a positive Stripe invoice payment, excluding out-of-band payments. A monthly renewal reserves one reward under an organization lock. Stripe invoice metadata and stable idempotency keys protect webhook retries. Unused qualified rewards have a partial index by organization and qualification date.
+- No automatic reversal for refunds/chargebacks is defined in this release. `revoked_at` is reserved for a separately agreed policy; do not delete accounting history.
+
+## User action limiter (local migration, September 2026)
+
+`20260912091000_user_action_rate_limit.sql` extends `rate_limit_hits` with a bounded rolling timestamp array. A transaction advisory lock serializes the action/user bucket. The first five requests in a rolling 60 seconds pass; later requests return a retry interval. The service-role RPC is not directly executable by customers. Email send commands enforce the same rule with an authenticated database trigger. Reads and polling are outside this action limiter.
+
+`20260912092000_single_plan_features.sql` retains legacy plan IDs and contracted user allowances while aligning features/prices. `20260912093000_support_attachment_types.sql` allows bounded support document formats and adds a restrictive organization-folder upload policy.
+
+### organization_billing_accounts (local migration 20260913100000)
+
+One permanent, service-owned Stripe binding per organization. organization_id is the primary key and restrictive FK; stripe_customer_id and stripe_subscription_id are unique. Status, interval, next renewal, cancellation and synchronization fields are webhook-derived snapshots for the referral dashboard. No client SELECT or write grants/policies; RLS is enabled. Admins only receive a safe summary via get_referral_dashboard, without Stripe identifiers. This prevents clients from replacing another tenant's customer association. Primary-key and unique indexes support org/customer/subscription lookups. Legacy bindings must be inventoried and approved before activation; never infer a tenant by an arbitrary first membership or unverified email match.
+
+### Referral audit migration (local, 20260913110000)
+
+Referral SELECT policies now require is_org_admin, matching dashboard permissions. qualify_referral preserves the earliest confirmed payment after registration; reserve_referral_month refuses reused revoked/consumed reservations. organization_billing_accounts adds collection_paused plus checkout_attempt, checkout_expires_at and checkout_parameters. All remain service-only. sync_referral_billing serializes current-subscription snapshots and rejects obsolete observations/subscriptions. claim_referral_checkout serializes a one-hour checkout attempt with stable parameters/idempotency key. No new table is introduced by this audit migration. get_referral_dashboard adds the safe collection_paused flag without exposing checkout parameters or Stripe identifiers.
+
+
+### Production activation, 2026-09-13
+
+The six prepared referral, action-limit, single-plan and support-attachment migrations were applied in one transaction after explicit publication approval. The known legacy Stripe customer was bound to Escolha Inteligente using matching Stripe invoice IDs in CRM sales. BDS Telecomunicações was attributed to Escolha Inteligente by explicit user instruction, with attribution dated to BDS creation and no qualified reward: no first payment was present in the CRM or available Stripe invoice history. The organizations' current access, exemptions, extra seats and limits were preserved.

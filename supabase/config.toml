@@ -225,3 +225,7 @@ verify_jwt = false
 # Reparacao conservadora dos dados recorrentes. DRY-RUN por omissao.
 [functions.repair-recurring-sales]
 verify_jwt = false
+
+# Validates the user JWT and reads the message through mailbox/MFA RLS.
+[functions.email-fetch-body]
+verify_jwt = false

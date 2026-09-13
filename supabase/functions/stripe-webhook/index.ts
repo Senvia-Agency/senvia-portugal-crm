@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { resolveBillingContext, shouldProcessBillingEvent, type BillingContext } from "../_shared/stripe-billing-context.ts";
+import { handleReferralEvent } from "../_shared/referrals.ts";
 import { rateLimit } from "../_shared/security.ts";
 
 const SENVIA_AGENCY_ORG_ID = "06fe9e1d-9670-45b0-8717-c5a6e90be380";
@@ -168,18 +170,21 @@ serve(async (req) => {
   );
 
   try {
+    await handleReferralEvent(supabase, stripe, event);
+    const billing = await resolveBillingContext(supabase, stripe, event);
+    if (!shouldProcessBillingEvent(event.type, billing)) {
+      return new Response(JSON.stringify({ received: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    const orgId = billing!.organizationId;
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = billing!.session as Stripe.Checkout.Session;
         if (session.mode !== "subscription") break;
         const email = session.customer_email || session.customer_details?.email;
-        if (!email) { logStep("No email in checkout session"); break; }
-        const subId = session.subscription as string;
-        const sub = await stripe.subscriptions.retrieve(subId);
+        const sub = billing!.subscription as Stripe.Subscription;
         const productId = sub.items.data[0].price.product as string;
         const plan = PRODUCT_TO_PLAN[productId];
 
-        const orgId = await findOrgByEmail(supabase, email);
         let isReactivation = false;
         if (orgId) {
           const { data: orgData } = await supabase
@@ -190,13 +195,13 @@ serve(async (req) => {
           isReactivation = !!(orgData?.plan || orgData?.payment_failed_at);
         }
 
-        if (plan) await updateOrgPlan(supabase, email, plan);
-        await clearPaymentFailed(supabase, email);
-        await markFirstPaid(supabase, email);
-        await setCurrentPeriodEnd(supabase, email, subPeriodEnd(sub));
-        await clearTempBillingExempt(supabase, email);
+        if (plan) await updateOrgPlan(supabase, orgId, plan);
+        await clearPaymentFailed(supabase, orgId);
+        await setCurrentPeriodEnd(supabase, orgId, subPeriodEnd(sub));
 
-        const orgName = await getOrgNameByEmail(supabase, email);
+        if (!email) { logStep("Checkout access updated; no contact email for notifications"); break; }
+
+        const orgName = await getOrgName(supabase, orgId);
 
         if (isReactivation) {
           await dispatchAutomation(supabase, "stripe_subscription_created", { email, plan: plan || "unknown", nome: orgName });
@@ -209,34 +214,34 @@ serve(async (req) => {
         break;
       }
       case "customer.subscription.updated": {
-        const sub = event.data.object as Stripe.Subscription;
+        const sub = billing!.subscription as Stripe.Subscription;
         const productId = sub.items.data[0].price.product as string;
         const plan = PRODUCT_TO_PLAN[productId];
         const customerId = sub.customer as string;
         const customer = await stripe.customers.retrieve(customerId);
         const email = (customer as Stripe.Customer).email;
 
-        if (plan && email) await updateOrgPlan(supabase, email, plan);
+        if (plan) await updateOrgPlan(supabase, orgId, plan);
+        if (sub.status === "past_due") await recordPaymentFailed(supabase, orgId);
+        if (sub.status === "active") {
+          await clearPaymentFailed(supabase, orgId);
+          await setCurrentPeriodEnd(supabase, orgId, subPeriodEnd(sub));
+        }
 
         if (email) {
-          const orgName = await getOrgNameByEmail(supabase, email);
+          const orgName = await getOrgName(supabase, orgId);
 
           if (sub.status === "past_due") {
-            await recordPaymentFailed(supabase, email);
             await dispatchAutomation(supabase, "stripe_subscription_past_due", { email, plan: plan || "unknown", nome: orgName });
             await syncStripeAutoLists(supabase, email, orgName, "past_due", plan || null);
           }
           if (sub.status === "active") {
-            await clearPaymentFailed(supabase, email);
-            await markFirstPaid(supabase, email);
-            await setCurrentPeriodEnd(supabase, email, subPeriodEnd(sub));
-            await clearTempBillingExempt(supabase, email);
             await dispatchAutomation(supabase, "stripe_subscription_renewed", { email, plan: plan || "unknown", nome: orgName });
             await syncStripeAutoLists(supabase, email, orgName, "renewed", plan || null);
 
             // Sync recurring_value when subscription items change (e.g., seat add/remove)
             if (plan) {
-              const clientOrgId = await findOrgByEmail(supabase, email);
+              const clientOrgId = orgId;
               if (clientOrgId) {
                 const recurringTotal = sub.items.data.reduce((sum: number, item: any) => {
                   if (item.price?.recurring && item.price.unit_amount != null) {
@@ -273,43 +278,35 @@ serve(async (req) => {
         break;
       }
       case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
+        const sub = billing!.subscription as Stripe.Subscription;
         const productId = sub.items?.data?.[0]?.price?.product as string | undefined;
         const plan = productId ? PRODUCT_TO_PLAN[productId] : undefined;
         const customerId = sub.customer as string;
         const customer = await stripe.customers.retrieve(customerId);
         const email = (customer as Stripe.Customer).email;
-        // A deleted Stripe customer carries no email. Without one we cannot find
-        // the org, so its plan would silently stay active forever — make that
-        // loud instead of dropping the event.
-        if (!email) {
-          logError("subscription.deleted: no email on customer — org plan NOT cleared", {
-            customerId, subscription: sub.id,
-          });
-        }
+        await updateOrgPlan(supabase, orgId, null);
+        await clearPaymentFailed(supabase, orgId);
         if (email) {
-          await updateOrgPlan(supabase, email, null);
-          await clearPaymentFailed(supabase, email);
-          const orgName = await getOrgNameByEmail(supabase, email);
+          const orgName = await getOrgName(supabase, orgId);
           await dispatchAutomation(supabase, "stripe_subscription_canceled", { email, plan: plan || "unknown", nome: orgName });
           await syncStripeAutoLists(supabase, email, orgName, "canceled", plan || null);
         }
         break;
       }
       case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = billing!.invoice as Stripe.Invoice;
         const email = invoice.customer_email;
         logStep("Payment failed", { customer: invoice.customer, email });
+        await recordPaymentFailed(supabase, orgId);
         if (email) {
-          await recordPaymentFailed(supabase, email);
-          const orgName = await getOrgNameByEmail(supabase, email);
+          const orgName = await getOrgName(supabase, orgId);
           await dispatchAutomation(supabase, "stripe_payment_failed", { email, plan: "unknown", nome: orgName });
           await syncStripeAutoLists(supabase, email, orgName, "payment_failed", null);
         }
         break;
       }
       case "invoice.paid": {
-        await handleInvoicePaid(supabase, stripe, event.data.object as Stripe.Invoice);
+        await handleInvoicePaid(supabase, stripe, billing!.invoice as Stripe.Invoice, billing!);
         break;
       }
       default:
@@ -331,7 +328,8 @@ serve(async (req) => {
 // Throws on failure. The caller returns 500 so Stripe retries the delivery —
 // previously every error here was swallowed and the webhook answered 200, which
 // told Stripe the payment had been processed and permanently dropped it.
-async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.Invoice) {
+async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.Invoice, billing: BillingContext) {
+  const orgId = billing.organizationId;
   {
     let email = invoice.customer_email;
     // customer_email can be absent; fall back to the customer object rather than
@@ -343,10 +341,6 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       } catch (e) {
         logError("invoice.paid: customer lookup failed", { error: (e as Error).message });
       }
-    }
-    if (!email) {
-      logError("invoice.paid: no email — cannot link payment to an organization", { invoice: invoice.id });
-      return;
     }
 
     const amount = (invoice.amount_paid || 0) / 100;
@@ -383,7 +377,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     }
     if (subId) {
       try {
-        const sub = await stripe.subscriptions.retrieve(subId);
+        const sub = billing.subscription as Stripe.Subscription;
         const productId = sub.items.data[0]?.price?.product as string;
         plan = PRODUCT_TO_PLAN[productId] || null;
         if (!plan) logError("invoice.paid: unknown Stripe product, plan not mapped", { productId, invoice: invoice.id });
@@ -404,7 +398,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
           }));
 
         const periodEndUnix = subPeriodEnd(sub);
-        await setCurrentPeriodEnd(supabase, email, periodEndUnix);
+        if (billing.current) await setCurrentPeriodEnd(supabase, orgId, periodEndUnix);
         if (periodEndUnix) {
           subscriptionRenewalDate = new Date(periodEndUnix * 1000).toISOString().split("T")[0];
         }
@@ -413,12 +407,10 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       }
     }
 
-    // Find the client organization by email
-    const clientOrgId = await findOrgByEmail(supabase, email);
+    const clientOrgId = orgId;
     if (!clientOrgId) { logStep("invoice.paid: no org found for email", { email }); return; }
 
-    await markFirstPaid(supabase, email);
-    await clearTempBillingExempt(supabase, email);
+    if (billing.current) await clearTempBillingExempt(supabase, orgId);
 
     // Compute payment date + period end
     const paidAtUnix = invoice.status_transitions?.paid_at ?? invoice.created;
@@ -560,7 +552,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     } else {
       sale = sales[0];
     }
-    if (sale) {
+    if (sale && billing.current) {
       // Update sale immediately — always, even if no salesperson assigned.
       // This guarantees recurring_status flips to 'active' and next_renewal_date
       // is set before any commission/payment logic that could fail.
@@ -961,9 +953,8 @@ async function dispatchAutomation(supabase: any, triggerType: string, record: Re
   }
 }
 
-async function getOrgNameByEmail(supabase: any, email: string): Promise<string> {
+async function getOrgName(supabase: any, orgId: string): Promise<string> {
   try {
-    const orgId = await findOrgByEmail(supabase, email);
     if (!orgId) return "";
     const { data } = await supabase.from("organizations").select("name").eq("id", orgId).maybeSingle();
     return data?.name || "";
@@ -972,30 +963,14 @@ async function getOrgNameByEmail(supabase: any, email: string): Promise<string> 
   }
 }
 
-async function findOrgByEmail(supabase: any, email: string) {
-  const { data: users, error: listErr } = await supabase.auth.admin.listUsers();
-  if (listErr) { logStep("Error listing users", { error: listErr.message }); return null; }
 
-  const user = users.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-  if (!user) { logStep("User not found", { email }); return null; }
-
-  const { data: member } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (!member) { logStep("No org membership found", { userId: user.id }); return null; }
-  return member.organization_id;
-}
-
-async function updateOrgPlan(supabase: any, email: string, plan: string | null) {
-  logStep("Updating org plan", { email, plan });
-  const orgId = await findOrgByEmail(supabase, email);
+async function updateOrgPlan(supabase: any, orgId: string, plan: string | null) {
+  logStep("Updating org plan", { orgId, plan });
   if (!orgId) return;
 
+  const { data: existing } = await supabase.from('organizations').select('plan').eq('id', orgId).single();
+  // Legacy ids retain the contracted seat allowance under the single-price plan.
+  if (plan === 'starter' && ['pro', 'elite'].includes(existing?.plan)) plan = existing.plan;
   const { error: updateErr } = await supabase
     .from("organizations")
     .update({ plan: plan || null })
@@ -1008,9 +983,8 @@ async function updateOrgPlan(supabase: any, email: string, plan: string | null) 
   }
 }
 
-async function recordPaymentFailed(supabase: any, email: string) {
-  logStep("Recording payment failure", { email });
-  const orgId = await findOrgByEmail(supabase, email);
+async function recordPaymentFailed(supabase: any, orgId: string) {
+  logStep("Recording payment failure", { orgId });
   if (!orgId) return;
 
   const { error } = await supabase
@@ -1026,27 +1000,11 @@ async function recordPaymentFailed(supabase: any, email: string) {
   }
 }
 
-// Marks the org as a paying customer on its first successful payment. Idempotent:
-// once first_paid_at is set, it never moves — even if a future payment fails,
-// the org is treated as a paying customer with an overdue renewal.
-async function markFirstPaid(supabase: any, email: string) {
-  const orgId = await findOrgByEmail(supabase, email);
-  if (!orgId) return;
-  const { error } = await supabase
-    .from("organizations")
-    .update({ first_paid_at: new Date().toISOString() })
-    .eq("id", orgId)
-    .is("first_paid_at", null);
-  if (error) logStep("Failed to mark first_paid_at", { error: error.message });
-  else logStep("first_paid_at marked (or already set)", { orgId });
-}
-
 // Persists the end of the current paid Stripe period — used by check-subscription
 // and the protected route to know when the next renewal is due (plus 4 days of
 // grace before blocking).
-async function setCurrentPeriodEnd(supabase: any, email: string, periodEndUnix: number | null | undefined) {
+async function setCurrentPeriodEnd(supabase: any, orgId: string, periodEndUnix: number | null | undefined) {
   if (!periodEndUnix || periodEndUnix <= 0) return;
-  const orgId = await findOrgByEmail(supabase, email);
   if (!orgId) return;
   const iso = new Date(periodEndUnix * 1000).toISOString();
   const { error } = await supabase
@@ -1061,8 +1019,7 @@ async function setCurrentPeriodEnd(supabase: any, email: string, periodEndUnix: 
 // (typical case: customer was late paying, we toggled exempt to let them in,
 // then they paid). Demo/partner orgs that are legitimately exempt have
 // first_paid_at IS NULL and stay exempt.
-async function clearTempBillingExempt(supabase: any, email: string) {
-  const orgId = await findOrgByEmail(supabase, email);
+async function clearTempBillingExempt(supabase: any, orgId: string) {
   if (!orgId) return;
   const { data: org } = await supabase
     .from("organizations")
@@ -1083,9 +1040,8 @@ async function clearTempBillingExempt(supabase: any, email: string) {
   else logStep("Temp billing_exempt cleared after Stripe payment", { orgId });
 }
 
-async function clearPaymentFailed(supabase: any, email: string) {
-  logStep("Clearing payment failure", { email });
-  const orgId = await findOrgByEmail(supabase, email);
+async function clearPaymentFailed(supabase: any, orgId: string) {
+  logStep("Clearing payment failure", { orgId });
   if (!orgId) return;
 
   const { error } = await supabase

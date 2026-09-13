@@ -1,4 +1,4 @@
-import { Building, UsersRound, Package, Link2, Bell, Receipt, Shield, GitBranch, LayoutGrid, FileText, List, KeyRound, UserCog, Network, BellRing, AlertTriangle, Calculator, ShoppingCart, CreditCard, Calendar, Mail, LifeBuoy, User, FormInput, TrendingUp, Plug, Radio } from "lucide-react";
+import { Building, UsersRound, Package, Link2, Bell, Receipt, Shield, GitBranch, LayoutGrid, FileText, List, KeyRound, UserCog, Network, BellRing, AlertTriangle, Calculator, ShoppingCart, CreditCard, Calendar, Mail, LifeBuoy, User, FormInput, TrendingUp, Plug, Radio, Gift } from "lucide-react";
 import { SettingsCard } from "./SettingsCard";
 
 // Settings information architecture: 8 balanced top-level groups, 2 navigation
@@ -8,7 +8,7 @@ export type SettingsSection =
   | "account" | "modules" | "capture" | "sales" | "team" | "integrations" | "finance" | "alerts";
 
 export type SettingsSubSection =
-  | "account-profile" | "account-security" | "account-company" | "account-plan" | "account-support"
+  | "account-profile" | "account-security" | "account-company" | "account-plan" | "account-referrals" | "account-support"
   | "modules-list" | "modules-fields" | "modules-documents"
   | "capture-forms"
   | "sales-pipeline" | "sales-rules" | "sales-commissions" | "sales-products" | "sales-operators"
@@ -96,6 +96,7 @@ export const subSectionsMap: Record<SettingsSection, SubSectionItem[]> = {
     { id: "account-security", label: "Segurança", icon: Shield, description: "Palavra-passe e 2FA" },
     { id: "account-company", label: "Dados da Empresa", icon: Building, description: "Nome e código de convite" },
     { id: "account-plan", label: "Plano e Subscrição", icon: CreditCard, description: "Subscrição e pagamentos" },
+    { id: "account-referrals", label: "Indicações", icon: Gift, description: "Empresas indicadas e meses gratuitos" },
     { id: "account-support", label: "Suporte", icon: LifeBuoy, description: "Tickets e pedidos de ajuda" },
   ],
   modules: [

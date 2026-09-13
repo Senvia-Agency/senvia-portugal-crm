@@ -77,16 +77,6 @@ async function stripeGet(path: string, key: string, params?: Record<string, stri
 // state before cancellation). canceled and incomplete are NOT included.
 const PAYER_STATUSES = ["active", "trialing", "past_due", "unpaid"];
 
-async function findSubForEmail(email: string, key: string) {
-  const customers = await stripeGet("/customers", key, { email, limit: "1" });
-  if (!customers.data?.length) return null;
-  const cid = customers.data[0].id;
-  for (const status of PAYER_STATUSES) {
-    const subs = await stripeGet("/subscriptions", key, { customer: cid, status, limit: "1" });
-    if (subs.data?.length) return subs.data[0];
-  }
-  return null;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -104,26 +94,28 @@ serve(async (req) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader?.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    if (userError) throw new Error(`Auth error: ${userError.message}`);
+    if (userError) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated");
+    if (!user?.email) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
 
-    // Get user's organization
-    const { data: memberData } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-
-    const orgId = memberData?.organization_id;
+    const body = await req.json().catch(() => ({}));
+    let orgId: string | null = body.organization_id ?? null;
+    if (!orgId) {
+      const { data: memberships, error } = await supabase.from('organization_members')
+        .select('organization_id').eq('user_id', user.id).eq('is_active', true).limit(2);
+      if (error) throw error;
+      if (memberships?.length !== 1) return json({ error: 'Seleciona uma organização.' }, 400);
+      orgId = memberships[0].organization_id;
+    }
+    const { data: allowed, error: accessError } = await supabase.rpc('is_org_member', { _user_id: user.id, _org_id: orgId });
+    const { data: adminAllowed } = await supabase.rpc('is_org_admin', { _user_id: user.id, _org_id: orgId });
+    if (accessError || (!allowed && !adminAllowed)) return json({ error: 'Sem acesso à organização.' }, 403);
 
     let orgData: any = null;
     if (orgId) {
@@ -171,26 +163,16 @@ serve(async (req) => {
       });
     }
 
-    // Find subscription for user (active/trialing/past_due/unpaid)
-    let subscription = await findSubForEmail(user.email, stripeKey);
-
-    // If none for this user, check other org members
-    if (!subscription && orgId) {
-      const { data: members } = await supabase
-        .from('organization_members')
-        .select('user_id')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .neq('user_id', user.id);
-
-      if (members?.length) {
-        for (const m of members) {
-          const { data: mu } = await supabase.auth.admin.getUserById(m.user_id);
-          if (!mu?.user?.email) continue;
-          subscription = await findSubForEmail(mu.user.email, stripeKey);
-          if (subscription) break;
-        }
-      }
+    const { data: binding, error: bindingError } = await supabase.from('organization_billing_accounts')
+      .select('stripe_customer_id, stripe_subscription_id').eq('organization_id', orgId).maybeSingle();
+    if (bindingError) throw bindingError;
+    let subscription: any = null;
+    if (binding?.stripe_subscription_id) {
+      const candidate = await stripeGet('/subscriptions/' + binding.stripe_subscription_id, stripeKey);
+      if (candidate.error) throw new Error(candidate.error.message);
+      const customerId = typeof candidate.customer === 'string' ? candidate.customer : candidate.customer?.id;
+      if (customerId !== binding.stripe_customer_id) throw new Error('Billing customer mismatch');
+      if (PAYER_STATUSES.includes(candidate.status)) subscription = candidate;
     }
 
     if (!subscription) {
@@ -206,7 +188,7 @@ serve(async (req) => {
     if (productId && !mappedPlan) {
       console.error("[check-subscription] UNKNOWN Stripe product — plan left unchanged", { productId });
     }
-    const planId = mappedPlan || orgData?.plan || "starter";
+    const planId = ['pro', 'elite'].includes(orgData?.plan) ? orgData.plan : mappedPlan || orgData?.plan || 'starter';
 
     const periodEnd = subscription.current_period_end ?? subscription.items.data[0]?.current_period_end;
     const subscriptionEnd = (periodEnd && typeof periodEnd === "number" && periodEnd > 0)
@@ -217,15 +199,10 @@ serve(async (req) => {
     const isHealthy = status === "active" || status === "trialing";
     const isOverdue = status === "past_due" || status === "unpaid";
 
-    // The org counts as a paying customer only on a REAL payment (status
-    // 'active'). A Stripe 'trialing'/'past_due'/'unpaid'/'incomplete' sub means no
-    // money was collected, so it must NOT stamp first_paid_at — doing so inflated
-    // the conversion metric (Stripe-trialing/failed subs looked converted). The
-    // webhook (markFirstPaid) is the primary setter on the first successful charge;
-    // this is just the self-heal backup.
-    const firstPaidAt = orgData?.first_paid_at ?? (status === "active" ? new Date().toISOString() : null);
+    // Only the confirmed invoice webhook records the first payment.
+    const firstPaidAt = orgData?.first_paid_at ?? null;
 
-    // Persist the renewal date + first-paid stamp so the cleanup cron, the
+    // Persist the renewal date so the cleanup cron, the
     // protected route and the blocker components have a single source of truth.
     if (orgId) {
       // Only write `plan` when Stripe gave us a product we recognise, so an
@@ -233,10 +210,6 @@ serve(async (req) => {
       const orgUpdates: Record<string, any> = {};
       if (mappedPlan) orgUpdates.plan = mappedPlan;
       if (subscriptionEnd) orgUpdates.current_period_end = subscriptionEnd;
-      if (!orgData?.first_paid_at && firstPaidAt) {
-        // First time we see this org actually paying (active) — stamp now.
-        orgUpdates.first_paid_at = firstPaidAt;
-      }
       // Sub healthy again → clear any lingering failure clock ONLY via webhook.
       // Do NOT clear here: Stripe keeps "active" during retry attempts, which
       // would reset the grace window and give the customer infinite free access.

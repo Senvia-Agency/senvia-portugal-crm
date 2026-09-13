@@ -112,15 +112,15 @@ export function useSubscription() {
   const currentPlan = plan || DEFAULT_PLAN;
 
   const canUseModule = (module: ModuleKey): boolean => {
-    return currentPlan.features?.modules?.[module] ?? false;
+    return module !== 'ecommerce';
   };
 
   const canUseIntegration = (integration: IntegrationKey): boolean => {
-    return currentPlan.features?.integrations?.[integration] ?? false;
+    return integration !== 'whatsapp';
   };
 
   const canUseFeature = (feature: FeatureKey): boolean => {
-    return currentPlan.features?.features?.[feature] ?? false;
+    return true;
   };
 
   // A module is "locked" when the current plan doesn't reach the tier required
@@ -131,6 +131,7 @@ export function useSubscription() {
   // The sidebar uses this flag to keep the menu item visible BUT with a padlock
   // icon — so starter customers see what's available with an upgrade.
   const isModuleLocked = (moduleKey: string): boolean => {
+    if (moduleKey !== 'ecommerce') return false;
     const modulesMap = currentPlan.features?.modules;
     if (modulesMap && moduleKey in modulesMap) {
       return !modulesMap[moduleKey as ModuleKey];
@@ -147,12 +148,12 @@ export function useSubscription() {
 
   return {
     plan: currentPlan.id,
-    planName: currentPlan.name,
+    planName: 'SENVIA OS',
     onTrial,
     limits: {
       maxUsers: currentPlan.max_users,
-      maxForms: currentPlan.max_forms,
-      maxInboxes: currentPlan.max_inboxes,
+      maxForms: null,
+      maxInboxes: null,
     },
     isLoading,
     canUseModule,

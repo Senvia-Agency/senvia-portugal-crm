@@ -1,3 +1,4 @@
+import { userRateLimit, LIMITED_USER_ACTIONS } from './user-rate-limit.ts';
 interface MfaPolicyClient {
   rpc(name: 'meets_mfa_policy', args: { _user_id: string }): PromiseLike<{ data: unknown; error: unknown }>;
 }
@@ -26,7 +27,14 @@ export async function requestMfaResponse(
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  if (await meetsMfaPolicy(userClient, userId)) return null;
+  if (await meetsMfaPolicy(userClient, userId)) {
+    const action = new URL(req.url).pathname.split('/').filter(Boolean).pop() || '';
+    if (LIMITED_USER_ACTIONS.has(action)) {
+      const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', { auth: { persistSession: false } });
+      return await userRateLimit(admin, userId, action, corsHeaders);
+    }
+    return null;
+  }
   return new Response(JSON.stringify({ error: 'MFA_REQUIRED' }), {
     status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });

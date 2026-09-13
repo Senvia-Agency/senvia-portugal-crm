@@ -31,6 +31,11 @@ const REQUIRED_EVENTS = [
   "customer.subscription.deleted",
   "invoice.paid",
   "invoice.payment_failed",
+  "customer.subscription.created",
+  "invoice.created",
+  "invoice.finalized",
+  "invoice.voided",
+  "invoice.deleted",
 ];
 
 const DEFAULT_LOOKBACK_DAYS = 120;
@@ -102,12 +107,50 @@ serve(async (req) => {
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
     let lookbackDays = DEFAULT_LOOKBACK_DAYS;
+    let releaseReview = false;
     try {
       const body = await req.json();
+      releaseReview = body?.release_review === true;
       if (body?.lookback_days && Number(body.lookback_days) > 0) {
         lookbackDays = Math.min(Number(body.lookback_days), 365);
       }
     } catch { /* empty body is fine */ }
+
+    if (releaseReview) {
+      // Read-only release inventory. Secrets stay in the Edge Function runtime.
+      const all = async (path: string, params: Record<string,string> = {}) => {
+        const rows: any[] = []; let after = '';
+        for (let page = 0; page < 30; page++) {
+          const batch = await stripeGet(path, stripeKey, { ...params, limit: '100', ...(after ? { starting_after: after } : {}) });
+          rows.push(...batch.data);
+          if (!batch.has_more) return rows;
+          after = batch.data.at(-1).id;
+        }
+        throw new Error('Inventory exceeds review limit');
+      };
+      const subscriptions = await all('/subscriptions', { status: 'all' });
+      const invoices = await all('/invoices', { status: 'paid' });
+      const customers = [];
+      for (const id of new Set([...subscriptions, ...invoices].map(row => row.customer))) {
+        const customer = await stripeGet(`/customers/${id}`, stripeKey);
+        customers.push({ id, name: customer.name, email: customer.email, deleted: customer.deleted, organization_id: customer.metadata?.organization_id });
+      }
+      const endpoints = await all('/webhook_endpoints');
+      const prices = [];
+      for (const id of ['price_1T2uHzLWnA81DzXTHdexakfL','price_1TncdBLWnA81DzXTh3crx8iN']) {
+        const price = await stripeGet(`/prices/${id}`, stripeKey);
+        prices.push({ id, active: price.active, livemode: price.livemode, currency: price.currency, unit_amount: price.unit_amount, recurring: price.recurring, product: price.product });
+      }
+      return new Response(JSON.stringify({ customers, prices, subscriptions: subscriptions.map(s => ({
+        id: s.id, customer: s.customer, status: s.status, livemode: s.livemode, metadata: s.metadata,
+        items: s.items, current_period_end: s.current_period_end, cancel_at_period_end: s.cancel_at_period_end,
+        pause_collection: s.pause_collection, schedule: s.schedule,
+      })), invoices: invoices.map(i => ({ id: i.id, customer: i.customer, subscription: invoiceSubscriptionId(i),
+        amount_paid: i.amount_paid, paid_at: i.status_transitions?.paid_at, created: i.created, livemode: i.livemode,
+        paid_out_of_band: i.paid_out_of_band, amount_paid_off_stripe: i.amount_paid_off_stripe,
+      })), endpoints: endpoints.map(e => ({ id: e.id, url: e.url, status: e.status, enabled_events: e.enabled_events })) }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     const projectUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const projectRef = projectUrl.replace("https://", "").split(".")[0];

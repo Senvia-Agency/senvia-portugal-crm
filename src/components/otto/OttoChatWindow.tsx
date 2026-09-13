@@ -1,3 +1,4 @@
+import { selectOttoFiles } from '@/lib/otto-attachments';
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Trash2, LifeBuoy, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
 const ottoMascot = "/otto-mascot.svg";
@@ -19,13 +20,25 @@ interface OttoChatWindowProps {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown", "application/json"];
+
+function AttachmentThumbnail({ file }: { file: File }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    if (!file.type.startsWith('image/')) return;
+    const preview = URL.createObjectURL(file); setUrl(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [file]);
+  return url ? <img src={url} alt={file.name} className="h-10 w-10 rounded object-cover" /> : <FileText className="h-5 w-5 shrink-0" />;
+}
 
 export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
   const { messages, isLoading, sendMessage, clearMessages } = useOttoChat();
   const { pendingAttachments, addAttachment, removeAttachment, clearAttachments } = useOttoStore();
   const { showBadge: onboardingPending } = useOttoOnboarding();
   const [input, setInput] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const isMobile = useIsMobile();
   // Keep the chat sized to the VISIBLE viewport so the input never hides behind
   // the on-screen keyboard (same approach as the inbox). iOS: position with CSS
@@ -48,7 +61,7 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || isLoading) return;
+    if ((!text && !pendingAttachments.length) || isLoading) return;
     setInput("");
     sendMessage(text);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -82,28 +95,25 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        toast.error(`Tipo não suportado: ${file.name}. Usa JPG, PNG, WebP ou PDF.`);
-        continue;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`Ficheiro demasiado grande: ${file.name}. Máximo 10MB.`);
-        continue;
-      }
-      if (pendingAttachments.length >= 5) {
-        toast.error("Máximo de 5 anexos por vez.");
-        break;
-      }
-      addAttachment(file);
+  const attachFiles = (files: File[]) => {
+    if (isLoading) return;
+    const result = selectOttoFiles(useOttoStore.getState().pendingAttachments, files);
+    result.errors.forEach(message => toast.error(message));
+    result.files.forEach(addAttachment);
+  };
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    attachFiles(Array.from(event.target.files || [])); event.target.value = '';
+  };
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData.files);
+    if (!files.length) return; // ordinary text keeps its normal caret/selection behavior
+    event.preventDefault();
+    attachFiles(files);
+    const text = event.clipboardData.getData('text/plain');
+    if (text) {
+      const field = event.currentTarget;
+      setInput(previous => previous.slice(0, field.selectionStart) + text + previous.slice(field.selectionEnd));
     }
-    // Reset input so same file can be selected again
-    e.target.value = "";
   };
 
   const getFileIcon = (file: File) => {
@@ -113,6 +123,29 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
 
   return (
     <motion.div
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        dragDepth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = isLoading ? 'none' : 'copy';
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (!dragDepth.current) setDragging(false);
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        attachFiles(Array.from(event.dataTransfer.files));
+      }}
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -126,6 +159,9 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
           : "fixed bottom-20 right-4 z-[9999] w-[380px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
       }
     >
+      {dragging && <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-background/95 p-6 text-center" role="status">
+        <span className="font-medium">{isLoading ? 'Aguarda pela resposta antes de anexar.' : 'Larga os ficheiros para anexar à mensagem'}</span>
+      </div>}
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30" style={isMobile ? { paddingTop: 'calc(clamp(20px, env(safe-area-inset-top, 0px), 50px) + 0.75rem)' } : undefined}>
         <div className="flex items-center gap-2">
@@ -215,9 +251,11 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
                 key={i}
                 className="flex items-center gap-1.5 bg-muted rounded-lg px-2 py-1 text-xs max-w-[160px]"
               >
-                {getFileIcon(file)}
+                <AttachmentThumbnail file={file} />
                 <span className="truncate flex-1">{file.name}</span>
                 <button
+                  aria-label={`Remover ${file.name}`}
+                  disabled={isLoading}
                   onClick={() => removeAttachment(i)}
                   className="text-muted-foreground hover:text-foreground flex-shrink-0"
                 >
@@ -233,7 +271,7 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.webp,.pdf"
+            accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv,.md,.json"
             multiple
             className="hidden"
             onChange={handleFileSelect}
@@ -250,10 +288,12 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
           </Button>
           <textarea
             ref={inputRef}
+            aria-label="Mensagem para o Otto"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escreve aqui..."
+            onPaste={handlePaste}
+            placeholder="Escreve ou cola uma imagem..."
             disabled={isLoading}
             rows={1}
             style={isMobile ? { fontSize: 16 } : undefined}
@@ -262,8 +302,9 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
           <Button
             size="icon"
             className="h-10 w-10 rounded-xl flex-shrink-0"
+            aria-label="Enviar mensagem"
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && !pendingAttachments.length) || isLoading}
           >
             <Send className="w-4 h-4" />
           </Button>

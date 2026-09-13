@@ -1,3 +1,4 @@
+import { userRateLimit } from '../_shared/user-rate-limit.ts';
 import { corsHeaders, json, getConfig, authOrgMember } from '../_shared/multicanal.ts';
 import { parseAudioInput, readAudioBody } from '../_shared/audio-input.ts';
 import { paidQuota } from '../_shared/paid-quota.ts';
@@ -24,8 +25,9 @@ Deno.serve(async (req) => {
     if (channelError || !channel) return json({ error: 'Anexo indisponível' }, 404);
     const groqKey = Deno.env.get('GROQ_API_KEY');
     if (!groqKey) return json({ error: 'Transcrição indisponível' }, 503);
-    if (!await paidQuota(auth.admin, 'transcribe:user:' + auth.userId, 5, 60)
-      || !await paidQuota(auth.admin, 'transcribe:org:' + organization_id, 100, 86400)) {
+    const limitResponse = await userRateLimit(auth.admin, auth.userId, 'transcribe-audio', corsHeaders);
+    if (limitResponse) return limitResponse;
+    if (!await paidQuota(auth.admin, 'transcribe:org:' + organization_id, 100, 86400)) {
       return json({ error: 'Limite de transcrição atingido' }, 429);
     }
     const mediaResponse = await fetch(cfg.supabaseUrl + '/functions/v1/meta-media', {

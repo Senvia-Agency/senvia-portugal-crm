@@ -4,9 +4,12 @@ import { persist, createJSONStorage } from "zustand/middleware";
 export type OttoMessage = {
   role: "user" | "assistant";
   content: string;
+  attachmentPaths?: string[];
 };
 
 interface OttoStore {
+  scope: string | null;
+  setScope: (scope: string | null) => void;
   isOpen: boolean;
   messages: OttoMessage[];
   isLoading: boolean;
@@ -24,6 +27,8 @@ interface OttoStore {
 export const useOttoStore = create<OttoStore>()(
   persist(
     (set) => ({
+      scope: null,
+      setScope: (scope) => set(s => s.scope === scope ? {} : { scope, messages: [], pendingAttachments: [], isLoading: false }),
       isOpen: false,
       messages: [],
       isLoading: false,
@@ -53,6 +58,7 @@ export const useOttoStore = create<OttoStore>()(
       name: "otto-chat-store",
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
+        scope: state.scope,
         isOpen: state.isOpen,
         messages: state.messages,
       }),

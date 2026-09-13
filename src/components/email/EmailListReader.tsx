@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   useEmailFolders, useEmailMessages, useEmailMessage, useEmailRealtime,
-  useEmailSearch, useEmailDrafts, useEmailCommandFailures, COMMAND_LABELS,
+  useEmailSearch, useEmailDrafts, useEmailCommandFailures, useEmailCommandActivity, COMMAND_LABELS, emailCommandErrorMessage,
   type EmailAttachment, type EmailDraft, type EmailMessage,
 } from '@/hooks/useEmail';
 import { useEmailChannels } from '@/hooks/useEmailChannels';
@@ -246,6 +246,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
   useEffect(() => { setMessageId(null); }, [folderId, channelId]);
   useEmailRealtime(channelId);
   const { data: falhas = [] } = useEmailCommandFailures(channelId);
+  const { data: activity } = useEmailCommandActivity(channelId);
   const actions = useEmailActions(channelId, folderId);
   const { toast } = useToast();
 
@@ -293,15 +294,15 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
   }, [folderMessages, actions.pendentes, libertar]);
 
   useEffect(() => {
-    // Uma falha nova reconcilia tudo: não se sabe qual das pendentes falhou, e
-    // mostrar de novo o que ficou por fazer é melhor do que esconder a mais.
-    if (falhasVisiveis.length > 0 && actions.pendentes.size > 0) libertar([...actions.pendentes]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [falhasVisiveis.length]);
+    // A body-download failure must not undo unrelated optimistic deletions.
+    const failedIds = new Set(falhas.filter(f => ['delete', 'archive', 'spam', 'move'].includes(f.type)).map(f => f.message_id));
+    const failedPending = [...actions.pendentes].filter(id => failedIds.has(id));
+    if (failedPending.length) libertar(failedPending);
+  }, [falhas, actions.pendentes, libertar]);
   const { data: searchResults = [], isLoading: loadingSearch } = useEmailSearch(channelId, debounced);
   const { data: drafts = [], isLoading: loadingDrafts } = useEmailDrafts(isDraftsFolder ? channelId : null);
 
-  const unreadCount = folderMessages.filter((m) => !m.seen).length;
+  const unreadCount = folderMessages.filter((m) => !m.seen && !actions.pendentes.has(m.id)).length;
   const baseMessages = searching ? searchResults : folderMessages;
   const messages = useMemo(() => {
     if (searching) return baseMessages.filter((m) => !actions.pendentes.has(m.id));
@@ -314,32 +315,21 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     if (starredOnly) list = list.filter((m) => m.flagged);
     return list;
   }, [baseMessages, searching, unreadOnly, starredOnly, actions.pendentes]);
-  // Threaded view (Gmail-style): group same-thread messages into one list row
-  // showing the newest, with a "×N" count badge. Skipped for search results
-  // (matches from different threads shouldn't hide inside a collapsed group).
-  // Scoped to the list only — opening a row still opens that single newest
-  // message, not an expanded multi-message thread reader.
-  const threadGroups = useMemo(() => {
-    if (searching) return messages.map((m) => [m]);
-    const byThread = new Map<string, EmailMessage[]>();
-    const order: string[] = [];
-    for (const m of messages) {
-      const key = m.thread_id || `solo-${m.id}`;
-      if (!byThread.has(key)) { byThread.set(key, []); order.push(key); }
-      byThread.get(key)!.push(m);
-    }
-    return order.map((key) => byThread.get(key)!);
-  }, [messages, searching]);
+  // One row per message: the reader and checkboxes operate on message IDs.
+  // Grouping without a thread reader hid replies and made counts misleading.
   const isLoading = isDraftsFolder ? loadingDrafts : (searching ? loadingSearch : loadingFolder);
   const { data: opened, isLoading: loadingMessage } = useEmailMessage(messageId);
   const requestedBodyRef = useRef<string | null>(null);
+  const [bodyRequestError, setBodyRequestError] = useState<string | null>(null);
+  useEffect(() => { requestedBodyRef.current = null; setBodyRequestError(null); }, [messageId]);
+  const failedBodyCommand = falhas.find(f => f.type === 'fetch_body' && f.message_id === messageId);
 
   useEffect(() => {
     const message = opened?.message;
     if (!message || message.body_fetched || requestedBodyRef.current === message.id) return;
     requestedBodyRef.current = message.id;
     void actions.fetchBody(message.id).catch((error: unknown) => {
-      requestedBodyRef.current = null;
+      setBodyRequestError(error instanceof Error ? error.message : 'Não foi possível pedir o conteúdo.');
       toast({
         title: 'Falha ao carregar o email',
         description: error instanceof Error ? error.message : 'Tenta novamente.',
@@ -603,13 +593,20 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                 {falhasVisiveis.slice(0, 3).map((f) => (
                   <li key={f.id} className="truncate">
                     {COMMAND_LABELS[f.type] ?? f.type}
-                    {f.error ? ` — ${f.error}` : ''}
+                    {f.error ? ` — ${emailCommandErrorMessage(f.error)}` : ''}
                   </li>
                 ))}
               </ul>
               <p className="mt-1 text-muted-foreground">
-                A caixa de correio não foi alterada. Tenta outra vez.
+                Estas ações falharam. As restantes podem ter sido concluídas; verifica o estado antes de repetir.
               </p>
+            </div>
+          )}
+          {!!activity?.pending && (
+            <div role="status" className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              <span>{activity.pending} {activity.pending === 1 ? 'ação de email em curso' : 'ações de email em curso'} nesta caixa.
+                {activity.sends > 0 ? ' Há envios a aguardar confirmação.' : ' A lista é atualizada à medida que terminam.'}</span>
             </div>
           )}
           {!isDraftsFolder && (
@@ -714,10 +711,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
               </div>
             )
           ) : (
-            threadGroups.map((group) => {
-              const m = group[0];
-              const threadCount = group.length;
-              const active = group.some((x) => x.id === messageId);
+            messages.map((m) => {
+              const active = m.id === messageId;
               const selected = selectedIds.has(m.id);
               const who = m.from_name || m.from_address || '(desconhecido)';
               return (
@@ -775,11 +770,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                       <span className={cn('min-w-0 truncate text-sm', !m.seen ? 'font-semibold text-foreground' : 'text-foreground/80')}>
                         {m.subject || '(sem assunto)'}
                       </span>
-                      {threadCount > 1 && (
-                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {threadCount}
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {m.has_attachments && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
@@ -980,7 +970,9 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                       resolveAttachment={resolveAttachment}
                     />
                   )
-                  : <div className="flex items-center gap-2 py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">A carregar conteúdo...</span></div>}
+                  : failedBodyCommand || bodyRequestError
+                    ? <div role="alert" className="py-6 text-sm text-destructive">Não foi possível carregar o conteúdo. {emailCommandErrorMessage(failedBodyCommand?.error) || bodyRequestError}</div>
+                    : <div className="flex items-center gap-2 py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">A carregar conteúdo...</span></div>}
               </div>
             </div>
           </div>

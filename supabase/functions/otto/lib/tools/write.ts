@@ -100,7 +100,7 @@ async function resolveAssignee(ctx: any, args: Record<string, any>): Promise<{ u
   if (profilesError) return { userId: null, label: null, error: profilesError.message };
 
   const memberIdsSet = new Set(memberIds);
-  const profileById = new Map((profiles || []).map((p: any) => [p.id, p]));
+  const profileById = new Map<string, { full_name?: string; email?: string; phone?: string }>((profiles || []).map((p: any) => [p.id, p]));
 
   if (explicitUserId) {
     if (!memberIdsSet.has(explicitUserId)) return { userId: null, label: null, error: "O comercial indicado não pertence a esta organização ou está inativo." };

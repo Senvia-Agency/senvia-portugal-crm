@@ -1,3 +1,4 @@
+import { userRateLimit } from '../_shared/user-rate-limit.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { ipDoPedido, rateLimitDb, respostaLimiteExcedido } from "../_shared/security.ts";
@@ -690,7 +691,7 @@ async function executeTool(
           total_pending: totalPending,
           total_expenses: totalExpenses,
           balance: totalReceived - totalExpenses,
-          total_sales_count: (sales || []).reduce((sum, sale) => sum + Number(sale.operational_units || 1), 0),
+          total_sales_count: (sales || []).reduce((sum: number, sale: { operational_units?: number | null }) => sum + Number(sale.operational_units || 1), 0),
         });
       }
 
@@ -920,8 +921,9 @@ serve(async (req) => {
 
     const hasDataAccess = !!userId && !!orgId;
     if (!hasDataAccess) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-    if (!await paidQuota(supabaseAdmin, `otto:user:${userId}`, 20, 60)
-      || !await paidQuota(supabaseAdmin, `otto:org:${orgId}`, 300, 86400)) {
+    const limitResponse = await userRateLimit(supabaseAdmin, userId, 'otto', corsHeaders);
+    if (limitResponse) return limitResponse;
+    if (!await paidQuota(supabaseAdmin, `otto:org:${orgId}`, 300, 86400)) {
       return respostaLimiteExcedido(60, corsHeaders);
     }
 

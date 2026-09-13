@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useStripeSubscription } from "@/hooks/useStripeSubscription";
-import { getPlanById, STRIPE_PLANS } from "@/lib/stripe-plans";
+import { SENVIA_OS_PLAN } from "@/lib/stripe-plans";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -17,12 +17,12 @@ interface UpgradeModalProps {
   requiredPlan: string;
 }
 
-export function UpgradeModal({ open, onOpenChange, featureName, requiredPlan }: UpgradeModalProps) {
+export function UpgradeModal({ open, onOpenChange, featureName }: UpgradeModalProps) {
   const { createCheckout, isLoading } = useStripeSubscription();
 
-  const targetPlan = STRIPE_PLANS.find(p => p.name.toLowerCase() === requiredPlan.toLowerCase())
-    || getPlanById(requiredPlan.toLowerCase())
-    || STRIPE_PLANS[1]; // fallback to Pro
+  // Legacy callers still pass a tier (or an empty initial value). There is now
+  // only one offer, which must also exist while this dialog is closed.
+  const targetPlan = SENVIA_OS_PLAN;
 
   const handleUpgrade = async () => {
     await createCheckout(targetPlan.priceId);
@@ -35,15 +35,15 @@ export function UpgradeModal({ open, onOpenChange, featureName, requiredPlan }: 
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-2">
             <Sparkles className="h-7 w-7 text-primary" />
           </div>
-          <DialogTitle className="text-xl">Funcionalidade Premium</DialogTitle>
+          <DialogTitle className="text-xl">Plano SENVIA OS</DialogTitle>
           <DialogDescription className="text-center text-sm">
-            <strong>{featureName}</strong> está disponível a partir do plano{' '}
+            <strong>{featureName}</strong> está incluído no plano{' '}
             <span className="font-semibold text-primary">{targetPlan.name}</span> ({targetPlan.priceMonthly}€/mês).
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground space-y-2 mt-2">
-          <p>Faça upgrade para desbloquear:</p>
+          <p>O plano inclui:</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
@@ -51,7 +51,7 @@ export function UpgradeModal({ open, onOpenChange, featureName, requiredPlan }: 
             </li>
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
-              Mais utilizadores e formulários
+              Formulários ilimitados
             </li>
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
@@ -66,7 +66,7 @@ export function UpgradeModal({ open, onOpenChange, featureName, requiredPlan }: 
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
-                Fazer Upgrade para {targetPlan.name}
+                Subscrever {targetPlan.name}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
