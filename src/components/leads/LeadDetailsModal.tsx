@@ -68,6 +68,7 @@ import {
   Zap,
   ArrowLeft,
   Copy,
+  Check,
   MapPin,
   Facebook,
   Instagram,
@@ -117,6 +118,82 @@ const statusStyles: Record<LeadStatus, string> = {
   won: "bg-success/10 text-success border-success/20",
   lost: "bg-muted text-muted-foreground border-muted",
 };
+
+// Copies text to the clipboard. navigator.clipboard is undefined outside a
+// secure context and throws on some in-app browsers (the Facebook/Instagram
+// webviews leads often arrive from), so fall back to a hidden textarea.
+async function writeToClipboard(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // fall through to the legacy path
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copy button for the contact fields. On mobile these are editable inputs, so
+ * selecting the text by hand fights the caret and the keyboard — one tap here
+ * takes the whole value instead.
+ */
+function CopyFieldButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    // The button sits next to an input; without this the input takes focus
+    // and mobile pops the keyboard over the confirmation.
+    e.preventDefault();
+    e.stopPropagation();
+    const ok = await writeToClipboard(value);
+    if (!ok) {
+      toast({ title: "Erro ao copiar", description: `Não foi possível copiar o ${label.toLowerCase()}.` });
+      return;
+    }
+    setCopied(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
+    toast({ title: "Copiado", description: `${label} copiado para a área de transferência.` });
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      // Tap targets under 36px are hard to hit with a thumb.
+      className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={handleCopy}
+      aria-label={`Copiar ${label.toLowerCase()}`}
+      title={`Copiar ${label.toLowerCase()}`}
+    >
+      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+    </Button>
+  );
+}
 
 export function LeadDetailsModal({
   lead,
@@ -697,9 +774,10 @@ export function LeadDetailsModal({
                             }
                             setTimeout(() => setIsEditingName(false), 600);
                           }}
-                          className="h-8 text-sm font-semibold border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
+                          className="h-8 min-w-0 flex-1 text-sm font-semibold border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
                           placeholder="Nome do lead"
                         />
+                        {editName.trim() && <CopyFieldButton value={editName.trim()} label="Nome" />}
                       </div>
 
                       {/* NIF Empresa */}
@@ -726,9 +804,10 @@ export function LeadDetailsModal({
                             }
                             setTimeout(() => setIsEditingPhone(false), 600);
                           }}
-                          className="h-8 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
+                          className="h-8 min-w-0 flex-1 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
                           placeholder="Telefone"
                         />
+                        {editPhone.trim() && <CopyFieldButton value={editPhone.trim()} label="Telefone" />}
                       </div>
                       
                       <div className="flex items-center gap-3 text-sm">
@@ -744,9 +823,12 @@ export function LeadDetailsModal({
                             }
                             setTimeout(() => setIsEditingEmail(false), 600);
                           }}
-                          className="h-8 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
+                          className="h-8 min-w-0 flex-1 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
                           placeholder="Email"
                         />
+                        {editEmail.trim() && !isPlaceholderEmail(editEmail) && (
+                          <CopyFieldButton value={editEmail.trim()} label="Email" />
+                        )}
                       </div>
 
                       <div className="flex items-center gap-3 text-sm">
