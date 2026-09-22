@@ -108,7 +108,10 @@ export function buildSaleTypeIds(catalog: CatalogProduct[]): SaleTypeIdsResolver
       const typeIds = product?.type_ids ?? [];
       const technology = details[name]?.tecnologia;
       if (!technology) return typeIds.length > 0 ? typeIds : [NO_TYPE];
-      return [...typeIds.filter((id) => id !== 'fibra' && id !== 'satelite'), technology];
+      // Fibra/Satélite is a choice made on this sale line. A generic catalog
+      // product can carry other broad tags (for example "Cartões"), but those
+      // must not keep a fibre line visible after Fibra is switched off.
+      return [technology];
     });
     return [...new Set(ids)];
   };

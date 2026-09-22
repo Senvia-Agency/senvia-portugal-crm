@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useSales } from '@/hooks/useSales';
 import { usePermissions } from '@/hooks/usePermissions';
 import { formatCurrency } from '@/lib/format';
+import { isTelecomCommissionEarned } from '@/lib/telecom-finance';
 import { formatOperationalUnits, sumOperationalSaleUnits } from '@/lib/sale-units';
 import { useDashboardPeriod, formatPeriodLabel } from '@/stores/useDashboardPeriod';
 import {
@@ -80,13 +81,14 @@ export function TelecomLifecyclePanel() {
     ));
 
     const metrics: Metric[] = [
-      { key: 'ativos', hint: 'Instalados', value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
+      { key: 'instalados', hint: 'Fechadas', value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },
+      { key: 'ativos', hint: 'Operacionais', value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
       { key: 'por_instalar', hint: 'Pendentes e em instalação', value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
       { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: pt }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600', href: linkTo('proximo_mes') },
       { key: 'anulados', hint: 'Antes da instalação — sem CB', value: count('anulados'), icon: XCircle, tone: 'text-slate-500', href: linkTo('anulados') },
       { key: 'cancelados', hint: 'Após instalação — geram CB', value: count('cancelados'), icon: XCircle, tone: 'text-red-500', href: linkTo('cancelados') },
       { key: 'por_assinar', hint: 'Ativos, pendentes e em instalação', value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600', href: linkTo('por_assinar') },
-      { key: 'total', hint: `Ativos + por instalar + anulados + ${format(nextMonthStart, 'MMMM', { locale: pt })}`, value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
+      { key: 'total', hint: `Ativos + instalados + por instalar + anulados + ${format(nextMonthStart, 'MMMM', { locale: pt })}`, value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
     ];
 
     // Money on the installed sales of the period. sales.comissao is the
@@ -94,7 +96,7 @@ export function TelecomLifecyclePanel() {
     let operatorGross = 0;
     let orgMargin = 0;
     for (const s of inPeriod) {
-      if (s.telecom_status !== 'ativo') continue;
+      if (!isTelecomCommissionEarned(s)) continue;
       operatorGross += Number(s.comissao || 0);
       orgMargin += Number(s.org_commission || 0);
     }

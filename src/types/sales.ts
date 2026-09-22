@@ -69,19 +69,21 @@ export const SALE_STATUSES: SaleStatus[] = ['in_progress', 'fulfilled', 'deliver
  * money: 'anulado' happens before the install and costs nothing; 'cancelado'
  * happens after it and claws the commission back — see sale_chargebacks.
  */
-export type TelecomStatus = 'pendente' | 'em_instalacao' | 'ativo' | 'anulado' | 'cancelado';
+export type TelecomStatus = 'pendente' | 'em_instalacao' | 'ativo' | 'instalado' | 'anulado' | 'cancelado';
 
 export const TELECOM_STATUS_LABELS: Record<TelecomStatus, string> = {
   pendente: 'Pendente',
   em_instalacao: 'Em instalação',
   ativo: 'Ativo',
+  instalado: 'Instalado',
   anulado: 'Anulado',
   cancelado: 'Cancelado',
 };
 
 /** Shown under the label where the distinction matters for money. */
 export const TELECOM_STATUS_HINTS: Partial<Record<TelecomStatus, string>> = {
-  ativo: 'Instalado',
+  ativo: 'Operacional',
+  instalado: 'Fechada',
   anulado: 'Antes da instalação — não gera CB',
   cancelado: 'Após a instalação — gera CB',
 };
@@ -90,11 +92,12 @@ export const TELECOM_STATUS_COLORS: Record<TelecomStatus, string> = {
   pendente: 'bg-amber-500/20 text-amber-500 border-amber-500/30',
   em_instalacao: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
   ativo: 'bg-green-500/20 text-green-500 border-green-500/30',
+  instalado: 'bg-emerald-600/20 text-emerald-600 border-emerald-600/30',
   anulado: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
   cancelado: 'bg-red-500/20 text-red-500 border-red-500/30',
 };
 
-export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', 'ativo', 'anulado', 'cancelado'];
+export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', 'ativo', 'instalado', 'anulado', 'cancelado'];
 
 /**
  * The generic status each telecom state maps to. In a telecom org the user
@@ -105,7 +108,10 @@ export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', '
 export const TELECOM_TO_SALE_STATUS: Record<TelecomStatus, SaleStatus> = {
   pendente: 'in_progress',
   em_instalacao: 'in_progress',
-  ativo: 'delivered',
+  // An active line is operational, but it is not the terminal state. Only
+  // "instalado" closes the sale.
+  ativo: 'fulfilled',
+  instalado: 'delivered',
   anulado: 'cancelled',
   cancelado: 'cancelled',
 };

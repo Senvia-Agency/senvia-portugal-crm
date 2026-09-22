@@ -262,7 +262,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       ...(pendingTelecomStatus ? { telecom_status: pendingTelecomStatus } : {}),
     } });
     if (pendingActivationDate) {
-      addActivationEntry.mutate({ activationDate: pendingActivationDate, notes: 'Concluída' });
+      addActivationEntry.mutate({ activationDate: pendingActivationDate, notes: pendingTelecomStatus === 'instalado' ? 'Instalado' : 'Concluída' });
     }
     setShowDeliveredConfirm(false);
   };
@@ -277,7 +277,9 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       ...(pendingTelecomStatus ? { telecom_status: pendingTelecomStatus } : {}),
     } });
     if (pendingActivationDate) {
-      const label = newStatus === 'in_progress' ? 'Em Progresso' : 'Entregue';
+      const label = newStatus === 'in_progress'
+        ? 'Em Progresso'
+        : (pendingTelecomStatus === 'ativo' ? 'Ativo' : 'Entregue');
       addActivationEntry.mutate({ activationDate: pendingActivationDate, notes: label });
     }
     setShowFulfilledConfirm(false);
@@ -1307,7 +1309,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       <AlertDialog open={showDeliveredConfirm} onOpenChange={setShowDeliveredConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Concluir Venda</AlertDialogTitle>
+            <AlertDialogTitle>{pendingTelecomStatus === 'instalado' ? 'Marcar como Instalada' : 'Concluir Venda'}</AlertDialogTitle>
             <AlertDialogDescription>
               Ao concluir esta venda, ela não poderá mais ser editada (exceto por administradores).
               {installDay ? ` A ativação fica com a data de instalação (${installDay.split('-').reverse().join('/')}).` : ' Sem data de instalação marcada, a ativação fica com a data de hoje.'}
@@ -1327,7 +1329,9 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingStatus === 'in_progress' ? 'Marcar como Em Progresso' : 'Marcar como Entregue'}
+              {pendingStatus === 'in_progress'
+                ? 'Marcar como Em Progresso'
+                : (pendingTelecomStatus === 'ativo' ? 'Marcar como Ativa' : 'Marcar como Entregue')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {installDay ? `A ativação fica com a data de instalação (${installDay.split('-').reverse().join('/')}).` : 'Sem data de instalação marcada, a ativação fica com a data de hoje.'}

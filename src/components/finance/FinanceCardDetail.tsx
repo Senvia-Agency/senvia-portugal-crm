@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 import type { PaymentWithSale } from "@/types/finance";
 import { saleMatchesCommissionFilters, type CommissionFilters } from "@/lib/commission-filters";
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
-import { PAYMENT_METHOD_LABELS, type TelecomStatus } from "@/types/sales";
+import { PAYMENT_METHOD_LABELS, TELECOM_STATUS_LABELS, TELECOM_STATUS_COLORS, type TelecomStatus } from "@/types/sales";
+import { TELECOM_EARNED_STATUSES } from "@/lib/telecom-finance";
+import { sumOperationalSaleUnits } from "@/lib/sale-units";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { saleStatusBadge, paymentRecordStatusBadge } from "@/lib/status-badge-maps";
 import { useSales } from "@/hooks/useSales";
@@ -67,7 +69,7 @@ const TITLES: Record<FinanceDetailType, string> = {
   myCommissions: "As Minhas Comissões",
   commissions: "Comissões",
   porInstalar: "Por instalar",
-  instalado: "Instalado",
+  instalado: "Ativos e instalados",
 };
 
 function inRange(dateStr: string, dateRange?: DateRange) {
@@ -284,10 +286,8 @@ function SalesDetailTable({
   const { data: sales = [], isLoading } = useSales();
   const saleTypeIds = useSaleTypeIds();
   const { organization } = useAuth();
-  // Telecom shows the commission instead of the invoiced value — same rows,
-  // different money column. The row set must stay identical to
-  // useFinanceStats (cancelled dropped, filtered by sale_date), or the total
-  // at the bottom would not match the card that opened this.
+  // Telecom shows operator commission. Keep the lifecycle, date basis and
+  // filters identical to the summary card in useFinanceStats.
   const isTelecom = organization?.niche === "telecom";
   const filtered = useMemo(
     // Exclude cancelled sales so this detail's total matches the card, which also
@@ -336,12 +336,14 @@ function SalesDetailTable({
             <>
               {filtered.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="whitespace-nowrap">{fmtDate(s.sale_date)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{fmtDate(dateBasis === 'activation' ? (s.activation_date || s.sale_date) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>
                   <TableCell>{s.code}</TableCell>
                   {isTelecom && <TableCell>{sellerOf(s)}</TableCell>}
                   <TableCell>
-                    <StatusBadge {...saleStatusBadge(s.status)} />
+                    {isTelecom && s.telecom_status ? (
+                      <Badge variant="outline" className={TELECOM_STATUS_COLORS[s.telecom_status]}>{TELECOM_STATUS_LABELS[s.telecom_status]}</Badge>
+                    ) : <StatusBadge {...saleStatusBadge(s.status)} />}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(valueOf(s))}</TableCell>
                 </TableRow>
@@ -364,7 +366,7 @@ function SalesDetailTable({
           )}
         </TableBody>
       </Table>
-      {count > 0 && <TotalFooter count={count} total={total} />}
+      {count > 0 && <TotalFooter count={isTelecom ? sumOperationalSaleUnits(filtered) : count} total={total} />}
     </div>
   );
 }
@@ -545,7 +547,9 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "expenses" && <AddExpenseModal open={addExpenseOpen} onOpenChange={setAddExpenseOpen} />}
 
       {type === "faturado" && (
-        <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters} />
+        <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters}
+          telecomStatuses={orgIsTelecom ? TELECOM_EARNED_STATUSES : undefined}
+          dateBasis={orgIsTelecom ? 'activation' : 'sale'} />
       )}
       {type === "porInstalar" && (
         <SalesDetailTable
@@ -558,7 +562,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
         <SalesDetailTable
           dateRange={dateRange}
           commissionFilters={commissionFilters}
-          telecomStatuses={["ativo"]}
+          telecomStatuses={TELECOM_EARNED_STATUSES}
           dateBasis="activation"
         />
       )}
@@ -568,7 +572,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments} />}
       {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
-      {type === "commissions" && <TeamCommissionsTab />}
+      {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
       {type === "balance" && (
         <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />
       )}

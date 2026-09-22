@@ -11,6 +11,7 @@ import type { TelecomStatus } from '@/types/sales';
  */
 export type TelecomViewKey =
   | 'ativos'
+  | 'instalados'
   | 'por_instalar'
   | 'proximo_mes'
   | 'anulados'
@@ -20,6 +21,7 @@ export type TelecomViewKey =
 
 export const TELECOM_VIEW_LABELS: Record<TelecomViewKey, string> = {
   ativos: 'Ativos',
+  instalados: 'Instalados',
   por_instalar: 'Por instalar',
   proximo_mes: 'Instalações no próximo mês',
   anulados: 'Anulados',
@@ -61,6 +63,8 @@ export function matchesTelecomView(
   switch (view) {
     case 'ativos':
       return status === 'ativo';
+    case 'instalados':
+      return status === 'instalado';
     case 'por_instalar':
       return status === 'pendente' || status === 'em_instalacao';
     case 'proximo_mes':
@@ -78,6 +82,7 @@ export function matchesTelecomView(
       // ONCE per sale — a sale that is both "por instalar" and booked for
       // next month is one sale, not two.
       return status === 'ativo'
+        || status === 'instalado'
         || status === 'pendente'
         || status === 'em_instalacao'
         || status === 'anulado'

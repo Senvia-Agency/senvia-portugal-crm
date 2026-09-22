@@ -1,4 +1,5 @@
 import { usePersistedState } from "@/hooks/usePersistedState";
+import { commissionPortions } from '@/lib/commission-earnings';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -101,7 +102,7 @@ export default function Finance() {
   };
 
   // Team commissions (admin Comissões card) — period-aware.
-  const { data: teamCommission } = useTeamCommissionTotal(dateRange);
+  const { data: teamCommission } = useTeamCommissionTotal(dateRange, isTelecom ? commissionFilters : undefined);
   const teamCommissionTotal = teamCommission?.total ?? 0;
   const teamSalesCount = teamCommission?.count ?? 0;
   // Telecom margin: what the operators paid, minus what the sellers took.
@@ -115,10 +116,12 @@ export default function Finance() {
     inPeriod(isTelecom ? (s.activation_date || s.sale_date) : s.sale_date),
   );
   const myPendingTotal = myInPeriod.reduce((sum, s) => {
+    if (isTelecom) return sum + commissionPortions(s).pending;
     const isPending = s.status === 'pending' || s.status === 'in_progress';
     return isPending ? sum + (Number(s.comissao) || 0) : sum;
   }, 0);
   const myConfirmedTotal = myInPeriod.reduce((sum, s) => {
+    if (isTelecom) return sum + commissionPortions(s).confirmed;
     const isConfirmed = s.status === 'delivered' || s.status === 'fulfilled';
     return isConfirmed ? sum + (Number(s.comissao) || 0) : sum;
   }, 0);
@@ -213,7 +216,7 @@ export default function Finance() {
           }
           summary={activeTab === "resumo"
             ? (isTelecom
-                ? `Total de Comissão ${formatCurrency(stats.totalCommission)} · Instalado ${formatCurrency(stats.telecomInstalled)}`
+                ? `Ativos e instalados · Total de Comissão ${formatCurrency(stats.totalCommission)}`
                 : `Faturado ${formatCurrency(stats.totalBilled)} · Recebido ${formatCurrency(stats.totalReceived)}`)
             : undefined}
           chips={activeTab === "resumo" ? financeChips : []}
@@ -308,7 +311,7 @@ export default function Finance() {
                   onClick={() => setDetailView("instalado")}
                 >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Instalado</CardTitle>
+                    <CardTitle className="text-sm font-medium">Ativos e instalados</CardTitle>
                     <div className="flex items-center gap-1">
                       <PlugZap className="h-4 w-4 text-emerald-500" />
                       <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -321,7 +324,7 @@ export default function Finance() {
                       <div className="text-xl font-bold text-emerald-600 md:text-2xl">{formatCurrency(stats.telecomInstalled)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatOperationalUnits(stats.telecomInstalledCount)} venda{stats.telecomInstalledCount === 1 ? "" : "s"} ativa{stats.telecomInstalledCount === 1 ? "" : "s"} · comissão ganha
+                      {formatOperationalUnits(stats.telecomInstalledCount)} unidades ativas ou instaladas · comissão ganha
                     </p>
                   </CardContent>
                 </Card>
@@ -552,11 +555,9 @@ export default function Finance() {
                   <div className="text-xl font-bold text-amber-600 md:text-2xl">
                     {formatCurrency(orgMarginTotal)}
                   </div>
-                  {/* The basis, not another money figure: this card only counts
-                      INSTALLED sales, which is why it can sit below "Total de
-                      Comissão" — that one counts everything sold. */}
+                  {/* Same earned-sale basis as gross and team commission. */}
                   <p className="text-xs text-muted-foreground">
-                    {teamSalesCount} venda{teamSalesCount === 1 ? "" : "s"} instalada{teamSalesCount === 1 ? "" : "s"}
+                    {teamSalesCount} vendas ativas ou instaladas
                   </p>
                 </CardContent>
               </Card>

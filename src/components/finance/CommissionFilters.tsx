@@ -37,6 +37,7 @@ const STATUS_TONES: Record<TelecomStatus, string> = {
   pendente: 'border-amber-500/40 bg-amber-500/15 text-amber-600 data-[state=on]:bg-amber-500/15 data-[state=on]:text-amber-600 dark:text-amber-400 dark:data-[state=on]:text-amber-400',
   em_instalacao: 'border-blue-500/40 bg-blue-500/15 text-blue-600 data-[state=on]:bg-blue-500/15 data-[state=on]:text-blue-600 dark:text-blue-400 dark:data-[state=on]:text-blue-400',
   ativo: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 data-[state=on]:bg-emerald-500/15 data-[state=on]:text-emerald-600 dark:text-emerald-400 dark:data-[state=on]:text-emerald-400',
+  instalado: 'border-emerald-700/40 bg-emerald-700/15 text-emerald-700 data-[state=on]:bg-emerald-700/15 data-[state=on]:text-emerald-700 dark:text-emerald-300 dark:data-[state=on]:text-emerald-300',
   anulado: 'border-slate-500/40 bg-slate-500/15 text-slate-600 data-[state=on]:bg-slate-500/15 data-[state=on]:text-slate-600 dark:text-slate-300 dark:data-[state=on]:text-slate-300',
   cancelado: 'border-red-500/40 bg-red-500/15 text-red-600 data-[state=on]:bg-red-500/15 data-[state=on]:text-red-600 dark:text-red-400 dark:data-[state=on]:text-red-400',
 };

@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, Wallet, Clock, CheckCircle2 } from 'lucide-react';
 import { useMyCommissions } from '@/hooks/useSalesApproval';
 import { formatCurrency } from '@/lib/format';
+import { useAuth } from '@/contexts/AuthContext';
+import { commissionPortions as portions } from '@/lib/commission-earnings';
 
 type StatusFilter = 'pending' | 'confirmed' | 'cancelled' | 'all';
 
@@ -18,32 +20,14 @@ interface CommissionSale {
   total_value: number;
   paid_amount: number;
   comissao: number | null;
+  earned_by_operator?: boolean;
 }
 
 const EPS = 0.005;
 const isConcluded = (s: CommissionSale) => s.status === 'delivered' || s.status === 'fulfilled';
 const isCancelled = (s: CommissionSale) => s.status === 'cancelled';
 
-// Fraction of the sale value already received from the client. Commission is
-// earned proportionally to what the client has actually paid: a concluded sale
-// with 80€ paid out of 150€ has earned 80/150 of its commission.
-function earnedFraction(s: CommissionSale): number {
-  if (isCancelled(s) || !isConcluded(s)) return 0; // not concluded → nothing earned yet
-  if (s.is_paid) return 1;                          // fully paid
-  const tv = Number(s.total_value) || 0;
-  if (tv <= 0) return 0;
-  return Math.min(1, Math.max(0, Number(s.paid_amount || 0) / tv));
-}
-
-// Split a sale's commission into its earned (confirmed) and outstanding
-// (pending) portions, proportional to the amount the client has paid.
-function portions(s: CommissionSale): { confirmed: number; pending: number; fraction: number } {
-  if (isCancelled(s)) return { confirmed: 0, pending: 0, fraction: 0 };
-  const c = Number(s.comissao) || 0;
-  const f = earnedFraction(s);
-  return { confirmed: c * f, pending: c * (1 - f), fraction: f };
-}
-
+// The shared calculation handles client receipts and operator-earned commission.
 const hasConfirmed = (s: CommissionSale) => portions(s).confirmed > EPS;
 const hasPending = (s: CommissionSale) => portions(s).pending > EPS;
 
@@ -60,6 +44,10 @@ function badgeMeta(s: CommissionSale): { label: string; className: string } {
 }
 
 export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange }) {
+  const { organization } = useAuth();
+  const isTelecom = organization?.niche === 'telecom';
+  const dateOf = (s: { sale_date?: string | null; activation_date?: string | null }) =>
+    isTelecom ? (s.activation_date || s.sale_date) : s.sale_date;
   const { data: allSales = [], isLoading } = useMyCommissions();
   const [filter, setFilter] = useState<StatusFilter>('pending');
 
@@ -68,7 +56,8 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
     if (!dateRange?.from) return true;
     if (!dateStr) return false;
     const d = parseISO(dateStr);
-    return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to ?? dateRange.from);
+    return d >= startOfDay(dateRange.from)
+      && (isTelecom && !dateRange.to || d <= endOfDay(dateRange.to ?? dateRange.from));
   };
 
   // Filter by sale date for the selected period. An outstanding (pending)
@@ -79,6 +68,7 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
     if (!dateRange?.from) return allSales;
     const periodEnd = endOfDay(dateRange.to ?? dateRange.from);
     return allSales.filter((s) => {
+      if (isTelecom) return inPeriod(dateOf(s));
       if (hasPending(s)) {
         if (!s.sale_date) return true;
         return parseISO(s.sale_date) <= periodEnd;
@@ -86,7 +76,7 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
       return inPeriod(s.sale_date);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allSales, dateRange]);
+  }, [allSales, dateRange, isTelecom]);
 
   const stats = useMemo(() => {
     const monthStart = startOfMonth(new Date());
@@ -105,7 +95,7 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
       }
       // Confirmed amounts count only within their own period, so a pending sale
       // carried forward from an earlier month never inflates this period's totals.
-      if (confirmed > EPS && inPeriod(s.sale_date)) {
+      if (confirmed > EPS && inPeriod(dateOf(s))) {
         confirmedTotal += confirmed;
         confirmedCount++;
         const ref = s.approved_at
@@ -118,7 +108,7 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
     }
     return { pendingTotal, pendingCount, confirmedTotal, confirmedCount, monthTotal };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sales, dateRange]);
+  }, [sales, dateRange, isTelecom]);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return sales;
@@ -211,8 +201,8 @@ export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange })
                   return (
                     <TableRow key={s.id}>
                       <TableCell className="text-sm">
-                        {s.sale_date
-                          ? format(new Date(s.sale_date), 'dd MMM yyyy', { locale: pt })
+                        {dateOf(s)
+                          ? format(new Date(dateOf(s)!), 'dd MMM yyyy', { locale: pt })
                           : '-'}
                       </TableCell>
                       <TableCell>

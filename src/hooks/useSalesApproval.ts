@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
 
 export interface PendingApprovalSale {
   id: string;
@@ -181,6 +182,8 @@ export function useUnapproveSale() {
 }
 
 export interface MyCommissionSale {
+  /** Telecom commission is earned by lifecycle, independently of client receipts. */
+  earned_by_operator?: boolean;
   id: string;
   code: string | null;
   status: string;
@@ -210,9 +213,10 @@ export function useMyCommissions() {
   const { user, organization } = useAuth();
   const organizationId = organization?.id;
   const userId = user?.id;
+  const isTelecom = organization?.niche === 'telecom';
 
   return useQuery({
-    queryKey: ['my-commissions', organizationId, userId],
+    queryKey: ['my-commissions', organizationId, userId, isTelecom ? TELECOM_EARNED_STATUSES : null],
     queryFn: async (): Promise<MyCommissionSale[]> => {
       if (!organizationId || !userId) return [];
 
@@ -247,7 +251,7 @@ export function useMyCommissions() {
 
       const { data: sales, error } = await (supabase as any)
         .from('sales')
-        .select('id, code, status, total_value, comissao, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id')
+        .select('id, code, status, telecom_status, total_value, comissao, org_commission, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id')
         .eq('organization_id', organizationId)
         .or(filters.join(','))
         .order('created_at', { ascending: false });
@@ -325,7 +329,8 @@ export function useMyCommissions() {
           // His own share once the sale pays anybody; the sale's own figure
           // only when it carries no split rules at all. A sale that pays
           // someone else contributes 0 to HIS commissions, not its gross.
-          comissao: saleHasSplits.has(s.id) ? (myAmountBySale.get(s.id) ?? 0) : s.comissao,
+          comissao: saleHasSplits.has(s.id) ? (myAmountBySale.get(s.id) ?? 0) : (isTelecom ? telecomTeamCommission(s) : s.comissao),
+          earned_by_operator: isTelecom && isTelecomCommissionEarned(s),
           sale_date: s.sale_date,
           activation_date: s.activation_date,
           created_at: s.created_at,

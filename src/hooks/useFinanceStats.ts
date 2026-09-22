@@ -9,6 +9,7 @@ import { DateRange } from 'react-day-picker';
 import { saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useSaleTypeIds } from '@/hooks/useSaleTypeIds';
 import { sumOperationalSaleUnits } from '@/lib/sale-units';
+import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
 
 interface UseFinanceStatsOptions {
   dateRange?: DateRange;
@@ -26,13 +27,13 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
   const saleTypeIds = useSaleTypeIds();
 
   const { data: sales, isLoading: loadingSales } = useQuery({
-    queryKey: ['finance-sales', organizationId],
+    queryKey: ['finance-sales', organizationId, organization?.niche === 'telecom' ? TELECOM_EARNED_STATUSES : null],
     queryFn: async () => {
       if (!organizationId) return [];
       // Cast: telecom_status/comissao are newer than the generated types.
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, seller_id, created_by, servicos_details, operational_units')
+        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, seller_id, created_by, servicos_details')
         .eq('organization_id', organizationId);
       if (error) throw error;
       // Cancelled sales are not real revenue — exclude them from every total.
@@ -197,7 +198,7 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
       overdueCount: 0,
     };
 
-    if (!filteredSales?.length && !filteredPayments?.length && !filteredExpenses?.length && !payments?.length) {
+    if (!sales?.length && !filteredPayments?.length && !filteredExpenses?.length && !payments?.length) {
       return empty;
     }
 
@@ -230,22 +231,6 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
 
     const totalBilled = filteredSales.reduce((sum, sale) => sum + sale.total_value, 0) + renewalBilled;
 
-    // Telecom has no client payments — the operator pays. This is the whole
-    // commission booked in the period, which is what "Total de Comissão"
-    // says: every sale except the ones called off. filteredSales already
-    // drops status 'cancelled', and both telecom cancellations (anulado and
-    // cancelado) map onto it, so the set is right as it stands.
-    //
-    // Deliberately NOT the same basis as the "Comissões"/"Valor da
-    // Organização" cards: those answer "what is owed to people", and only
-    // count once a sale is installed. This one answers "what did we sell".
-    //
-    // Operator / seller filters apply to THIS number only — they are a
-    // telecom question, and the rest of the page is client billing.
-    const totalCommission = filteredSales
-      .filter((sale: any) => saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds))
-      .reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
-
     // The telecom lifecycle. Client billing has no meaning here — the
     // operator pays, and it pays on INSTALL — so the money is read off the
     // telecom state: what is still waiting on an install (counted when it
@@ -262,9 +247,11 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
     const toInstallRows = telecomSales.filter((sale: any) =>
       (sale.telecom_status === 'pendente' || sale.telecom_status === 'em_instalacao') && inPeriod(sale.sale_date));
     const installedRows = telecomSales.filter((sale: any) =>
-      sale.telecom_status === 'ativo' && inPeriod(sale.activation_date || sale.sale_date));
+      isTelecomCommissionEarned(sale) && inPeriod(sale.activation_date || sale.sale_date));
     const telecomToInstall = toInstallRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
     const telecomInstalled = installedRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
+    // Earned gross uses the same lifecycle and effective date as team/org shares.
+    const totalCommission = telecomInstalled;
 
     const totalReceived = eligibleFilteredPayments
       .filter((payment) => payment.status === 'paid')

@@ -33,6 +33,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   const { organization } = useAuth();
   const queryClient = useQueryClient();
   const orgId = organization?.id;
+  const isTelecom = organization?.niche === "telecom";
 
   const ref = referenceDate || new Date();
   const currentMonthStart = format(startOfMonth(ref), "yyyy-MM-dd");
@@ -56,7 +57,8 @@ export function useActivationObjectives(referenceDate?: Date) {
     enabled: !!orgId,
   });
 
-  // Fetch delivered sales with proposal_id for current month
+  // Telecom lines count from the moment they become active (fulfilled); in
+  // every other niche, activations are only counted when concluded.
   const { data: monthlyActivations = [], isLoading: monthlyLoading } = useQuery({
     queryKey: ["activations-monthly", orgId, currentMonthStart],
     queryFn: async () => {
@@ -68,14 +70,14 @@ export function useActivationObjectives(referenceDate?: Date) {
         .not("activation_date", "is", null)
         .gte("activation_date", currentMonthStart)
         .lte("activation_date", monthEnd)
-        .eq("status", "delivered");
+        .in("status", isTelecom ? ["fulfilled", "delivered"] : ["delivered"]);
       if (error) throw error;
       return data || [];
     },
     enabled: !!orgId,
   });
 
-  // Fetch delivered sales with proposal_id for current year
+  // Same lifecycle rule for the annual objective.
   const { data: annualActivations = [], isLoading: annualLoading } = useQuery({
     queryKey: ["activations-annual", orgId, currentYearStart],
     queryFn: async () => {
@@ -87,7 +89,7 @@ export function useActivationObjectives(referenceDate?: Date) {
         .not("activation_date", "is", null)
         .gte("activation_date", currentYearStart)
         .lte("activation_date", yearEnd)
-        .eq("status", "delivered");
+        .in("status", isTelecom ? ["fulfilled", "delivered"] : ["delivered"]);
       if (error) throw error;
       return data || [];
     },

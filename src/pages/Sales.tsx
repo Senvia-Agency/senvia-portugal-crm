@@ -443,7 +443,7 @@ const deleteSale = useMutation({
     <>
       {/* Summary Cards */}
       <div className="px-4 md:px-6 pt-3 pb-1 grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
-        <Card className="bg-card/50 border-border/50">
+        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-4' : ''}`}>
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -459,7 +459,7 @@ const deleteSale = useMutation({
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 border-border/50">
+        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-3' : ''}`}>
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
               <Package className="h-4 w-4 text-blue-500" />
@@ -469,11 +469,11 @@ const deleteSale = useMutation({
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 border-border/50">
+        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-2' : ''}`}>
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
               <Package className="h-4 w-4 text-purple-500" />
-              <span className="text-xs text-muted-foreground">Entregues</span>
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
             </div>
             <p className="text-xl font-bold leading-tight text-purple-500">{stats.fulfilled}</p>
             <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
@@ -484,7 +484,7 @@ const deleteSale = useMutation({
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-1">
               <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-xs text-muted-foreground">Concluídas</span>
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
             </div>
             <p className="text-xl font-bold leading-tight text-green-500">{stats.delivered}</p>
             <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
@@ -589,7 +589,7 @@ const deleteSale = useMutation({
           </Tabs>
         }
         summary={salesTab === 'vendas'
-          ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso · ${formatOperationalUnits(stats.delivered)} concluída${stats.delivered === 1 ? '' : 's'}`
+          ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso${isTelecom ? ` · ${formatOperationalUnits(stats.fulfilled)} ativa${stats.fulfilled === 1 ? '' : 's'}` : ''} · ${formatOperationalUnits(stats.delivered)} ${isTelecom ? `instalada${stats.delivered === 1 ? '' : 's'}` : `concluída${stats.delivered === 1 ? '' : 's'}`}`
           : undefined}
         chips={salesTab === 'vendas' ? activeFilterChips : []}
         actions={

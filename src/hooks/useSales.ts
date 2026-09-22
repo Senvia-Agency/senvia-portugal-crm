@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeamFilter } from "@/hooks/useTeamFilter";
 import { toast } from "sonner";
+import { invalidateSaleFinance } from '@/lib/sale-finance-cache';
+import {
+  TELECOM_TO_SALE_STATUS,
+} from "@/types/sales";
 import type {
   BillingProvider,
   BillingStatus,
@@ -323,7 +327,9 @@ export function useCreateSale() {
           // Who the commission is paid to. NULL means the creator, so a sale
           // entered by the salesperson himself needs nothing set.
           seller_id: data.seller_id ?? null,
-          status: data.status || "pending",
+          status: data.telecom_status
+            ? TELECOM_TO_SALE_STATUS[data.telecom_status]
+            : (data.status || "in_progress"),
           // Campos específicos de proposta
           proposal_type: data.proposal_type || null,
           consumo_anual: data.consumo_anual || null,
@@ -377,6 +383,7 @@ export function useCreateSale() {
       queryClient.invalidateQueries({ queryKey: ["recurring-sales"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
       toast.success("Venda criada com sucesso!");
+      void invalidateSaleFinance(queryClient);
     },
     onError: () => {
       toast.error("Erro ao criar venda");
@@ -401,6 +408,7 @@ export function useUpdateSaleStatus() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
       toast.success("Estado atualizado!");
+      void invalidateSaleFinance(queryClient);
     },
     onError: () => {
       toast.error("Erro ao atualizar estado");
@@ -458,9 +466,12 @@ export function useUpdateSale() {
         contract_signed?: boolean | null;
       }
     }) => {
+      const normalizedUpdates = updates.telecom_status
+        ? { ...updates, status: TELECOM_TO_SALE_STATUS[updates.telecom_status] }
+        : updates;
       const { error } = await supabase
         .from("sales")
-        .update(updates)
+        .update(normalizedUpdates)
         .eq("id", saleId);
 
       if (error) throw error;
@@ -470,6 +481,7 @@ export function useUpdateSale() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["recurring-sales"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
+      void invalidateSaleFinance(queryClient);
     },
     onError: () => {
       toast.error("Erro ao atualizar venda");
@@ -490,6 +502,7 @@ export function useDeleteSale() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
       toast.success("Venda eliminada!");
+      void invalidateSaleFinance(queryClient);
     },
     onError: () => {
       toast.error("Erro ao eliminar venda");

@@ -804,7 +804,7 @@ export function CreateSaleModal({
         // its booked install day as activation date, nobody types a second one.
         activation_date: activationDate
           ? format(activationDate, 'yyyy-MM-dd')
-          : (isTelecom && (telecomStatus === 'ativo' || saleStatus === 'delivered') && scheduledInstallDate ? scheduledInstallDate : undefined),
+          : (isTelecom && (telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : undefined),
         has_recurring: hasRecurring || false,
         recurring_value: recurringValue,
         recurring_status: isPlanSale ? 'pending' : (hasRecurring ? 'active' : undefined),

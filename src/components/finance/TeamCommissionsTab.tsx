@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format, subMonths, startOfMonth } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
+import type { CommissionFilters } from '@/lib/commission-filters';
 import { pt } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +41,7 @@ function generateMonthOptions() {
   return options;
 }
 
-export function TeamCommissionsTab() {
+export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { dateRange?: DateRange; commissionFilters?: CommissionFilters } } = {}) {
   const { effectiveUserIds, canFilterByTeam } = useTeamFilter();
   const monthOptions = useMemo(() => generateMonthOptions(), []);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value);
@@ -50,7 +52,7 @@ export function TeamCommissionsTab() {
   // Which pending commissions are ticked for payment (keyed by `${kind}-${id}`).
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useCommercialCommissions(selectedMonth, effectiveUserIds);
+  const { data, isLoading } = useCommercialCommissions(selectedMonth, effectiveUserIds, financeOptions);
   const payMutation = usePayCommercialCommissions();
   const markPaidMutation = useMarkCommissionPaid();
 
@@ -115,7 +117,7 @@ export function TeamCommissionsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-3">
-        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+        {!financeOptions && <Select value={selectedMonth} onValueChange={setSelectedMonth}>
           <SelectTrigger className="w-full sm:w-[220px]">
             <SelectValue />
           </SelectTrigger>
@@ -124,7 +126,7 @@ export function TeamCommissionsTab() {
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select>}
         {canFilterByTeam && <TeamMemberFilter />}
         <div className="relative flex-1 sm:max-w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

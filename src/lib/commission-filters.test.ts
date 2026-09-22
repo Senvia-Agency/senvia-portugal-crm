@@ -9,7 +9,9 @@ describe('buildSaleTypeIds', () => {
       price: 200,
       has_commission: true,
       commission_pct: 30,
-      type_ids: ['fibra', 'satelite'],
+      // The catalog entry is intentionally broad. The sale-line technology
+      // must take precedence over those generic tags when filtering.
+      type_ids: ['fibra', 'satelite', 'cartoes'],
     }];
     const typeIdsForSale = buildSaleTypeIds(catalog);
 

@@ -513,7 +513,7 @@ export function EditSaleModal({
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : null,
           servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
           ...(isTelecom ? {
-            activation_date: activationDate || (telecomStatus === 'ativo' && scheduledInstallDate ? scheduledInstallDate : null),
+            activation_date: activationDate || ((telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : null),
             telecom_status: telecomStatus || null,
             scheduled_install_date: scheduledInstallDate
               ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
