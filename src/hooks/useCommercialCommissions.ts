@@ -6,7 +6,7 @@ import { useTeamMembers } from '@/hooks/useTeam';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
-import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { buildSaleTypeIds, saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 
@@ -19,6 +19,7 @@ export interface CommissionItem {
   saleValue: number | null; // sale total value (direct sales); null for recurring
   paid: boolean;
   proportional?: boolean; // true when amount is proportional to partial payment
+  expectedMonth?: boolean;
 }
 
 export interface CommercialCommission {
@@ -44,6 +45,7 @@ export interface OrganizationCommissionSale {
   clientName: string;
   date: string | null;
   telecomStatus: string;
+  deferred: boolean;
   amount: number;
 }
 
@@ -62,7 +64,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
   const saleTypeIds = buildSaleTypeIds(catalog ?? []);
 
   return useQuery<CommercialCommissionsData>({
-    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null],
+    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
     queryFn: async () => {
       const empty: CommercialCommissionsData = { commercials: [], total: 0, totalPending: 0 };
       if (!organizationId || !selectedMonth) return empty;
@@ -79,7 +81,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // that once took the product catalog down.
       const { data: sales, error: salesErr } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_details')
+        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_details, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesErr) throw salesErr;
@@ -128,12 +130,10 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         // vertical does) left installed sales showing 0 € forever.
         if (isTelecom) {
           if (!isTelecomCommissionEarned(s) || !saleMatchesCommissionFilters(s, financeOptions?.commissionFilters, saleTypeIds)) continue;
-          const ref = s.activation_date || s.sale_date;
+          const ref = telecomCommissionDate(s);
           if (!ref) continue;
-          const d = new Date(ref);
-          const from = financeOptions ? financeOptions.dateRange?.from : monthStart;
-          const to = financeOptions ? financeOptions.dateRange?.to : monthEnd;
-          if ((!from || d >= startOfDay(from)) && (!to || d <= endOfDay(to))) {
+          const period = financeOptions ? financeOptions.dateRange : { from: monthStart, to: monthEnd };
+          if (telecomCommissionInPeriod(s, period)) {
             monthItems.push({ sale: s, amount: comissao, date: ref, monthKey, proportional: false });
           }
           continue;
@@ -310,6 +310,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
             saleValue: Number(s.total_value || 0),
             paid,
             proportional: mi.proportional,
+            expectedMonth: isTelecom && Number(s.commission_payment_month_offset || 0) > 0,
           });
           e.total += share.amount;
           if (paid) e.totalPaid += share.amount;
@@ -356,7 +357,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
   const toKey = dateRange?.to ? dateRange.to.toISOString() : 'none';
 
   return useQuery<{ total: number; count: number; orgTotal: number; grossTotal: number; paidTotal: number; organizationSales: OrganizationCommissionSale[] }>({
-    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'organization-detail-v1'],
+    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
     queryFn: async () => {
       if (!orgId) return { total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0, organizationSales: [] };
 
@@ -371,14 +372,14 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
 
       const { data: sales, error: salesError } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, commission_paid_at, seller_id, created_by, servicos_details, client:crm_clients(name), lead:leads(name)')
+        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, commission_paid_at, seller_id, created_by, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
         .eq('organization_id', orgId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesError) throw salesError;
 
       // Only count commissions on RECEIVED sales (concluded AND fully paid).
       const candidates = ((sales || []) as any[]).filter(
-        (s) => inRange(s.activation_date || s.sale_date)
+        (s) => (isTelecom ? telecomCommissionInPeriod(s, dateRange) : inRange(s.activation_date || s.sale_date))
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),
       );
       const candIds = candidates.map((s) => s.id);
@@ -416,7 +417,8 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               id: s.id,
               code: s.code,
               clientName: s.client?.name || s.lead?.name || '—',
-              date: s.activation_date || s.sale_date,
+              date: telecomCommissionDate(s),
+              deferred: Number(s.commission_payment_month_offset || 0) > 0,
               telecomStatus: s.telecom_status,
               amount: org,
             });

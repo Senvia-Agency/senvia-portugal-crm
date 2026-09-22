@@ -20,7 +20,7 @@ import { saleMatchesCommissionFilters, type CommissionFilters } from "@/lib/comm
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
 import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
 import { PAYMENT_METHOD_LABELS, TELECOM_STATUS_LABELS, TELECOM_STATUS_COLORS, type TelecomStatus } from "@/types/sales";
-import { TELECOM_EARNED_STATUSES } from "@/lib/telecom-finance";
+import { TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from "@/lib/telecom-finance";
 import { isTelecomAwaitingScheduledInstall } from "@/lib/telecom-sale-views";
 import { sumOperationalSaleUnits } from "@/lib/sale-units";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -83,7 +83,8 @@ function inRange(dateStr: string, dateRange?: DateRange) {
   return true;
 }
 
-function fmtDate(dateStr: string) {
+function fmtDate(dateStr?: string | null) {
+  if (!dateStr) return '—';
   return format(parseISO(dateStr), "dd MMM yyyy", { locale: pt });
 }
 
@@ -299,7 +300,7 @@ function SalesDetailTable({
     // drops them (useFinanceStats). Both telecom cancellations map onto it.
     () => sales.filter((s) =>
       s.status !== "cancelled"
-      && inRange(dateBasis === "activation" ? (s.activation_date || s.sale_date) : s.sale_date, dateRange)
+      && (dateBasis === "activation" ? telecomCommissionInPeriod(s, dateRange) : inRange(s.sale_date, dateRange))
       && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds)
       && (!telecomStatuses || telecomStatuses.includes(s.telecom_status as TelecomStatus))
       && (!scheduledInstallationOnly || isTelecomAwaitingScheduledInstall(s))),
@@ -327,7 +328,7 @@ function SalesDetailTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
+            <TableHead>{dateBasis === 'activation' ? 'Recebimento previsto' : 'Data'}</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Código</TableHead>
             {isTelecom && <TableHead>Vendedor</TableHead>}
@@ -342,7 +343,9 @@ function SalesDetailTable({
             <>
               {filtered.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="whitespace-nowrap">{fmtDate(dateBasis === 'activation' ? (s.activation_date || s.sale_date) : s.sale_date)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && (s.commission_payment_month_offset ?? 0) > 0 && telecomCommissionDate(s)
+                    ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: pt })
+                    : fmtDate(dateBasis === 'activation' ? telecomCommissionDate(s) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>
                   <TableCell>{s.code}</TableCell>
                   {isTelecom && <TableCell>{sellerOf(s)}</TableCell>}
@@ -387,7 +390,7 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
     <div className="rounded-md border">
       <Table>
         <TableHeader><TableRow>
-          <TableHead>Data de ativação</TableHead>
+          <TableHead>Recebimento previsto</TableHead>
           <TableHead>Cliente</TableHead>
           <TableHead>Código</TableHead>
           <TableHead>Estado</TableHead>
@@ -396,7 +399,7 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
         <TableBody>
           {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
             <TableRow key={sale.id}>
-              <TableCell className="whitespace-nowrap">{fmtDate(sale.date)}</TableCell>
+              <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
               <TableCell>{sale.clientName}</TableCell>
               <TableCell>{sale.code || '—'}</TableCell>
               <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>

@@ -34,6 +34,8 @@
 
 ### Finance
 
+Telecom commission timing: `operators.commission_payment_month_offset` configures a calendar-month offset (0 preserves immediate recognition). `sales.commission_payment_month_offset` and `commission_expected_date` record the applicable rule and expected month. A BEFORE trigger derives them from frozen per-line operator IDs in the same organization and the effective `activation_date` (also used when recording an installation; installed sales can fall back to the installation slot). Deferred dates use the first day only as a month marker, never as a promised payment day. Pending sales have no deferred receipt month. A mixed-operator sale uses the latest configured month. BDS Digi is M+2. Existing RLS on operators/sales is unchanged; no new tables. Financial period filters use this expected month; unfiltered totals exclude future deferred commissions. Actual receipt/payment flags remain separate.
+
 | Table | Purpose |
 |-------|---------|
 | `expenses` | Expense records. Has `category_id`, `is_recurring`, `next_recurrence_date`, `bank_account_id`. |

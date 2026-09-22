@@ -9,7 +9,7 @@ import { DateRange } from 'react-day-picker';
 import { saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useSaleTypeIds } from '@/hooks/useSaleTypeIds';
 import { sumOperationalSaleUnits } from '@/lib/sale-units';
-import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES, telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { isTelecomAwaitingScheduledInstall } from '@/lib/telecom-sale-views';
 
 interface UseFinanceStatsOptions {
@@ -28,13 +28,13 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
   const saleTypeIds = useSaleTypeIds();
 
   const { data: sales, isLoading: loadingSales } = useQuery({
-    queryKey: ['finance-sales', organizationId, organization?.niche === 'telecom' ? TELECOM_EARNED_STATUSES : null, 'scheduled-install-v1'],
+    queryKey: ['finance-sales', organizationId, organization?.niche === 'telecom' ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
     queryFn: async () => {
       if (!organizationId) return [];
       // Cast: telecom_status/comissao are newer than the generated types.
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, scheduled_install_date, seller_id, created_by, servicos_details')
+        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, scheduled_install_date, seller_id, created_by, servicos_details, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId);
       if (error) throw error;
       // Cancelled sales are not real revenue — exclude them from every total.
@@ -248,7 +248,7 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
     const toInstallRows = telecomSales.filter((sale: any) =>
       isTelecomAwaitingScheduledInstall(sale) && inPeriod(sale.sale_date));
     const installedRows = telecomSales.filter((sale: any) =>
-      isTelecomCommissionEarned(sale) && inPeriod(sale.activation_date || sale.sale_date));
+      isTelecomCommissionEarned(sale) && telecomCommissionInPeriod(sale, dateRange));
     const telecomToInstall = toInstallRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
     const telecomInstalled = installedRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
     // Earned gross uses the same lifecycle and effective date as team/org shares.

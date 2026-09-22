@@ -502,6 +502,14 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             </p>
                           </div>
                         )}
+                        {isTelecom && (sale.commission_payment_month_offset ?? 0) > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Mês previsto da comissão · M+{sale.commission_payment_month_offset}</p>
+                            <p className="text-sm font-medium">
+                              {sale.commission_expected_date ? format(new Date(`${sale.commission_expected_date}T12:00:00`), 'MMMM yyyy', { locale: pt }) : 'Aguarda ativação ou instalação'}
+                            </p>
+                          </div>
+                        )}
                         {/* Always shown in telecom: the booked install slot is the
                             single most asked-about field on a sale. */}
                         {isTelecom && (

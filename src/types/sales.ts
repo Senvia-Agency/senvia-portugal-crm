@@ -237,6 +237,8 @@ export interface Sale {
   // What is left for the organization once the seller took his own rate.
   // Frozen alongside the commission splits.
   org_commission: number | null;
+  commission_payment_month_offset?: number;
+  commission_expected_date?: string | null;
 
   // Tipo de Negociação e Serviços/Produtos
   negotiation_type: NegotiationType | null;

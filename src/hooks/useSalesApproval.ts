@@ -182,6 +182,8 @@ export function useUnapproveSale() {
 }
 
 export interface MyCommissionSale {
+  commission_payment_month_offset?: number;
+  commission_expected_date?: string | null;
   /** Telecom commission is earned by lifecycle, independently of client receipts. */
   earned_by_operator?: boolean;
   id: string;
@@ -216,7 +218,7 @@ export function useMyCommissions() {
   const isTelecom = organization?.niche === 'telecom';
 
   return useQuery({
-    queryKey: ['my-commissions', organizationId, userId, isTelecom ? TELECOM_EARNED_STATUSES : null],
+    queryKey: ['my-commissions', organizationId, userId, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
     queryFn: async (): Promise<MyCommissionSale[]> => {
       if (!organizationId || !userId) return [];
 
@@ -251,7 +253,7 @@ export function useMyCommissions() {
 
       const { data: sales, error } = await (supabase as any)
         .from('sales')
-        .select('id, code, status, telecom_status, total_value, comissao, org_commission, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id')
+        .select('id, code, status, telecom_status, total_value, comissao, org_commission, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId)
         .or(filters.join(','))
         .order('created_at', { ascending: false });
@@ -331,6 +333,8 @@ export function useMyCommissions() {
           // someone else contributes 0 to HIS commissions, not its gross.
           comissao: saleHasSplits.has(s.id) ? (myAmountBySale.get(s.id) ?? 0) : (isTelecom ? telecomTeamCommission(s) : s.comissao),
           earned_by_operator: isTelecom && isTelecomCommissionEarned(s),
+          commission_payment_month_offset: s.commission_payment_month_offset,
+          commission_expected_date: s.commission_expected_date,
           sale_date: s.sale_date,
           activation_date: s.activation_date,
           created_at: s.created_at,

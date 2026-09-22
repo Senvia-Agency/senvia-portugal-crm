@@ -255,7 +255,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                         </TableCell>
                                         <TableCell className="text-xs">{item.label}</TableCell>
                                         <TableCell className="text-xs">
-                                          {item.date ? format(new Date(item.date), 'dd MMM yyyy', { locale: pt }) : '—'}
+                                          {item.date ? format(new Date(item.date), item.expectedMonth ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt }) : '—'}
                                         </TableCell>
                                         <TableCell className="text-right text-xs">
                                           {item.saleValue != null ? formatCurrency(item.saleValue) : '—'}
@@ -345,7 +345,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                       <span className="block truncate text-sm">{item.label}</span>
                       <span className="block text-xs text-muted-foreground">
                         {item.kind === 'recurring' ? 'Recorrente' : 'Direta'}
-                        {item.date ? ` · ${format(new Date(item.date), 'dd MMM yyyy', { locale: pt })}` : ''}
+                        {item.date ? ` · ${format(new Date(item.date), item.expectedMonth ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })}` : ''}
                       </span>
                     </span>
                     <span className="text-sm font-medium">{formatCurrency(item.amount)}</span>

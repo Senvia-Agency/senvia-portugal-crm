@@ -1,5 +1,6 @@
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { commissionPortions } from '@/lib/commission-earnings';
+import { telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -113,7 +114,7 @@ export default function Finance() {
   // activation date — the same reference the team card uses, otherwise a sale
   // sold in one month and installed in the next lands on two different months.
   const myInPeriod = (myCommissions || []).filter((s) =>
-    inPeriod(isTelecom ? (s.activation_date || s.sale_date) : s.sale_date),
+    isTelecom ? telecomCommissionInPeriod(s, dateRange) : inPeriod(s.sale_date),
   );
   const myPendingTotal = myInPeriod.reduce((sum, s) => {
     if (isTelecom) return sum + commissionPortions(s).pending;
@@ -231,6 +232,7 @@ export default function Finance() {
                   className="w-full sm:w-auto"
                 />
               </div>
+              {isTelecom && <p className="text-xs text-muted-foreground">As comissões seguem o mês previsto de recebimento da operadora. Sem período selecionado, as comissões diferidas de meses futuros ficam excluídas. Seleciona um mês futuro para consultar a previsão.</p>}
               {isTelecom && (
                 <CommissionFiltersBar value={commissionFilters} onChange={setCommissionFilters} className="border-t pt-3" />
               )}
@@ -271,7 +273,7 @@ export default function Finance() {
                   <div className="text-xl font-bold md:text-2xl">{formatCurrency(isTelecom ? stats.totalCommission : stats.totalBilled)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  {hasFilters ? "No período" : "Histórico total"}
+                  {hasFilters ? "No período" : isTelecom ? "Até ao mês atual" : "Histórico total"}
                   {isTelecom && hasCommissionFilters(commissionFilters) && " · filtrado"}
                 </p>
               </CardContent>
