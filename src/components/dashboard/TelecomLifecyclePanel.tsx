@@ -83,12 +83,12 @@ export function TelecomLifecyclePanel() {
     const metrics: Metric[] = [
       { key: 'instalados', hint: 'Fechadas', value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },
       { key: 'ativos', hint: 'Operacionais', value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
-      { key: 'por_instalar', hint: 'Pendentes e em instalação', value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
+      { key: 'por_instalar', hint: 'Em instalação com data marcada', value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
       { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: pt }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600', href: linkTo('proximo_mes') },
       { key: 'anulados', hint: 'Antes da instalação — sem CB', value: count('anulados'), icon: XCircle, tone: 'text-slate-500', href: linkTo('anulados') },
       { key: 'cancelados', hint: 'Após instalação — geram CB', value: count('cancelados'), icon: XCircle, tone: 'text-red-500', href: linkTo('cancelados') },
       { key: 'por_assinar', hint: 'Ativos, pendentes e em instalação', value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600', href: linkTo('por_assinar') },
-      { key: 'total', hint: `Ativos + instalados + por instalar + anulados + ${format(nextMonthStart, 'MMMM', { locale: pt })}`, value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
+      { key: 'total', hint: `Ativos + instalados + pendentes + em instalação + anulados + ${format(nextMonthStart, 'MMMM', { locale: pt })}`, value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
     ];
 
     // Money on the installed sales of the period. sales.comissao is the
@@ -171,7 +171,7 @@ export function TelecomLifecyclePanel() {
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-400">
             <CalendarOff className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              {formatOperationalUnits(undated)} venda{undated === 1 ? '' : 's'} por instalar sem data marcada — não entram na contagem do próximo mês.
+              {formatOperationalUnits(undated)} venda{undated === 1 ? '' : 's'} sem instalação marcada — não entram em “Por instalar” nem na contagem do próximo mês.
             </span>
           </div>
         )}

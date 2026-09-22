@@ -37,6 +37,13 @@ interface TelecomSaleLike {
   contract_signed?: boolean | null;
 }
 
+/** Pending sales and unscheduled installations are not booked installations. */
+export function isTelecomAwaitingScheduledInstall(sale: TelecomSaleLike): boolean {
+  return sale.telecom_status === 'em_instalacao'
+    && !!sale.scheduled_install_date
+    && !Number.isNaN(Date.parse(sale.scheduled_install_date));
+}
+
 /**
  * "Próximo mês" is a forward look, not a slice of the selected period — it
  * always means the month after `reference`, whatever period is on screen.
@@ -66,7 +73,7 @@ export function matchesTelecomView(
     case 'instalados':
       return status === 'instalado';
     case 'por_instalar':
-      return status === 'pendente' || status === 'em_instalacao';
+      return isTelecomAwaitingScheduledInstall(sale);
     case 'proximo_mes':
       return installedNextMonth();
     case 'anulados':

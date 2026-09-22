@@ -10,6 +10,7 @@ import { saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/comm
 import { useSaleTypeIds } from '@/hooks/useSaleTypeIds';
 import { sumOperationalSaleUnits } from '@/lib/sale-units';
 import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
+import { isTelecomAwaitingScheduledInstall } from '@/lib/telecom-sale-views';
 
 interface UseFinanceStatsOptions {
   dateRange?: DateRange;
@@ -27,13 +28,13 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
   const saleTypeIds = useSaleTypeIds();
 
   const { data: sales, isLoading: loadingSales } = useQuery({
-    queryKey: ['finance-sales', organizationId, organization?.niche === 'telecom' ? TELECOM_EARNED_STATUSES : null],
+    queryKey: ['finance-sales', organizationId, organization?.niche === 'telecom' ? TELECOM_EARNED_STATUSES : null, 'scheduled-install-v1'],
     queryFn: async () => {
       if (!organizationId) return [];
       // Cast: telecom_status/comissao are newer than the generated types.
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, seller_id, created_by, servicos_details')
+        .select('id, total_value, created_at, sale_date, status, comissao, telecom_status, activation_date, scheduled_install_date, seller_id, created_by, servicos_details')
         .eq('organization_id', organizationId);
       if (error) throw error;
       // Cancelled sales are not real revenue — exclude them from every total.
@@ -245,7 +246,7 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
     };
     const telecomSales = (sales || []).filter((sale: any) => saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds));
     const toInstallRows = telecomSales.filter((sale: any) =>
-      (sale.telecom_status === 'pendente' || sale.telecom_status === 'em_instalacao') && inPeriod(sale.sale_date));
+      isTelecomAwaitingScheduledInstall(sale) && inPeriod(sale.sale_date));
     const installedRows = telecomSales.filter((sale: any) =>
       isTelecomCommissionEarned(sale) && inPeriod(sale.activation_date || sale.sale_date));
     const telecomToInstall = toInstallRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);

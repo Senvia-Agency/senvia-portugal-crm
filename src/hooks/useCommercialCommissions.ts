@@ -38,6 +38,15 @@ export interface CommercialCommissionsData {
   totalPending: number;
 }
 
+export interface OrganizationCommissionSale {
+  id: string;
+  code: string | null;
+  clientName: string;
+  date: string | null;
+  telecomStatus: string;
+  amount: number;
+}
+
 /**
  * Unified per-commercial commissions for a month: direct-sale commissions
  * (sales.comissao) + recurring Stripe commissions (stripe_commission_records),
@@ -346,10 +355,10 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
   const fromKey = dateRange?.from ? dateRange.from.toISOString() : 'all';
   const toKey = dateRange?.to ? dateRange.to.toISOString() : 'none';
 
-  return useQuery<{ total: number; count: number; orgTotal: number; grossTotal: number; paidTotal: number }>({
-    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null],
+  return useQuery<{ total: number; count: number; orgTotal: number; grossTotal: number; paidTotal: number; organizationSales: OrganizationCommissionSale[] }>({
+    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'organization-detail-v1'],
     queryFn: async () => {
-      if (!orgId) return { total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0 };
+      if (!orgId) return { total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0, organizationSales: [] };
 
       const inRange = (dateStr?: string | null) => {
         if (!dateRange?.from) return true;
@@ -362,7 +371,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
 
       const { data: sales, error: salesError } = await (supabase as any)
         .from('sales')
-        .select('id, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, commission_paid_at, seller_id, created_by, servicos_details')
+        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, commission_paid_at, seller_id, created_by, servicos_details, client:crm_clients(name), lead:leads(name)')
         .eq('organization_id', orgId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesError) throw salesError;
@@ -390,6 +399,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       // Telecom only: the slice of `total` already marked as paid to the
       // team ("Marcar como paga" stamps commission_paid_at on the sale).
       let paidTotal = 0;
+      const organizationSales: OrganizationCommissionSale[] = [];
       for (const s of candidates) {
         // Telecom is paid by the OPERATOR: the commission is earned the moment
         // the line is installed, and there is no client payment to prorate
@@ -402,6 +412,14 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
             const org = Number(s.org_commission || 0);
             grossTotal += gross;
             orgTotal += org;
+            organizationSales.push({
+              id: s.id,
+              code: s.code,
+              clientName: s.client?.name || s.lead?.name || '—',
+              date: s.activation_date || s.sale_date,
+              telecomStatus: s.telecom_status,
+              amount: org,
+            });
             total += Math.max(gross - org, 0);
             if (s.commission_paid_at) paidTotal += Math.max(gross - org, 0);
             count += 1;
@@ -432,7 +450,8 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         if (!periodEnd || parseISO(r.created_at) <= periodEnd) total += Number(r.commission_amount || 0);
       }
 
-      return { total, count, orgTotal, grossTotal, paidTotal };
+      organizationSales.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.code || '').localeCompare(a.code || ''));
+      return { total, count, orgTotal, grossTotal, paidTotal, organizationSales };
     },
     enabled: !!orgId,
   });

@@ -301,7 +301,7 @@ export default function Finance() {
                       <div className="text-xl font-bold text-amber-600 md:text-2xl">{formatCurrency(stats.telecomToInstall)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatOperationalUnits(stats.telecomToInstallCount)} venda{stats.telecomToInstallCount === 1 ? "" : "s"} pendente{stats.telecomToInstallCount === 1 ? "" : "s"} ou em instalação
+                      {formatOperationalUnits(stats.telecomToInstallCount)} venda{stats.telecomToInstallCount === 1 ? "" : "s"} em instalação com data marcada
                     </p>
                   </CardContent>
                 </Card>
@@ -546,10 +546,24 @@ export default function Finance() {
             {/* The operator's gross belongs here and nowhere else: this is the
                 only place the margin the organization keeps makes sense. */}
             {isAdmin && isTelecom && (
-              <Card>
+              <Card
+                className="group cursor-pointer transition-colors hover:bg-muted/50"
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailView("organizationValue")}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setDetailView("organizationValue");
+                  }
+                }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Valor da Organização</CardTitle>
-                  <Building2 className="h-4 w-4 text-amber-500" />
+                  <div className="flex items-center gap-1">
+                    <Building2 className="h-4 w-4 text-amber-500" />
+                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="text-xl font-bold text-amber-600 md:text-2xl">

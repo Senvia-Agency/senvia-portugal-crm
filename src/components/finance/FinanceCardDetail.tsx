@@ -18,8 +18,10 @@ import { cn } from "@/lib/utils";
 import type { PaymentWithSale } from "@/types/finance";
 import { saleMatchesCommissionFilters, type CommissionFilters } from "@/lib/commission-filters";
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
+import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
 import { PAYMENT_METHOD_LABELS, TELECOM_STATUS_LABELS, TELECOM_STATUS_COLORS, type TelecomStatus } from "@/types/sales";
 import { TELECOM_EARNED_STATUSES } from "@/lib/telecom-finance";
+import { isTelecomAwaitingScheduledInstall } from "@/lib/telecom-sale-views";
 import { sumOperationalSaleUnits } from "@/lib/sale-units";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { saleStatusBadge, paymentRecordStatusBadge } from "@/lib/status-badge-maps";
@@ -40,7 +42,7 @@ import {
 
 export type FinanceDetailType =
   | "faturado" | "received" | "pending" | "overdue" | "dueSoon" | "expenses" | "balance" | "myCommissions" | "commissions"
-  | "porInstalar" | "instalado";
+  | "porInstalar" | "instalado" | "organizationValue";
 
 interface FinanceCardDetailProps {
   type: FinanceDetailType;
@@ -70,6 +72,7 @@ const TITLES: Record<FinanceDetailType, string> = {
   commissions: "Comissões",
   porInstalar: "Por instalar",
   instalado: "Ativos e instalados",
+  organizationValue: "Valor da Organização",
 };
 
 function inRange(dateStr: string, dateRange?: DateRange) {
@@ -273,6 +276,7 @@ function SalesDetailTable({
   renewals = [],
   commissionFilters,
   telecomStatuses,
+  scheduledInstallationOnly = false,
   dateBasis = "sale",
 }: {
   dateRange?: DateRange;
@@ -280,6 +284,7 @@ function SalesDetailTable({
   commissionFilters?: CommissionFilters;
   /** Telecom lifecycle cards: keep only these states. */
   telecomStatuses?: TelecomStatus[];
+  scheduledInstallationOnly?: boolean;
   /** "activation" counts a sale when it went live, not when it was sold. */
   dateBasis?: "sale" | "activation";
 }) {
@@ -296,8 +301,9 @@ function SalesDetailTable({
       s.status !== "cancelled"
       && inRange(dateBasis === "activation" ? (s.activation_date || s.sale_date) : s.sale_date, dateRange)
       && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds)
-      && (!telecomStatuses || telecomStatuses.includes(s.telecom_status as TelecomStatus))),
-    [sales, dateRange, commissionFilters, saleTypeIds, telecomStatuses, dateBasis],
+      && (!telecomStatuses || telecomStatuses.includes(s.telecom_status as TelecomStatus))
+      && (!scheduledInstallationOnly || isTelecomAwaitingScheduledInstall(s))),
+    [sales, dateRange, commissionFilters, saleTypeIds, telecomStatuses, scheduledInstallationOnly, dateBasis],
   );
   // Who gets paid for each sale — the assigned seller, falling back to
   // whoever registered it. Hook stays above the early return.
@@ -367,6 +373,39 @@ function SalesDetailTable({
         </TableBody>
       </Table>
       {count > 0 && <TotalFooter count={isTelecom ? sumOperationalSaleUnits(filtered) : count} total={total} />}
+    </div>
+  );
+}
+
+function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?: DateRange; commissionFilters?: CommissionFilters }) {
+  // Reuse the card's query so rows, permissions, filters and total cannot diverge.
+  const { data, isLoading, isError, refetch } = useTeamCommissionTotal(dateRange, commissionFilters);
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isError) return <div className="rounded-md border p-4">Não foi possível carregar as vendas. <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button></div>;
+  const rows = data?.organizationSales ?? [];
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Data de ativação</TableHead>
+          <TableHead>Cliente</TableHead>
+          <TableHead>Código</TableHead>
+          <TableHead>Estado</TableHead>
+          <TableHead className="text-right">Valor da Organização</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
+            <TableRow key={sale.id}>
+              <TableCell className="whitespace-nowrap">{fmtDate(sale.date)}</TableCell>
+              <TableCell>{sale.clientName}</TableCell>
+              <TableCell>{sale.code || '—'}</TableCell>
+              <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
+              <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {rows.length > 0 && <TotalFooter count={rows.length} total={data?.orgTotal ?? 0} />}
     </div>
   );
 }
@@ -555,7 +594,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
         <SalesDetailTable
           dateRange={dateRange}
           commissionFilters={commissionFilters}
-          telecomStatuses={["pendente", "em_instalacao"]}
+          scheduledInstallationOnly
         />
       )}
       {type === "instalado" && (
@@ -571,6 +610,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "overdue" && <PaymentsDetailTable payments={overdue} allowMarkPaid />}
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments} />}
       {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} />}
+      {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
       {type === "balance" && (
