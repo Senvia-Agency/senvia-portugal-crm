@@ -299,6 +299,9 @@ export function useUpdateProposalProducts() {
       proposalId: string; 
       products: { product_id: string; quantity: number; unit_price: number; total: number }[] 
     }) => {
+      // Empty lines can mean the edit form has not finished loading. Never
+      // delete saved proposal products in that state.
+      if (products.length === 0) throw new Error('A proposta não tem produtos para guardar');
       // Delete existing products
       const { error: deleteError } = await supabase
         .from('proposal_products')

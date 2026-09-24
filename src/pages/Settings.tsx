@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -42,6 +42,8 @@ import {
   normalizeKeyInvoiceSeriesConfig,
   type KeyInvoiceSeriesConfig,
 } from '@/types/keyinvoice';
+import type { VendusOptionsResponse, VendusPaymentMethodOption, VendusRegisterOption } from '@/types/vendus';
+import { paymentMethodsForVendusRegister } from '@/lib/vendus-options';
 
 import { ProfilesTab } from '@/components/settings/ProfilesTab';
 import {
@@ -158,6 +160,11 @@ export default function Settings() {
   const [showVendusApiKey, setShowVendusApiKey] = useState(false);
   const [vendusRegisterId, setVendusRegisterId] = useState('');
   const [vendusPaymentMethodId, setVendusPaymentMethodId] = useState('');
+  const [vendusRegisters, setVendusRegisters] = useState<VendusRegisterOption[]>([]);
+  const [vendusPaymentMethods, setVendusPaymentMethods] = useState<VendusPaymentMethodOption[]>([]);
+  const [vendusOptionsLoaded, setVendusOptionsLoaded] = useState(false);
+  const [vendusOptionsLoading, setVendusOptionsLoading] = useState(false);
+  const vendusLookupSequence = useRef(0);
 
   // KeyInvoice state
   const [keyinvoiceApiKey, setKeyinvoiceApiKey] = useState('');
@@ -214,6 +221,11 @@ export default function Settings() {
       setIsLoadingIntegrations(true);
       setVendusApiKey('');
       setShowVendusApiKey(false);
+      vendusLookupSequence.current += 1;
+      setVendusRegisters([]);
+      setVendusPaymentMethods([]);
+      setVendusOptionsLoaded(false);
+      setVendusOptionsLoading(false);
       setVendusRegisterId('');
       setVendusPaymentMethodId('');
       setChavesGuardadas((current) => ({ ...current, vendus: false }));
@@ -367,15 +379,76 @@ export default function Settings() {
     });
   };
 
+  const handleVendusApiKeyChange = (value: string) => {
+    vendusLookupSequence.current += 1;
+    setVendusApiKey(value);
+    setVendusRegisters([]);
+    setVendusPaymentMethods([]);
+    setVendusOptionsLoaded(false);
+    setVendusOptionsLoading(false);
+    setVendusRegisterId('');
+    setVendusPaymentMethodId('');
+  };
+
+  const handleLoadVendusOptions = async () => {
+    if (!organization?.id || (!vendusApiKey.trim() && !chavesGuardadas.vendus)) {
+      toast({ title: 'Introduz a chave API Vendus', variant: 'destructive' });
+      return;
+    }
+    const requestId = ++vendusLookupSequence.current;
+    setVendusOptionsLoading(true);
+    setVendusOptionsLoaded(false);
+    try {
+      const { data, error } = await supabase.functions.invoke<VendusOptionsResponse>('vendus-options', {
+        body: {
+          organization_id: organization.id,
+          ...(vendusApiKey.trim() ? { api_key: vendusApiKey.trim() } : {}),
+        },
+      });
+      if (requestId !== vendusLookupSequence.current) return;
+      if (error || !data || !Array.isArray(data.registers) || !Array.isArray(data.payment_methods)) {
+        throw new Error('Não foi possível validar a chave e obter as opções da Vendus.');
+      }
+      setVendusRegisters(data.registers);
+      setVendusPaymentMethods(data.payment_methods);
+      const registerId = data.registers.some((item) => String(item.id) === vendusRegisterId)
+        ? vendusRegisterId : data.registers.length === 1 ? String(data.registers[0].id) : '';
+      const availableMethods = paymentMethodsForVendusRegister(registerId, data.registers, data.payment_methods);
+      setVendusRegisterId(registerId);
+      setVendusPaymentMethodId(availableMethods.some((item) => String(item.id) === vendusPaymentMethodId)
+        ? vendusPaymentMethodId : availableMethods.length === 1 ? String(availableMethods[0].id) : '');
+      setVendusOptionsLoaded(true);
+      if (!data.registers.length || !data.payment_methods.length) {
+        toast({ title: 'Configuração Vendus incompleta',
+          description: 'Não foram encontradas caixas ativas ou métodos de pagamento. Confirma a configuração na Vendus.',
+          variant: 'destructive' });
+      } else {
+        toast({ title: 'Ligação Vendus validada', description: 'Seleciona a caixa e o método de pagamento para emitir documentos.' });
+      }
+    } catch {
+      if (requestId === vendusLookupSequence.current) {
+        setVendusRegisters([]);
+        setVendusPaymentMethods([]);
+        toast({ title: 'Falha na ligação Vendus',
+          description: 'Confirma a chave API, as permissões do utilizador e as opções configuradas na Vendus.',
+          variant: 'destructive' });
+      }
+    } finally {
+      if (requestId === vendusLookupSequence.current) setVendusOptionsLoading(false);
+    }
+  };
+
   const handleSaveVendus = () => {
     const apiKey = vendusApiKey.trim();
     const registerId = Number(vendusRegisterId.trim());
     const paymentMethodId = Number(vendusPaymentMethodId.trim());
-    if ((!apiKey && !chavesGuardadas.vendus) || !Number.isSafeInteger(registerId) || registerId <= 0
-      || !Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0) {
+    if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded
+      || !vendusRegisters.some((item) => item.id === registerId)
+      || !paymentMethodsForVendusRegister(vendusRegisterId, vendusRegisters, vendusPaymentMethods)
+        .some((item) => item.id === paymentMethodId)) {
       toast({
         title: 'Dados Vendus incompletos',
-        description: 'Indica uma chave de API e identificadores numéricos positivos para o registo e método de pagamento.',
+        description: 'Valida a chave API e seleciona a caixa e o método de pagamento obtidos da Vendus.',
         variant: 'destructive',
       });
       return;
@@ -650,9 +723,10 @@ export default function Settings() {
     invoiceXpressApiKey, setInvoiceXpressApiKey,
     showInvoiceXpressApiKey, setShowInvoiceXpressApiKey,
     handleSaveInvoiceXpress,
-    vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey,
+    vendusApiKey, setVendusApiKey: handleVendusApiKeyChange, showVendusApiKey, setShowVendusApiKey,
     vendusRegisterId, setVendusRegisterId, vendusPaymentMethodId, setVendusPaymentMethodId,
-    handleSaveVendus,
+    vendusRegisters, vendusPaymentMethods, vendusOptionsLoaded, vendusOptionsLoading,
+    handleLoadVendusOptions, handleSaveVendus,
     integrationsEnabled, onToggleIntegration: handleToggleIntegration,
     handleSaveKeyInvoice, keyinvoiceApiKey, setKeyinvoiceApiKey,
     showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl,

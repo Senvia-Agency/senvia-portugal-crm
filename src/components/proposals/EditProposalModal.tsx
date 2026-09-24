@@ -49,8 +49,8 @@ interface EditProposalModalProps {
 export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: EditProposalModalProps) {
   const { data: clients = [] } = useClients();
   const { data: products = [] } = useActiveProducts();
-  const { data: existingCpes = [] } = useProposalCpes(proposal.id);
-  const { data: existingProducts = [] } = useProposalProducts(proposal.id);
+  const { data: existingCpes = [], isSuccess: cpesLoaded, isFetching: cpesFetching, isError: cpesError } = useProposalCpes(proposal.id);
+  const { data: existingProducts = [], isSuccess: productsLoaded, isFetching: productsFetching, isError: productsError } = useProposalProducts(proposal.id);
   const { organization } = useAuth();
   const { configs: SERVICOS_PRODUCT_CONFIGS, catalog, isNewFormat } = useServicosProducts();
   const { calculateCommission, isAutoCalculated, calculateEnergyCommission, hasEnergyConfig } = useCommissionMatrix();
@@ -88,12 +88,20 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
     discount_type: 'percentage' | 'fixed';
     discount_value: number;
   }>>([]);
+  const [manualTotal, setManualTotal] = useState('');
+  const productsHydratedFor = useRef<string | null>(null);
+  const cpesHydratedFor = useRef<string | null>(null);
   
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
-    if (open && proposal) {
+    if (!open) {
+      productsHydratedFor.current = null;
+      cpesHydratedFor.current = null;
+      return;
+    }
+    if (proposal) {
       setSelectedClientId(proposal.client_id || null);
       setNotes(proposal.notes || '');
       setProposalDate(proposal.proposal_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
@@ -107,6 +115,11 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       setServicosProdutos(proposal.servicos_produtos || []);
       setDocumentsChecked(!!proposal.documents_checked);
       setContractSigned(!!proposal.contract_signed);
+      setManualTotal(String(proposal.total_value ?? ''));
+      setSelectedProducts([]);
+      productsHydratedFor.current = null;
+      setProposalCpes([]);
+      cpesHydratedFor.current = null;
 
       // Migrar dados legacy: se servicos_details é null mas tem kwp/comissao no nível superior
       const details = (proposal as any).servicos_details || {};
@@ -124,20 +137,22 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       }
       setServicosDetails(details);
       
-      if (!isTelecom && existingProducts.length > 0) {
-        setSelectedProducts(existingProducts.map(pp => ({
-          product_id: pp.product_id,
-          name: pp.product?.name || 'Produto',
-          quantity: pp.quantity,
-          unit_price: pp.unit_price,
-          discount_type: 'percentage' as const,
-          discount_value: 0,
-        })));
-      } else if (!isTelecom) {
-        setSelectedProducts([]);
-      }
     }
-  }, [open, proposal, isTelecom, existingProducts]);
+  }, [open, proposal.id, isTelecom]);
+
+  useEffect(() => {
+    if (!open || isTelecom || !productsLoaded || productsFetching
+      || productsHydratedFor.current === proposal.id) return;
+    setSelectedProducts(existingProducts.map(pp => ({
+      product_id: pp.product_id,
+      name: pp.product?.name || 'Produto',
+      quantity: pp.quantity,
+      unit_price: pp.unit_price,
+      discount_type: 'percentage' as const,
+      discount_value: 0,
+    })));
+    productsHydratedFor.current = proposal.id;
+  }, [open, isTelecom, productsLoaded, productsFetching, proposal.id, existingProducts]);
 
   // Stable ref to avoid useEffect re-triggering on every render
   const calcRef = useRef(calculateEnergyCommission);
@@ -146,7 +161,8 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
   hasEnergyConfigRef.current = hasEnergyConfig;
 
   useEffect(() => {
-    if (open && existingCpes.length > 0) {
+    if (!open || !cpesLoaded || cpesFetching || cpesHydratedFor.current === proposal.id) return;
+    if (existingCpes.length > 0) {
       setProposalCpes(
         existingCpes.map(cpe => {
           const consumoAnual = cpe.consumo_anual?.toString() || '';
@@ -182,10 +198,11 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
           };
         })
       );
-    } else if (open) {
+    } else {
       setProposalCpes([]);
     }
-  }, [open, existingCpes]);
+    cpesHydratedFor.current = proposal.id;
+  }, [open, existingCpes, cpesLoaded, cpesFetching, proposal.id]);
 
   const getProductTotal = (product: typeof selectedProducts[0]) => {
     const subtotal = product.quantity * product.unit_price;
@@ -202,6 +219,14 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
     return servicosProdutos.reduce((sum, p) => sum + (servicosDetails[p]?.comissao || 0), 0);
   }, [proposalType, proposalCpes, servicosProdutos, servicosDetails]);
 
+  const legacyWithoutProducts = !isTelecom && productsLoaded && !productsFetching
+    && existingProducts.length === 0 && Number(proposal.total_value) > 0;
+  const parsedManualTotal = Number(manualTotal.replace(',', '.'));
+  const relatedDataReady = isTelecom
+    ? cpesLoaded && !cpesFetching && !cpesError && cpesHydratedFor.current === proposal.id
+    : productsLoaded && !productsFetching && !productsError
+      && productsHydratedFor.current === proposal.id;
+
   const totalValue = useMemo(() => {
     if (isTelecom) {
       if (proposalType === 'energia') {
@@ -209,9 +234,9 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       }
       return totalComissao;
     }
-    const productsTotal = selectedProducts.reduce((sum, p) => sum + getProductTotal(p), 0);
-    return productsTotal;
-  }, [isTelecom, proposalType, proposalCpes, totalComissao, selectedProducts]);
+    if (selectedProducts.length > 0) return selectedProducts.reduce((sum, p) => sum + getProductTotal(p), 0);
+    return legacyWithoutProducts && Number.isFinite(parsedManualTotal) ? parsedManualTotal : 0;
+  }, [isTelecom, proposalType, proposalCpes, totalComissao, selectedProducts, legacyWithoutProducts, parsedManualTotal]);
 
   const handleClientCreated = (newClientId: string) => {
     setSelectedClientId(newClientId);
@@ -315,7 +340,9 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
     });
   }, [isTelecom, proposalType, servicosProdutos, servicosDetails]);
 
-  const isFormValid = isServicosValid && !!selectedClientId;
+  const hasGenericValue = isTelecom || selectedProducts.length > 0
+    || (legacyWithoutProducts && Number.isFinite(parsedManualTotal) && parsedManualTotal > 0);
+  const isFormValid = relatedDataReady && isServicosValid && hasGenericValue && !!selectedClientId;
 
   const handleAddProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -394,19 +421,21 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       status: status,
       notes: notes.trim() || null,
       proposal_date: proposalDate,
-      proposal_type: isTelecom ? proposalType : null,
-      negotiation_type: isTelecom ? negotiationType : null,
-      consumo_anual: null,
-      margem: null,
-      dbl: null,
-      anos_contrato: null,
-      modelo_servico: proposalType === 'servicos' ? modeloServico : null,
-      kwp: proposalType === 'servicos' ? (totalKwp || null) : null,
-      comissao: proposalType === 'servicos' ? (totalComissao || null) : null,
-      servicos_produtos: proposalType === 'servicos' ? servicosProdutos : null,
-      servicos_details: proposalType === 'servicos' && Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
-      documents_checked: isTelecom ? documentsChecked : null,
-      contract_signed: isTelecom ? contractSigned : null,
+      ...(isTelecom ? {
+        proposal_type: proposalType,
+        negotiation_type: negotiationType,
+        consumo_anual: null,
+        margem: null,
+        dbl: null,
+        anos_contrato: null,
+        modelo_servico: proposalType === 'servicos' ? modeloServico : null,
+        kwp: proposalType === 'servicos' ? (totalKwp || null) : null,
+        comissao: proposalType === 'servicos' ? (totalComissao || null) : null,
+        servicos_produtos: proposalType === 'servicos' ? servicosProdutos : null,
+        servicos_details: proposalType === 'servicos' && Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
+        documents_checked: documentsChecked,
+        contract_signed: contractSigned,
+      } : {}),
     });
 
     if (isTelecom && proposalType === 'energia') {
@@ -432,7 +461,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       });
     }
 
-    if (!isTelecom) {
+    if (!isTelecom && (selectedProducts.length > 0 || !legacyWithoutProducts)) {
       await updateProposalProducts.mutateAsync({
         proposalId: proposal.id,
         products: selectedProducts.map(p => ({
@@ -718,6 +747,12 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
+                        {productsFetching && !productsLoaded && (
+                          <p className="text-sm text-muted-foreground">A carregar os produtos da proposta...</p>
+                        )}
+                        {productsError && (
+                          <p className="text-sm text-destructive">Não foi possível carregar os produtos. Fecha e volta a abrir a proposta antes de guardar.</p>
+                        )}
                         {products.length > 0 && (
                           <>
                             <Select onValueChange={handleAddProduct}>
@@ -838,6 +873,16 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             )}
                           </>
                         )}
+                        {legacyWithoutProducts && selectedProducts.length === 0 && (
+                          <div className="space-y-2 rounded-lg border border-border p-3">
+                            <Label htmlFor="legacy-proposal-total">Valor da proposta (€)</Label>
+                            <Input id="legacy-proposal-total" type="number" min="0.01" step="0.01"
+                              value={manualTotal} onChange={(event) => setManualTotal(event.target.value)} />
+                            <p className="text-xs text-muted-foreground">
+                              Esta proposta antiga tem um valor guardado, mas não tem linhas de produtos associadas. Podes manter ou editar o valor, ou adicionar produtos acima.
+                            </p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}
@@ -907,7 +952,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
 
                         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
                           <p className="text-sm text-muted-foreground mb-1">Total da Proposta</p>
-                          <p className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</p>
+                          <p className="text-2xl font-bold text-primary">{formatCurrency(relatedDataReady ? totalValue : Number(proposal.total_value) || 0)}</p>
                           {isTelecom && proposalType === 'energia' && proposalCpes.length > 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
                               Soma das margens de {proposalCpes.length} CPE(s)
@@ -930,7 +975,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                 className="flex-1"
                 size="lg"
                 onClick={handleSubmit}
-                disabled={isSubmitting || (attempted && !isFormValid)}
+                disabled={isSubmitting || !relatedDataReady || (attempted && !isFormValid)}
               >
                 {isSubmitting ? (
                   <>

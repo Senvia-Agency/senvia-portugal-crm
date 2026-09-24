@@ -84,6 +84,9 @@ verify_jwt = false
 [functions.keyinvoice-auth]
 verify_jwt = false
 
+[functions.vendus-options]
+verify_jwt = false
+
 [functions.brevo-webhook]
 verify_jwt = false
 
