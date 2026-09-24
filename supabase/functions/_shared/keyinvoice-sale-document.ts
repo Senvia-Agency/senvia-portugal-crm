@@ -13,6 +13,7 @@ import {
   resolveKeyInvoiceProducts,
   safeKeyInvoiceError,
 } from './keyinvoice.ts'
+import { saleBillingRecipient } from './sale-billing-recipient.ts'
 
 export interface IssueSaleDocumentInput {
   organizationId: string
@@ -282,12 +283,17 @@ export async function prepareKeyInvoiceSaleDocumentContext(
   let kind: 'invoice' | 'invoice_receipt' = input.kind || 'invoice'
 
   const client = sale.client || null
-  const clientName = client?.company || client?.name || sale.lead?.name || ''
-  const clientNif = String(client?.nif || client?.company_nif || '').trim()
+  const recipient = saleBillingRecipient(sale)
+  const { name: clientName, nif: clientNif } = recipient
   if (!clientName || !clientNif) {
-    throw new KeyInvoiceError('Adicione o nome e NIF do cliente antes de emitir o documento', {
+    throw new KeyInvoiceError('Adicione o nome e NIF do destinatário selecionado na venda antes de emitir o documento', {
       code: 'missing_client_tax_identity',
       httpStatus: 400,
+    })
+  }
+  if (recipient.target === 'company' && (!recipient.address || !recipient.city || !recipient.postalCode || !recipient.country)) {
+    throw new KeyInvoiceError('Preencha a morada fiscal própria da empresa na ficha do cliente antes de emitir.', {
+      code: 'missing_company_address', httpStatus: 400,
     })
   }
   const { data: saleItems, error: itemsError } = await db
@@ -431,10 +437,10 @@ export async function prepareKeyInvoiceSaleDocumentContext(
       name: clientName,
       vatin: clientNif,
       email: client?.email || sale.lead?.email || null,
-      address: client?.address_line1 || null,
-      locality: client?.city || null,
-      postalCode: client?.postal_code || null,
-      countryCode: client?.country || 'PT',
+      address: recipient.address || null,
+      locality: recipient.city || null,
+      postalCode: recipient.postalCode || null,
+      countryCode: recipient.country || 'PT',
     },
     payment: {
       expectedTotal,
@@ -466,10 +472,10 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     vatin: clientNif,
     email: client?.email || sale.lead?.email || null,
     phone: client?.phone || sale.lead?.phone || null,
-    address: client?.address_line1 || null,
-    locality: client?.city || null,
-    postalCode: client?.postal_code || null,
-    country: client?.country || 'PT',
+    address: recipient.address || null,
+    locality: recipient.city || null,
+    postalCode: recipient.postalCode || null,
+    country: recipient.country || 'PT',
   })
   const productIds = await resolveKeyInvoiceProducts(session, prepared.products)
   const lines = prepared.products.map((product, index) => ({

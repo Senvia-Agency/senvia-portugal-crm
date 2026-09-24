@@ -156,9 +156,15 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const paymentSummary = calculatePaymentSummary(salePayments, paymentObligation);
 
   const hasInvoiceXpress = checkIxActive(organization);
-  const billingCompany = sale?.client?.billing_target === 'company';
+  const billingCompany = (sale?.billing_target ?? sale?.client?.billing_target) === 'company';
   const billingName = billingCompany ? sale?.client?.company : sale?.client?.name;
   const billingNif = billingCompany ? sale?.client?.company_nif : sale?.client?.nif;
+  const hasCompanyFiscalAddress = !billingCompany || !!(
+    sale?.client?.company_address_line1?.trim()
+    && sale?.client?.company_city?.trim()
+    && sale?.client?.company_postal_code?.trim()
+    && sale?.client?.company_country?.trim()
+  );
   const saleDocumentType = sale?.invoicexpress_type === "FR" ? "invoice_receipt" : "invoice";
   const saleDocumentCandidates = fiscalDocuments.filter((document) =>
     document.payment_id == null
@@ -587,6 +593,17 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             </Badge>
                           )}
                         </div>
+
+                        {sale.client && (
+                          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                            <p className="text-xs text-muted-foreground">Faturar a {billingCompany ? 'empresa' : 'cliente'}</p>
+                            <p className="font-medium">{billingName || 'Nome em falta'}</p>
+                            <p className="text-muted-foreground">NIF: {billingNif || 'Não definido'}</p>
+                            {billingCompany && !hasCompanyFiscalAddress && (
+                              <p className="text-amber-600">Preenche a morada fiscal da empresa na ficha do cliente para emitir.</p>
+                            )}
+                          </div>
+                        )}
 
                         {(sale.client?.nif || sale.client?.company) && (
                           <div className="grid grid-cols-2 gap-2">
@@ -1217,7 +1234,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           <div className="p-4 border-t border-border/50 shrink-0">
             <div className="flex gap-3 max-w-6xl mx-auto">
               {(() => {
-                const canEmit = hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && !sale.credit_note_id;
+                const canEmit = hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
                 if (canEmit) {
                   const paidInFull = isSalePaidInFull(paymentObligation, salePayments);
                   const mode = paidInFull ? "invoice_receipt" as const : "invoice" as const;

@@ -1369,6 +1369,11 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          company_address_line1: string | null
+          company_address_line2: string | null
+          company_city: string | null
+          company_postal_code: string | null
+          company_country: string | null
           assigned_to: string | null
           billing_target: string
           city: string | null
@@ -1403,6 +1408,11 @@ export type Database = {
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          company_address_line1?: string | null
+          company_address_line2?: string | null
+          company_city?: string | null
+          company_postal_code?: string | null
+          company_country?: string | null
           assigned_to?: string | null
           billing_target?: string
           city?: string | null
@@ -1437,6 +1447,11 @@ export type Database = {
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          company_address_line1?: string | null
+          company_address_line2?: string | null
+          company_city?: string | null
+          company_postal_code?: string | null
+          company_country?: string | null
           assigned_to?: string | null
           billing_target?: string
           city?: string | null
@@ -6932,6 +6947,7 @@ export type Database = {
           anos_contrato: number | null
           approved_at: string | null
           approved_by: string | null
+          billing_target: string | null
           client_id: string | null
           client_org_id: string | null
           code: string | null
@@ -6986,6 +7002,7 @@ export type Database = {
           anos_contrato?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          billing_target?: string | null
           client_id?: string | null
           client_org_id?: string | null
           code?: string | null
@@ -7040,6 +7057,7 @@ export type Database = {
           anos_contrato?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          billing_target?: string | null
           client_id?: string | null
           client_org_id?: string | null
           code?: string | null

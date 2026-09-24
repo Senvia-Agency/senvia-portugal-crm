@@ -18,7 +18,7 @@
 |-------|---------|
 | `leads` | Lead records. Has `status` (matches pipeline_stages.key), `assigned_to`, `source`, `organization_id`. |
 | `pipeline_stages` | Customizable per-org. Has `key`, `label`, `order`, `is_final_positive`, `is_final_negative`. |
-| `crm_clients` | Converted leads. Has `name`, `email`, `phone`, `company`, `nif` (tax ID). |
+| `crm_clients` | Converted leads. Has `name`, `email`, `phone`, `company`, `nif` (tax ID), `company_nif`, and separate `company_address_line1`, `company_address_line2`, `company_city`, `company_postal_code`, `company_country` for company invoicing. Personal address fields are never reused as the company fiscal address. |
 | `lead_labels` | Tags for leads. Many-to-many via `lead_label_assignments`. |
 | `lead_imports` | History of CSV/bulk lead imports. |
 
@@ -26,7 +26,7 @@
 
 | Table | Purpose |
 |-------|---------|
-| `sales` | Sale records. Key fields: `code`, `total_value`, `status` (pending/in_progress/fulfilled/delivered/cancelled), `created_by`, `client_id`, `client_org_id`, `payment_method`, `has_recurring`, `recurring_value`, `recurring_status`, `next_renewal_date`, `last_renewal_date`. |
+| `sales` | Sale records. Key fields: `code`, `total_value`, `status` (pending/in_progress/fulfilled/delivered/cancelled), `created_by`, `client_id`, `client_org_id`, `billing_target` (`client` or `company` for this sale; null uses the client preference on legacy rows), `payment_method`, `has_recurring`, `recurring_value`, `recurring_status`, `next_renewal_date`, `last_renewal_date`. |
 | `sale_items` | Line items per sale. Links to `products` table. |
 | `sale_payments` | Payment schedule/records. Fields: `amount`, `payment_date`, `status` (pending/paid), `payment_method` (mbway/transfer/cash/card/check/other), `invoice_reference`. **This is what appears in Finance > Payments.** |
 | `products` | Org-level product catalog. Has `price`, `is_recurring`, `tax_value`. |

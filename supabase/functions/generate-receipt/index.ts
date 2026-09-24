@@ -21,6 +21,7 @@ import {
   vendusRequest,
 } from '../_shared/vendus.ts'
 import { getVendusPaymentMethods, resolveVendusPaymentMethod } from '../_shared/vendus-payment-methods.ts'
+import { saleBillingRecipient } from '../_shared/sale-billing-recipient.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,7 +92,7 @@ async function handleVendusReceipt(
   // A receipt settles a specific issued FT. An FR is already paid and cannot
   // receive an RG. The cycle filter prevents settling an unrelated renewal.
   let invoiceQuery = supabase.from('invoices')
-    .select('id,reference,provider_document_type_code,provider_series,provider_document_number,total,recurring_cycle_id,status,processing_status')
+    .select('id,reference,client_name,provider_document_type_code,provider_series,provider_document_number,total,recurring_cycle_id,status,processing_status')
     .eq('organization_id', organizationId)
     .eq('sale_id', saleId)
     .eq('provider', 'vendus')
@@ -137,8 +138,7 @@ async function handleVendusReceipt(
   const txId = `senvia-rg-${paymentId}`
   const externalReference = `senvia-payment-${paymentId}`
   const fiscalDate = lisbonFiscalDate(new Date())
-  const clientData = sale.client as any
-  const clientName = clientData?.company || clientData?.name || 'Cliente'
+  const clientName = String(source.client_name || saleBillingRecipient(sale).name).trim()
   const snapshot = {
     schemaVersion: 1,
     provider: 'vendus',
@@ -474,7 +474,7 @@ Deno.serve(async (req) => {
     // Fetch sale to get invoicexpress_id
     const { data: sale } = await supabase
       .from('sales')
-      .select('id, invoicexpress_id, invoicexpress_type, invoice_reference, total_value, client:crm_clients(name, nif, email, phone, address_line1, city, postal_code, country, company, code)')
+      .select('id, billing_target, invoicexpress_id, invoicexpress_type, invoice_reference, total_value, client:crm_clients(name, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country, company, code, company_address_line1, company_city, company_postal_code, company_country)')
       .eq('id', sale_id)
       .eq('organization_id', organization_id)
       .single()
@@ -601,7 +601,19 @@ Deno.serve(async (req) => {
         }
 
         const clientData = sale.client as any
-        const clientName = clientData?.company || clientData?.name || 'Cliente'
+        const selectedRecipient = saleBillingRecipient(sale)
+        const sourceClient = (invoiceRecord.raw_data as any)?.snapshot?.client
+        const receiptAddress = {
+          address: sourceClient?.address ?? selectedRecipient.address,
+          city: sourceClient?.locality ?? selectedRecipient.city,
+          postalCode: sourceClient?.postalCode ?? selectedRecipient.postalCode,
+          country: sourceClient?.countryCode ?? selectedRecipient.country,
+        }
+        const clientName = String(sourceClient?.name || invoiceRecord.client_name || selectedRecipient.name).trim()
+        const clientNif = String(sourceClient?.vatin || sourceClient?.nif || selectedRecipient.nif).trim()
+        if (!clientName || !clientNif) {
+          return receiptResponse({ error: 'A Fatura de origem não tem destinatário fiscal completo para o recibo.' }, 409)
+        }
         const fiscalDate = lisbonFiscalDate(payment.payment_date || new Date())
         const snapshot = {
           schemaVersion: 1,
@@ -620,7 +632,7 @@ Deno.serve(async (req) => {
             reversalStatus: String(payment.reversal_status || 'none'),
             reversedAmount: Number(payment.reversed_amount || 0),
           },
-          client: { name: clientName, vatin: clientData?.nif || null },
+          client: { name: clientName, vatin: clientNif },
         }
         const claimToken = crypto.randomUUID()
         const claimedAt = new Date().toISOString()
@@ -676,16 +688,16 @@ Deno.serve(async (req) => {
         let identity
         try {
           session = await getKeyInvoiceSession(supabase, org, organization_id)
-          const clientId = clientData?.nif
+          const clientId = clientNif
             ? await resolveKeyInvoiceClient(session, {
               name: clientName,
-              vatin: clientData.nif,
+              vatin: clientNif,
               email: clientData.email,
               phone: clientData.phone,
-              address: clientData.address_line1,
-              locality: clientData.city,
-              postalCode: clientData.postal_code,
-              country: clientData.country,
+              address: receiptAddress.address,
+              locality: receiptAddress.city,
+              postalCode: receiptAddress.postalCode,
+              country: receiptAddress.country,
             })
             : null
           identity = await issueKeyInvoiceReceipt(session, {
@@ -694,10 +706,10 @@ Deno.serve(async (req) => {
             clientId,
             client: {
               name: clientName,
-              address: clientData?.address_line1,
-              postalCode: clientData?.postal_code,
-              locality: clientData?.city,
-              countryCode: clientData?.country,
+              address: receiptAddress.address,
+              postalCode: receiptAddress.postalCode,
+              locality: receiptAddress.city,
+              countryCode: receiptAddress.country,
             },
           })
         } catch (error) {

@@ -18,6 +18,11 @@ export interface CrmClient {
   company?: string | null;
   nif?: string | null;
   company_nif?: string | null;
+  company_address_line1?: string | null;
+  company_address_line2?: string | null;
+  company_city?: string | null;
+  company_postal_code?: string | null;
+  company_country?: string | null;
   billing_target?: BillingTarget;
   
   // Address

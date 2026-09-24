@@ -49,7 +49,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { format, addMonths } from "date-fns";
-import { ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import { BillingRecipientSelector, ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import type { BillingTarget } from "@/types/clients";
 import { pt } from "date-fns/locale";
 import { 
   Loader2, 
@@ -123,7 +124,14 @@ interface PrefillSaleClient {
   name: string;
   code?: string | null;
   email?: string | null;
+  company?: string | null;
   nif?: string | null;
+  company_nif?: string | null;
+  company_address_line1?: string | null;
+  company_city?: string | null;
+  company_postal_code?: string | null;
+  company_country?: string | null;
+  billing_target?: BillingTarget | null;
   address_line1?: string | null;
   city?: string | null;
   postal_code?: string | null;
@@ -203,6 +211,7 @@ export function CreateSaleModal({
 
   // Form state
   const [clientId, setClientId] = useState<string>("");
+  const [billingTarget, setBillingTarget] = useState<BillingTarget>('client');
   const [proposalId, setProposalId] = useState<string>("");
   const [saleDate, setSaleDate] = useState<Date>(new Date());
   // Who the sale belongs to. Defaults to whoever is creating it — an admin
@@ -624,6 +633,11 @@ export function CreateSaleModal({
     return clients?.find(c => c.id === clientId) || (prefillClient?.id === clientId ? prefillClient : null);
   }, [clientId, clients, prefillClient]);
 
+  useEffect(() => {
+    if (!open) return;
+    setBillingTarget(selectedClient?.billing_target === 'company' ? 'company' : 'client');
+  }, [open, selectedClient?.id, selectedClient?.billing_target]);
+
   // Handlers
   const handleClientSelect = (value: string) => {
     if (value === "none") {
@@ -851,6 +865,7 @@ export function CreateSaleModal({
 
       const sale = await createSale.mutateAsync({
         client_id: clientId || undefined,
+        billing_target: billingTarget,
         proposal_id: proposalId || undefined,
         status: saleStatus,
         total_value: total,
@@ -1131,7 +1146,10 @@ export function CreateSaleModal({
 
                     {/* Client Fiscal Card */}
                     {clientId && (
-                      <ClientFiscalCard client={selectedClient} isInvoiceXpressActive={ixActive} />
+                      <div className="space-y-3">
+                        <BillingRecipientSelector client={selectedClient} value={billingTarget} onChange={setBillingTarget} />
+                        <ClientFiscalCard client={selectedClient} billingTarget={billingTarget} isInvoiceXpressActive={ixActive} />
+                      </div>
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

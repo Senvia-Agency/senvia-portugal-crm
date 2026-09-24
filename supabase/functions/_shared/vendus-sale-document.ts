@@ -1,6 +1,7 @@
 import { lisbonFiscalDate, prepareKeyInvoiceSaleLines } from './keyinvoice.ts'
 import { getVendusPdf, parseVendusIdentity, VendusError, vendusRequest } from './vendus.ts'
 import { allocateVendusPayments, getVendusPaymentMethods, type SalePaymentForVendus } from './vendus-payment-methods.ts'
+import { saleBillingRecipient } from './sale-billing-recipient.ts'
 
 type SaleDocumentKind = 'invoice' | 'invoice_receipt'
 
@@ -199,17 +200,19 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   if (linkedDocuments?.length) throw new VendusError('Esta venda já tem um documento fiscal associado.', 409, 'existing_document')
 
   const { data: sale, error: saleError } = await db.from('sales')
-    .select('*, client:crm_clients(name, company, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country), lead:leads(name,email)')
+    .select('*, client:crm_clients(name, company, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country, company_address_line1, company_city, company_postal_code, company_country), lead:leads(name,email)')
     .eq('id', saleId).eq('organization_id', organizationId).maybeSingle()
   if (saleError || !sale) throw new VendusError('Venda não encontrada', 404, 'sale_not_found')
   if (sale.invoicexpress_id || sale.invoice_reference) {
     throw new VendusError('Esta venda já tem um documento fiscal associado.', 409, 'existing_document')
   }
-  const billCompany = sale.client?.billing_target === 'company'
-  const clientName = String((billCompany ? sale.client?.company : sale.client?.name) || '').trim()
-  const clientNif = String((billCompany ? sale.client?.company_nif : sale.client?.nif) || '').trim()
+  const recipient = saleBillingRecipient(sale)
+  const { name: clientName, nif: clientNif } = recipient
   if (!clientName || !clientNif) {
-    throw new VendusError('Preencha o nome e NIF do destinatário de faturação selecionado no cliente.', 400, 'missing_client_identity')
+    throw new VendusError('Preencha o nome e NIF do destinatário de faturação selecionado na venda.', 400, 'missing_client_identity')
+  }
+  if (recipient.target === 'company' && (!recipient.address || !recipient.city || !recipient.postalCode || !recipient.country)) {
+    throw new VendusError('Preencha a morada fiscal própria da empresa na ficha do cliente antes de emitir.', 400, 'missing_company_address')
   }
   if (sale.gross_value === null || sale.gross_value === undefined) {
     throw new VendusError('A venda não tem um total com IVA confirmado para faturação.', 422, 'missing_gross_total')
@@ -287,10 +290,10 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
       fiscal_id: clientNif,
       ...(sale.client?.email || sale.lead?.email ? { email: sale.client?.email || sale.lead?.email } : {}),
       ...(sale.client?.phone ? { phone: sale.client.phone } : {}),
-      ...(sale.client?.address_line1 ? { address: sale.client.address_line1 } : {}),
-      ...(sale.client?.city ? { city: sale.client.city } : {}),
-      ...(sale.client?.postal_code ? { postalcode: sale.client.postal_code } : {}),
-      country: isoCountry(sale.client?.country),
+      ...(recipient.address ? { address: recipient.address } : {}),
+      ...(recipient.city ? { city: recipient.city } : {}),
+      ...(recipient.postalCode ? { postalcode: recipient.postalCode } : {}),
+      country: isoCountry(recipient.country),
       send_email: 'no',
     },
     items,

@@ -198,6 +198,8 @@ export interface Sale {
   id: string;
   organization_id: string;
   code: string;
+  /** Recipient selected for this sale; legacy rows use the client setting. */
+  billing_target?: 'client' | 'company' | null;
   proposal_id: string | null;
   lead_id: string | null;
   client_id: string | null;

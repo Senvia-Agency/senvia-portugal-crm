@@ -5,6 +5,7 @@ import { issueVendusSaleDocument } from '../_shared/vendus-sale-document.ts'
 import { VendusError } from '../_shared/vendus.ts'
 import { lisbonFiscalDate, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
 import { userRateLimit } from '../_shared/user-rate-limit.ts'
+import { saleBillingRecipient } from '../_shared/sale-billing-recipient.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -211,7 +212,7 @@ Deno.serve(async (req) => {
       .from('sales')
       .select(`
         *,
-        client:crm_clients(name, code, email, nif, phone, address_line1, address_line2, city, postal_code, country, company),
+        client:crm_clients(name, code, email, nif, company_nif, billing_target, phone, address_line1, address_line2, city, postal_code, country, company, company_address_line1, company_address_line2, company_city, company_postal_code, company_country),
         lead:leads(name, email, phone)
       `)
       .eq('id', sale_id)
@@ -237,11 +238,18 @@ Deno.serve(async (req) => {
       })
     }
 
-    const clientNif = sale.client?.nif
-    if (!clientNif) {
-      return new Response(JSON.stringify({ error: 'Cliente sem NIF. Adicione o NIF antes de emitir fatura.' }), {
+    const recipient = saleBillingRecipient(sale)
+    const { target: billingTarget, name: clientName, nif: clientNif } = recipient
+    if (!clientName || !clientNif) {
+      return new Response(JSON.stringify({ error: 'O destinatário de faturação selecionado na venda precisa de nome e NIF.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (billingTarget === 'company' && (!recipient.address || !recipient.city || !recipient.postalCode || !recipient.country)) {
+      return new Response(JSON.stringify({ error: 'Preencha a morada fiscal própria da empresa na ficha do cliente antes de emitir.' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -348,8 +356,7 @@ Deno.serve(async (req) => {
     const [y, m, d] = dateSource.split('-')
     const formattedDate = `${d}/${m}/${y}`
 
-    const clientName = sale.client?.company || sale.client?.name || sale.lead?.name || 'Cliente'
-    const clientCode = sale.client?.code || clientNif
+    const clientCode = billingTarget === 'company' ? clientNif : (sale.client?.code || clientNif)
     const proprietary_uid = `senvia-sale-${sale_id}`
 
     // Build observations from payments if not provided by frontend
@@ -390,10 +397,10 @@ Deno.serve(async (req) => {
           code: clientCode,
           fiscal_id: clientNif,
           email: sale.client?.email || sale.lead?.email || '',
-          address: sale.client?.address_line1 || '',
-          city: sale.client?.city || '',
-          postal_code: sale.client?.postal_code || '',
-          country: mapCountryToInvoiceXpress(sale.client?.country),
+          address: recipient.address,
+          city: recipient.city,
+          postal_code: recipient.postalCode,
+          country: mapCountryToInvoiceXpress(recipient.country),
         },
         items: items,
       },

@@ -5,18 +5,60 @@ import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import type { Product } from "@/types/proposals";
 import { roundCurrency, splitLineVat } from "@/lib/product-fiscal";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { BillingTarget } from "@/types/clients";
 
 interface ClientFiscalData {
+  name?: string | null;
+  company?: string | null;
   nif?: string | null;
+  company_nif?: string | null;
+  billing_target?: BillingTarget | null;
   address_line1?: string | null;
   city?: string | null;
   postal_code?: string | null;
   country?: string | null;
+  company_address_line1?: string | null;
+  company_city?: string | null;
+  company_postal_code?: string | null;
+  company_country?: string | null;
 }
 
 interface SaleFiscalInfoProps {
   client: ClientFiscalData | null | undefined;
   isInvoiceXpressActive: boolean;
+  billingTarget: BillingTarget;
+}
+
+export function BillingRecipientSelector({
+  client,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  client: ClientFiscalData | null | undefined;
+  value: BillingTarget;
+  onChange: (value: BillingTarget) => void;
+  disabled?: boolean;
+}) {
+  if (!client) return null;
+
+  return (
+    <div className="space-y-2">
+      <Label>Faturar a</Label>
+      <Select value={value} onValueChange={(next) => onChange(next as BillingTarget)} disabled={disabled}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="client">Cliente — {client.name || 'Pessoa'}</SelectItem>
+          <SelectItem value="company" disabled={!client.company?.trim()}>
+            Empresa — {client.company?.trim() || 'Adiciona uma empresa à ficha do cliente'}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">A escolha fica nesta venda e será usada na fatura.</p>
+    </div>
+  );
 }
 
 interface BillingOrganization {
@@ -33,26 +75,43 @@ interface BillingOrganization {
  * Mini-card showing client fiscal data (NIF + address) and warning if NIF is missing.
  * Only renders when InvoiceXpress is active.
  */
-export function ClientFiscalCard({ client, isInvoiceXpressActive }: SaleFiscalInfoProps) {
+export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget }: SaleFiscalInfoProps) {
   if (!isInvoiceXpressActive || !client) return null;
 
-  const hasNif = !!client.nif;
-  const hasAddress = !!(client.address_line1 || client.city || client.postal_code);
+  const billCompany = billingTarget === 'company';
+  const recipientName = billCompany ? client.company : client.name;
+  const recipientNif = billCompany ? client.company_nif : client.nif;
+  const hasNif = !!recipientNif?.trim();
+  const address = billCompany ? client.company_address_line1 : client.address_line1;
+  const city = billCompany ? client.company_city : client.city;
+  const postalCode = billCompany ? client.company_postal_code : client.postal_code;
+  const country = billCompany ? client.company_country : client.country;
+  const hasAddress = !!(address && city && postalCode && country);
 
   return (
     <div className="space-y-2">
       {/* NIF missing warning */}
-      {!hasNif && (
+      {(!hasNif || !recipientName?.trim()) && (
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
-            Este cliente não tem NIF. Não será possível emitir faturas.
+            {billCompany ? 'A empresa' : 'O cliente'} precisa de nome e NIF para emitir faturas.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {billCompany && !hasAddress && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
+            Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.
           </AlertDescription>
         </Alert>
       )}
 
       {/* Fiscal data mini-card */}
       <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border text-sm">
+        <span className="font-medium">{recipientName || (billCompany ? 'Empresa sem nome' : 'Cliente sem nome')}</span>
         <div className="flex items-center gap-1.5">
           {hasNif ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
@@ -61,14 +120,14 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive }: SaleFiscalIn
           )}
           <span className="text-muted-foreground">NIF:</span>
           <span className={hasNif ? "font-mono font-medium" : "text-muted-foreground italic"}>
-            {client.nif || "Não definido"}
+            {recipientNif || "Não definido"}
           </span>
         </div>
         {hasAddress && (
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
-              {[client.postal_code, client.city].filter(Boolean).join(" ")}
+              {[postalCode, city].filter(Boolean).join(" ")}
             </span>
           </div>
         )}

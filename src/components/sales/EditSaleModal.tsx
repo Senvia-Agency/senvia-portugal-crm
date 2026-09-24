@@ -28,7 +28,8 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { format } from "date-fns";
-import { ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import { BillingRecipientSelector, ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import type { BillingTarget } from "@/types/clients";
 import { supabase } from "@/integrations/supabase/client";
 import { pt } from "date-fns/locale";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -142,6 +143,7 @@ export function EditSaleModal({
   
   // Form state
   const [clientId, setClientId] = useState<string>("");
+  const [billingTarget, setBillingTarget] = useState<BillingTarget>('client');
   
   const [items, setItems] = useState<SaleItemDraft[]>([]);
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
@@ -204,6 +206,7 @@ export function EditSaleModal({
   useEffect(() => {
     if (open && sale) {
       setClientId(sale.client_id || "");
+      setBillingTarget(sale.billing_target === 'company' || (!sale.billing_target && sale.client?.billing_target === 'company') ? 'company' : 'client');
       setDiscount(sale.discount?.toString() || "0");
       setNotes(sale.notes || "");
       // Energy/Service fields
@@ -504,6 +507,7 @@ export function EditSaleModal({
         saleId: sale.id,
         updates: {
           client_id: clientId || null,
+          ...(!sale.invoicexpress_id && !sale.invoice_reference ? { billing_target: billingTarget } : {}),
           seller_id: sellerId,
           total_value: total,
           gross_value: grossValue,
@@ -846,7 +850,11 @@ export function EditSaleModal({
                         <SearchableCombobox
                           options={clientOptions}
                           value={clientId}
-                          onValueChange={setClientId}
+                          onValueChange={(id) => {
+                            setClientId(id);
+                            const nextClient = clients?.find(client => client.id === id);
+                            setBillingTarget(nextClient?.billing_target === 'company' ? 'company' : 'client');
+                          }}
                           placeholder="Selecionar cliente..."
                           searchPlaceholder="Pesquisar cliente..."
                           emptyText="Nenhum cliente encontrado"
@@ -856,7 +864,15 @@ export function EditSaleModal({
 
                       {/* Client Fiscal Card */}
                       {clientId && (
-                        <ClientFiscalCard client={selectedClient} isInvoiceXpressActive={ixActive} />
+                        <div className="space-y-3">
+                          <BillingRecipientSelector
+                            client={selectedClient}
+                            value={billingTarget}
+                            onChange={setBillingTarget}
+                            disabled={isDeliveredLocked || sale.status === 'cancelled' || !!sale.invoicexpress_id || !!sale.invoice_reference}
+                          />
+                          <ClientFiscalCard client={selectedClient} billingTarget={billingTarget} isInvoiceXpressActive={ixActive} />
+                        </div>
                       )}
                     </CardContent>
                   </Card>

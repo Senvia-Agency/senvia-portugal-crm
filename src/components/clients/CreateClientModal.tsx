@@ -62,6 +62,11 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
   const [company, setCompany] = useState("");
   const [nif, setNif] = useState("");
   const [companyNif, setCompanyNif] = useState("");
+  const [companyAddressLine1, setCompanyAddressLine1] = useState("");
+  const [companyAddressLine2, setCompanyAddressLine2] = useState("");
+  const [companyCity, setCompanyCity] = useState("");
+  const [companyPostalCode, setCompanyPostalCode] = useState("");
+  const [companyCountry, setCompanyCountry] = useState("PT");
   const [billingTarget, setBillingTarget] = useState<BillingTarget>("client");
   const [status, setStatus] = useState<ClientStatus>("active");
   const [source, setSource] = useState("");
@@ -125,6 +130,11 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
         company: company.trim() || undefined,
         nif: nif.trim() || undefined,
         company_nif: companyNif.trim() || undefined,
+        company_address_line1: companyAddressLine1.trim() || undefined,
+        company_address_line2: companyAddressLine2.trim() || undefined,
+        company_city: companyCity.trim() || undefined,
+        company_postal_code: companyPostalCode.trim() || undefined,
+        company_country: companyCountry || undefined,
         billing_target: billingTarget,
         status,
         source: source || undefined,
@@ -163,6 +173,11 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
     setCompany("");
     setNif("");
     setCompanyNif("");
+    setCompanyAddressLine1("");
+    setCompanyAddressLine2("");
+    setCompanyCity("");
+    setCompanyPostalCode("");
+    setCompanyCountry("PT");
     setBillingTarget("client");
     setStatus("active");
     setSource("");
@@ -476,6 +491,19 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                           </div>
                         </label>
                       </RadioGroup>
+                      {company.trim() && (
+                        <div className="mt-4 space-y-3 border-t pt-4">
+                          <p className="text-sm font-medium">Morada fiscal da empresa</p>
+                          <p className="text-xs text-muted-foreground">Independente da morada do cliente. Obrigatória para faturar à empresa.</p>
+                          <Input aria-label="Morada fiscal da empresa" placeholder="Morada" value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
+                          <Input aria-label="Complemento da morada da empresa" placeholder="Complemento (opcional)" value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input aria-label="Código postal da empresa" placeholder="Código postal" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
+                            <Input aria-label="Localidade da empresa" placeholder="Localidade" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
+                          </div>
+                          <Input aria-label="País da empresa" placeholder="País (código ISO, ex.: PT)" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value.toUpperCase())} maxLength={2} />
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                   )}
