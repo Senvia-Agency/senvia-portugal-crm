@@ -86,7 +86,7 @@ async function handleVendusReceipt(
     const manualReview = error instanceof VendusError
       ? ['local_record_failed', 'sale_link_failed', 'sale_link_conflict', 'provider_total_mismatch',
         'remote_outcome_uncertain', 'missing_fiscal_identity', 'document_type_conflict',
-        'incomplete_local_document', 'ambiguous_document'].includes(error.code)
+        'incomplete_local_document', 'ambiguous_document', 'normal_mode_unverified'].includes(error.code)
       : safeKeyInvoiceError(error).manual_review
     return new Response(JSON.stringify({ error: safe.message, code: safe.code,
       manual_review: manualReview,
