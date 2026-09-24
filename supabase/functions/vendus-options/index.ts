@@ -1,6 +1,6 @@
 import { authorizeKeyInvoiceAdmin } from '../_shared/fiscal-authorization.ts'
 import { userRateLimit } from '../_shared/user-rate-limit.ts'
-import { VendusError, vendusRequest } from '../_shared/vendus.ts'
+import { selectVendusApiRegister, VendusError, vendusRequest } from '../_shared/vendus.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,7 +43,13 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ error: 'Introduz a chave API Vendus.' }, 400)
 
     await vendusRequest<unknown>(apiKey, '/account/')
-    return json({ valid: true, registers: [], payment_methods: [] })
+    const registers = await vendusRequest<unknown>(apiKey, '/registers/')
+    let registerReady = false
+    let readinessError: string | null = null
+    try { selectVendusApiRegister(registers); registerReady = true }
+    catch (error) { readinessError = error instanceof VendusError ? error.message : 'Não foi possível validar a caixa API Vendus.' }
+    return json({ valid: true, register_ready: registerReady, readiness_error: readinessError,
+      registers: [], payment_methods: [] })
   } catch (error) {
     const safe = error instanceof VendusError ? error : new VendusError('Não foi possível consultar a Vendus.', 502, 'provider_error')
     console.error('[vendus-options]', safe.code)

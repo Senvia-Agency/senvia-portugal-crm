@@ -9,6 +9,27 @@ export class VendusError extends Error {
   }
 }
 
+/** Vendus requires an API-type register for document creation in API accounts. */
+export function selectVendusApiRegister(value: unknown): number {
+  if (!Array.isArray(value)) {
+    throw new VendusError('A Vendus devolveu uma lista de caixas inválida.', 502, 'invalid_registers')
+  }
+  const api = value.filter((register) => register && typeof register === 'object'
+    && register.type === 'api' && register.situation !== 'off'
+    && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
+  if (api.length === 0) {
+    throw new VendusError('A Vendus exige uma caixa do tipo API. No backoffice Vendus, abre POS → Definições → Tipo de Caixa e configura uma caixa API.', 409, 'api_register_missing')
+  }
+  const normal = api.filter((register) => register.mode === 'normal')
+  if (normal.length === 0) {
+    throw new VendusError('A caixa API da Vendus está em Formação/Testes. Altera o Modo de Funcionamento para Normal no backoffice.', 409, 'api_register_test_mode')
+  }
+  if (normal.length !== 1) {
+    throw new VendusError('Existem várias caixas API em modo Normal na Vendus. Define qual deve ser usada para faturação.', 409, 'ambiguous_api_register')
+  }
+  return Number(normal[0].id)
+}
+
 function vendusUrl(path: string): string {
   if (!path.startsWith('/') || path.startsWith('//')) {
     throw new VendusError('Caminho Vendus inválido', 500, 'invalid_api_path')

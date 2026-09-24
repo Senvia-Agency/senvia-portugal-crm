@@ -1,5 +1,5 @@
 import { lisbonFiscalDate, prepareKeyInvoiceSaleLines } from './keyinvoice.ts'
-import { getVendusPdf, parseVendusIdentity, VendusError, vendusRequest } from './vendus.ts'
+import { getVendusPdf, parseVendusIdentity, selectVendusApiRegister, VendusError, vendusRequest } from './vendus.ts'
 import { allocateVendusPayments, getVendusPaymentMethods, type SalePaymentForVendus } from './vendus-payment-methods.ts'
 import { saleBillingRecipient } from './sale-billing-recipient.ts'
 
@@ -284,13 +284,14 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   if (calculatedTotal !== expectedTotal) {
     throw new VendusError('A soma fiscal dos artigos não coincide com o total cobrado na venda.', 422, 'total_mismatch')
   }
+  const registerId = selectVendusApiRegister(await vendusRequest<unknown>(apiKey, '/registers/'))
   const vendusPayments = kind === 'invoice_receipt'
     ? allocateVendusPayments(paidPayments, await getVendusPaymentMethods(apiKey), expectedTotal)
     : []
   const payload: Record<string, unknown> = {
     type,
-    // Vendus chooses its default register when omitted; the API only requires items for an FT.
     mode: 'normal',
+    register_id: registerId,
     date: lisbonFiscalDate(),
     tx_id: externalReference,
     external_reference: externalReference,

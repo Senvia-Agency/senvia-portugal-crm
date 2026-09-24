@@ -66,6 +66,8 @@ interface IntegrationsContentProps {
   showVendusApiKey: boolean;
   setShowVendusApiKey: (value: boolean) => void;
   vendusOptionsLoaded: boolean;
+  vendusRegisterReady: boolean;
+  vendusReadinessError: string;
   vendusOptionsLoading: boolean;
   handleLoadVendusOptions: () => Promise<void>;
   handleSaveVendus: () => void;
@@ -1743,7 +1745,7 @@ function InvoiceXpressForm({ chavesGuardadas, invoiceXpressAccountName, setInvoi
   );
 }
 
-function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusOptionsLoaded, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
+function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusOptionsLoaded, vendusRegisterReady, vendusReadinessError, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
@@ -1771,7 +1773,9 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
         {vendusOptionsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         {vendusOptionsLoading ? 'A validar a chave...' : 'Validar chave'}
       </Button>
-      {vendusOptionsLoaded && <p className="text-xs text-green-600">Chave validada. Podes guardar a integração.</p>}
+      {vendusOptionsLoaded && (vendusRegisterReady
+        ? <p className="text-xs text-green-600">Chave validada e caixa API pronta para faturação.</p>
+        : <p className="text-xs text-amber-700">{vendusReadinessError}</p>)}
       <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Guardar
