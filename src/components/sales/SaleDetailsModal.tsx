@@ -160,10 +160,10 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const billingName = billingCompany ? sale?.client?.company : sale?.client?.name;
   const billingNif = billingCompany ? sale?.client?.company_nif : sale?.client?.nif;
   const hasCompanyFiscalAddress = !billingCompany || !!(
-    sale?.client?.company_address_line1?.trim()
-    && sale?.client?.company_city?.trim()
-    && sale?.client?.company_postal_code?.trim()
-    && sale?.client?.company_country?.trim()
+    (sale?.client?.company_address_same_as_client ? sale?.client?.address_line1 : sale?.client?.company_address_line1)?.trim()
+    && (sale?.client?.company_address_same_as_client ? sale?.client?.city : sale?.client?.company_city)?.trim()
+    && (sale?.client?.company_address_same_as_client ? sale?.client?.postal_code : sale?.client?.company_postal_code)?.trim()
+    && (sale?.client?.company_address_same_as_client ? sale?.client?.country : sale?.client?.company_country)?.trim()
   );
   const saleDocumentType = sale?.invoicexpress_type === "FR" ? "invoice_receipt" : "invoice";
   const saleDocumentCandidates = fiscalDocuments.filter((document) =>
@@ -600,7 +600,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             <p className="font-medium">{billingName || 'Nome em falta'}</p>
                             <p className="text-muted-foreground">NIF: {billingNif || 'Não definido'}</p>
                             {billingCompany && !hasCompanyFiscalAddress && (
-                              <p className="text-amber-600">Preenche a morada fiscal da empresa na ficha do cliente para emitir.</p>
+                              <p className="text-amber-600">Preenche a morada escolhida para a empresa na ficha do cliente para emitir.</p>
                             )}
                           </div>
                         )}

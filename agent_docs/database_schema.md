@@ -18,7 +18,7 @@
 |-------|---------|
 | `leads` | Lead records. Has `status` (matches pipeline_stages.key), `assigned_to`, `source`, `organization_id`. |
 | `pipeline_stages` | Customizable per-org. Has `key`, `label`, `order`, `is_final_positive`, `is_final_negative`. |
-| `crm_clients` | Converted leads. Has `name`, `email`, `phone`, `company`, `nif` (tax ID), `company_nif`, and separate `company_address_line1`, `company_address_line2`, `company_city`, `company_postal_code`, `company_country` for company invoicing. Personal address fields are never reused as the company fiscal address. |
+| `crm_clients` | Converted leads. Has `name`, `email`, `phone`, `company`, `nif` (tax ID), `company_nif`, and separate `company_address_line1`, `company_address_line2`, `company_city`, `company_postal_code`, `company_country` for company invoicing. `company_address_same_as_client` explicitly selects the contact address for company invoices; defaults to false. |
 | `lead_labels` | Tags for leads. Many-to-many via `lead_label_assignments`. |
 | `lead_imports` | History of CSV/bulk lead imports. |
 

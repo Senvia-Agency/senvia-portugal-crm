@@ -292,7 +292,7 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     })
   }
   if (recipient.target === 'company' && (!recipient.address || !recipient.city || !recipient.postalCode || !recipient.country)) {
-    throw new KeyInvoiceError('Preencha a morada fiscal própria da empresa na ficha do cliente antes de emitir.', {
+    throw new KeyInvoiceError('Preencha a morada escolhida para a empresa na ficha do cliente antes de emitir.', {
       code: 'missing_company_address', httpStatus: 400,
     })
   }

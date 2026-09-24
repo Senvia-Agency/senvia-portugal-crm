@@ -474,7 +474,7 @@ Deno.serve(async (req) => {
     // Fetch sale to get invoicexpress_id
     const { data: sale } = await supabase
       .from('sales')
-      .select('id, billing_target, invoicexpress_id, invoicexpress_type, invoice_reference, total_value, client:crm_clients(name, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country, company, code, company_address_line1, company_city, company_postal_code, company_country)')
+      .select('id, billing_target, invoicexpress_id, invoicexpress_type, invoice_reference, total_value, client:crm_clients(name, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country, company, code, company_address_same_as_client, company_address_line1, company_city, company_postal_code, company_country)')
       .eq('id', sale_id)
       .eq('organization_id', organization_id)
       .single()

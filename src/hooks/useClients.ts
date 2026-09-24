@@ -72,6 +72,7 @@ interface CreateClientData {
   company?: string;
   nif?: string;
   company_nif?: string;
+  company_address_same_as_client?: boolean;
   billing_target?: string;
   company_address_line1?: string;
   company_address_line2?: string;

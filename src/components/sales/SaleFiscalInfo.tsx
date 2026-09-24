@@ -14,6 +14,7 @@ interface ClientFiscalData {
   company?: string | null;
   nif?: string | null;
   company_nif?: string | null;
+  company_address_same_as_client?: boolean | null;
   billing_target?: BillingTarget | null;
   address_line1?: string | null;
   city?: string | null;
@@ -82,10 +83,11 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget 
   const recipientName = billCompany ? client.company : client.name;
   const recipientNif = billCompany ? client.company_nif : client.nif;
   const hasNif = !!recipientNif?.trim();
-  const address = billCompany ? client.company_address_line1 : client.address_line1;
-  const city = billCompany ? client.company_city : client.city;
-  const postalCode = billCompany ? client.company_postal_code : client.postal_code;
-  const country = billCompany ? client.company_country : client.country;
+  const useCompanyAddress = billCompany && client.company_address_same_as_client !== true;
+  const address = useCompanyAddress ? client.company_address_line1 : client.address_line1;
+  const city = useCompanyAddress ? client.company_city : client.city;
+  const postalCode = useCompanyAddress ? client.company_postal_code : client.postal_code;
+  const country = useCompanyAddress ? client.company_country : client.country;
   const hasAddress = !!(address && city && postalCode && country);
 
   return (
@@ -104,7 +106,9 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget 
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
-            Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.
+            {useCompanyAddress
+              ? 'Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.'
+              : 'Preenche a morada do cliente, escolhida também para a empresa, antes de emitir a fatura.'}
           </AlertDescription>
         </Alert>
       )}

@@ -127,6 +127,7 @@ interface PrefillSaleClient {
   company?: string | null;
   nif?: string | null;
   company_nif?: string | null;
+  company_address_same_as_client?: boolean | null;
   company_address_line1?: string | null;
   company_city?: string | null;
   company_postal_code?: string | null;

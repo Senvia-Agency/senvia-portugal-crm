@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       .from('sales')
       .select(`
         *,
-        client:crm_clients(name, code, email, nif, company_nif, billing_target, phone, address_line1, address_line2, city, postal_code, country, company, company_address_line1, company_address_line2, company_city, company_postal_code, company_country),
+        client:crm_clients(name, code, email, nif, company_nif, billing_target, phone, address_line1, address_line2, city, postal_code, country, company, company_address_same_as_client, company_address_line1, company_address_line2, company_city, company_postal_code, company_country),
         lead:leads(name, email, phone)
       `)
       .eq('id', sale_id)
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
     }
 
     if (billingTarget === 'company' && (!recipient.address || !recipient.city || !recipient.postalCode || !recipient.country)) {
-      return new Response(JSON.stringify({ error: 'Preencha a morada fiscal própria da empresa na ficha do cliente antes de emitir.' }), {
+      return new Response(JSON.stringify({ error: 'Preencha a morada escolhida para a empresa na ficha do cliente antes de emitir.' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

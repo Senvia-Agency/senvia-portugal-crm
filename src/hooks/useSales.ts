@@ -43,7 +43,7 @@ export function useSales() {
           *,
           lead:leads(name, email, phone, assigned_to),
           proposal:proposals(id, code, proposal_date),
-          client:crm_clients(id, name, code, email, phone, company, nif, company_nif, billing_target, address_line1, address_line2, city, postal_code, country, company_address_line1, company_address_line2, company_city, company_postal_code, company_country)
+          client:crm_clients(id, name, code, email, phone, company, nif, company_nif, billing_target, address_line1, address_line2, city, postal_code, country, company_address_same_as_client, company_address_line1, company_address_line2, company_city, company_postal_code, company_country)
         `)
         .eq("organization_id", organization.id)
         .order("created_at", { ascending: false });

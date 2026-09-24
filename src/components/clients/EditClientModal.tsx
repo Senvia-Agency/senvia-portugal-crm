@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +57,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
   const [company, setCompany] = useState("");
   const [nif, setNif] = useState("");
   const [companyNif, setCompanyNif] = useState("");
+  const [companyAddressSameAsClient, setCompanyAddressSameAsClient] = useState(false);
   const [companyAddressLine1, setCompanyAddressLine1] = useState("");
   const [companyAddressLine2, setCompanyAddressLine2] = useState("");
   const [companyCity, setCompanyCity] = useState("");
@@ -99,6 +101,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
       setCompany(client.company || "");
       setNif(client.nif || "");
       setCompanyNif(client.company_nif || "");
+      setCompanyAddressSameAsClient(client.company_address_same_as_client === true);
       setCompanyAddressLine1(client.company_address_line1 || "");
       setCompanyAddressLine2(client.company_address_line2 || "");
       setCompanyCity(client.company_city || "");
@@ -147,6 +150,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
         company: company.trim() || null,
         nif: nif.trim() || null,
         company_nif: companyNif.trim() || null,
+        company_address_same_as_client: companyAddressSameAsClient,
         company_address_line1: companyAddressLine1.trim() || null,
         company_address_line2: companyAddressLine2.trim() || null,
         company_city: companyCity.trim() || null,
@@ -498,14 +502,35 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                       {company.trim() && (
                         <div className="mt-4 space-y-3 border-t pt-4">
                           <p className="text-sm font-medium">Morada fiscal da empresa</p>
-                          <p className="text-xs text-muted-foreground">Independente da morada do cliente. Obrigatória para faturar à empresa.</p>
-                          <Input aria-label="Morada fiscal da empresa" placeholder="Morada" value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
-                          <Input aria-label="Complemento da morada da empresa" placeholder="Complemento (opcional)" value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input aria-label="Código postal da empresa" placeholder="Código postal" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
-                            <Input aria-label="Localidade da empresa" placeholder="Localidade" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
-                          </div>
-                          <Input aria-label="País da empresa" placeholder="País (código ISO, ex.: PT)" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value.toUpperCase())} maxLength={2} />
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox checked={companyAddressSameAsClient} onCheckedChange={(checked) => setCompanyAddressSameAsClient(checked === true)} />
+                            Usar a mesma morada do cliente
+                          </label>
+                          {companyAddressSameAsClient ? (
+                            <p className="text-xs text-muted-foreground">
+                              {addressLine1 && city && postalCode && country
+                                ? `${addressLine1}, ${postalCode} ${city}, ${COUNTRIES.find((item) => item.code === country)?.name || country}`
+                                : 'Preenche a morada do cliente para poder emitir faturas à empresa.'}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-xs text-muted-foreground">Preenche a morada própria da empresa para faturar à empresa.</p>
+                              <Input aria-label="Morada fiscal da empresa" placeholder="Morada" value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
+                              <Input aria-label="Complemento da morada da empresa" placeholder="Complemento (opcional)" value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input aria-label="Código postal da empresa" placeholder="Código postal" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
+                                <Input aria-label="Localidade da empresa" placeholder="Localidade" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
+                              </div>
+                              <Select value={companyCountry} onValueChange={setCompanyCountry}>
+                                <SelectTrigger aria-label="País da empresa"><SelectValue placeholder="País da empresa" /></SelectTrigger>
+                                <SelectContent>
+                                  {COUNTRIES.map((item) => (
+                                    <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </>
+                          )}
                         </div>
                       )}
                     </CardContent>

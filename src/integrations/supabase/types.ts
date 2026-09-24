@@ -1367,6 +1367,7 @@ export type Database = {
       }
       crm_clients: {
         Row: {
+          company_address_same_as_client: boolean
           address_line1: string | null
           address_line2: string | null
           company_address_line1: string | null
@@ -1406,6 +1407,7 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          company_address_same_as_client?: boolean
           address_line1?: string | null
           address_line2?: string | null
           company_address_line1?: string | null
@@ -1445,6 +1447,7 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          company_address_same_as_client?: boolean
           address_line1?: string | null
           address_line2?: string | null
           company_address_line1?: string | null
