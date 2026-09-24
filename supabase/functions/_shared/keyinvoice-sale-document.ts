@@ -109,6 +109,13 @@ export async function prepareKeyInvoiceSnapshotContext(
   if (rawLines.length === 0) {
     throw new KeyInvoiceError('O snapshot fiscal não tem linhas', { code: 'empty_fiscal_snapshot', httpStatus: 422, manualReview: true })
   }
+  if (Number(org.tax_config?.tax_value) === 0 && org.tax_config?.tax_value != null
+    && rawLines.some((line: Record<string, any>) => Number(line.taxRate ?? line.taxValue ?? line.tax_value ?? 0) !== 0
+      || (line.taxExemptionReason ?? line.tax_exemption_reason ?? null) !== org.tax_config?.tax_exemption_reason)) {
+    throw new KeyInvoiceError('A configuração fiscal da organização mudou. Reveja o trabalho antes de emitir.', {
+      code: 'organization_exemption_snapshot_mismatch', httpStatus: 422, manualReview: true,
+    })
+  }
   const retention = Number(snapshot.retentionRate ?? snapshot.retention_rate ?? snapshot.retention ?? 0)
   if (Number.isFinite(retention) && retention > 0) {
     throw new KeyInvoiceError('A emissão automática com retenção requer validação na conta demo', {

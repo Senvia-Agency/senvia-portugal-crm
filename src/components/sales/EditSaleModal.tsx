@@ -940,7 +940,7 @@ export function EditSaleModal({
                   )}
 
                   {/* Service Data (editable) - new catalog format */}
-                  {isNewFormat && catalog && (sale?.proposal_type === 'servicos' || !sale?.proposal_type) && (
+                  {isTelecom && isNewFormat && catalog && (sale?.proposal_type === 'servicos' || !sale?.proposal_type) && (
                     <Card>
                       <CardContent className="p-4">
                         <ServicosSection

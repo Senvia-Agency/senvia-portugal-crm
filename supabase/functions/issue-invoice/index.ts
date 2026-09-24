@@ -260,10 +260,11 @@ Deno.serve(async (req) => {
 
     // Build item with per-item tax support
     const buildItem = (name: string, description: string, unitPrice: number, quantity: number, itemTaxValue?: number | null, itemTaxExemptionReason?: string | null) => {
-      const effectiveTaxValue = (itemTaxValue !== null && itemTaxValue !== undefined) ? itemTaxValue : orgTaxValue
+      const effectiveTaxValue = Number(orgTaxValue) === 0 ? 0
+        : (itemTaxValue !== null && itemTaxValue !== undefined) ? itemTaxValue : orgTaxValue
       const effectiveTaxName = effectiveTaxValue === 0 ? 'Isento' : `IVA${effectiveTaxValue}`
       const effectiveExemptionReason = effectiveTaxValue === 0 
-        ? (itemTaxExemptionReason || orgTaxExemptionReason) 
+        ? (Number(orgTaxValue) === 0 ? orgTaxExemptionReason : itemTaxExemptionReason || orgTaxExemptionReason)
         : null
 
       const item: any = {
@@ -292,11 +293,12 @@ Deno.serve(async (req) => {
     items = (saleItems || []).map((item: any) => {
       const productTaxValue = item.product?.tax_value ?? null
       const productTaxExemptionReason = item.product?.tax_exemption_reason ?? null
-      const effectiveTax = (productTaxValue !== null && productTaxValue !== undefined) ? productTaxValue : orgTaxValue
+      const effectiveTax = Number(orgTaxValue) === 0 ? 0
+        : (productTaxValue !== null && productTaxValue !== undefined) ? productTaxValue : orgTaxValue
       if (effectiveTax === 0) {
         hasExemptItem = true
         if (!firstExemptionReason) {
-          firstExemptionReason = productTaxExemptionReason || orgTaxExemptionReason
+          firstExemptionReason = Number(orgTaxValue) === 0 ? orgTaxExemptionReason : productTaxExemptionReason || orgTaxExemptionReason
         }
       }
       return buildItem(item.name, item.name, Number(item.unit_price), Number(item.quantity), productTaxValue, productTaxExemptionReason)

@@ -116,7 +116,7 @@ export function InvoiceDraftModal({
 
   // Always use full sale total - no ratio
   const itemsWithTax = saleItems.map((item) => {
-    const effectiveTax = item.tax_value ?? orgTaxRate;
+    const effectiveTax = orgTaxRate === 0 ? 0 : item.tax_value ?? orgTaxRate;
     const lineTotal = item.unit_price * item.quantity;
     const lineTax = lineTotal * (effectiveTax / 100);
     return { ...item, effectiveTax, scaledPrice: item.unit_price, lineTotal, lineTax };
@@ -142,10 +142,10 @@ export function InvoiceDraftModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Rascunho de {labels.title}
+            Pré-visualização Senvia: {labels.title}
           </DialogTitle>
           <DialogDescription>
-            Reveja os dados antes de {mode === "invoice" ? "emitir a fatura" : mode === "invoice_receipt" ? "emitir a fatura-recibo" : "gerar o recibo"}.
+            Esta pré-visualização é calculada no Senvia. O número, a série, o ATCUD e o PDF oficiais só são atribuídos pelo faturador após a emissão.
           </DialogDescription>
         </DialogHeader>
 

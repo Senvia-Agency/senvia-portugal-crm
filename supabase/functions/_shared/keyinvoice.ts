@@ -461,6 +461,25 @@ export async function resolveKeyInvoiceProducts(
       return true
     })
 
+  // An old mapped product can retain 23% at KeyInvoice even when the
+  // organization is now exempt. Verify exempt mappings before any document is
+  // issued; a mismatch requires a deliberate provider product correction.
+  const frozenExempt = requested.filter((item) => identityPart(item.providerProductId) && item.taxValue === 0)
+  if (frozenExempt.length > 0) {
+    const listed = await callKeyInvoice(session.apiUrl, { method: 'listProducts' }, { sid: session.sid }, { fetcher })
+    const providerProducts = collectionFromData(listed.Data, ['Products', 'Product'])
+    for (const item of frozenExempt) {
+      const frozenId = identityPart(item.providerProductId)
+      const exact = providerProducts.find((row) => identityPart(row.IdProduct ?? row.Id ?? row.id) === frozenId)
+      const providerTax = Number(exact?.TaxValue ?? exact?.taxValue ?? Number.NaN)
+      const providerExemption = exact?.TaxExemptionReasonCode ?? exact?.taxExemptionReasonCode
+      if (!exact || !Number.isFinite(providerTax) || providerTax !== 0
+        || (providerExemption && providerExemption !== item.taxExemptionReason)) {
+        throw manualReviewRequired(`Confirme que o produto "${item.name}" está isento (${item.taxExemptionReason || 'motivo em falta'}) no KeyInvoice antes de emitir`)
+      }
+    }
+  }
+
   // A claimed worker should normally receive frozen mappings. Avoid a provider
   // read (and especially a create) when every mapping is already immutable.
   if (unresolvedIndexes.length === 0) return resolved
@@ -567,6 +586,7 @@ export function prepareKeyInvoiceSaleLines(
   }
   const defaultTax = Number(taxConfig.tax_value ?? 23)
   const defaultExemption = typeof taxConfig.tax_exemption_reason === 'string' ? taxConfig.tax_exemption_reason : null
+  const organizationExempt = defaultTax === 0
   const items = saleItems.length > 0
     ? saleItems
     : [{
@@ -602,9 +622,11 @@ export function prepareKeyInvoiceSaleLines(
     // A sale item is the immutable commercial snapshot. Product and
     // organization values are fallbacks only when the item did not freeze a
     // field at sale time.
-    const taxValue = Number(item.tax_value ?? item.taxRate ?? product.tax_value ?? product.taxRate ?? defaultTax)
-    const exemption = item.tax_exemption_reason ?? item.taxExemptionReason
-      ?? product.tax_exemption_reason ?? product.taxExemptionReason ?? defaultExemption
+    const taxValue = organizationExempt ? 0
+      : Number(item.tax_value ?? item.taxRate ?? product.tax_value ?? product.taxRate ?? defaultTax)
+    const exemption = organizationExempt ? defaultExemption
+      : item.tax_exemption_reason ?? item.taxExemptionReason
+        ?? product.tax_exemption_reason ?? product.taxExemptionReason ?? defaultExemption
     const lineRetention = Number(
       item.retention_rate ?? item.retention_percentage ?? item.retention
         ?? product.retention_rate ?? product.retention_percentage ?? product.retention

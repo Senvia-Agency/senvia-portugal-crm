@@ -63,7 +63,7 @@ function EmitInvoiceForSale({ sale, onClose }: { sale: SaleWithDetails; onClose:
       payments={payments}
       taxConfig={{
         tax_value: orgTaxValue,
-        tax_exemption_reason: (organization as any)?.tax_exemption_reason,
+        tax_exemption_reason: (organization?.tax_config as { tax_exemption_reason?: string } | null)?.tax_exemption_reason,
       }}
     />
   );

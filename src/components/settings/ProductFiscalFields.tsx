@@ -55,6 +55,7 @@ export function ProductFiscalFields({
   organizationTaxConfig,
 }: ProductFiscalFieldsProps) {
   const effectiveTax = effectiveProductTaxRate(taxValue, organizationTaxConfig);
+  const organizationExempt = organizationTaxConfig?.tax_value === 0;
   const effectiveExemption = effectiveTaxExemptionReason(taxExemptionReason, organizationTaxConfig);
   const numericPrice = Number(price);
   const numericRetention = Number(retentionRate);
@@ -81,8 +82,9 @@ export function ProductFiscalFields({
         <div className="space-y-2">
           <Label>Taxa de IVA</Label>
           <Select
-            value={taxValue === null ? INHERIT_TAX_RATE : String(taxValue)}
+            value={organizationExempt || taxValue === null ? INHERIT_TAX_RATE : String(taxValue)}
             onValueChange={(value) => onTaxValueChange(value === INHERIT_TAX_RATE ? null : Number(value))}
+            disabled={organizationExempt}
           >
             <SelectTrigger>
               <SelectValue />
@@ -101,6 +103,7 @@ export function ProductFiscalFields({
               ))}
             </SelectContent>
           </Select>
+          {organizationExempt && <p className="text-xs text-muted-foreground">A isenção da organização prevalece sobre a taxa do produto.</p>}
         </div>
 
         <div className="space-y-2">
@@ -128,7 +131,7 @@ export function ProductFiscalFields({
       {effectiveTax === 0 && (
         <div className="space-y-2">
           <Label>Motivo de isenção (AT) *</Label>
-          <Select value={taxExemptionReason || organizationTaxConfig?.tax_exemption_reason || ''} onValueChange={onTaxExemptionReasonChange}>
+          <Select value={organizationExempt ? organizationTaxConfig?.tax_exemption_reason || '' : taxExemptionReason || organizationTaxConfig?.tax_exemption_reason || ''} onValueChange={onTaxExemptionReasonChange} disabled={organizationExempt}>
             <SelectTrigger>
               <SelectValue placeholder="Selecionar motivo de isenção" />
             </SelectTrigger>

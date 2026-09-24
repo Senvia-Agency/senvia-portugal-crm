@@ -80,7 +80,8 @@ function adjustedDiscount(sale: Record<string, any>, items: Array<Record<string,
   let netAfterLineDiscounts = 0
   for (const item of items) {
     const product = item.product || {}
-    const rate = Number(item.tax_value ?? item.taxRate ?? product.tax_value ?? product.taxRate ?? taxConfig.tax_value ?? 23)
+    const rate = Number(taxConfig.tax_value) === 0 && taxConfig.tax_value != null ? 0
+      : Number(item.tax_value ?? item.taxRate ?? product.tax_value ?? product.taxRate ?? taxConfig.tax_value ?? 23)
     const lineDiscount = Number(item.discount_percent ?? item.discountPercentage ?? 0)
     const entered = Number(item.quantity) * Number(item.unit_price) * (1 - lineDiscount / 100)
     const includesVat = Boolean(item.price_includes_vat ?? item.price_includes_tax

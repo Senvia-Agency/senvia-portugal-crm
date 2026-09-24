@@ -771,6 +771,10 @@ export function CreateSaleModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isTelecom && servicosProdutos.length > 0 && items.length === 0) {
+      toast.error('Adiciona os produtos da proposta em Produtos / Serviços antes de guardar a venda.');
+      return;
+    }
     
     // No value check here. A sale can be worth 0 € — a telecom contract the
     // operator pays for, a free installation, a replacement, a gift. This
@@ -1517,7 +1521,7 @@ export function CreateSaleModal({
                 )}
 
                 {/* Servicos Section (direct sale without proposal or servicos proposal) */}
-                {(isNewFormat && catalog) && (!proposalId || proposalType === 'servicos') && (
+                {isTelecom && isNewFormat && catalog && (!proposalId || proposalType === 'servicos') && (
                   <Card>
                     <CardContent className="p-4">
                       <ServicosSection

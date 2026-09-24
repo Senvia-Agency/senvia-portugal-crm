@@ -17,6 +17,9 @@ export function effectiveProductTaxRate(
   productTaxRate: number | null | undefined,
   organizationTaxConfig: OrganizationTaxConfig | null | undefined,
 ): number {
+  // An organization-wide exemption applies to every product, including
+  // products that still carry an older, explicit VAT rate in their catalog.
+  if (Number(organizationTaxConfig?.tax_value) === 0 && organizationTaxConfig?.tax_value != null) return 0;
   const candidate = productTaxRate ?? organizationTaxConfig?.tax_value ?? 23;
   const parsed = Number(candidate);
   return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 23;
@@ -27,6 +30,9 @@ export function effectiveTaxExemptionReason(
   productReason: string | null | undefined,
   organizationTaxConfig: OrganizationTaxConfig | null | undefined,
 ): string | null {
+  if (Number(organizationTaxConfig?.tax_value) === 0 && organizationTaxConfig?.tax_value != null) {
+    return organizationTaxConfig.tax_exemption_reason?.trim() || null;
+  }
   const reason = productReason?.trim() || organizationTaxConfig?.tax_exemption_reason?.trim();
   return reason || null;
 }

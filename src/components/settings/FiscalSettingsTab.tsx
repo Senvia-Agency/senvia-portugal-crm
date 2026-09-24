@@ -40,7 +40,9 @@ export function FiscalSettingsTab({ taxRate, setTaxRate, taxExemptionReason, set
           <div className="rounded-lg bg-muted/50 border p-3 flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Esta taxa será aplicada a todos os produtos e faturas por defeito. Alterações aqui afetam toda a organização.
+            {taxRate === '0'
+              ? 'A isenção aplica-se a todos os produtos e faturas da organização, mesmo que uma ficha de produto tenha uma taxa antiga.'
+              : 'Esta taxa é usada por defeito. Produtos com uma taxa própria podem usar essa taxa. Alterações aqui afetam toda a organização.'}
           </p>
         </div>
 

@@ -35,6 +35,15 @@ Deno.test("explicit VAT exemption is not replaced by organization VAT", () => {
   }), { unitAmount: 10000, effectiveTaxRate: 0 });
 });
 
+Deno.test("organization exemption overrides an old product VAT rate", () => {
+  assertEquals(stripeGrossUnitAmount({
+    price: 490,
+    priceIncludesVat: false,
+    productTaxValue: 23,
+    organizationTaxConfig: { tax_value: 0 },
+  }), { unitAmount: 49000, effectiveTaxRate: 0 });
+});
+
 Deno.test("half-cent VAT rounds identically to the frontend currency rule", () => {
   assertEquals(stripeGrossUnitAmount({
     price: 0.5,

@@ -74,6 +74,16 @@ Deno.test('frozen product mappings do not read or create provider products', asy
   assertEquals(calls, 0)
 })
 
+Deno.test('an exempt document rejects a mapped provider product with old VAT', async () => {
+  const error = await assertRejects(() => resolveKeyInvoiceProducts(
+    { apiUrl: 'https://login.keyinvoice.com/API5.php', sid: 'SID' },
+    [{ providerProductId: 'SKU-OLD', name: 'Pacote', unitPrice: 490, taxValue: 0, taxExemptionReason: 'M10' }],
+    (async () => Response.json({ Status: 1, Data: { Products: [{ IdProduct: 'SKU-OLD', TaxValue: 23 }] } })) as typeof fetch,
+  ))
+  assertEquals(error instanceof KeyInvoiceError, true)
+  if (error instanceof KeyInvoiceError) assertEquals(error.manualReview, true)
+})
+
 Deno.test('product create race re-lists and accepts only exact code and tax', async () => {
   let lists = 0
   let inserts = 0
@@ -170,6 +180,18 @@ Deno.test('sale item fiscal snapshot overrides product and organization defaults
   assertEquals(prepared.products[0].taxExemptionReason, 'M01')
   assertEquals(prepared.products[0].unitPrice, 100)
   assertEquals(line.priceIncludesVat, false)
+})
+
+Deno.test('organization exemption overrides old line and product VAT for every issuer', () => {
+  const prepared = prepareKeyInvoiceSaleLines(
+    { subtotal: 490, total_value: 490, discount: 0 },
+    [{ name: 'Pacote', quantity: 1, unit_price: 490, tax_value: 23,
+      tax_exemption_reason: 'M02', product: { tax_value: 23 } }],
+    { tax_value: 0, tax_exemption_reason: 'M10' },
+  )
+  assertEquals(prepared.products[0].taxValue, 0)
+  assertEquals(prepared.products[0].taxExemptionReason, 'M10')
+  assertEquals((prepared.fiscalSnapshot.lines as any[])[0].taxRate, 0)
 })
 
 Deno.test('retention on a sale item fails closed before automatic issuance', () => {

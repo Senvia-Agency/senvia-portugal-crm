@@ -26,7 +26,7 @@ export function stripeGrossUnitAmount(input: {
   }
 
   const organizationRate = safeTaxRate(input.organizationTaxConfig?.tax_value, 23);
-  const effectiveTaxRate = input.productTaxValue == null
+  const effectiveTaxRate = organizationRate === 0 ? 0 : input.productTaxValue == null
     ? organizationRate
     : safeTaxRate(input.productTaxValue, organizationRate);
   const gross = input.priceIncludesVat
