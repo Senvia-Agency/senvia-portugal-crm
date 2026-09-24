@@ -11,6 +11,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 
+async function fiscalFunctionError(error: { message?: string; context?: unknown }, fallback: string): Promise<Error> {
+  const payload = error.context instanceof Response
+    ? await error.context.json().catch(() => null)
+    : null;
+  return new Error(typeof payload?.error === 'string' ? payload.error : error.message || fallback);
+}
+
 // ─── Issue Invoice ──────────────────────────────────────────────
 
 export interface IssueInvoiceParams {
@@ -31,7 +38,7 @@ export function useIssueInvoice() {
         body: { sale_id: saleId, organization_id: organizationId, observations: observations || undefined },
       });
 
-      if (res.error) throw new Error(res.error.message || "Erro ao emitir fatura");
+      if (res.error) throw await fiscalFunctionError(res.error, "Erro ao emitir fatura");
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
@@ -66,7 +73,7 @@ export function useIssueInvoiceReceipt() {
         body: { sale_id: saleId, organization_id: organizationId, observations: observations || undefined },
       });
 
-      if (res.error) throw new Error(res.error.message || "Erro ao emitir fatura-recibo");
+      if (res.error) throw await fiscalFunctionError(res.error, "Erro ao emitir fatura-recibo");
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },

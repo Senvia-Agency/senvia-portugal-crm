@@ -88,7 +88,8 @@ async function handleVendus(
         'incomplete_local_document', 'ambiguous_document'].includes(error.code)
       : safeKeyInvoiceError(error).manual_review
     return new Response(JSON.stringify({ error: safe.message, code: safe.code,
-      manual_review: manualReview }),
+      manual_review: manualReview,
+      ...(error instanceof VendusError && error.providerCode ? { provider_code: error.providerCode } : {}) }),
     { status: safe.status, headers: { ...headers, 'Content-Type': 'application/json' } })
   }
 }

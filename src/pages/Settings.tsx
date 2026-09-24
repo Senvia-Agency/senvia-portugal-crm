@@ -158,6 +158,7 @@ export default function Settings() {
   const [vendusApiKey, setVendusApiKey] = useState('');
   const [showVendusApiKey, setShowVendusApiKey] = useState(false);
   const [vendusOptionsLoaded, setVendusOptionsLoaded] = useState(false);
+  const [vendusRegisterReady, setVendusRegisterReady] = useState(false);
   const [vendusOptionsLoading, setVendusOptionsLoading] = useState(false);
   const vendusLookupSequence = useRef(0);
 
@@ -218,6 +219,7 @@ export default function Settings() {
       setShowVendusApiKey(false);
       vendusLookupSequence.current += 1;
       setVendusOptionsLoaded(false);
+      setVendusRegisterReady(false);
       setVendusOptionsLoading(false);
       setChavesGuardadas((current) => ({ ...current, vendus: false }));
       // Never keep fiscal series from the previously selected organization
@@ -372,6 +374,7 @@ export default function Settings() {
     vendusLookupSequence.current += 1;
     setVendusApiKey(value);
     setVendusOptionsLoaded(false);
+    setVendusRegisterReady(false);
     setVendusOptionsLoading(false);
   };
 
@@ -395,9 +398,13 @@ export default function Settings() {
         throw new Error('Não foi possível validar a chave Vendus.');
       }
       setVendusOptionsLoaded(true);
+      setVendusRegisterReady(data.register_ready === true);
       toast({
         title: 'Chave Vendus validada',
-        description: 'O método de pagamento será obtido de cada venda no momento da emissão.',
+        description: data.register_ready === true
+          ? 'A caixa está em modo Normal. O método de pagamento vem de cada venda.'
+          : data.readiness_error || 'A caixa Vendus ainda não está pronta para emissão real.',
+        variant: data.register_ready === true ? 'default' : 'destructive',
       });
     } catch {
       if (requestId === vendusLookupSequence.current) {
@@ -691,7 +698,7 @@ export default function Settings() {
     showInvoiceXpressApiKey, setShowInvoiceXpressApiKey,
     handleSaveInvoiceXpress,
     vendusApiKey, setVendusApiKey: handleVendusApiKeyChange, showVendusApiKey, setShowVendusApiKey,
-    vendusOptionsLoaded, vendusOptionsLoading,
+    vendusOptionsLoaded, vendusRegisterReady, vendusOptionsLoading,
     handleLoadVendusOptions, handleSaveVendus,
     integrationsEnabled, onToggleIntegration: handleToggleIntegration,
     handleSaveKeyInvoice, keyinvoiceApiKey, setKeyinvoiceApiKey,

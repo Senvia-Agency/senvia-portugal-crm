@@ -50,7 +50,14 @@ async function findExistingVendusDocument(apiKey: string, reference: string, typ
   const matches: Record<string, any>[] = []
   for (let page = 1; page <= 10; page++) {
     const params = new URLSearchParams({ external_reference: reference, type, mode: 'normal', per_page: '100', page: String(page) })
-    const rows = await vendusRequest<any[]>(apiKey, `/documents/?${params}`)
+    let rows: any[]
+    try {
+      rows = await vendusRequest<any[]>(apiKey, `/documents/?${params}`)
+    } catch (error) {
+      // Vendus returns HTTP 404/A001 instead of [] when no documents match.
+      if (error instanceof VendusError && error.status === 404) return null
+      throw error
+    }
     if (!Array.isArray(rows)) throw new VendusError('Resposta inesperada da Vendus', 502, 'invalid_response')
     for (const row of rows) {
       // external_reference is a text search, not an exact-match filter.
@@ -314,12 +321,16 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     // retry safe, and external_reference lets us recover the fiscal identity.
     if (error instanceof VendusError && error.code === 'invalid_credentials') throw error
     let recovered: Record<string, any> | null = null
+    let recoveryFailed = false
     try {
       recovered = await findExistingVendusDocument(apiKey, externalReference, type)
     } catch (lookupError) {
+      recoveryFailed = true
       console.warn('[vendus] issuance_recovery_failed', lookupError instanceof VendusError ? lookupError.code : 'lookup_error')
     }
     if (!recovered) {
+      if (!recoveryFailed && error instanceof VendusError
+        && ['invalid_document', 'rate_limited'].includes(error.code)) throw error
       throw new VendusError('Não foi possível confirmar o resultado na Vendus. Consulte os documentos antes de repetir.', 409, 'remote_outcome_uncertain')
     }
     document = recovered

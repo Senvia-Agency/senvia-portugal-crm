@@ -2,26 +2,26 @@
 const VENDUS_BASE_URL = 'https://www.vendus.pt/ws/v1.1'
 
 export class VendusError extends Error {
-  constructor(message: string, public readonly status: number, public readonly code: string) {
+  constructor(message: string, public readonly status: number, public readonly code: string,
+    public readonly providerCode?: string) {
     super(message)
     this.name = 'VendusError'
   }
 }
 
-/** Pick one active register. Document requests explicitly override its mode. */
+/** A real document must use a register already configured for normal mode. */
 export function selectNormalVendusRegister(value: unknown): number {
   if (!Array.isArray(value)) {
     throw new VendusError('A Vendus devolveu uma lista de caixas inválida.', 502, 'invalid_registers')
   }
-  const available = value.filter((register) => register && typeof register === 'object'
-    && register.situation !== 'off'
+  const normal = value.filter((register) => register && typeof register === 'object'
+    && register.mode === 'normal' && register.situation !== 'off'
     && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
-  if (available.length === 0) {
-    throw new VendusError('A conta Vendus não tem uma caixa ativa para emitir documentos.', 409, 'register_missing')
+  if (normal.length === 0) {
+    throw new VendusError('A caixa da Vendus está em Formação/Testes. Em Vendus → Configuração → Definições → Lojas e Caixas, muda o Modo de Funcionamento para Normal.', 409, 'normal_register_missing')
   }
-  const api = available.filter((register) => register.type === 'api')
-  const normal = (api.length > 0 ? api : available).filter((register) => register.mode === 'normal')
-  const candidates = normal.length > 0 ? normal : api.length > 0 ? api : available
+  const api = normal.filter((register) => register.type === 'api')
+  const candidates = api.length > 0 ? api : normal
   if (candidates.length !== 1) {
     throw new VendusError('A Vendus devolveu várias caixas possíveis. Defina uma caixa API única na Vendus antes de emitir.', 409, 'ambiguous_register')
   }
@@ -57,9 +57,26 @@ export async function vendusRequest<T = any>(
     throw new VendusError('Não foi possível contactar a Vendus. Confirme o documento antes de repetir.', 503, 'network_error')
   }
   if (!response.ok) {
-    // Provider bodies can contain personal or account information. Never log or
-    // expose them; callers may reconcile with tx_id / external_reference.
+    // Only expose a short, scrubbed validation message. Never log provider
+    // payloads, which may contain customer data or credentials.
     const status = response.status
+    let providerCode: string | undefined
+    let providerMessage: string | undefined
+    if (status === 400 || status === 422) {
+      try {
+        const body = await response.json()
+        const issue = Array.isArray(body?.errors) ? body.errors[0] : body?.error
+        const rawCode = typeof issue === 'object' ? issue?.code : undefined
+        if (typeof rawCode === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(rawCode)) providerCode = rawCode
+        const rawMessage = typeof issue === 'object' ? issue?.message : issue
+        if (typeof rawMessage === 'string') {
+          providerMessage = rawMessage.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+            .replace(/\b\d{9}\b/g, '[NIF]')
+            .replace(/\b[A-Za-z0-9_-]{30,}\b/g, '[identificador]')
+            .replace(/[\r\n]+/g, ' ').trim().slice(0, 180)
+        }
+      } catch { /* use the safe generic message */ }
+    }
     const code = status === 401 || status === 403 ? 'invalid_credentials'
       : status === 429 ? 'rate_limited'
       : status === 422 || status === 400 ? 'invalid_document'
@@ -70,11 +87,11 @@ export async function vendusRequest<T = any>(
       : status === 429
       ? 'Limite de pedidos da Vendus atingido. Tente novamente mais tarde.'
       : status === 422 || status === 400
-      ? 'A Vendus rejeitou os dados do documento. Verifique cliente, artigos, impostos e série.'
+      ? `A Vendus rejeitou o documento${providerMessage ? `: ${providerMessage}` : '. Verifica cliente, artigos, impostos e série.'}`
       : status === 409
       ? 'A Vendus já recebeu este documento. Confirme o estado antes de repetir.'
       : `A Vendus não conseguiu processar o pedido (${status}).`
-    throw new VendusError(message, status, code)
+    throw new VendusError(message, status, code, providerCode)
   }
   try {
     return await response.json() as T

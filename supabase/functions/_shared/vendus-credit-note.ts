@@ -14,7 +14,13 @@ async function findCreditByReference(apiKey: string, reference: string): Promise
   for (let page = 1; page <= 10; page++) {
     const params = new URLSearchParams({ type: 'NC', mode: 'normal', external_reference: reference,
       per_page: '100', page: String(page) })
-    const rows = await vendusRequest<any[]>(apiKey, `/documents/?${params}`)
+    let rows: any[]
+    try {
+      rows = await vendusRequest<any[]>(apiKey, `/documents/?${params}`)
+    } catch (error) {
+      if (error instanceof VendusError && error.status === 404) return null
+      throw error
+    }
     if (!Array.isArray(rows)) throw new VendusError('Resposta inesperada da Vendus.', 502, 'invalid_response')
     for (const row of rows) {
       const id = Number(row.id)
