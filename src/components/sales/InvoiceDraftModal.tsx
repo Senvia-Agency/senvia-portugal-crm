@@ -158,7 +158,7 @@ export function InvoiceDraftModal({
                 <>Esta fatura cobre o <strong>valor total</strong> da venda ({formatCurrency(amount)}). Após emissão, gere um <strong>Recibo (RC)</strong> por cada pagamento recebido.</>
               )}
               {mode === "invoice_receipt" && (
-                <>Esta fatura-recibo cobre <strong>apenas este pagamento</strong> de {formatCurrency(amount)}.{saleTotal && saleTotal > amount && " Os itens são proporcionais ao valor do pagamento."}</>
+                <>Esta fatura-recibo cobre o <strong>valor total da venda</strong> ({formatCurrency(saleTotal ?? amount)}) e exige pagamento integral confirmado.</>
               )}
               {mode === "receipt" && (
                 <>Este recibo comprova o <strong>pagamento de {formatCurrency(amount)}</strong> associado à fatura já emitida.</>
