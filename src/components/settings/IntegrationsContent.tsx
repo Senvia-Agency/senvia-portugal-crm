@@ -209,11 +209,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
       case 'brevo': return !!(brevoSenderEmail && (brevoApiKey || chavesGuardadas?.brevo));
       case 'invoicexpress': return !!(invoiceXpressAccountName && (invoiceXpressApiKey || chavesGuardadas?.invoicexpress));
       case 'keyinvoice': return !!(keyinvoiceApiKey || chavesGuardadas?.keyinvoice);
-      case 'vendus': return !!(
-        (vendusApiKey || chavesGuardadas?.vendus)
-        && Number(vendusRegisterId) > 0
-        && Number(vendusPaymentMethodId) > 0
-      );
+      case 'vendus': return chavesGuardadas?.vendus === true;
       case 'meta': return !!(org as { tem_meta_conversions_token?: boolean } | null)?.tem_meta_conversions_token;
       case 'stripe': return stripeConnection.connected;
     }
@@ -239,6 +235,9 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     }
     if (integrationsEnabled[key] === false) {
       return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">Desativado</Badge>;
+    }
+    if (key === 'vendus' && configured && !vendusPaymentMethodId) {
+      return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">Chave guardada · FT</Badge>;
     }
     if (configured) {
       return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">Configurado</Badge>;
@@ -1760,7 +1759,7 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-        <p className="text-sm text-blue-600 dark:text-blue-400">A Vendus fornece a chave API. A URL é configurada automaticamente e as caixas e métodos de pagamento são carregados da tua conta Vendus.</p>
+        <p className="text-sm text-blue-600 dark:text-blue-400">A Vendus fornece a chave API. A URL é configurada automaticamente. A caixa é opcional para faturas; faturas-recibo e recibos precisam de um método de pagamento.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="vendus-api-key">Chave de API</Label>
@@ -1787,7 +1786,7 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
       {vendusOptionsLoaded && (
         <>
           <div className="space-y-2">
-            <Label htmlFor="vendus-register">Caixa para emitir documentos</Label>
+            <Label htmlFor="vendus-register">Caixa (opcional)</Label>
             <Select value={vendusRegisterId || undefined} onValueChange={(value) => {
               setVendusRegisterId(value);
               setVendusPaymentMethodId('');
@@ -1801,23 +1800,23 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
                 ))}
               </SelectContent>
             </Select>
-            {!vendusRegisters.length && <p className="text-xs text-destructive">Não foi encontrada uma caixa ativa em modo normal na Vendus.</p>}
+            {!vendusRegisters.length && <p className="text-xs text-muted-foreground">A Vendus não devolveu uma caixa ativa. A fatura será enviada sem caixa explícita.</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="vendus-payment-method">Método de pagamento para faturas-recibo e recibos</Label>
-            <Select value={vendusPaymentMethodId || undefined} onValueChange={setVendusPaymentMethodId} disabled={!vendusRegisterId}>
-              <SelectTrigger id="vendus-payment-method"><SelectValue placeholder={vendusRegisterId ? 'Seleciona um método de pagamento' : 'Seleciona primeiro uma caixa'} /></SelectTrigger>
+            <Select value={vendusPaymentMethodId || undefined} onValueChange={setVendusPaymentMethodId} disabled={!availablePaymentMethods.length}>
+              <SelectTrigger id="vendus-payment-method"><SelectValue placeholder="Seleciona um método de pagamento" /></SelectTrigger>
               <SelectContent>
                 {availablePaymentMethods.map((method) => (
                   <SelectItem key={method.id} value={String(method.id)}>{method.title}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {vendusRegisterId && !availablePaymentMethods.length && <p className="text-xs text-destructive">Não foi encontrado um método de pagamento ativo para esta caixa.</p>}
+            {!availablePaymentMethods.length && <p className="text-xs text-muted-foreground">Sem método ativo na Vendus. Podes guardar a chave e emitir faturas; para faturas-recibo e recibos, configura um método na Vendus.</p>}
           </div>
         </>
       )}
-      <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || !vendusRegisterId || !vendusPaymentMethodId}>
+      <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Guardar
       </Button>

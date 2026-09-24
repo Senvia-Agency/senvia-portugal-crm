@@ -139,9 +139,8 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   const apiKey = String(org.vendus_api_key || '').trim()
   const registerId = Number(org.vendus_register_id)
   const paymentMethodId = Number(org.vendus_payment_method_id)
-  if (!apiKey || !Number.isSafeInteger(registerId) || registerId <= 0 ||
-      (kind === 'invoice_receipt' && (!Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0))) {
-    throw new VendusError('Configure a chave API, o registo e o método de pagamento da Vendus.', 400, 'missing_configuration')
+  if (!apiKey || (kind === 'invoice_receipt' && (!Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0))) {
+    throw new VendusError('Configure a chave API Vendus e, para faturas-recibo, um método de pagamento.', 400, 'missing_configuration')
   }
   const type = kind === 'invoice' ? 'FT' : 'FR'
   const idempotencyKey = `vendus:sale:${saleId}`
@@ -272,7 +271,7 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     throw new VendusError('A soma fiscal dos artigos não coincide com o total cobrado na venda.', 422, 'total_mismatch')
   }
   const payload: Record<string, unknown> = {
-    register_id: registerId,
+    ...(Number.isSafeInteger(registerId) && registerId > 0 ? { register_id: registerId } : {}),
     type,
     mode: 'normal',
     date: lisbonFiscalDate(),

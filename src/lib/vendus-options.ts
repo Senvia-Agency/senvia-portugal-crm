@@ -6,7 +6,8 @@ export function paymentMethodsForVendusRegister(
   paymentMethods: VendusPaymentMethodOption[],
 ): VendusPaymentMethodOption[] {
   const register = registers.find((item) => String(item.id) === registerId);
-  if (!register) return [];
+  // Vendus can issue documents without an explicit register.
+  if (!register) return paymentMethods;
   return paymentMethods.filter((method) => !method.store_ids.length || register.store_id === null
     || method.store_ids.includes(register.store_id));
 }

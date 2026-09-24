@@ -418,13 +418,12 @@ export default function Settings() {
       setVendusPaymentMethodId(availableMethods.some((item) => String(item.id) === vendusPaymentMethodId)
         ? vendusPaymentMethodId : availableMethods.length === 1 ? String(availableMethods[0].id) : '');
       setVendusOptionsLoaded(true);
-      if (!data.registers.length || !data.payment_methods.length) {
-        toast({ title: 'Configuração Vendus incompleta',
-          description: 'Não foram encontradas caixas ativas ou métodos de pagamento. Confirma a configuração na Vendus.',
-          variant: 'destructive' });
-      } else {
-        toast({ title: 'Ligação Vendus validada', description: 'Seleciona a caixa e o método de pagamento para emitir documentos.' });
-      }
+      toast({
+        title: 'Chave Vendus validada',
+        description: data.payment_methods.length
+          ? 'Podes guardar a chave. A caixa é opcional; seleciona um método para faturas-recibo e recibos.'
+          : 'Podes guardar a chave para emitir faturas. Para faturas-recibo e recibos, configura um método de pagamento na Vendus.',
+      });
     } catch {
       if (requestId === vendusLookupSequence.current) {
         setVendusRegisters([]);
@@ -440,15 +439,15 @@ export default function Settings() {
 
   const handleSaveVendus = () => {
     const apiKey = vendusApiKey.trim();
-    const registerId = Number(vendusRegisterId.trim());
-    const paymentMethodId = Number(vendusPaymentMethodId.trim());
+    const registerId = vendusRegisterId.trim() ? Number(vendusRegisterId.trim()) : null;
+    const paymentMethodId = vendusPaymentMethodId.trim() ? Number(vendusPaymentMethodId.trim()) : null;
     if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded
-      || !vendusRegisters.some((item) => item.id === registerId)
-      || !paymentMethodsForVendusRegister(vendusRegisterId, vendusRegisters, vendusPaymentMethods)
-        .some((item) => item.id === paymentMethodId)) {
+      || (registerId !== null && !vendusRegisters.some((item) => item.id === registerId))
+      || (paymentMethodId !== null && !paymentMethodsForVendusRegister(vendusRegisterId, vendusRegisters, vendusPaymentMethods)
+        .some((item) => item.id === paymentMethodId))) {
       toast({
         title: 'Dados Vendus incompletos',
-        description: 'Valida a chave API e seleciona a caixa e o método de pagamento obtidos da Vendus.',
+        description: 'Valida a chave API e escolhe apenas opções devolvidas pela Vendus.',
         variant: 'destructive',
       });
       return;

@@ -77,9 +77,8 @@ async function handleVendusReceipt(
   const registerId = Number(org.vendus_register_id)
   const paymentMethodId = Number(org.vendus_payment_method_id)
   if (integrationsEnabled.vendus === false || !org.vendus_api_key?.trim()
-      || !Number.isSafeInteger(registerId) || registerId <= 0
       || !Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0) {
-    return receiptResponse({ error: 'Configure a chave API, caixa e método de pagamento da Vendus antes de emitir recibos.' }, 400)
+    return receiptResponse({ error: 'Configure a chave API e um método de pagamento da Vendus antes de emitir recibos.' }, 400)
   }
 
   const amount = Number(payment.amount)
@@ -230,7 +229,7 @@ async function handleVendusReceipt(
     document = await vendusRequest<Record<string, unknown>>(org.vendus_api_key, '/documents/', {
       method: 'POST',
       body: JSON.stringify({
-        register_id: registerId,
+        ...(Number.isSafeInteger(registerId) && registerId > 0 ? { register_id: registerId } : {}),
         type: 'RG',
         mode: 'normal',
         date: fiscalDate,
