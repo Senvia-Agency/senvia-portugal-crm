@@ -1,154 +1,46 @@
-import { requestMfaResponse } from "../_shared/user-authorization.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { authorizeKeyInvoiceAdmin } from '../_shared/fiscal-authorization.ts'
+import { getKeyInvoiceSession, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
+import { userRateLimit } from '../_shared/user-rate-limit.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const DEFAULT_KEYINVOICE_API_URL = 'https://login.keyinvoice.com/API5.php'
+function json(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
 
-/**
- * KeyInvoice Auth (API 5.0) - authenticates and returns a cached Sid session token.
- * Uses method:"authenticate" with header Apikey to get a Sid (TTL 3600s).
- * Caches the Sid in the organizations table for reuse.
- */
+/** Validate the API key and refresh the SID without exposing it to the browser. */
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
+  if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405)
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const body = await req.json().catch(() => ({}))
+    const organizationId = typeof body.organization_id === 'string' ? body.organization_id : ''
+    if (!organizationId) return json({ error: 'organization_id é obrigatório' }, 400)
 
-    const { organization_id } = await req.json()
-    if (!organization_id) {
-      return new Response(JSON.stringify({ error: 'organization_id é obrigatório' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const authorization = await authorizeKeyInvoiceAdmin(req, organizationId, corsHeaders)
+    if (!authorization.ok) return authorization.response
+    const rateLimitResponse = await userRateLimit(authorization.admin, authorization.userId, 'keyinvoice-auth', corsHeaders)
+    if (rateLimitResponse) return rateLimitResponse
 
-    // AuthN + AuthZ: require a logged-in member of THIS org. Without this, anyone
-    // could POST an organization_id and receive a live KeyInvoice session token
-    // (full access to that org's billing account). A server-to-server call from
-    // another edge function (bearer == service-role key) is treated as trusted.
-    const authHeader = req.headers.get('Authorization') || ''
-    const bearer = authHeader.replace(/^Bearer\s+/i, '')
-    const isInternal = !!bearer && bearer === supabaseServiceKey
-    if (!isInternal) {
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-      const authClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-        global: { headers: { Authorization: authHeader } },
-      })
-      const { data: { user }, error: authError } = await authClient.auth.getUser()
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Utilizador não autenticado' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-      const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
-      if (mfaResponse) return mfaResponse;
-      const { data: membership } = await supabase
-        .from('organization_members')
-        .select('is_active')
-        .eq('organization_id', organization_id)
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle()
-      if (!membership) {
-        return new Response(JSON.stringify({ error: 'Sem acesso a esta organização' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-    }
-
-    const { data: org, error: orgError } = await supabase
+    const { data: org, error: orgError } = await authorization.admin
       .from('organizations')
       .select('keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
-      .eq('id', organization_id)
+      .eq('id', organizationId)
       .single()
+    if (orgError || !org) return json({ error: 'Organização não encontrada' }, 404)
 
-    if (orgError || !org) {
-      return new Response(JSON.stringify({ error: 'Organização não encontrada' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    if (!org.keyinvoice_password) {
-      return new Response(JSON.stringify({ error: 'Chave da API KeyInvoice não configurada' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Check cached Sid (valid if expires_at > now + 5min margin)
-    const now = new Date()
-    const margin = 5 * 60 * 1000 // 5 minutes
-    if (org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-      const expiresAt = new Date(org.keyinvoice_sid_expires_at)
-      if (expiresAt.getTime() > now.getTime() + margin) {
-        return new Response(JSON.stringify({ token: org.keyinvoice_sid }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-    }
-
-    // Authenticate to get a new Sid
-    const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-    const authRes = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Apikey': org.keyinvoice_password },
-      body: JSON.stringify({ method: 'authenticate' }),
-    })
-
-    if (!authRes.ok) {
-      const errorText = await authRes.text()
-      console.error('KeyInvoice authenticate HTTP error:', authRes.status, errorText)
-      return new Response(JSON.stringify({ error: `Erro ao autenticar no KeyInvoice: ${authRes.status}` }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const authData = await authRes.json()
-    if (authData.Status !== 1 || !authData.Sid) {
-      console.error('KeyInvoice authenticate failed:', authData.ErrorMessage)
-      return new Response(JSON.stringify({ error: `KeyInvoice: ${authData.ErrorMessage || 'Erro de autenticação'}` }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const newSid = authData.Sid
-    const expiresAt = new Date(now.getTime() + 3600 * 1000) // TTL 3600s
-
-    // Cache the Sid
-    await supabase
-      .from('organizations')
-      .update({ keyinvoice_sid: newSid, keyinvoice_sid_expires_at: expiresAt.toISOString() })
-      .eq('id', organization_id)
-
-    return new Response(JSON.stringify({ token: newSid }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  } catch (err) {
-    console.error('keyinvoice-auth error:', err)
-    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    await getKeyInvoiceSession(authorization.admin, org, organizationId, { forceRefresh: true })
+    return json({ success: true, connected: true, expires_in: 3600 })
+  } catch (error) {
+    const safe = safeKeyInvoiceError(error)
+    console.error('[keyinvoice-auth]', safe.code)
+    return json({ error: safe.message, code: safe.code, retryable: safe.retryable }, safe.status)
   }
 })

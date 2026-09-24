@@ -67,6 +67,8 @@ VALUES (gen_random_uuid(), 'Title', 'Markdown content', 'vX.Y.Z', true, now());
 - URL: `https://chhmfwlimtbsyjmgtokn.supabase.co`
 - Edge Functions secrets managed in Supabase Dashboard > Edge Functions > Secrets
 - Key secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `BREVO_API_KEY`, `APIFY_API_TOKEN`
+- KeyInvoice credentials are per organization in protected `organizations` columns. `KEYINVOICE_ALLOWED_HOSTS` is optional and may only add approved API hosts; the official production/demo hosts are built in.
+- Vendus credentials are per organization: `vendus_api_key` is write-only to browser roles; `vendus_register_id` and `vendus_payment_method_id` are configured in Settings. The API key belongs to a Vendus user with document permissions. Apply `20260924120000_keyinvoice_recurring_fiscal_ledger.sql` first, then `20260924130000_vendus_fiscal_provider.sql` in SQL Editor before serving the Vendus frontend. Deploy `issue-invoice`, `issue-invoice-receipt`, `generate-receipt`, `get-invoice-details`, `sync-invoices`, `sync-credit-notes`, `cancel-invoice`, `create-credit-note`, and `send-invoice-email` manually to the active project. Validate with Vendus test mode or a designated test account before enabling live issuance for an organization.
 
 ### Cron Jobs (pg_cron)
 
@@ -109,6 +111,18 @@ headers := jsonb_build_object(
 ```
 
 To run either function by hand, use the same `net.http_post` shape from the SQL Editor.
+
+#### Recurring KeyInvoice fiscal rollout
+
+Apply this feature in this order so no worker can see a half-installed schema:
+
+1. Run `supabase/migrations/20260924120000_keyinvoice_recurring_fiscal_ledger.sql` in the SQL Editor. It installs the durable ledger/RPCs and the three inactive-safe cron calls; existing recurrences remain `manual`.
+2. Deploy every changed invoicing/Stripe/Brevo function, then deploy `keyinvoice-fiscal-worker` with `--no-verify-jwt`. The worker authenticates its cron request with the Vault `stripe_cron_secret` used by the existing protected crons.
+3. In a KeyInvoice **demo** organization, configure explicit FT/FR/RC/NC series and run `_shared/keyinvoice.demo.test.ts` with `KEYINVOICE_DEMO_ENABLED=true` and demo-only credentials. The test refuses any host other than `demo.keyinvoice.com`.
+4. Confirm FT, fully paid FR, partial/final RC, void/NC identity, PDF retrieval and email delivery/webhook. Keep retention and automatic/partial NC disabled until those exact demo responses are accepted.
+5. Enable `fiscal_mode=automatic` on one test recurrence, observe issue/email/reconciliation queues, then expand tenant by tenant.
+
+The migration creates no new table. Do not activate automatic fiscal mode before the migration, worker deployment, series setup, Brevo sender verification and demo lifecycle all succeed.
 
 > **Note:** `cleanup-expired-trials` requires a `CRON_SECRET` header that its cron job
 > does **not** send, so that destructive purge is currently dormant. Verify the safety

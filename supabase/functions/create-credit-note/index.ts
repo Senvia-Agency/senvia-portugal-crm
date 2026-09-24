@@ -1,60 +1,20 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { userRateLimit } from '../_shared/user-rate-limit.ts'
+import {
+  documentIdentityFromRawData,
+  documentNumberAsInteger,
+  getKeyInvoicePdf,
+  getKeyInvoiceSession,
+  identityRawData,
+  lisbonFiscalDate,
+  safeKeyInvoiceError,
+  voidKeyInvoiceDocument,
+} from '../_shared/keyinvoice.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
-
-const DEFAULT_KEYINVOICE_API_URL = 'https://login.keyinvoice.com/API5.php'
-
-const KI_DOC_TYPE_MAP: Record<string, string> = {
-  invoice: '4',
-  invoice_receipt: '34',
-  receipt: '10',
-  credit_note: '8',
-}
-
-async function getKeyInvoiceSid(supabase: any, org: any, orgId: string): Promise<string> {
-  if (!org.keyinvoice_password) {
-    throw new Error('Chave da API KeyInvoice não configurada')
-  }
-
-  const now = new Date()
-  const margin = 5 * 60 * 1000
-  if (org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-    const expiresAt = new Date(org.keyinvoice_sid_expires_at)
-    if (expiresAt.getTime() > now.getTime() + margin) {
-      return org.keyinvoice_sid
-    }
-  }
-
-  const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-  const authRes = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Apikey': org.keyinvoice_password },
-    body: JSON.stringify({ method: 'authenticate' }),
-  })
-
-  if (!authRes.ok) {
-    const errorText = await authRes.text()
-    throw new Error(`Erro ao autenticar no KeyInvoice: ${authRes.status} - ${errorText}`)
-  }
-
-  const authData = await authRes.json()
-  if (authData.Status !== 1 || !authData.Sid) {
-    throw new Error(`KeyInvoice auth: ${authData.ErrorMessage || 'Erro de autenticação'}`)
-  }
-
-  const newSid = authData.Sid
-  const expiresAt = new Date(now.getTime() + 3600 * 1000)
-
-  await supabase
-    .from('organizations')
-    .update({ keyinvoice_sid: newSid, keyinvoice_sid_expires_at: expiresAt.toISOString() })
-    .eq('id', orgId)
-
-  return newSid
 }
 
 Deno.serve(async (req) => {
@@ -76,6 +36,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const token = authHeader.replace('Bearer ', '')
+    if (token === supabaseServiceKey) return new Response(JSON.stringify({ error: 'Não autorizado' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), {
@@ -85,6 +46,8 @@ Deno.serve(async (req) => {
     }
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
+    const rateLimitResponse = await userRateLimit(supabase, user.id, 'create-credit-note', corsHeaders)
+    if (rateLimitResponse) return rateLimitResponse
 
     const { 
       organization_id, 
@@ -92,12 +55,13 @@ Deno.serve(async (req) => {
       payment_id,
       original_document_id,
       original_document_type,
+      invoice_id,
       reason,
       items,
     } = await req.json()
 
-    if (!organization_id || !original_document_id || !original_document_type || !reason) {
-      return new Response(JSON.stringify({ error: 'Campos obrigatórios: organization_id, original_document_id, original_document_type, reason' }), {
+    if (!organization_id || !reason || (!invoice_id && (!original_document_id || !original_document_type))) {
+      return new Response(JSON.stringify({ error: 'Campos obrigatórios: organization_id, reason e invoice_id (ou documento/tipo)' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -116,229 +80,361 @@ Deno.serve(async (req) => {
       })
     }
 
+    const { data: canCancel, error: permissionError } = await supabase.rpc('has_module_permission', {
+      _user_id: user.id,
+      _org_id: organization_id,
+      _module: 'finance',
+      _subarea: 'invoices',
+      _action: 'cancel',
+    })
+    if (permissionError || canCancel !== true) {
+      return new Response(JSON.stringify({ error: 'Sem permissão para criar notas de crédito' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Fetch org credentials
-    const { data: org } = await supabase
+    const { data: org, error: orgError } = await supabase
       .from('organizations')
       .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
       .eq('id', organization_id)
       .single()
 
+    if (orgError || !org) {
+      return new Response(JSON.stringify({ error: 'Não foi possível carregar a configuração de faturação' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const billingProvider = org?.billing_provider || 'invoicexpress'
+    if (invoice_id) {
+      const { data: selectedInvoice, error: selectedInvoiceError } = await supabase
+        .from('invoices')
+        .select('provider')
+        .eq('id', invoice_id)
+        .eq('organization_id', organization_id)
+        .maybeSingle()
+      if (selectedInvoiceError) throw selectedInvoiceError
+      if (!selectedInvoice) {
+        return new Response(JSON.stringify({ error: 'Documento fiscal original não encontrado.', code: 'document_not_found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (selectedInvoice.provider === 'vendus') {
+        return new Response(JSON.stringify({ error: 'A nota de crédito para documentos Vendus ainda não é suportada.', code: 'vendus_operation_unsupported' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    } else if (Number.isSafeInteger(Number(original_document_id)) && Number(original_document_id) > 0) {
+      const { data: vendusDocument, error: vendusLookupError } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('organization_id', organization_id)
+        .eq('provider', 'vendus')
+        .eq('invoicexpress_id', Number(original_document_id))
+        .eq('document_type', original_document_type)
+        .limit(1)
+        .maybeSingle()
+      if (vendusLookupError) throw vendusLookupError
+      if (vendusDocument) {
+        return new Response(JSON.stringify({ error: 'Este número também pertence a um documento Vendus. Seleciona o documento pelo identificador interno.', code: 'ambiguous_document_identity' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+    if (billingProvider === 'vendus') {
+      return new Response(JSON.stringify({ error: 'A nota de crédito via Vendus ainda não é suportada.', code: 'vendus_operation_unsupported' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     const integrationsEnabled = (org?.integrations_enabled as Record<string, boolean> | null) || {}
 
     // ========== KeyInvoice Flow ==========
     if (billingProvider === 'keyinvoice') {
-      if (integrationsEnabled.keyinvoice === false || !org?.keyinvoice_password) {
+      if (integrationsEnabled.keyinvoice === false || !org.keyinvoice_password) {
         return new Response(JSON.stringify({ error: 'Integração KeyInvoice não configurada' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      if (Array.isArray(items) && items.length > 0) {
+        return new Response(JSON.stringify({
+          error: 'A API KeyInvoice validada só permite anulação integral. Notas de crédito parciais exigem revisão manual.',
+          code: 'partial_credit_note_manual_review',
+          manual_review: true,
+        }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
 
-      const sid = await getKeyInvoiceSid(supabase, org, organization_id)
-      const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-
-      // Parse reference "34 47/1" -> DocType=34, DocSeries=47, DocNum=1
-      let kiDocType = KI_DOC_TYPE_MAP[original_document_type] || '4'
-      let kiDocNum = String(original_document_id)
-      let kiDocSeries: string | null = null
-
-      // Look up the invoice record to get the real reference
-      const { data: invoiceRecord } = await supabase
+      let originalQuery = supabase
         .from('invoices')
-        .select('reference, document_type, invoicexpress_id, raw_data')
-        .eq('invoicexpress_id', original_document_id)
+        .select('*')
         .eq('organization_id', organization_id)
+      originalQuery = invoice_id
+        ? originalQuery.eq('id', invoice_id)
+        : originalQuery.eq('invoicexpress_id', original_document_id).eq('document_type', original_document_type)
+      const { data: invoiceRows, error: invoiceError } = await originalQuery.limit(2)
+      if (invoiceError || !invoiceRows || invoiceRows.length !== 1) {
+        const ambiguous = (invoiceRows?.length ?? 0) > 1
+        return new Response(JSON.stringify({
+          error: ambiguous
+            ? 'Existem vários documentos com esse número. Selecione o documento pela série.'
+            : 'Documento fiscal original não encontrado.',
+          code: ambiguous ? 'ambiguous_document_identity' : 'document_not_found',
+        }), { status: ambiguous ? 409 : 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const invoiceRecord = invoiceRows[0]
+      if (!['invoice', 'invoice_receipt'].includes(invoiceRecord.document_type)) {
+        return new Response(JSON.stringify({
+          error: 'Este tipo de documento não suporta nota de crédito automática.',
+          code: 'unsupported_credit_note_origin',
+          manual_review: true,
+        }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      const idempotencyKey = `manual:credit-note:${invoiceRecord.id}`
+      const { data: priorCredit, error: priorError } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('organization_id', organization_id)
+        .eq('fiscal_idempotency_key', idempotencyKey)
         .maybeSingle()
-
-      if (invoiceRecord) {
-        // Try raw_data first
-        const raw = invoiceRecord.raw_data as Record<string, any> | null
-        if (raw?.docType) kiDocType = String(raw.docType)
-        if (raw?.docNum) kiDocNum = String(raw.docNum)
-        if (raw?.docSeries) kiDocSeries = String(raw.docSeries)
-
-        // Fallback: parse reference "34 47/1" -> DocType=34, DocSeries=47, DocNum=1
-        if ((!raw?.docNum) && invoiceRecord.reference) {
-          const match = invoiceRecord.reference.match(/^(\d+)\s+(\d+)\/(\d+)$/)
-          if (match) {
-            kiDocType = match[1]
-            kiDocSeries = match[2]
-            kiDocNum = match[3]
-          }
-        }
+      if (priorError) throw priorError
+      if (priorCredit?.processing_status === 'issued') {
+        return new Response(JSON.stringify({
+          success: true,
+          already_issued: true,
+          credit_note_id: priorCredit.invoicexpress_id,
+          credit_note_reference: priorCredit.reference,
+          invoice_id: priorCredit.id,
+          pdf_path: priorCredit.pdf_path,
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      if (priorCredit) {
+        return new Response(JSON.stringify({
+          error: 'A anulação já foi iniciada e exige reconciliação antes de nova tentativa.',
+          code: 'credit_note_reconciliation_required',
+          manual_review: true,
+        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      if (invoiceRecord.status === 'canceled' || invoiceRecord.processing_status === 'void') {
+        return new Response(JSON.stringify({
+          error: 'O documento já está anulado, mas não existe uma nota de crédito reconciliada.',
+          code: 'void_credit_note_missing',
+          manual_review: true,
+        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      // KeyInvoice uses setDocumentVoid which auto-generates a credit note
-      const voidPayload: Record<string, string> = {
-        method: 'setDocumentVoid',
-        DocType: kiDocType,
-        DocNum: kiDocNum,
-        CreditReason: reason,
+      const fiscalDate = lisbonFiscalDate()
+      const snapshot = {
+        schemaVersion: 1,
+        fiscalDate,
+        reason,
+        originalDocumentId: invoiceRecord.id,
+        originalIdentity: invoiceRecord.raw_data?.identity || null,
+        originalFiscalSnapshot: invoiceRecord.fiscal_snapshot || invoiceRecord.raw_data?.snapshot || null,
       }
-      if (kiDocSeries) voidPayload.DocSeries = kiDocSeries
-
-      console.log('KeyInvoice setDocumentVoid payload:', JSON.stringify(voidPayload))
-
-      const voidRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Sid': sid },
-        body: JSON.stringify(voidPayload),
+      const identity = documentIdentityFromRawData(invoiceRecord.raw_data, {
+        docType: invoiceRecord.provider_document_type_code,
+        docNum: invoiceRecord.provider_document_number ?? invoiceRecord.invoicexpress_id,
       })
-
-      if (!voidRes.ok) {
-        const errorText = await voidRes.text()
-        console.error('KeyInvoice setDocumentVoid HTTP error:', voidRes.status, errorText)
-        return new Response(JSON.stringify({ error: `Erro ao criar nota de crédito no KeyInvoice (${voidRes.status})`, details: errorText }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const voidData = await voidRes.json()
-      console.log('KeyInvoice setDocumentVoid response:', JSON.stringify(voidData))
-
-      if (voidData.Status !== 1) {
-        console.error('KeyInvoice setDocumentVoid failed:', voidData.ErrorMessage)
-        return new Response(JSON.stringify({ error: `KeyInvoice: ${voidData.ErrorMessage || 'Erro ao criar nota de crédito'}` }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      // Build a useful reference from original doc info
-      const creditNoteReference = kiDocSeries 
-        ? `NC ${kiDocSeries}/${kiDocNum}` 
-        : `NC ${kiDocNum}`
-      // Use negative ID to avoid conflicts (KeyInvoice doesn't return a credit note ID)
-      const kiCreditNoteId = -(original_document_id)
-
-      // Save reference in database
-      if (payment_id) {
-        await supabase
-          .from('sale_payments')
-          .update({
-            credit_note_id: kiCreditNoteId,
-            credit_note_reference: creditNoteReference,
-          })
-          .eq('id', payment_id)
-      }
-      
-      if (sale_id) {
-        await supabase
-          .from('sales')
-          .update({
-            credit_note_id: kiCreditNoteId,
-            credit_note_reference: creditNoteReference,
-          })
-          .eq('id', sale_id)
-      }
-
-      // Fetch client_name and total from invoices table directly
-      const { data: invoiceInfo } = await supabase
-        .from('invoices')
-        .select('client_name, total')
-        .eq('invoicexpress_id', original_document_id)
-        .eq('organization_id', organization_id)
-        .maybeSingle()
-
-      const { error: upsertError } = await supabase.from('credit_notes').upsert({
+      // Authenticate before reserving the durable write so a transient auth
+      // outage cannot strand a job that never reached a fiscal mutation.
+      const session = await getKeyInvoiceSession(supabase, org, organization_id)
+      const claimToken = crypto.randomUUID()
+      const claimedAt = new Date().toISOString()
+      const { data: creditJob, error: jobError } = await supabase.from('invoices').insert({
         organization_id,
-        invoicexpress_id: kiCreditNoteId,
-        reference: creditNoteReference,
-        status: 'settled',
-        client_name: invoiceInfo?.client_name || null,
-        total: invoiceInfo?.total || null,
-        date: new Date().toISOString().split('T')[0],
-        related_invoice_id: original_document_id,
-        sale_id: sale_id || null,
-        payment_id: payment_id || null,
-      }, { onConflict: 'invoicexpress_id,organization_id' })
-
-      if (upsertError) {
-        console.error('Failed to upsert credit note:', JSON.stringify(upsertError))
+        sale_id: invoiceRecord.sale_id || sale_id || null,
+        payment_id: invoiceRecord.payment_id || payment_id || null,
+        recurring_cycle_id: invoiceRecord.recurring_cycle_id,
+        related_invoice_id: invoiceRecord.id,
+        invoicexpress_id: null,
+        provider: 'keyinvoice',
+        document_type: 'credit_note',
+        reference: null,
+        total: invoiceRecord.total,
+        status: 'pending',
+        processing_status: 'processing',
+        processing_attempts: 1,
+        processing_claim_token: claimToken,
+        processing_claimed_at: claimedAt,
+        date: fiscalDate,
+        client_name: invoiceRecord.client_name,
+        fiscal_snapshot: snapshot,
+        fiscal_idempotency_key: idempotencyKey,
+        raw_data: { source: 'keyinvoice', snapshot },
+        email_status: 'not_requested',
+      }).select('*').single()
+      if (jobError || !creditJob) {
+        return new Response(JSON.stringify({
+          error: 'Não foi possível reservar a operação fiscal. Nenhum pedido foi enviado ao KeyInvoice.',
+          code: 'credit_note_job_failed',
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      // Try to download credit note PDF from KeyInvoice
+      let voidResult
+      try {
+        voidResult = await voidKeyInvoiceDocument(session, { identity, reason })
+      } catch (error) {
+        const safe = safeKeyInvoiceError(error)
+        const { error: stateError } = await supabase.from('invoices').update({
+          processing_status: safe.ambiguous ? 'reconciliation_required' : safe.manual_review ? 'manual_review' : safe.retryable ? 'retry' : 'failed',
+          processing_last_error: safe.code,
+          processing_next_retry_at: safe.retryable ? new Date(Date.now() + 60_000).toISOString() : null,
+          processing_claim_token: null,
+          processing_claimed_at: null,
+        }).eq('id', creditJob.id).eq('organization_id', organization_id).eq('processing_claim_token', claimToken)
+        if (stateError) console.error('[create-credit-note] job_state_failed')
+        throw error
+      }
+
+      const { error: originalStateError } = await supabase.from('invoices').update({
+        status: 'canceled',
+        processing_status: 'void',
+        updated_at: new Date().toISOString(),
+      }).eq('id', invoiceRecord.id).eq('organization_id', organization_id)
+      if (originalStateError) {
+        return new Response(JSON.stringify({
+          error: 'Documento anulado no KeyInvoice, mas o estado local não foi atualizado.',
+          code: 'void_persist_failed',
+          manual_review: true,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      if (!voidResult.generatedDocument) {
+        const { error: stateError } = await supabase.from('invoices').update({
+          processing_status: 'manual_review',
+          processing_last_error: 'provider_credit_note_identity_missing',
+          processing_claim_token: null,
+          processing_claimed_at: null,
+        }).eq('id', creditJob.id).eq('organization_id', organization_id).eq('processing_claim_token', claimToken)
+        if (stateError) console.error('[create-credit-note] identity_state_failed')
+        return new Response(JSON.stringify({
+          error: 'O documento foi anulado, mas o KeyInvoice não devolveu a identidade da nota de crédito. É necessária reconciliação.',
+          code: 'provider_credit_note_identity_missing',
+          manual_review: true,
+        }), { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      const creditIdentity = voidResult.generatedDocument
+      if (!creditIdentity.docSeries) {
+        const { error: stateError } = await supabase.from('invoices').update({
+          processing_status: 'manual_review',
+          processing_last_error: 'provider_credit_note_series_missing',
+          processing_claim_token: null,
+          processing_claimed_at: null,
+          raw_data: identityRawData(creditIdentity, { snapshot }),
+        }).eq('id', creditJob.id).eq('organization_id', organization_id).eq('processing_claim_token', claimToken)
+        if (stateError) console.error('[create-credit-note] series_state_failed')
+        return new Response(JSON.stringify({
+          error: 'O KeyInvoice não devolveu a série fiscal da nota de crédito. É necessária reconciliação.',
+          code: 'provider_credit_note_series_missing',
+          manual_review: true,
+        }), { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      let creditNoteId: number
+      try {
+        creditNoteId = documentNumberAsInteger(creditIdentity)
+      } catch (error) {
+        const safe = safeKeyInvoiceError(error)
+        const { error: stateError } = await supabase.from('invoices').update({
+          processing_status: 'manual_review',
+          processing_last_error: safe.code,
+          processing_claim_token: null,
+          processing_claimed_at: null,
+          raw_data: identityRawData(creditIdentity, { fiscalDate, snapshot }),
+        }).eq('id', creditJob.id).eq('organization_id', organization_id).eq('processing_claim_token', claimToken)
+        if (stateError) console.error('[create-credit-note] credit_number_state_failed')
+        throw error
+      }
       let pdfPath: string | null = null
       try {
-        const sid2 = await getKeyInvoiceSid(supabase, org, organization_id)
-        const pdfPayload: Record<string, string> = {
-          method: 'getDocumentPDF',
-          DocType: '8',
-          DocNum: kiDocNum,
-        }
-        if (kiDocSeries) pdfPayload.DocSeries = kiDocSeries
-
-        console.log('KeyInvoice getDocumentPDF payload:', JSON.stringify(pdfPayload))
-
-        const pdfRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Sid': sid2 },
-          body: JSON.stringify(pdfPayload),
+        const pdf = await getKeyInvoicePdf(session, creditIdentity)
+        const pdfFileName = `${organization_id}/credit_note_ki_${creditIdentity.docType}_${creditIdentity.docSeries}_${creditIdentity.docNum}.pdf`
+        const { error: uploadError } = await supabase.storage.from('invoices').upload(pdfFileName, pdf, {
+          contentType: 'application/pdf',
+          upsert: true,
         })
+        if (!uploadError) pdfPath = pdfFileName
+      } catch {
+        // The fiscal document remains valid; PDF can be reconciled independently.
+      }
 
-        if (pdfRes.ok) {
-          const pdfData = await pdfRes.json()
-          console.log('KeyInvoice getDocumentPDF status:', pdfData.Status)
+      const { error: completeError } = await supabase.from('invoices').update({
+        invoicexpress_id: creditNoteId,
+        provider_document_type_code: creditIdentity.docType,
+        provider_series: creditIdentity.docSeries,
+        provider_document_number: creditIdentity.docNum,
+        provider_atcud: creditIdentity.atcud,
+        reference: creditIdentity.fullDocNumber,
+        status: 'final',
+        processing_status: 'issued',
+        processing_last_error: null,
+        processing_claim_token: null,
+        processing_claimed_at: null,
+        issued_at: new Date().toISOString(),
+        pdf_path: pdfPath,
+        raw_data: identityRawData(creditIdentity, { fiscalDate, snapshot }),
+      }).eq('id', creditJob.id).eq('organization_id', organization_id).eq('processing_claim_token', claimToken)
+      if (completeError) {
+        return new Response(JSON.stringify({
+          error: 'A nota de crédito foi criada no KeyInvoice, mas não foi possível concluir o registo local.',
+          code: 'credit_note_persist_failed',
+          manual_review: true,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
 
-          if (pdfData.Status === 1 && pdfData.Data) {
-            let base64Pdf = ''
-            if (typeof pdfData.Data === 'string') {
-              base64Pdf = pdfData.Data
-            } else if (typeof pdfData.Data === 'object') {
-              const knownKeys = ['PDF','pdf','Content','content','File','file','Base64','base64','FileContent','Document','document','PDFContent']
-              for (const key of knownKeys) {
-                if (pdfData.Data[key] && typeof pdfData.Data[key] === 'string') {
-                  base64Pdf = pdfData.Data[key]; break
-                }
-              }
-              if (!base64Pdf) {
-                for (const [, val] of Object.entries(pdfData.Data)) {
-                  if (typeof val === 'string' && (val as string).length > 100) {
-                    base64Pdf = val as string; break
-                  }
-                }
-              }
-            }
+      const { error: legacyError } = await supabase.from('credit_notes').insert({
+        organization_id,
+        invoicexpress_id: creditNoteId,
+        reference: creditIdentity.fullDocNumber,
+        status: 'settled',
+        client_name: invoiceRecord.client_name,
+        total: invoiceRecord.total,
+        date: fiscalDate,
+        related_invoice_id: invoiceRecord.invoicexpress_id,
+        sale_id: invoiceRecord.sale_id || sale_id || null,
+        payment_id: invoiceRecord.payment_id || payment_id || null,
+        pdf_path: pdfPath,
+        raw_data: identityRawData(creditIdentity, { relatedInvoiceId: invoiceRecord.id }),
+      })
+      if (legacyError) {
+        return new Response(JSON.stringify({
+          error: 'A nota de crédito foi emitida e guardada, mas não ficou visível no histórico legado.',
+          code: 'legacy_credit_note_persist_failed',
+          manual_review: true,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
 
-            if (base64Pdf) {
-              base64Pdf = base64Pdf.replace(/^data:[^;]+;base64,/, '')
-              const binaryStr = atob(base64Pdf)
-              const bytes = new Uint8Array(binaryStr.length)
-              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
-
-              const pdfFileName = `${organization_id}/credit_note_ki_${kiDocSeries || '0'}_${kiDocNum}.pdf`
-              const { error: uploadError } = await supabase.storage.from('invoices').upload(pdfFileName, bytes.buffer, {
-                contentType: 'application/pdf', upsert: true
-              })
-
-              if (!uploadError) {
-                pdfPath = pdfFileName
-                await supabase.from('credit_notes')
-                  .update({ pdf_path: pdfFileName })
-                  .eq('invoicexpress_id', kiCreditNoteId)
-                  .eq('organization_id', organization_id)
-                console.log('Credit note PDF saved:', pdfFileName)
-              } else {
-                console.error('PDF upload error:', JSON.stringify(uploadError))
-              }
-            }
-          }
-        }
-      } catch (pdfErr) {
-        console.error('KeyInvoice credit note PDF download failed:', pdfErr)
+      if (payment_id || invoiceRecord.payment_id) {
+        const { error: paymentError } = await supabase.from('sale_payments').update({
+          credit_note_id: creditNoteId,
+          credit_note_reference: creditIdentity.fullDocNumber,
+        }).eq('id', payment_id || invoiceRecord.payment_id).eq('organization_id', organization_id)
+        if (paymentError) return new Response(JSON.stringify({ error: 'Nota de crédito emitida, mas o pagamento não foi atualizado.', code: 'payment_link_failed', manual_review: true }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (sale_id || invoiceRecord.sale_id) {
+        const { error: saleError } = await supabase.from('sales').update({
+          credit_note_id: creditNoteId,
+          credit_note_reference: creditIdentity.fullDocNumber,
+        }).eq('id', sale_id || invoiceRecord.sale_id).eq('organization_id', organization_id)
+        if (saleError) return new Response(JSON.stringify({ error: 'Nota de crédito emitida, mas a venda não foi atualizada.', code: 'sale_link_failed', manual_review: true }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
 
       return new Response(JSON.stringify({
         success: true,
-        credit_note_id: kiCreditNoteId,
-        credit_note_reference: creditNoteReference,
+        credit_note_id: creditNoteId,
+        credit_note_reference: creditIdentity.fullDocNumber,
+        invoice_id: creditJob.id,
+        identity: creditIdentity,
         pdf_path: pdfPath,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // ========== InvoiceXpress Flow ==========
@@ -405,8 +501,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    const now = new Date()
-    const todayStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
+    const [todayYear, todayMonth, todayDay] = lisbonFiscalDate().split('-')
+    const todayStr = `${todayDay}/${todayMonth}/${todayYear}`
 
     const taxExemption = originalDoc.tax_exemption || null
 
@@ -439,11 +535,10 @@ Deno.serve(async (req) => {
     })
 
     if (!createRes.ok) {
-      const errorText = await createRes.text()
-      console.error('InvoiceXpress create credit note error:', errorText)
+      try { await createRes.text() } catch {}
+      console.error('[create-credit-note] invoicexpress_create_failed', createRes.status)
       return new Response(JSON.stringify({ 
         error: `Erro ao criar nota de crédito no InvoiceXpress: ${createRes.status}`,
-        details: errorText,
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -482,47 +577,69 @@ Deno.serve(async (req) => {
         }
       } catch {}
     } else {
-      const errorText = await finalizeRes.text()
-      console.error('InvoiceXpress finalize credit note error:', errorText)
+      try { await finalizeRes.text() } catch {}
+      console.error('[create-credit-note] invoicexpress_finalize_failed', finalizeRes.status)
+      return new Response(JSON.stringify({
+        error: 'A nota de crédito foi criada como rascunho, mas não foi finalizada. É necessária reconciliação.',
+        code: 'credit_note_finalize_failed',
+        manual_review: true,
+      }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // 3. Save reference in database
     if (payment_id) {
-      await supabase
+      const { error: paymentUpdateError } = await supabase
         .from('sale_payments')
         .update({
           credit_note_id: creditNoteId,
           credit_note_reference: creditNoteReference,
         })
         .eq('id', payment_id)
+        .eq('organization_id', organization_id)
+      if (paymentUpdateError) {
+        return new Response(JSON.stringify({ error: 'Nota de crédito emitida, mas o pagamento não foi atualizado.', code: 'payment_link_failed', manual_review: true }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
     
     if (sale_id) {
-      await supabase
+      const { error: saleUpdateError } = await supabase
         .from('sales')
         .update({
           credit_note_id: creditNoteId,
           credit_note_reference: creditNoteReference,
         })
         .eq('id', sale_id)
+        .eq('organization_id', organization_id)
+      if (saleUpdateError) {
+        return new Response(JSON.stringify({ error: 'Nota de crédito emitida, mas a venda não foi atualizada.', code: 'sale_link_failed', manual_review: true }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     // Insert into credit_notes table for Finance visibility
     const ixClientName = originalDoc.client?.name || null
     const ixTotal = creditNote.total || originalDoc.total || null
 
-    await supabase.from('credit_notes').upsert({
+    const { error: creditPersistError } = await supabase.from('credit_notes').upsert({
       organization_id,
       invoicexpress_id: creditNoteId,
       reference: creditNoteReference,
       status: 'settled',
       client_name: ixClientName,
       total: ixTotal ? Number(ixTotal) : null,
-      date: new Date().toISOString().split('T')[0],
+      date: lisbonFiscalDate(),
       related_invoice_id: original_document_id,
       sale_id: sale_id || null,
       payment_id: payment_id || null,
     }, { onConflict: 'invoicexpress_id,organization_id' })
+    if (creditPersistError) {
+      return new Response(JSON.stringify({ error: 'Nota de crédito emitida, mas não foi guardada localmente.', code: 'credit_note_persist_failed', manual_review: true }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -533,9 +650,16 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('Unexpected error:', err)
-    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), {
-      status: 500,
+    const safe = safeKeyInvoiceError(err)
+    console.error('[create-credit-note]', safe.code)
+    return new Response(JSON.stringify({
+      error: safe.message,
+      code: safe.code,
+      retryable: safe.retryable,
+      manual_review: safe.manual_review,
+      ambiguous: safe.ambiguous,
+    }), {
+      status: safe.status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

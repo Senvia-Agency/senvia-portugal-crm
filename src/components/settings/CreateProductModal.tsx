@@ -7,7 +7,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { RefreshCw } from 'lucide-react';
 import { useCreateProduct } from '@/hooks/useProducts';
+import { useAuth } from '@/contexts/AuthContext';
+import { effectiveProductTaxRate, effectiveTaxExemptionReason, type OrganizationTaxConfig } from '@/lib/product-fiscal';
 import { ProductStripeSync } from './ProductStripeSync';
+import { ProductFiscalFields } from './ProductFiscalFields';
 import type { Product } from '@/types/proposals';
 
 interface CreateProductModalProps {
@@ -18,24 +21,37 @@ interface CreateProductModalProps {
 
 export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProductModalProps) {
   const createProduct = useCreateProduct();
+  const { organization } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [commissionValue, setCommissionValue] = useState('');
   const [commissionRenewalValue, setCommissionRenewalValue] = useState('0');
+  const [taxValue, setTaxValue] = useState<number | null>(null);
+  const [taxExemptionReason, setTaxExemptionReason] = useState('');
+  const [priceIncludesVat, setPriceIncludesVat] = useState(false);
+  const [retentionRate, setRetentionRate] = useState('0');
+  const organizationTaxConfig = organization?.tax_config as OrganizationTaxConfig | null | undefined;
+  const exemptionMissing = effectiveProductTaxRate(taxValue, organizationTaxConfig) === 0
+    && !effectiveTaxExemptionReason(taxExemptionReason, organizationTaxConfig);
+  const retentionInvalid = !Number.isFinite(Number(retentionRate))
+    || Number(retentionRate) < 0
+    || Number(retentionRate) > 100;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || exemptionMissing || retentionInvalid) return;
 
     createProduct.mutate({
       name: name.trim(),
       description: description.trim() || undefined,
       price: price ? parseFloat(price) : undefined,
       is_recurring: isRecurring,
-      tax_value: null,
-      tax_exemption_reason: null,
+      tax_value: taxValue,
+      tax_exemption_reason: taxExemptionReason.trim() || null,
+      price_includes_vat: priceIncludesVat,
+      retention_rate: Number(retentionRate) || 0,
       commission_value: commissionValue ? parseFloat(commissionValue) : null,
       commission_renewal_value: commissionRenewalValue !== '' ? parseFloat(commissionRenewalValue) : 0,
     }, {
@@ -46,6 +62,10 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
         setIsRecurring(false);
         setCommissionValue('');
         setCommissionRenewalValue('0');
+        setTaxValue(null);
+        setTaxExemptionReason('');
+        setPriceIncludesVat(false);
+        setRetentionRate('0');
         onOpenChange(false);
         if (onCreated) onCreated(product);
       },
@@ -54,11 +74,11 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Novo Produto/Serviço</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="max-h-[75dvh] space-y-4 overflow-y-auto pr-1">
           <div className="space-y-2">
             <Label htmlFor="name">Nome *</Label>
             <Input
@@ -69,6 +89,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
               required
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="description">Descrição</Label>
             <Textarea
@@ -79,6 +100,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
               rows={3}
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="price">Preço Base (€)</Label>
             <Input
@@ -91,6 +113,19 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
               placeholder="0.00"
             />
           </div>
+
+          <ProductFiscalFields
+            price={price}
+            taxValue={taxValue}
+            onTaxValueChange={setTaxValue}
+            taxExemptionReason={taxExemptionReason}
+            onTaxExemptionReasonChange={setTaxExemptionReason}
+            priceIncludesVat={priceIncludesVat}
+            onPriceIncludesVatChange={setPriceIncludesVat}
+            retentionRate={retentionRate}
+            onRetentionRateChange={setRetentionRate}
+            organizationTaxConfig={organizationTaxConfig}
+          />
 
           <div className="rounded-lg border bg-primary/5 p-4 space-y-3">
             <p className="text-sm font-medium">Comissão por unidade</p>
@@ -157,7 +192,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={createProduct.isPending || !name.trim()}>
+            <Button type="submit" disabled={createProduct.isPending || !name.trim() || exemptionMissing || retentionInvalid}>
               {createProduct.isPending ? 'A criar...' : 'Criar Produto'}
             </Button>
           </DialogFooter>

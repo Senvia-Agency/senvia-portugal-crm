@@ -37,6 +37,13 @@ import { useCreateCpe, useUpdateCpe } from "@/hooks/useCpes";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFinalStages } from "@/hooks/usePipelineStages";
 import { formatCurrency } from "@/lib/format";
+import {
+  effectiveProductTaxRate,
+  effectiveTaxExemptionReason,
+  grossUnitPrice,
+  roundCurrency,
+  type OrganizationTaxConfig,
+} from "@/lib/product-fiscal";
 import { getPlanById } from "@/lib/stripe-plans";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -64,6 +71,14 @@ import { useServicosProducts } from "@/hooks/useServicosProducts";
 import { ServicosSection } from "@/components/proposals/ServicosSection";
 import { SellerSelect } from "@/components/sales/SellerSelect";
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from "@/components/shared/DocumentsCheckboxField";
+import { usePermissions } from '@/hooks/usePermissions';
+import { RecurringFiscalSettings } from "@/components/sales/RecurringFiscalSettings";
+import { configureSaleRecurrenceFiscal, ensureSaleRecurrenceFromLegacy } from "@/hooks/useSaleRecurrence";
+import {
+  DEFAULT_RECURRING_FISCAL_CONFIG,
+  recurringFiscalConfigError,
+  type RecurringFiscalConfig,
+} from "@/types/recurring-fiscal";
 
 import { useSaleFieldsSettings } from "@/hooks/useSaleFieldsSettings";
 import { normalizeOperationalUnits } from "@/lib/sale-units";
@@ -143,6 +158,8 @@ export function CreateSaleModal({
   const updateCpe = useUpdateCpe();
   const { finalPositiveStage } = useFinalStages();
   const { organization, user } = useAuth();
+  const { can } = usePermissions();
+  const canConfigureFiscal = can('finance', 'invoices', 'issue');
   const isTelecom = organization?.niche === 'telecom';
   const { modules } = useModules();
   const showEnergy = isTelecom && modules.energy;
@@ -153,7 +170,11 @@ export function CreateSaleModal({
   
   // Fiscal info
   const ixActive = isInvoiceXpressActive(organization);
+  const keyInvoiceActive = (organization?.integrations_enabled as Record<string, boolean> | null)?.keyinvoice === true
+    && organization?.tem_keyinvoice_password === true
+    && organization?.billing_provider === 'keyinvoice';
   const orgTaxValue = getOrgTaxValue(organization);
+  const organizationTaxConfig = organization?.tax_config as OrganizationTaxConfig | null | undefined;
   
   // State para proposta selecionada manualmente (para buscar produtos)
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
@@ -240,6 +261,10 @@ export function CreateSaleModal({
   const [clientOrgId, setClientOrgId] = useState<string>("");
   const [orgSearchResults, setOrgSearchResults] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [orgSearchTerm, setOrgSearchTerm] = useState("");
+  const [recurringFiscalConfig, setRecurringFiscalConfig] = useState<RecurringFiscalConfig>({
+    ...DEFAULT_RECURRING_FISCAL_CONFIG,
+    fiscal_email_config: { ...DEFAULT_RECURRING_FISCAL_CONFIG.fiscal_email_config },
+  });
   
 
   // Helper to recalculate commission from proposal data using matrix
@@ -352,6 +377,10 @@ export function CreateSaleModal({
       setClientOrgId("");
       setOrgSearchTerm("");
       setOrgSearchResults([]);
+      setRecurringFiscalConfig({
+        ...DEFAULT_RECURRING_FISCAL_CONFIG,
+        fiscal_email_config: { ...DEFAULT_RECURRING_FISCAL_CONFIG.fiscal_email_config },
+      });
       if (!prefillProposal?.notes) {
         setNotes("");
       }
@@ -531,7 +560,7 @@ export function CreateSaleModal({
   }, [isTelecom, isNewFormat, proposalId, catalogTotalComissao, servicosProdutos]);
 
   // Calculate totals
-  const subtotal = useMemo(() => {
+  const enteredSubtotal = useMemo(() => {
     const itemsTotal = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
     // For telecom direct sales with catalog, use catalog price as subtotal
     if (isTelecom && isNewFormat && !proposalId && servicosProdutos.length > 0 && itemsTotal === 0) {
@@ -541,12 +570,31 @@ export function CreateSaleModal({
   }, [items, isTelecom, isNewFormat, proposalId, servicosProdutos, catalogTotalPrice]);
 
   const discountValue = parseFloat(discount) || 0;
-  const total = Math.max(0, subtotal - discountValue);
-
-  // VAT calculation
   const vatCalc = useVatCalculation({
-    items, products, orgTaxValue, discount: discountValue, subtotal,
+    items, products, orgTaxValue, discount: discountValue, subtotal: enteredSubtotal,
   });
+  const subtotal = isTelecom ? enteredSubtotal : vatCalc.subtotalWithoutVat;
+  const total = isTelecom ? Math.max(0, enteredSubtotal - discountValue) : vatCalc.totalWithoutVat;
+  const grossValue = isTelecom
+    ? total
+    : isPlanSale
+      ? Math.max(0, enteredSubtotal - discountValue)
+      : vatCalc.totalWithVat;
+  const recurringValuePreview = useMemo(() => {
+    if (isPlanSale) return Math.max(0, enteredSubtotal - discountValue);
+    return items.reduce((sum, item) => {
+      if (!item.product_id) return sum;
+      const product = products?.find((candidate) => candidate.id === item.product_id);
+      if (!product?.is_recurring) return sum;
+      return sum + item.quantity * grossUnitPrice(item.unit_price, product, organizationTaxConfig);
+    }, 0);
+  }, [isPlanSale, enteredSubtotal, discountValue, items, products, organizationTaxConfig]);
+  const hasRecurringItems = isPlanSale || recurringValuePreview > 0;
+  const hasRecurringRetention = useMemo(() => items.some((item) => {
+    if (!item.product_id) return false;
+    const product = products?.find((candidate) => candidate.id === item.product_id);
+    return product?.is_recurring === true && (product.retention_rate ?? 0) > 0;
+  }), [items, products]);
 
   const clientOptions = useMemo<ComboboxOption[]>(() => {
     const mappedClients = (clients || []).map((client): ComboboxOption => ({
@@ -686,6 +734,8 @@ export function CreateSaleModal({
   const handleUpdatePrice = (itemId: string, price: string) => {
     setItems(items.map(i => {
       if (i.id === itemId) {
+        const product = i.product_id ? products?.find((candidate) => candidate.id === i.product_id) : undefined;
+        if (product?.is_recurring) return i;
         return { ...i, unit_price: parseFloat(price) || 0 };
       }
       return i;
@@ -747,20 +797,53 @@ export function CreateSaleModal({
         return;
       }
     }
+    const recurringPriceMismatch = items.find((item) => {
+      if (!item.product_id) return false;
+      const product = products?.find((candidate) => candidate.id === item.product_id);
+      return product?.is_recurring === true
+        && product.price != null
+        && Math.abs(item.unit_price - product.price) >= 0.005;
+    });
+    if (recurringPriceMismatch) {
+      toast.error(`O preço recorrente de ${recurringPriceMismatch.name} mudou no catálogo. Remove e adiciona o produto novamente antes de criar a venda.`);
+      return;
+    }
 
     try {
       // For plan sales, force recurring (no plan selection needed, value comes from Stripe)
-      const isPlanRecurring = isPlanSale;
-      const recurringItems = items.filter(item => {
-        if (!item.product_id) return false;
-        const product = products?.find(p => p.id === item.product_id);
-        return product?.is_recurring;
-      });
-      
-      const recurringValue = isPlanRecurring 
-        ? total 
-        : recurringItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-      const hasRecurring = isPlanRecurring || recurringValue > 0;
+      const recurringValue = roundCurrency(recurringValuePreview);
+      const hasRecurring = hasRecurringItems;
+
+      if (hasRecurring && recurringFiscalConfig.fiscal_mode === 'automatic' && !keyInvoiceActive) {
+        toast.error('Liga e configura o KeyInvoice antes de ativar a emissão fiscal automática.');
+        return;
+      }
+      if (hasRecurring && recurringFiscalConfig.fiscal_mode === 'automatic' && hasRecurringRetention) {
+        toast.error('Produtos com retenção ficam em emissão fiscal manual até este cenário estar homologado no KeyInvoice.');
+        return;
+      }
+
+      if (hasRecurring && recurringFiscalConfig.fiscal_auto_email) {
+        const emailValidationError = recurringFiscalConfigError(recurringFiscalConfig);
+        if (emailValidationError) {
+          toast.error(emailValidationError);
+          return;
+        }
+        const emailConfig = recurringFiscalConfig.fiscal_email_config;
+        const recipientMissing = emailConfig.recipient_mode === 'custom'
+          ? !emailConfig.recipient_email.trim()
+          : !(selectedClient?.email || emailConfig.fallback_email.trim());
+        if (recipientMissing) {
+          toast.error('Define um destinatário ou um email alternativo para o envio dos documentos.');
+          return;
+        }
+        const resolvedSenderEmail = emailConfig.sender_email.trim()
+          || organization?.brevo_sender_email?.trim();
+        if (organization?.tem_brevo_api_key !== true || !resolvedSenderEmail) {
+          toast.error('Liga a Brevo e configura um email de remetente antes de ativar o envio fiscal automático.');
+          return;
+        }
+      }
       // For plan sales, don't set renewal date — it will be set by Stripe webhook on first payment
       const nextRenewalDate = isPlanSale 
         ? undefined 
@@ -771,6 +854,7 @@ export function CreateSaleModal({
         proposal_id: proposalId || undefined,
         status: saleStatus,
         total_value: total,
+        gross_value: grossValue,
         subtotal: subtotal,
         discount: discountValue,
         sale_date: format(saleDate, 'yyyy-MM-dd'),
@@ -814,17 +898,31 @@ export function CreateSaleModal({
 
       if (!isTelecom && items.length > 0 && sale?.id) {
         await createSaleItems.mutateAsync(
-          items.map(item => ({
-            sale_id: sale.id,
-            product_id: item.product_id,
-            name: item.name,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total: item.quantity * item.unit_price,
-            first_due_date: item.first_due_date 
-              ? format(item.first_due_date, 'yyyy-MM-dd') 
-              : null,
-          }))
+          items.map(item => {
+            const product = item.product_id
+              ? products?.find((candidate) => candidate.id === item.product_id)
+              : undefined;
+            const frozenTaxValue = product
+              ? effectiveProductTaxRate(product.tax_value, organizationTaxConfig)
+              : null;
+            return {
+              sale_id: sale.id,
+              product_id: item.product_id,
+              name: item.name,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total: item.quantity * item.unit_price,
+              first_due_date: item.first_due_date
+                ? format(item.first_due_date, 'yyyy-MM-dd')
+                : null,
+              tax_value: frozenTaxValue,
+              tax_exemption_reason: product
+                ? effectiveTaxExemptionReason(product.tax_exemption_reason, organizationTaxConfig)
+                : null,
+              price_includes_vat: product?.price_includes_vat ?? null,
+              retention_rate: product?.retention_rate ?? null,
+            };
+          })
         );
       }
 
@@ -868,6 +966,30 @@ export function CreateSaleModal({
             invoice_reference: dp.invoice_reference,
             notes: dp.notes,
           });
+        }
+      }
+
+      const hasCustomFiscalConfig =
+        recurringFiscalConfig.fiscal_mode !== DEFAULT_RECURRING_FISCAL_CONFIG.fiscal_mode
+        || recurringFiscalConfig.fiscal_document_policy !== DEFAULT_RECURRING_FISCAL_CONFIG.fiscal_document_policy
+        || recurringFiscalConfig.fiscal_auto_email;
+
+      if (hasRecurring && sale?.id) {
+        try {
+          // The compatibility RPC creates the recurrence immediately instead
+          // of waiting for the daily recurring-sales job. On older databases
+          // the fiscal RPC can still be absent; in that case the sale remains
+          // safely manual and the user gets an explicit warning.
+          const recurrenceId = await ensureSaleRecurrenceFromLegacy(sale.id);
+          if (hasCustomFiscalConfig) {
+            await configureSaleRecurrenceFiscal(recurrenceId, recurringFiscalConfig);
+          }
+        } catch (fiscalError) {
+          console.error('Recurring fiscal configuration failed:', fiscalError);
+          if (hasCustomFiscalConfig) {
+            const reason = fiscalError instanceof Error ? fiscalError.message : 'Não foi possível guardar a configuração.';
+            toast.warning(`A venda foi criada em modo fiscal manual. ${reason}`);
+          }
         }
       }
 
@@ -1481,6 +1603,8 @@ export function CreateSaleModal({
                                       min="0"
                                       value={item.unit_price}
                                       onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
+                                      disabled={isRecurring}
+                                      title={isRecurring ? 'O preço recorrente vem do produto sincronizado com o Stripe.' : undefined}
                                       className="w-24 h-7 text-sm"
                                     />
                                     <span className="text-muted-foreground text-sm">€</span>
@@ -1533,6 +1657,35 @@ export function CreateSaleModal({
                 </Card>
                 )}
 
+                {!isTelecom && hasRecurringItems && (
+                  <Card>
+                    <CardHeader className="p-4 pb-2">
+                      <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                        Faturação da recorrência
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-2">
+                      <RecurringFiscalSettings
+                        value={recurringFiscalConfig}
+                        onChange={setRecurringFiscalConfig}
+                        clientEmail={selectedClient?.email}
+                        disabled={!canConfigureFiscal}
+                        automaticDisabled={!keyInvoiceActive || hasRecurringRetention}
+                        automaticDisabledReason={hasRecurringRetention
+                          ? 'Produtos com retenção exigem emissão manual até à homologação deste cenário no KeyInvoice.'
+                          : undefined}
+                        compact
+                      />
+                      {!canConfigureFiscal && (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          Precisas da permissão Financeiro → Faturas → Emitir para configurar a emissão automática.
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Payments (non-telecom) */}
                 {!isTelecom && (
                   <Card>
@@ -1542,10 +1695,10 @@ export function CreateSaleModal({
                           <CreditCard className="h-4 w-4" />
                           Pagamentos
                         </div>
-                        {total > 0 && (() => {
+                        {grossValue > 0 && (() => {
                           const summary = calculatePaymentSummary(
                             draftPayments.map(dp => ({ ...dp, id: dp.id, organization_id: '', sale_id: '', invoice_file_url: null, created_at: '', updated_at: '' })),
-                            total
+                            grossValue
                           );
                           return summary.remaining > 0;
                         })() && (
@@ -1595,7 +1748,7 @@ export function CreateSaleModal({
                           {(() => {
                             const summary = calculatePaymentSummary(
                               draftPayments.map(dp => ({ ...dp, organization_id: '', sale_id: '', invoice_file_url: null, created_at: '', updated_at: '' })),
-                              total
+                              grossValue
                             );
                             return (
                               <div className="p-3 rounded-lg bg-muted/30 border border-border/50 space-y-2">
@@ -1612,7 +1765,7 @@ export function CreateSaleModal({
                             );
                           })()}
                         </div>
-                      ) : total > 0 ? (
+                      ) : grossValue > 0 ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -1666,6 +1819,11 @@ export function CreateSaleModal({
                           <span className="text-muted-foreground text-sm">€</span>
                         </div>
                       </div>
+                      {hasRecurringItems && discountValue > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Este desconto fica no registo inicial. A mensalidade recorrente mantém o valor bruto dos produtos sincronizados com o Stripe.
+                        </p>
+                      )}
 
                       <Separator />
 
@@ -1681,7 +1839,7 @@ export function CreateSaleModal({
                           {isTelecom ? 'Comissão' : ixActive ? 'Total (s/ IVA)' : 'Total'}
                         </span>
                         <span className="text-xl font-bold text-primary">
-                          {formatCurrency(isTelecom ? sellerCommissionTotal : total)}
+                          {formatCurrency(isTelecom ? sellerCommissionTotal : ixActive ? vatCalc.totalWithoutVat : total)}
                         </span>
                       </div>
 
@@ -1777,7 +1935,7 @@ export function CreateSaleModal({
           remainingAmount={(() => {
             const summary = calculatePaymentSummary(
               draftPayments.map(dp => ({ ...dp, organization_id: '', sale_id: '', invoice_file_url: null, created_at: '', updated_at: '' })),
-              total
+              grossValue
             );
             return summary.remaining;
           })()}
@@ -1798,19 +1956,16 @@ export function CreateSaleModal({
             setShowDraftPaymentModal(open);
             if (!open) {}
           }}
-          saleTotal={total}
+          saleTotal={grossValue}
           remaining={(() => {
             const summary = calculatePaymentSummary(
               draftPayments.map(dp => ({ ...dp, organization_id: '', sale_id: '', invoice_file_url: null, created_at: '', updated_at: '' })),
-              total
+              grossValue
             );
             return summary.remaining;
           })()}
           onAdd={(payment) => setDraftPayments(prev => [...prev, payment])}
-          hideInvoiceReference={
-            (organization?.integrations_enabled as any)?.invoicexpress !== false
-            && !!(organization?.invoicexpress_account_name && organization?.tem_invoicexpress_api_key)
-          }
+          hideInvoiceReference={ixActive}
           
         />
 
@@ -1821,7 +1976,7 @@ export function CreateSaleModal({
           remainingAmount={(() => {
             const summary = calculatePaymentSummary(
               draftPayments.map(dp => ({ ...dp, organization_id: '', sale_id: '', invoice_file_url: null, created_at: '', updated_at: '' })),
-              total
+              grossValue
             );
             return summary.remaining;
           })()}

@@ -9,6 +9,8 @@ export interface SalePaymentWithCycle extends SalePayment {
   readonly stripe_gross_amount: number | null;
   readonly stripe_fee_amount: number | null;
   readonly stripe_net_amount: number | null;
+  readonly reversal_status?: string | null;
+  readonly reversed_amount?: number | null;
 }
 
 class SalePaymentValueError extends Error {
@@ -57,17 +59,25 @@ export function useSalePayments(saleId: string | undefined) {
         .order("payment_date", { ascending: true });
 
       if (error) throw error;
-      return data.map((payment): SalePaymentWithCycle => ({
-        ...payment,
-        payment_method: parsePaymentMethod(payment.payment_method),
-        status: parsePaymentStatus(payment.status),
-        created_at: payment.created_at ?? payment.payment_date,
-        updated_at: payment.updated_at ?? payment.created_at ?? payment.payment_date,
-        recurring_cycle_id: payment.recurring_cycle_id,
-        stripe_gross_amount: payment.stripe_gross_amount,
-        stripe_fee_amount: payment.stripe_fee_amount,
-        stripe_net_amount: payment.stripe_net_amount,
-      }));
+      return data.map((payment): SalePaymentWithCycle => {
+        const fiscalPayment = payment as unknown as {
+          reversal_status?: string | null;
+          reversed_amount?: number | null;
+        };
+        return {
+          ...payment,
+          payment_method: parsePaymentMethod(payment.payment_method),
+          status: parsePaymentStatus(payment.status),
+          created_at: payment.created_at ?? payment.payment_date,
+          updated_at: payment.updated_at ?? payment.created_at ?? payment.payment_date,
+          recurring_cycle_id: payment.recurring_cycle_id,
+          stripe_gross_amount: payment.stripe_gross_amount,
+          stripe_fee_amount: payment.stripe_fee_amount,
+          stripe_net_amount: payment.stripe_net_amount,
+          reversal_status: fiscalPayment.reversal_status ?? 'none',
+          reversed_amount: Number(fiscalPayment.reversed_amount ?? 0),
+        };
+      });
     },
     enabled: !!saleId,
   });

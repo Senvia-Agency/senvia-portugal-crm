@@ -186,6 +186,9 @@ export const HANDLED_EVENTS = [
   "invoice.paid",
   "invoice.payment_succeeded",
   "invoice.payment_failed",
+  "charge.refunded",
+  "charge.dispute.created",
+  "charge.dispute.closed",
   "customer.subscription.updated",
   "customer.subscription.deleted",
 ] as const;

@@ -135,7 +135,10 @@ export function EditSaleModal({
 
   // Payment progress
   const { data: salePayments = [] } = useSalePayments(sale?.id);
-  const paymentSummary = calculatePaymentSummary(salePayments, sale?.total_value || 0);
+  const paymentSummary = calculatePaymentSummary(
+    salePayments,
+    sale ? (sale.gross_value ?? sale.total_value) : 0,
+  );
   
   // Form state
   const [clientId, setClientId] = useState<string>("");
@@ -379,14 +382,18 @@ export function EditSaleModal({
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   }, [items]);
 
-  const subtotal = hasItems ? itemsSubtotal : parseFloat(manualTotalValue) || 0;
+  const enteredSubtotal = hasItems ? itemsSubtotal : parseFloat(manualTotalValue) || 0;
   const discountValue = parseFloat(discount) || 0;
-  const total = hasItems ? Math.max(0, subtotal - discountValue) : subtotal;
 
   // VAT calculation
   const vatCalc = useVatCalculation({
-    items, products, orgTaxValue, discount: discountValue, subtotal,
+    items, products, orgTaxValue, discount: discountValue, subtotal: enteredSubtotal,
   });
+  const subtotal = isTelecom || !hasItems ? enteredSubtotal : vatCalc.subtotalWithoutVat;
+  const total = isTelecom || !hasItems
+    ? Math.max(0, enteredSubtotal - (hasItems ? discountValue : 0))
+    : vatCalc.totalWithoutVat;
+  const grossValue = isTelecom || !hasItems ? total : vatCalc.totalWithVat;
 
   // Selected client fiscal data
   const selectedClient = useMemo(() => {
@@ -499,6 +506,7 @@ export function EditSaleModal({
           client_id: clientId || null,
           seller_id: sellerId,
           total_value: total,
+          gross_value: grossValue,
           subtotal: subtotal,
           discount: discountValue,
           notes: notes.trim() || null,
@@ -1289,7 +1297,7 @@ export function EditSaleModal({
                         <SalePaymentsList
                           saleId={sale.id}
                           organizationId={organization.id}
-                          saleTotal={total}
+                          saleTotal={grossValue}
                           readonly={!canFullEdit && sale.status === 'cancelled'}
                         />
                       </CardContent>

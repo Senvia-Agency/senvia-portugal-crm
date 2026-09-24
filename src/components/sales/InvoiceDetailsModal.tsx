@@ -28,11 +28,14 @@ import { useCancelInvoice } from "@/hooks/useCancelInvoice";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface InvoiceDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: number;
+  documentId?: number | null;
+  invoiceId?: string | null;
+  provider?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
   saleId?: string;
@@ -61,14 +64,17 @@ export function InvoiceDetailsModal({
   open,
   onOpenChange,
   documentId,
+  invoiceId,
+  provider,
   documentType,
   organizationId,
   saleId,
   paymentId,
   creditNoteId,
 }: InvoiceDetailsModalProps) {
+  const { organization } = useAuth();
   const { data: details, isLoading, error } = useInvoiceDetails(
-    { documentId, documentType, organizationId },
+    { documentId, invoiceId, documentType, organizationId },
     open
   );
   const cancelInvoice = useCancelInvoice();
@@ -95,6 +101,7 @@ export function InvoiceDetailsModal({
   };
 
   const handleCancel = (reason: string) => {
+    if (documentId == null || provider === 'vendus' || details?.source === 'vendus') return;
     cancelInvoice.mutate(
       { invoicexpressId: documentId, documentType, organizationId, reason, saleId, paymentId },
       { onSuccess: () => setCancelOpen(false) }
@@ -104,6 +111,12 @@ export function InvoiceDetailsModal({
   const statusInfo = details ? STATUS_MAP[details.status] || { label: details.status, className: "bg-muted text-muted-foreground" } : null;
   const ref = details?.sequence_number || '';
   const isCancelled = details?.status === 'cancelled' || details?.status === 'canceled';
+  const isVendus = provider === 'vendus' || details?.source === 'vendus';
+  const supportsProviderActions = organization?.billing_provider !== 'vendus'
+    && !isVendus && documentId != null;
+  const typeLabel = documentType === 'receipt' && isVendus
+    ? 'Recibo (RG)'
+    : TYPE_LABELS[documentType] || 'Documento';
 
   return (
     <>
@@ -111,7 +124,8 @@ export function InvoiceDetailsModal({
          <DialogContent className="max-w-2xl max-h-[95dvh] p-0 gap-0">
           <DialogHeader className="px-6 py-4 border-b border-border/50">
             <DialogTitle className="flex items-center gap-2 flex-wrap">
-              <span>{TYPE_LABELS[documentType] || "Documento"} n.º {ref}</span>
+              <span>{typeLabel} n.º {ref}</span>
+              {isVendus && <Badge variant="outline">Vendus</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
                   {statusInfo.label}
@@ -345,11 +359,13 @@ export function InvoiceDetailsModal({
                   {viewingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
                   Ver PDF
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
-                  <Mail className="h-3.5 w-3.5 mr-1.5" />
-                  Enviar
-                </Button>
-                {!isCancelled && (
+                {supportsProviderActions && (
+                  <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                    Enviar
+                  </Button>
+                )}
+                {supportsProviderActions && !isCancelled && (
                   <>
                     {!creditNoteId && (
                       <Button variant="outline" size="sm" onClick={() => setCreditNoteOpen(true)}>
@@ -370,7 +386,7 @@ export function InvoiceDetailsModal({
       </Dialog>
 
       {/* Sub-modals */}
-      {details && (
+      {details && supportsProviderActions && documentId != null && (
         <>
           <SendInvoiceEmailModal
             open={emailOpen}

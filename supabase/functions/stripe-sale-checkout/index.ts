@@ -99,11 +99,14 @@ serve(async (req) => {
 
     const connection = await getConnectedStripeContext(supabase, recurrence.organization_id);
     if (!connection) return json({ error: "Nenhuma conta Stripe ligada" }, 409);
+    const stripe = stripeClient();
+    const onAccount = { stripeAccount: connection.stripeAccountId };
 
-    // Preço a cobrar: o produto sincronizado dos itens desta venda.
+    // Prefer the Price frozen on the sale line. Falling back to the current
+    // mapping is limited to legacy rows created before Price snapshots existed.
     const { data: items } = await supabase
       .from("sale_items")
-      .select("product_id, quantity")
+      .select("product_id, quantity, stripe_price_id")
       .eq("sale_id", recurrence.sale_id);
 
     const productIds = (items ?? [])
@@ -124,12 +127,17 @@ serve(async (req) => {
       if (mapping.active) priceByProduct.set(mapping.product_id, mapping.stripe_price_id);
     }
 
-    const lineItems = (items ?? [])
-      .filter((item) => typeof item.product_id === "string" && priceByProduct.has(item.product_id))
-      .map((item) => ({
-        price: priceByProduct.get(item.product_id as string) as string,
-        quantity: Math.max(1, Number(item.quantity) || 1),
-      }));
+    const lineItems: Array<{ price: string; quantity: number }> = [];
+    for (const item of items ?? []) {
+      if (typeof item.product_id !== "string") continue;
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return json({ error: "Produtos recorrentes cobrados pelo Stripe exigem quantidades inteiras positivas" }, 422);
+      }
+      const priceId = item.stripe_price_id ?? priceByProduct.get(item.product_id);
+      if (!priceId) continue;
+      lineItems.push({ price: priceId, quantity });
+    }
 
     if (lineItems.length === 0) {
       return json(
@@ -138,14 +146,29 @@ serve(async (req) => {
       );
     }
 
+    let checkoutAmountCents = 0;
+    for (const line of lineItems) {
+      const price = await stripe.prices.retrieve(line.price, {}, onAccount);
+      if (!price.active || !price.recurring || price.currency.toLowerCase() !== "eur" || price.unit_amount == null) {
+        return json({ error: `O preço Stripe ${line.price} não é um preço recorrente EUR válido` }, 409);
+      }
+      checkoutAmountCents += price.unit_amount * line.quantity;
+    }
+    const recurrenceAmountCents = Math.round((Number(recurrence.amount) + Number.EPSILON) * 100);
+    if (checkoutAmountCents !== recurrenceAmountCents) {
+      return json({
+        error: "O valor congelado da recorrência não coincide com os preços Stripe desta venda. Atualiza a venda antes de abrir o checkout.",
+        recurrenceAmount: recurrence.amount,
+        stripeAmount: checkoutAmountCents / 100,
+      }, 409);
+    }
+
     const { data: sale } = await supabase
       .from("sales")
       .select("id, client_id, code")
       .eq("id", recurrence.sale_id)
       .maybeSingle<SaleRow>();
 
-    const stripe = stripeClient();
-    const onAccount = { stripeAccount: connection.stripeAccountId };
     const metadata = {
       senvia_organization_id: recurrence.organization_id,
       senvia_sale_id: recurrence.sale_id,

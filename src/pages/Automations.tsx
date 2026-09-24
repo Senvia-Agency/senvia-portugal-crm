@@ -28,6 +28,7 @@ import {
 } from '@/lib/automation-nodes';
 import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
 import { CreateFlowDialog } from '@/components/automations/CreateFlowDialog';
+import { SystemFiscalAutomationCard } from '@/components/automations/SystemFiscalAutomationCard';
 import {
   useAutomationFlows, useAutomationRunCounts, useDeleteAutomationFlow,
   useDuplicateAutomationFlow, useSetAutomationFlowStatus,
@@ -95,6 +96,8 @@ export default function Automations() {
           </Button>
         }
       />
+
+      <SystemFiscalAutomationCard />
 
       {isLoading ? (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">

@@ -13,6 +13,7 @@ import { EditProductModal } from './EditProductModal';
 import { ProductStripeBadge } from './ProductStripeSync';
 import { useStripeProductMappings } from '@/hooks/useStripeProductSync';
 import type { Product } from '@/types/proposals';
+import { effectiveProductTaxRate, grossUnitPrice, type OrganizationTaxConfig } from '@/lib/product-fiscal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +38,13 @@ export function ProductsTab() {
   // never see the standard products table there. This is its only editor, so
   // every telecom org needs it.
   const showServicosManager = organization?.niche === 'telecom';
-  const hasInvoiceXpress = !!(organization as any)?.tem_invoicexpress_api_key && !!(organization as any)?.invoicexpress_account_name;
+  const invoicingOrganization = organization as (typeof organization & {
+    tem_invoicexpress_api_key?: boolean | null;
+    invoicexpress_account_name?: string | null;
+  });
+  const hasInvoiceXpress = !!invoicingOrganization?.tem_invoicexpress_api_key
+    && !!invoicingOrganization?.invoicexpress_account_name;
+  const organizationTaxConfig = organization?.tax_config as OrganizationTaxConfig | null | undefined;
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -137,15 +144,34 @@ export function ProductsTab() {
                         <Badge variant="secondary" className="text-xs">Inativo</Badge>
                       )}
                       <ProductStripeBadge mapping={stripeMappings[product.id]} />
+                      <Badge variant="outline" className="text-[10px]">
+                        {effectiveProductTaxRate(product.tax_value, organizationTaxConfig) === 0
+                          ? 'Isento'
+                          : `IVA ${effectiveProductTaxRate(product.tax_value, organizationTaxConfig)}%`}
+                        {product.tax_value == null && ' (org.)'}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {product.price_includes_vat ? 'Preço c/ IVA' : 'Preço + IVA'}
+                      </Badge>
+                      {(product.retention_rate ?? 0) > 0 && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Retenção {product.retention_rate}%
+                        </Badge>
+                      )}
                     </div>
                     {product.description && (
                       <p className="text-sm text-muted-foreground truncate">{product.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="font-semibold text-primary whitespace-nowrap">
-                      {formatPrice(product.price)}
-                    </span>
+                    <div className="text-right whitespace-nowrap">
+                      <span className="font-semibold text-primary">{formatPrice(product.price)}</span>
+                      {!product.price_includes_vat && product.price != null && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {formatPrice(grossUnitPrice(product.price, product, organizationTaxConfig))} c/ IVA
+                        </p>
+                      )}
+                    </div>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"

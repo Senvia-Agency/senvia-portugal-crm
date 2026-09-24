@@ -18,6 +18,7 @@ import {
   stripeClient,
   getConnectedStripeContext,
 } from "../_shared/stripe-connect.ts";
+import { stripeGrossUnitAmount, type TaxConfigLike } from "../_shared/fiscal-pricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +47,8 @@ interface ProductRow {
   price: number | null;
   is_active: boolean;
   is_recurring: boolean;
+  tax_value: number | null;
+  price_includes_vat: boolean;
 }
 
 interface MappingRow {
@@ -59,11 +62,6 @@ interface MappingRow {
   sync_error: string | null;
 }
 
-/** Euros para cêntimos. O Stripe trabalha em inteiros; 49.90 → 4990. */
-function toCents(price: number): number {
-  return Math.round(price * 100);
-}
-
 function summary(mapping: MappingRow | null, status: string) {
   return {
     status,
@@ -72,6 +70,80 @@ function summary(mapping: MappingRow | null, status: string) {
     syncedAt: mapping?.synced_at ?? null,
     syncError: mapping?.sync_error ?? null,
   };
+}
+
+const TERMINAL_SUBSCRIPTION_STATUSES = new Set(["canceled", "incomplete_expired"]);
+
+async function findSubscriptionItemForPrice(
+  stripe: Stripe,
+  subscription: Stripe.Subscription,
+  priceId: string,
+  options: Stripe.RequestOptions,
+): Promise<Stripe.SubscriptionItem | null> {
+  const embedded = subscription.items.data.find(
+    (item: Stripe.SubscriptionItem) => item.price.id === priceId,
+  );
+  if (embedded) return embedded;
+
+  let startingAfter: string | undefined;
+  do {
+    const page = await stripe.subscriptionItems.list(
+      {
+        subscription: subscription.id,
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      },
+      options,
+    );
+    const matching = page.data.find(
+      (item: Stripe.SubscriptionItem) => item.price.id === priceId,
+    );
+    if (matching) return matching;
+    startingAfter = page.has_more ? page.data.at(-1)?.id : undefined;
+  } while (startingAfter);
+
+  return null;
+}
+
+/** Move every non-terminal subscription item using an old Price. */
+async function migrateSubscriptionsToPrice(
+  stripe: Stripe,
+  oldPriceId: string,
+  newPriceId: string,
+  options: Stripe.RequestOptions,
+): Promise<number> {
+  let startingAfter: string | undefined;
+  let migrated = 0;
+
+  do {
+    const page = await stripe.subscriptions.list(
+      {
+        price: oldPriceId,
+        status: "all",
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      },
+      options,
+    );
+
+    for (const subscription of page.data) {
+      if (TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) continue;
+      const item = await findSubscriptionItemForPrice(stripe, subscription, oldPriceId, options);
+      if (!item) {
+        throw new Error(`Subscrição ${subscription.id} não contém o preço ${oldPriceId}`);
+      }
+      await stripe.subscriptions.update(
+        subscription.id,
+        { items: [{ id: item.id, price: newPriceId }], proration_behavior: "none" },
+        options,
+      );
+      migrated += 1;
+    }
+
+    startingAfter = page.has_more ? page.data.at(-1)?.id : undefined;
+  } while (startingAfter);
+
+  return migrated;
 }
 
 serve(async (req) => {
@@ -100,7 +172,7 @@ serve(async (req) => {
     // organização passando um id que não é nosso.
     const { data: product } = await supabase
       .from("products")
-      .select("id, organization_id, name, description, price, is_active, is_recurring")
+      .select("id, organization_id, name, description, price, is_active, is_recurring, tax_value, price_includes_vat")
       .eq("id", productId)
       .maybeSingle<ProductRow>();
     if (!product) return json({ error: "Produto não encontrado" }, 404);
@@ -140,7 +212,21 @@ serve(async (req) => {
       return json({ error: "O produto precisa de um preço positivo" }, 422);
     }
 
-    const unitAmount = toCents(product.price);
+    const { data: organization, error: organizationError } = await supabase
+      .from("organizations")
+      .select("tax_config")
+      .eq("id", product.organization_id)
+      .maybeSingle<{ tax_config: TaxConfigLike | null }>();
+    if (organizationError || !organization) {
+      return json({ error: "Não foi possível obter a configuração fiscal da organização" }, 500);
+    }
+
+    const { unitAmount, effectiveTaxRate } = stripeGrossUnitAmount({
+      price: product.price,
+      priceIncludesVat: product.price_includes_vat,
+      productTaxValue: product.tax_value,
+      organizationTaxConfig: organization.tax_config,
+    });
     const stripe = stripeClient();
     const onAccount = { stripeAccount: connection.stripeAccountId };
 
@@ -150,7 +236,16 @@ serve(async (req) => {
       if (stripeProductId) {
         await stripe.products.update(
           stripeProductId,
-          { name: product.name, description: product.description ?? undefined },
+          {
+            name: product.name,
+            description: product.description ?? undefined,
+            metadata: {
+              senvia_organization_id: product.organization_id,
+              senvia_product_id: product.id,
+              senvia_effective_tax_rate: String(effectiveTaxRate),
+              senvia_price_includes_vat: String(product.price_includes_vat),
+            },
+          },
           onAccount,
         );
       } else {
@@ -163,6 +258,8 @@ serve(async (req) => {
             metadata: {
               senvia_organization_id: product.organization_id,
               senvia_product_id: product.id,
+              senvia_effective_tax_rate: String(effectiveTaxRate),
+              senvia_price_includes_vat: String(product.price_includes_vat),
             },
           },
           { ...onAccount, idempotencyKey: `product:${product.organization_id}:${product.id}` },
@@ -190,6 +287,8 @@ serve(async (req) => {
             metadata: {
               senvia_organization_id: product.organization_id,
               senvia_product_id: product.id,
+              senvia_effective_tax_rate: String(effectiveTaxRate),
+              senvia_price_includes_vat: String(product.price_includes_vat),
             },
           },
           {
@@ -200,21 +299,9 @@ serve(async (req) => {
 
         // Migrar as subscrições vivas para o preço novo, sem acerto retroactivo.
         if (priceId && priceId !== price.id) {
-          const subs = await stripe.subscriptions.list(
-            { price: priceId, status: "active", limit: 100 },
-            onAccount,
-          );
-          for (const sub of subs.data) {
-            const item = sub.items.data[0];
-            if (!item) continue;
-            await stripe.subscriptions.update(
-              sub.id,
-              { items: [{ id: item.id, price: price.id }], proration_behavior: "none" },
-              onAccount,
-            );
-          }
-          if (subs.data.length > 0) {
-            log("subscrições migradas", { count: subs.data.length, priceId: price.id });
+          const migrated = await migrateSubscriptionsToPrice(stripe, priceId, price.id, onAccount);
+          if (migrated > 0) {
+            log("subscrições migradas", { count: migrated, priceId: price.id });
           }
         }
         priceId = price.id;
@@ -248,7 +335,7 @@ serve(async (req) => {
         .select("id, stripe_product_id, stripe_price_id, unit_amount, interval, active, synced_at, sync_error")
         .maybeSingle<MappingRow>();
 
-      log("sincronizado", { productId: product.id, priceId, amountChanged });
+      log("sincronizado", { productId: product.id, priceId, amountChanged, unitAmount, effectiveTaxRate });
       return json({ mapping: summary(saved ?? null, "synced") });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro desconhecido no Stripe";

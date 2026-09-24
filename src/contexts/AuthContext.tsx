@@ -36,6 +36,11 @@ interface Organization {
   msg_template_warm?: string | null;
   msg_template_cold?: string | null;
   ai_response_mode?: 'global' | 'per_form';
+  tem_brevo_api_key?: boolean;
+  tem_keyinvoice_password?: boolean;
+  tem_vendus_api_key?: boolean;
+  brevo_sender_email?: string | null;
+  billing_provider?: string | null;
 }
 
 interface UserOrganizationMembership {
@@ -123,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // que nem sequer existe em subscription_plans. A app cai então no plano por
   // omissão (Starter) e tranca Financeiro, Marketing, E-commerce e Prospects a
   // quem devia estar a ver o sistema todo.
-  const SAFE_ORG_FIELDS = 'id,name,slug,code,public_key,plan,trial_ends_at,first_paid_at,billing_exempt,created_at,form_settings,niche,enabled_modules,logo_url,integrations_enabled,tax_config,sales_settings,ai_qualification_rules,msg_template_hot,msg_template_warm,msg_template_cold,ai_response_mode,servicos_products_config,product_types_config,tem_brevo_api_key,tem_invoicexpress_api_key,tem_keyinvoice_password,tem_whatsapp_api_key,tem_meta_conversions_token,invoicexpress_account_name';
+  const SAFE_ORG_FIELDS = 'id,name,slug,code,public_key,plan,trial_ends_at,first_paid_at,billing_exempt,created_at,form_settings,niche,enabled_modules,logo_url,integrations_enabled,tax_config,sales_settings,ai_qualification_rules,msg_template_hot,msg_template_warm,msg_template_cold,ai_response_mode,servicos_products_config,product_types_config,tem_brevo_api_key,brevo_sender_email,tem_invoicexpress_api_key,tem_keyinvoice_password,tem_whatsapp_api_key,tem_meta_conversions_token,invoicexpress_account_name,billing_provider';
   const loadOrganization = useCallback(async (orgId: string) => {
     const { data: orgData } = await supabase
       .from('organizations')
@@ -132,9 +137,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     
     if (orgData) {
-      setOrganization(orgData);
+      // Vendus is added by a separately applied SQL migration. Keep sign-in
+      // working while the database has not received that additive column.
+      const { data: vendusData } = await supabase.from('organizations')
+        .select('tem_vendus_api_key').eq('id', orgId).maybeSingle();
+      const safeOrg = { ...orgData, tem_vendus_api_key: vendusData?.tem_vendus_api_key === true };
+      setOrganization(safeOrg);
       safeStorage.set(ACTIVE_ORG_KEY, orgId);
       setNeedsOrgSelection(false);
+      return safeOrg;
     }
     
     return orgData;

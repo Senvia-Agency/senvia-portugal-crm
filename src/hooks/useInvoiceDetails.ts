@@ -3,12 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface InvoiceDetailsParams {
-  documentId: number;
+  documentId?: number | null;
+  invoiceId?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
 }
 
 interface SyncInvoiceParams extends InvoiceDetailsParams {
+  documentId: number;
   saleId: string;
   paymentId?: string;
 }
@@ -79,16 +81,17 @@ export interface InvoiceDetailsData {
   tax_summary: InvoiceTaxSummary[];
   pdf_url?: string | null;
   pdf_signed_url?: string | null;
+  source?: string | null;
   bank_info?: any;
 }
 
-export function useInvoiceDetails({ documentId, documentType, organizationId }: InvoiceDetailsParams, enabled = true) {
+export function useInvoiceDetails({ documentId, invoiceId, documentType, organizationId }: InvoiceDetailsParams, enabled = true) {
   return useQuery({
-    queryKey: ["invoice-details", documentId, documentType],
+    queryKey: ["invoice-details", organizationId, invoiceId || documentId, documentType],
     queryFn: async () => {
       const res = await supabase.functions.invoke("get-invoice-details", {
         body: {
-          document_id: documentId,
+          ...(invoiceId ? { invoice_id: invoiceId } : { document_id: documentId }),
           document_type: documentType,
           organization_id: organizationId,
         },
@@ -98,7 +101,7 @@ export function useInvoiceDetails({ documentId, documentType, organizationId }: 
       if (res.data?.error) throw new Error(res.data.error);
       return res.data as InvoiceDetailsData;
     },
-    enabled: enabled && !!documentId && !!organizationId,
+    enabled: enabled && !!(invoiceId || documentId) && !!organizationId,
   });
 }
 
@@ -123,7 +126,7 @@ export function useSyncInvoice() {
       return res.data as InvoiceDetailsData;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["invoice-details", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-details", variables.organizationId] });
       queryClient.invalidateQueries({ queryKey: ["sale-payments", variables.saleId] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       toast.success("Dados sincronizados com sucesso");

@@ -1,5 +1,10 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { issueKeyInvoiceSaleDocument } from '../_shared/keyinvoice-sale-document.ts'
+import { issueVendusSaleDocument } from '../_shared/vendus-sale-document.ts'
+import { VendusError } from '../_shared/vendus.ts'
+import { lisbonFiscalDate, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
+import { userRateLimit } from '../_shared/user-rate-limit.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,514 +27,70 @@ function mapCountryToInvoiceXpress(country?: string | null): string {
   return country
 }
 
-const DEFAULT_KEYINVOICE_API_URL = 'https://login.keyinvoice.com/API5.php'
-
-// API 5.0: Authenticate with Apikey header, get session Sid, cache it
-async function getKeyInvoiceSid(supabase: any, org: any, orgId: string): Promise<string> {
-  if (!org.keyinvoice_password) {
-    throw new Error('Chave da API KeyInvoice não configurada')
+async function handleKeyInvoice(
+  supabase: any,
+  org: any,
+  saleId: string,
+  organizationId: string,
+  observations: string | undefined,
+  headers: Record<string, string>,
+) {
+  try {
+    const result = await issueKeyInvoiceSaleDocument(supabase, org, {
+      organizationId,
+      saleId,
+      observations,
+    })
+    return new Response(JSON.stringify({
+      success: true,
+      already_issued: result.alreadyIssued,
+      invoicexpress_id: Number(result.identity.docNum),
+      invoice_reference: result.identity.fullDocNumber,
+      identity: result.identity,
+      invoice_id: result.invoice.id,
+    }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
+  } catch (error) {
+    const safe = safeKeyInvoiceError(error)
+    console.error('[issue-invoice:keyinvoice]', safe.code)
+    return new Response(JSON.stringify({
+      error: safe.message,
+      code: safe.code,
+      retryable: safe.retryable,
+      manual_review: safe.manual_review,
+    }), { status: safe.status, headers: { ...headers, 'Content-Type': 'application/json' } })
   }
-
-  // Check cached Sid (valid if expires_at > now + 5min margin)
-  const now = new Date()
-  const margin = 5 * 60 * 1000
-  if (org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-    const expiresAt = new Date(org.keyinvoice_sid_expires_at)
-    if (expiresAt.getTime() > now.getTime() + margin) {
-      return org.keyinvoice_sid
-    }
-  }
-
-  // Authenticate to get a new Sid
-  const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-  const authRes = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Apikey': org.keyinvoice_password },
-    body: JSON.stringify({ method: 'authenticate' }),
-  })
-
-  if (!authRes.ok) {
-    const errorText = await authRes.text()
-    throw new Error(`Erro ao autenticar no KeyInvoice: ${authRes.status} - ${errorText}`)
-  }
-
-  const authData = await authRes.json()
-  if (authData.Status !== 1 || !authData.Sid) {
-    throw new Error(`KeyInvoice auth: ${authData.ErrorMessage || 'Erro de autenticação'}`)
-  }
-
-  const newSid = authData.Sid
-  const expiresAt = new Date(now.getTime() + 3600 * 1000)
-
-  // Cache the Sid
-  await supabase
-    .from('organizations')
-    .update({ keyinvoice_sid: newSid, keyinvoice_sid_expires_at: expiresAt.toISOString() })
-    .eq('id', orgId)
-
-  return newSid
 }
 
-async function handleKeyInvoice(supabase: any, org: any, saleId: string, organizationId: string, observations: string | undefined, corsHeaders: Record<string, string>) {
-  if (!org?.keyinvoice_password) {
-    return new Response(JSON.stringify({ error: 'Chave da API KeyInvoice não configurada' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  // Fetch sale with client
-  const { data: sale } = await supabase
-    .from('sales')
-    .select(`*, client:crm_clients(name, code, email, nif, phone, address_line1, city, postal_code, country, company), lead:leads(name, email, phone)`)
-    .eq('id', saleId)
-    .eq('organization_id', organizationId)
-    .single()
-
-  if (!sale) {
-    return new Response(JSON.stringify({ error: 'Venda não encontrada' }), {
-      status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  if (sale.invoicexpress_id) {
-    return new Response(JSON.stringify({ error: 'Fatura já emitida para esta venda', invoice_reference: sale.invoice_reference }), {
-      status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  const clientNif = sale.client?.nif
-  if (!clientNif) {
-    return new Response(JSON.stringify({ error: 'Cliente sem NIF. Adicione o NIF antes de emitir fatura.' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  const sid = await getKeyInvoiceSid(supabase, org, organizationId)
-  const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-
-  // Tax config
-  const taxConfig = org?.tax_config || { tax_value: 23 }
-  const orgTaxValue = taxConfig.tax_value ?? 23
-
-  // Fetch sale items
-  const { data: saleItems } = await supabase
-    .from('sale_items')
-    .select('*, product:products(code, tax_value, tax_exemption_reason)')
-    .eq('sale_id', saleId)
-
-  const clientName = sale.client?.company || sale.client?.name || sale.lead?.name || 'Cliente'
-  const clientCode = sale.client?.code || clientNif
-
-  // Resolve client in KeyInvoice: try insertClient first, then fallback to listClients by VATIN
-  let keyInvoiceClientId: string | null = null
+async function handleVendus(
+  supabase: any, org: any, saleId: string, organizationId: string,
+  observations: string | undefined, headers: Record<string, string>,
+) {
   try {
-    const insertClientPayload: Record<string, any> = {
-      method: 'insertClient',
-      Name: clientName,
-      VATIN: clientNif,
-      CountryCode: 'PT',
-    }
-    if (sale.client?.email) insertClientPayload.Email = sale.client.email
-    if (sale.client?.phone) insertClientPayload.Phone = sale.client.phone
-    if (sale.client?.address_line1) insertClientPayload.Address = sale.client.address_line1
-    if (sale.client?.city) insertClientPayload.Locality = sale.client.city
-    if (sale.client?.postal_code) insertClientPayload.PostalCode = sale.client.postal_code
-
-    const clientRes = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Sid': sid },
-      body: JSON.stringify(insertClientPayload),
+    const result = await issueVendusSaleDocument(supabase, org, {
+      organizationId, saleId, kind: 'invoice', observations,
     })
-    if (clientRes.ok) {
-      const clientData = await clientRes.json()
-      if (clientData.Status === 1 && clientData.Data?.Id) {
-        keyInvoiceClientId = String(clientData.Data.Id)
-        console.log('KeyInvoice client created, Id:', keyInvoiceClientId)
-      } else {
-        console.log('KeyInvoice insertClient response (may already exist):', clientData.ErrorMessage)
-      }
-    }
-  } catch (e) {
-    console.warn('KeyInvoice insertClient failed (non-blocking):', e)
+    return new Response(JSON.stringify({
+      success: true,
+      already_issued: result.alreadyIssued,
+      invoicexpress_id: result.id,
+      invoice_reference: result.reference,
+      invoice_id: result.invoiceId,
+    }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
+  } catch (error) {
+    const safe = error instanceof VendusError
+      ? { message: error.message, code: error.code, status: error.status }
+      : safeKeyInvoiceError(error)
+    console.error('[issue-invoice:vendus]', safe.code)
+    const manualReview = error instanceof VendusError
+      ? ['local_record_failed', 'sale_link_failed', 'sale_link_conflict', 'provider_total_mismatch',
+        'remote_outcome_uncertain', 'missing_fiscal_identity', 'document_type_conflict',
+        'incomplete_local_document', 'ambiguous_document'].includes(error.code)
+      : safeKeyInvoiceError(error).manual_review
+    return new Response(JSON.stringify({ error: safe.message, code: safe.code,
+      manual_review: manualReview }),
+    { status: safe.status, headers: { ...headers, 'Content-Type': 'application/json' } })
   }
-
-  // If insertClient didn't return Id, search in listClients by VATIN
-  if (!keyInvoiceClientId) {
-    try {
-      const listClientsRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Sid': sid },
-        body: JSON.stringify({ method: 'listClients' }),
-      })
-      const listClientsData = await listClientsRes.json()
-      if (listClientsData.Status === 1 && listClientsData.Data?.Clients) {
-        const clients = Array.isArray(listClientsData.Data.Clients) ? listClientsData.Data.Clients : []
-        const match = clients.find((c: any) => c.VATIN === clientNif)
-        if (match?.IdClient) {
-          keyInvoiceClientId = String(match.IdClient)
-          console.log('KeyInvoice client found via listClients, IdClient:', keyInvoiceClientId)
-        }
-      }
-    } catch (e) {
-      console.warn('KeyInvoice listClients failed:', e)
-    }
-  }
-
-  if (!keyInvoiceClientId) {
-    console.log('KeyInvoice: No client Id obtained. Will pass VATIN directly to insertDocument.')
-  }
-
-  // Fetch all products from KeyInvoice
-  let keyInvoiceProducts: any[] = []
-  try {
-    const listRes = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Sid': sid },
-      body: JSON.stringify({ method: 'listProducts' }),
-    })
-    const listData = await listRes.json()
-    console.log('KeyInvoice listProducts FULL response:', JSON.stringify(listData).substring(0, 2000))
-
-    if (listData.Status === 1 && listData.Data) {
-      if (Array.isArray(listData.Data)) {
-        keyInvoiceProducts = listData.Data
-      } else if (Array.isArray(listData.Data.Products)) {
-        keyInvoiceProducts = listData.Data.Products
-      } else if (Array.isArray(listData.Data.Product)) {
-        keyInvoiceProducts = listData.Data.Product
-      } else if (typeof listData.Data === 'object') {
-        const keys = Object.keys(listData.Data)
-        console.log('KeyInvoice listProducts Data keys:', keys.join(', '))
-        for (const key of keys) {
-          if (Array.isArray(listData.Data[key])) {
-            keyInvoiceProducts = listData.Data[key]
-            break
-          }
-        }
-        if (keyInvoiceProducts.length === 0 && listData.Data.Id) {
-          keyInvoiceProducts = [listData.Data]
-        }
-      }
-    }
-    console.log('KeyInvoice products found:', keyInvoiceProducts.length,
-      keyInvoiceProducts.map((p: any) => `${p.IdProduct || p.Id}:${p.Description || p.Name}`).join(', '))
-  } catch (e) {
-    console.warn('KeyInvoice listProducts failed:', e)
-  }
-
-  // If no products exist, create them automatically via insertProduct
-  if (keyInvoiceProducts.length === 0) {
-    console.log('KeyInvoice: 0 products found, creating automatically via insertProduct')
-    const itemsToCreate = (saleItems && saleItems.length > 0)
-      ? saleItems
-      : [{ name: `Venda ${sale.code || saleId}`, quantity: 1, unit_price: sale.total_value }]
-
-    for (const item of itemsToCreate) {
-      const itemName = item.name || 'Servico'
-      const itemCode = item.product?.code || itemName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20) || 'SRV001'
-
-      const insertProductPayload: Record<string, any> = {
-        method: 'insertProduct',
-        IdProduct: itemCode,
-        Name: itemName,
-        TaxValue: String(orgTaxValue),
-        IsService: '1',
-        HasStocks: '0',
-        Active: '1',
-        Price: String(Number(item.unit_price)),
-      }
-
-      if (orgTaxValue === 0) {
-        insertProductPayload.TaxExemptionReasonCode = 'M10'
-      }
-
-      const prodRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Sid': sid },
-        body: JSON.stringify(insertProductPayload),
-      })
-      const prodData = await prodRes.json()
-      console.log('KeyInvoice insertProduct response:', JSON.stringify(prodData))
-
-      if (prodData.Status === 1 && (prodData.Data?.IdProduct || prodData.Data?.Id)) {
-        keyInvoiceProducts.push({
-          IdProduct: prodData.Data.IdProduct || prodData.Data.Id,
-          Name: itemName,
-          Description: itemName,
-        })
-      } else {
-        console.error('KeyInvoice insertProduct failed:', prodData.ErrorMessage)
-        return new Response(JSON.stringify({
-          error: `Erro ao criar produto "${itemName}" no KeyInvoice: ${prodData.ErrorMessage || 'Erro desconhecido'}`,
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-    }
-    console.log('KeyInvoice: Created', keyInvoiceProducts.length, 'products automatically')
-  }
-
-  function findProductId(name: string): string {
-    const getId = (p: any) => p.IdProduct || p.Id
-    const exactMatch = keyInvoiceProducts.find((p: any) => 
-      (p.Description || p.Name || '').toLowerCase() === name.toLowerCase()
-    )
-    if (exactMatch && getId(exactMatch)) return String(getId(exactMatch))
-
-    const partialMatch = keyInvoiceProducts.find((p: any) => 
-      (p.Description || p.Name || '').toLowerCase().includes(name.toLowerCase()) ||
-      name.toLowerCase().includes((p.Description || p.Name || '').toLowerCase())
-    )
-    if (partialMatch && getId(partialMatch)) return String(getId(partialMatch))
-
-    const fallbackId = getId(keyInvoiceProducts[0])
-    console.log('KeyInvoice: No product match for "' + name + '", using first product:', fallbackId)
-    return String(fallbackId)
-  }
-
-  const items = (saleItems && saleItems.length > 0) 
-    ? saleItems 
-    : [{ name: `Venda ${sale.code || saleId}`, quantity: 1, unit_price: sale.total_value }]
-
-  const docLines: any[] = []
-  {
-    for (const item of items) {
-      // Try to match product in KeyInvoice: first by code, then by name
-      const itemCode = item.product?.code
-      let productId: string | null = null
-      
-      // Check if the local product code matches any KeyInvoice IdProduct directly
-      if (itemCode) {
-        const codeMatch = keyInvoiceProducts.find((p: any) => 
-          String(p.IdProduct || p.Id) === itemCode
-        )
-        if (codeMatch) {
-          productId = String(codeMatch.IdProduct || codeMatch.Id)
-        }
-      }
-      
-      // Fallback to name-based matching
-      if (!productId) {
-        productId = findProductId(item.name || 'Serviço')
-      }
-      
-      docLines.push({
-        IdProduct: productId,
-        Qty: String(Number(item.quantity)),
-        Price: String(Number(item.unit_price)),
-      })
-    }
-  }
-  console.log('KeyInvoice DocLines:', JSON.stringify(docLines))
-
-  // Determinar DocType com base no estado de pagamento
-  const { data: payments } = await supabase
-    .from('sale_payments')
-    .select('status, amount')
-    .eq('sale_id', saleId)
-
-  const totalPaid = (payments || [])
-    .filter((p: any) => p.status === 'paid')
-    .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
-
-  // DocType 4 = Fatura (FT), DocType 34 = Fatura-Recibo (FR)
-  const docType = totalPaid >= sale.total_value ? '34' : '4'
-  const docLabel = docType === '34' ? 'Fatura-Recibo' : 'Fatura'
-  const docTypeCode = docType === '34' ? 'FR' : 'FT'
-  console.log(`KeyInvoice: Emitting ${docLabel} (DocType ${docType}), totalPaid=${totalPaid}, saleTotal=${sale.total_value}`)
-
-  // Auto-generate observations from payment schedule if not provided
-  let finalObservations = observations || ''
-  if (!finalObservations) {
-    const { data: salePaymentsForObs } = await supabase
-      .from('sale_payments')
-      .select('amount, payment_date, status')
-      .eq('sale_id', saleId)
-      .order('payment_date', { ascending: true })
-
-    if (salePaymentsForObs && salePaymentsForObs.length > 1) {
-      finalObservations = `Pagamento em ${salePaymentsForObs.length} parcelas:\n\n` +
-        salePaymentsForObs.map((p: any, i: number) => {
-          const d = new Date(p.payment_date)
-          const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
-          return `${i+1}. ${dateStr} - ${Number(p.amount).toFixed(2)}€`
-        }).join('\n\n')
-    } else if (salePaymentsForObs && salePaymentsForObs.length === 1) {
-      const p = salePaymentsForObs[0]
-      const d = new Date(p.payment_date)
-      const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
-      finalObservations = `Data de pagamento: ${dateStr}`
-    }
-  }
-
-  // 1. Create document using real KeyInvoice API: method:"insertDocument"
-  const insertPayload: Record<string, any> = {
-    method: 'insertDocument',
-    DocType: docType,
-    DocLines: docLines,
-  }
-  if (keyInvoiceClientId) {
-    insertPayload.IdClient = keyInvoiceClientId
-  } else {
-    // Pass VATIN so the API can resolve the client internally
-    insertPayload.ClientVATIN = clientNif
-    insertPayload.ClientName = clientName
-  }
-  if (finalObservations) {
-    insertPayload.Comments = finalObservations
-  }
-  console.log('KeyInvoice insertDocument FULL payload:', JSON.stringify(insertPayload).substring(0, 2000))
-
-  const createRes = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Sid': sid },
-    body: JSON.stringify(insertPayload),
-  })
-
-  if (!createRes.ok) {
-    const errorText = await createRes.text()
-    console.error('KeyInvoice insertDocument HTTP error:', createRes.status, errorText)
-    return new Response(JSON.stringify({ error: `Erro ao criar documento no KeyInvoice: ${createRes.status}`, details: errorText }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  const createData = await createRes.json()
-  console.log('KeyInvoice insertDocument FULL response:', JSON.stringify(createData).substring(0, 2000))
-  
-  // Real API returns {Status:1,Data:{DocType,DocSeries,DocNum,FullDocNumber}}
-  if (createData.Status !== 1 || !createData.Data) {
-    const errorMsg = createData.ErrorMessage || 'Erro ao criar documento'
-    console.error('KeyInvoice insertDocument failed:', errorMsg)
-    return new Response(JSON.stringify({ error: `KeyInvoice: ${errorMsg}` }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  const docNum = createData.Data.DocNum
-  const fullDocNumber = createData.Data.FullDocNumber || `${docTypeCode} ${docNum}`
-  const docSeries = createData.Data.DocSeries
-
-  // 2. Get PDF via method:"getDocumentPDF" (returns Base64)
-  let storedPdfPath: string | null = null
-  try {
-    const pdfPayload: Record<string, string> = {
-      method: 'getDocumentPDF',
-      DocType: docType,
-      DocNum: String(docNum),
-    }
-    if (docSeries) pdfPayload.DocSeries = String(docSeries)
-
-    const pdfRes = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Sid': sid },
-      body: JSON.stringify(pdfPayload),
-    })
-
-    if (pdfRes.ok) {
-      const pdfData = await pdfRes.json()
-      console.log('KeyInvoice getDocumentPDF response Status:', pdfData.Status,
-        'Data type:', typeof pdfData.Data,
-        typeof pdfData.Data === 'object' && pdfData.Data !== null ? 'keys: ' + JSON.stringify(Object.keys(pdfData.Data)) : '')
-
-      if (pdfData.Status === 1 && pdfData.Data) {
-        let base64Pdf = ''
-        if (typeof pdfData.Data === 'string') {
-          base64Pdf = pdfData.Data
-        } else if (typeof pdfData.Data === 'object' && pdfData.Data !== null) {
-          const knownKeys = ['PDF', 'pdf', 'Content', 'content', 'File', 'file',
-                             'Base64', 'base64', 'FileContent', 'Document', 'document', 'PDFContent']
-          for (const key of knownKeys) {
-            if (pdfData.Data[key] && typeof pdfData.Data[key] === 'string') {
-              console.log('KeyInvoice PDF: Found key:', key)
-              base64Pdf = pdfData.Data[key]
-              break
-            }
-          }
-          if (!base64Pdf) {
-            for (const [key, val] of Object.entries(pdfData.Data)) {
-              if (typeof val === 'string' && (val as string).length > 100) {
-                console.log('KeyInvoice PDF: Using fallback key:', key)
-                base64Pdf = val as string
-                break
-              }
-            }
-          }
-        }
-
-        if (base64Pdf) {
-          base64Pdf = base64Pdf.replace(/^data:[^;]+;base64,/, '')
-        }
-        
-        if (!base64Pdf) {
-          console.warn('KeyInvoice: Could not extract base64 PDF. Data keys:',
-            typeof pdfData.Data === 'object' ? JSON.stringify(Object.keys(pdfData.Data)) : typeof pdfData.Data)
-        }
-        
-         const binaryStr = base64Pdf ? atob(base64Pdf) : null
-        if (binaryStr) {
-          const bytes = new Uint8Array(binaryStr.length)
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i)
-          }
-
-          const pdfFileName = `${organizationId}/${saleId}/${docTypeCode}-${docNum}.pdf`
-          const { error: uploadError } = await supabase.storage
-            .from('invoices')
-            .upload(pdfFileName, bytes.buffer, { contentType: 'application/pdf', upsert: true })
-          if (!uploadError) storedPdfPath = pdfFileName
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('KeyInvoice PDF generation failed (non-blocking):', e)
-  }
-
-  // 3. Save reference in sales table
-  await supabase
-    .from('sales')
-    .update({
-      invoicexpress_id: docNum,
-      invoicexpress_type: docTypeCode,
-      invoice_reference: fullDocNumber,
-      status: 'delivered',
-      ...(storedPdfPath ? { invoice_pdf_url: storedPdfPath } : {}),
-    })
-    .eq('id', saleId)
-
-  // 4. Insert into invoices table so it appears in Faturas tab
-  const invoiceDocType = docTypeCode === 'FR' ? 'invoice_receipt' : 'invoice'
-  await supabase
-    .from('invoices')
-    .upsert({
-      organization_id: organizationId,
-      invoicexpress_id: docNum,
-      reference: fullDocNumber,
-      document_type: invoiceDocType,
-      status: 'final',
-      client_name: clientName,
-      total: sale.total_value,
-      date: new Date().toISOString().split('T')[0],
-      due_date: null,
-      sale_id: saleId,
-      payment_id: null,
-      pdf_path: storedPdfPath || null,
-      raw_data: { source: 'keyinvoice', docType, docNum, docSeries },
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'organization_id,invoicexpress_id',
-    })
-
-  return new Response(JSON.stringify({
-    success: true,
-    invoicexpress_id: docNum,
-    invoice_reference: fullDocNumber,
-  }), {
-    status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
 }
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -550,6 +111,7 @@ Deno.serve(async (req) => {
 
     const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey)
     const token = authHeader.replace('Bearer ', '')
+    if (token === supabaseServiceKey) return new Response(JSON.stringify({ error: 'Não autorizado' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), {
@@ -559,6 +121,8 @@ Deno.serve(async (req) => {
     }
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
+    const rateLimitResponse = await userRateLimit(supabaseAuth, user.id, 'issue-invoice', corsHeaders)
+    if (rateLimitResponse) return rateLimitResponse
 
     const { sale_id, organization_id, observations } = await req.json()
     if (!sale_id || !organization_id) {
@@ -586,18 +150,39 @@ Deno.serve(async (req) => {
       })
     }
 
+    const { data: canIssue, error: permissionError } = await supabase.rpc('has_module_permission', {
+      _user_id: user.id,
+      _org_id: organization_id,
+      _module: 'finance',
+      _subarea: 'invoices',
+      _action: 'issue',
+    })
+    if (permissionError || canIssue !== true) {
+      return new Response(JSON.stringify({ error: 'Sem permissão para emitir documentos fiscais' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Fetch organization credentials
-    const { data: org } = await supabase
+    const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
+      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, keyinvoice_series_config, vendus_api_key, vendus_register_id, vendus_payment_method_id')
       .eq('id', organization_id)
       .single()
+
+    if (orgError || !org) {
+      return new Response(JSON.stringify({ error: 'Não foi possível carregar a configuração de faturação' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const billingProvider = (org as any)?.billing_provider || 'invoicexpress'
     const integrationsEnabled = (org?.integrations_enabled as Record<string, boolean> | null) || {}
     
     // Check if the ACTIVE billing provider is enabled
-    const activeBillingToggle = billingProvider === 'keyinvoice' ? 'keyinvoice' : 'invoicexpress'
+    const activeBillingToggle = billingProvider === 'keyinvoice' ? 'keyinvoice' : billingProvider === 'vendus' ? 'vendus' : 'invoicexpress'
     if (integrationsEnabled[activeBillingToggle] === false) {
       return new Response(JSON.stringify({ error: 'Integração de faturação desativada' }), {
         status: 400,
@@ -608,6 +193,10 @@ Deno.serve(async (req) => {
     // Route to KeyInvoice if selected
     if (billingProvider === 'keyinvoice') {
       return await handleKeyInvoice(supabase, org, sale_id, organization_id, observations, corsHeaders)
+    }
+
+    if (billingProvider === 'vendus') {
+      return await handleVendus(supabase, org, sale_id, organization_id, observations, corsHeaders)
     }
 
     if (!org?.invoicexpress_account_name || !org?.invoicexpress_api_key) {
@@ -724,8 +313,7 @@ Deno.serve(async (req) => {
     }
 
     // Date
-    const now = new Date()
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const todayStr = lisbonFiscalDate()
     let dateSource = todayStr
 
     const accountName = org.invoicexpress_account_name
@@ -944,7 +532,7 @@ Deno.serve(async (req) => {
 
     // 5. Save reference in sales table - use local path if available
     const fileUrl = storedPdfPath || pdfUrl || null
-    await supabase
+    const { error: saleUpdateError } = await supabase
       .from('sales')
       .update({
         invoicexpress_id: invoiceId,
@@ -955,6 +543,14 @@ Deno.serve(async (req) => {
         ...(qrCodeUrl ? { qr_code_url: qrCodeUrl } : {}),
       })
       .eq('id', sale_id)
+      .eq('organization_id', organization_id)
+    if (saleUpdateError) {
+      return new Response(JSON.stringify({
+        error: 'Fatura emitida, mas não foi possível atualizar a venda. É necessária reconciliação.',
+        code: 'sale_link_failed',
+        manual_review: true,
+      }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     return new Response(JSON.stringify({
       success: true,

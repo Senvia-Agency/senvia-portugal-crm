@@ -201,6 +201,8 @@ export interface Sale {
   client_id: string | null;
   status: SaleStatus;
   total_value: number;
+  /** Customer payment obligation including VAT; null on ambiguous legacy rows. */
+  gross_value?: number | null;
   operational_units?: number | null;
   subtotal: number;
   discount: number;
@@ -358,6 +360,8 @@ export interface SaleWithDetails extends Sale {
     phone?: string | null;
     company?: string | null;
     nif?: string | null;
+    company_nif?: string | null;
+    billing_target?: 'client' | 'company' | null;
     address_line1?: string | null;
     address_line2?: string | null;
     city?: string | null;
@@ -375,6 +379,12 @@ export interface SaleItem {
   unit_price: number;
   total: number;
   first_due_date: string | null;
+  discount_percent?: number;
+  tax_value?: number | null;
+  tax_exemption_reason?: string | null;
+  price_includes_vat?: boolean | null;
+  retention_rate?: number | null;
+  stripe_price_id?: string | null;
   created_at: string;
 }
 
@@ -383,5 +393,9 @@ export interface SaleItemWithProduct extends SaleItem {
     name: string;
     price: number | null;
     is_recurring?: boolean;
+    tax_value?: number | null;
+    tax_exemption_reason?: string | null;
+    price_includes_vat?: boolean;
+    retention_rate?: number;
   } | null;
 }

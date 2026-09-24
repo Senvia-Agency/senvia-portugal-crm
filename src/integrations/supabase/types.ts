@@ -5137,9 +5137,13 @@ export type Database = {
           servicos_products_config: Json | null
           slug: string
           tax_config: Json | null
+          tem_vendus_api_key: boolean
           trial_ends_at: string | null
           trial_notified_at: string | null
           trial_reminders_sent: Json
+          vendus_api_key: string | null
+          vendus_payment_method_id: number | null
+          vendus_register_id: number | null
           wa_nudge_count: number
           wa_nudge_last_sent_at: string | null
           wa_nudge_optout: boolean
@@ -5220,6 +5224,9 @@ export type Database = {
           trial_ends_at?: string | null
           trial_notified_at?: string | null
           trial_reminders_sent?: Json
+          vendus_api_key?: string | null
+          vendus_payment_method_id?: number | null
+          vendus_register_id?: number | null
           wa_nudge_count?: number
           wa_nudge_last_sent_at?: string | null
           wa_nudge_optout?: boolean
@@ -5300,6 +5307,9 @@ export type Database = {
           trial_ends_at?: string | null
           trial_notified_at?: string | null
           trial_reminders_sent?: Json
+          vendus_api_key?: string | null
+          vendus_payment_method_id?: number | null
+          vendus_register_id?: number | null
           wa_nudge_count?: number
           wa_nudge_last_sent_at?: string | null
           wa_nudge_optout?: boolean
@@ -5609,11 +5619,14 @@ export type Database = {
           is_digital: boolean | null
           is_ecommerce: boolean | null
           is_recurring: boolean | null
+          keyinvoice_product_id: string | null
           low_stock_threshold: number | null
           name: string
           organization_id: string
           price: number | null
+          price_includes_vat: boolean
           requires_shipping: boolean | null
+          retention_rate: number
           short_description: string | null
           sku: string | null
           slug: string | null
@@ -5639,11 +5652,14 @@ export type Database = {
           is_digital?: boolean | null
           is_ecommerce?: boolean | null
           is_recurring?: boolean | null
+          keyinvoice_product_id?: string | null
           low_stock_threshold?: number | null
           name: string
           organization_id: string
           price?: number | null
+          price_includes_vat?: boolean
           requires_shipping?: boolean | null
+          retention_rate?: number
           short_description?: string | null
           sku?: string | null
           slug?: string | null
@@ -5669,11 +5685,14 @@ export type Database = {
           is_digital?: boolean | null
           is_ecommerce?: boolean | null
           is_recurring?: boolean | null
+          keyinvoice_product_id?: string | null
           low_stock_threshold?: number | null
           name?: string
           organization_id?: string
           price?: number | null
+          price_includes_vat?: boolean
           requires_shipping?: boolean | null
+          retention_rate?: number
           short_description?: string | null
           sku?: string | null
           slug?: string | null
@@ -6565,34 +6584,52 @@ export type Database = {
       sale_items: {
         Row: {
           created_at: string | null
+          discount_percent: number
           first_due_date: string | null
           id: string
           name: string
+          price_includes_vat: boolean | null
           product_id: string | null
           quantity: number
+          retention_rate: number | null
           sale_id: string
+          stripe_price_id: string | null
+          tax_exemption_reason: string | null
+          tax_value: number | null
           total: number
           unit_price: number
         }
         Insert: {
           created_at?: string | null
+          discount_percent?: number
           first_due_date?: string | null
           id?: string
           name: string
+          price_includes_vat?: boolean | null
           product_id?: string | null
           quantity?: number
+          retention_rate?: number | null
           sale_id: string
+          stripe_price_id?: string | null
+          tax_exemption_reason?: string | null
+          tax_value?: number | null
           total: number
           unit_price: number
         }
         Update: {
           created_at?: string | null
+          discount_percent?: number
           first_due_date?: string | null
           id?: string
           name?: string
+          price_includes_vat?: boolean | null
           product_id?: string | null
           quantity?: number
+          retention_rate?: number | null
           sale_id?: string
+          stripe_price_id?: string | null
+          tax_exemption_reason?: string | null
+          tax_value?: number | null
           total?: number
           unit_price?: number
         }
@@ -6911,6 +6948,7 @@ export type Database = {
           due_date: string | null
           edp_proposal_number: string | null
           has_recurring: boolean | null
+          gross_value: number | null
           id: string
           invoice_pdf_url: string | null
           invoice_reference: string | null
@@ -6964,6 +7002,7 @@ export type Database = {
           due_date?: string | null
           edp_proposal_number?: string | null
           has_recurring?: boolean | null
+          gross_value?: number | null
           id?: string
           invoice_pdf_url?: string | null
           invoice_reference?: string | null
@@ -7017,6 +7056,7 @@ export type Database = {
           due_date?: string | null
           edp_proposal_number?: string | null
           has_recurring?: boolean | null
+          gross_value?: number | null
           id?: string
           invoice_pdf_url?: string | null
           invoice_reference?: string | null

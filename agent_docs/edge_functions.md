@@ -14,22 +14,23 @@ All functions live in `supabase/functions/{name}/index.ts` (Deno runtime). Deplo
 | `check-subscription` | Client call | Verifies org subscription status against Stripe. |
 | `admin-stripe-stats` | Admin call | Fetches Stripe metrics for system admin dashboard. |
 
-## Invoicing (InvoiceXpress)
+## Invoicing (InvoiceXpress, KeyInvoice and Vendus)
 
 | Function | Purpose |
 |----------|---------|
-| `issue-invoice` | Creates invoice (Fatura) in InvoiceXpress. |
-| `issue-invoice-receipt` | Creates invoice-receipt (Fatura-Recibo) in InvoiceXpress. |
-| `generate-receipt` | Creates receipt (Recibo) for a payment. |
-| `cancel-invoice` | Cancels an invoice in InvoiceXpress. |
-| `create-credit-note` | Creates credit note (Nota de Crédito). |
-| `send-invoice-email` | Emails invoice PDF to client. |
-| `get-invoice-details` | Fetches invoice details from InvoiceXpress API. |
-| `sync-invoices` | Syncs invoices from InvoiceXpress to local DB. |
+| `issue-invoice` | Issues FT through the active provider. Vendus uses a stable `tx_id` per sale and verifies the returned fiscal total. KeyInvoice writes a durable, idempotent local ledger row before the remote call. |
+| `issue-invoice-receipt` | Issues FR only after the sale is marked paid and confirmed unreversed payments cover its gross amount. Vendus uses the same sale `tx_id` as FT to prevent both document kinds for one sale. |
+| `generate-receipt` | Issues a receipt for a confirmed payment (Vendus `RG`, InvoiceXpress `RC`). KeyInvoice and Vendus reserve the amount atomically so concurrent partial receipts cannot exceed the FT. |
+| `cancel-invoice` | Cancels/voids a document with the `finance.invoices.cancel` permission; KeyInvoice preserves the generated fiscal adjustment identity. |
+| `create-credit-note` | Creates NC against an issued source document. Partial KeyInvoice NC remains blocked until its demo API contract is homologated. |
+| `send-invoice-email` | Sends a fiscal PDF manually. Automatic recurring delivery uses the protected system flow and Brevo. |
+| `get-invoice-details` | Fetches details/PDF from the document's actual provider; the local invoice UUID disambiguates equal provider IDs. |
+| `sync-invoices` | Syncs InvoiceXpress and Vendus FT/FR/RG with provider-aware identity; it never guesses a series or overwrites a frozen local document. |
 | `sync-credit-notes` | Syncs credit notes from InvoiceXpress. |
 | `sync-invoicexpress-items` | Syncs product catalog from InvoiceXpress. |
 | `update-invoicexpress-item` | Updates a product in InvoiceXpress. |
-| `keyinvoice-auth` | Authenticates with KeyInvoice API (alternative invoicing). |
+| `keyinvoice-auth` | Validates KeyInvoice credentials and caches the SID without returning it to the browser. |
+| `keyinvoice-fiscal-worker` | Cron worker with `issue`, `email`, and `reconcile` actions. Claims durable recurring jobs, stores PDFs, sends idempotent Brevo email, and reconciles ambiguous FT/FR writes without blind reissue. |
 
 ## Email & Marketing
 
@@ -106,3 +107,4 @@ These functions are called periodically via `pg_cron` + `pg_net`:
 - `process-scheduled-campaigns` — frequent, sends due campaigns
 - `generate-recurring-expenses` — daily at 06:00, generates monthly recurring expenses
 - `sync-email-statuses` — periodic, syncs Brevo delivery statuses
+- `keyinvoice-fiscal-worker` — issue every 5 minutes, PDF email offset by 2 minutes, reconciliation daily at 04:50 UTC (installed by migration `20260924120000`)

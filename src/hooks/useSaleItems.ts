@@ -12,7 +12,7 @@ export function useSaleItems(saleId: string | undefined) {
         .from("sale_items")
         .select(`
           *,
-          product:products(name, price, is_recurring, tax_value, tax_exemption_reason)
+          product:products(name, price, is_recurring, tax_value, tax_exemption_reason, price_includes_vat, retention_rate)
         `)
         .eq("sale_id", saleId)
         .order("created_at", { ascending: true });
@@ -36,6 +36,12 @@ export function useCreateSaleItems() {
       unit_price: number;
       total: number;
       first_due_date?: string | null;
+      discount_percent?: number;
+      tax_value?: number | null;
+      tax_exemption_reason?: string | null;
+      price_includes_vat?: boolean | null;
+      retention_rate?: number | null;
+      stripe_price_id?: string | null;
     }[]) => {
       if (items.length === 0) return [];
 

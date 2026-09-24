@@ -1,5 +1,7 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { userRateLimit } from '../_shared/user-rate-limit.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { documentIdentityFromRawData, getKeyInvoiceSession, safeKeyInvoiceError, sendKeyInvoiceDocumentEmail } from '../_shared/keyinvoice.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,59 +12,6 @@ const DOC_TYPE_MAP: Record<string, string> = {
   invoice: 'invoices',
   invoice_receipt: 'invoice_receipts',
   receipt: 'receipts',
-}
-
-const DEFAULT_KEYINVOICE_API_URL = 'https://login.keyinvoice.com/API5.php'
-
-// KeyInvoice DocType mapping
-const KI_DOC_TYPE_MAP: Record<string, string> = {
-  invoice: '4',
-  invoice_receipt: '34',
-  receipt: '34',
-  credit_note: '7',
-}
-
-// API 5.0: Authenticate with Apikey header, get session Sid, cache it
-async function getKeyInvoiceSid(supabase: any, org: any, orgId: string): Promise<string> {
-  if (!org.keyinvoice_password) {
-    throw new Error('Chave da API KeyInvoice não configurada')
-  }
-
-  const now = new Date()
-  const margin = 5 * 60 * 1000
-  if (org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-    const expiresAt = new Date(org.keyinvoice_sid_expires_at)
-    if (expiresAt.getTime() > now.getTime() + margin) {
-      return org.keyinvoice_sid
-    }
-  }
-
-  const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-  const authRes = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Apikey': org.keyinvoice_password },
-    body: JSON.stringify({ method: 'authenticate' }),
-  })
-
-  if (!authRes.ok) {
-    const errorText = await authRes.text()
-    throw new Error(`Erro ao autenticar no KeyInvoice: ${authRes.status} - ${errorText}`)
-  }
-
-  const authData = await authRes.json()
-  if (authData.Status !== 1 || !authData.Sid) {
-    throw new Error(`KeyInvoice auth: ${authData.ErrorMessage || 'Erro de autenticação'}`)
-  }
-
-  const newSid = authData.Sid
-  const expiresAt = new Date(now.getTime() + 3600 * 1000)
-
-  await supabase
-    .from('organizations')
-    .update({ keyinvoice_sid: newSid, keyinvoice_sid_expires_at: expiresAt.toISOString() })
-    .eq('id', orgId)
-
-  return newSid
 }
 
 Deno.serve(async (req) => {
@@ -82,6 +31,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
+    if (authHeader.replace(/^Bearer\s+/i, '') === supabaseKey) return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     })
@@ -93,10 +43,12 @@ Deno.serve(async (req) => {
     }
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
+    const rateLimitResponse = await userRateLimit(supabase, user.id, 'send-invoice-email', corsHeaders)
+    if (rateLimitResponse) return rateLimitResponse
 
-    const { document_id, document_type, organization_id, email, subject, body } = await req.json()
+    const { invoice_id, document_id, document_type, organization_id, email, subject, body } = await req.json()
 
-    if (!document_id || !document_type || !organization_id || !email) {
+    if ((!invoice_id && !document_id) || !document_type || !organization_id || !email) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -117,56 +69,121 @@ Deno.serve(async (req) => {
       })
     }
 
+    const { data: canIssue, error: permissionError } = await supabase.rpc('has_module_permission', {
+      _user_id: user.id,
+      _org_id: organization_id,
+      _module: 'finance',
+      _subarea: 'invoices',
+      _action: 'issue',
+    })
+    if (permissionError || canIssue !== true) {
+      return new Response(JSON.stringify({ error: 'Sem permissão para enviar documentos fiscais' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Get organization credentials
-    const { data: org } = await supabase
+    const { data: org, error: orgError } = await supabase
       .from('organizations')
       .select('invoicexpress_account_name, invoicexpress_api_key, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
       .eq('id', organization_id)
       .single()
 
+    if (orgError || !org) {
+      return new Response(JSON.stringify({ error: 'Não foi possível carregar a configuração de faturação' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const billingProvider = (org as any)?.billing_provider || 'invoicexpress'
+    if (invoice_id) {
+      const { data: selectedInvoice, error: selectedInvoiceError } = await supabase
+        .from('invoices')
+        .select('provider')
+        .eq('id', invoice_id)
+        .eq('organization_id', organization_id)
+        .maybeSingle()
+      if (selectedInvoiceError) throw selectedInvoiceError
+      if (!selectedInvoice) {
+        return new Response(JSON.stringify({ error: 'Documento fiscal não encontrado.', code: 'document_not_found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (selectedInvoice.provider === 'vendus') {
+        return new Response(JSON.stringify({ error: 'O envio por email de documentos Vendus ainda não é suportado.', code: 'vendus_operation_unsupported' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    } else if (Number.isSafeInteger(Number(document_id)) && Number(document_id) > 0) {
+      const { data: vendusDocument, error: vendusLookupError } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('organization_id', organization_id)
+        .eq('provider', 'vendus')
+        .eq('invoicexpress_id', Number(document_id))
+        .eq('document_type', document_type)
+        .limit(1)
+        .maybeSingle()
+      if (vendusLookupError) throw vendusLookupError
+      if (vendusDocument) {
+        return new Response(JSON.stringify({ error: 'Este número também pertence a um documento Vendus. Seleciona o documento pelo identificador interno.', code: 'ambiguous_document_identity' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+    if (billingProvider === 'vendus') {
+      return new Response(JSON.stringify({ error: 'O envio por email via Vendus ainda não é suportado.', code: 'vendus_operation_unsupported' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (billingProvider === 'keyinvoice') {
-      // KeyInvoice email flow using API 5.0: method:"sendDocumentPDF2Email"
       if (!org?.keyinvoice_password) {
         return new Response(JSON.stringify({ error: 'Chave da API KeyInvoice não configurada' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      const sid = await getKeyInvoiceSid(supabase, org, organization_id)
-      const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-      const docType = KI_DOC_TYPE_MAP[document_type] || '4'
-
-      const emailPayload = {
-        method: 'sendDocumentPDF2Email',
-        DocType: docType,
-        DocNum: String(document_id),
-        EmailDestinations: email,
-        EmailSubject: subject || 'Documento',
-        EmailBody: body || '',
+      let invoiceQuery = supabase
+        .from('invoices')
+        .select('id,invoicexpress_id,document_type,reference,raw_data,provider_document_type_code,provider_series,provider_document_number,email_attempts')
+        .eq('organization_id', organization_id)
+      if (invoice_id) invoiceQuery = invoiceQuery.eq('id', invoice_id)
+      else invoiceQuery = invoiceQuery.eq('invoicexpress_id', document_id).eq('document_type', document_type)
+      const { data: invoiceRows, error: invoiceError } = await invoiceQuery.limit(2)
+      if (invoiceError || !invoiceRows || invoiceRows.length !== 1) {
+        const ambiguous = (invoiceRows?.length ?? 0) > 1
+        return new Response(JSON.stringify({
+          error: ambiguous
+            ? 'Existem vários documentos com esse número. Selecione o documento pela série.'
+            : 'Documento fiscal não encontrado.',
+          code: ambiguous ? 'ambiguous_document_identity' : 'document_not_found',
+        }), { status: ambiguous ? 409 : 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-
-      const emailRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Sid': sid },
-        body: JSON.stringify(emailPayload),
+      const invoiceRecord = invoiceRows[0]
+      const identity = documentIdentityFromRawData(invoiceRecord.raw_data, {
+        docType: invoiceRecord.provider_document_type_code,
+        docNum: invoiceRecord.provider_document_number ?? invoiceRecord.invoicexpress_id,
       })
-
-      if (!emailRes.ok) {
-        const errorText = await emailRes.text()
-        console.error('KeyInvoice email HTTP error:', emailRes.status, errorText)
-        return new Response(JSON.stringify({ error: `KeyInvoice email error: ${emailRes.status}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const emailData = await emailRes.json()
-      if (emailData.Status !== 1) {
-        console.error('KeyInvoice email failed:', emailData.ErrorMessage)
-        return new Response(JSON.stringify({ error: `KeyInvoice: ${emailData.ErrorMessage || 'Erro ao enviar email'}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+      const session = await getKeyInvoiceSession(supabase, org, organization_id)
+      await sendKeyInvoiceDocumentEmail(session, {
+        identity,
+        email,
+        subject: subject || 'Documento fiscal',
+        body: body || '',
+      })
+      const { error: emailStateError } = await supabase.from('invoices').update({
+        email_status: 'sent',
+        email_attempts: Number(invoiceRecord.email_attempts || 0) + 1,
+        email_sent_at: new Date().toISOString(),
+        email_last_error: null,
+        email_next_retry_at: null,
+      }).eq('id', invoiceRecord.id).eq('organization_id', organization_id)
+      if (emailStateError) {
+        return new Response(JSON.stringify({
+          error: 'O email foi enviado pelo KeyInvoice, mas o estado local não foi atualizado.',
+          code: 'email_state_persist_failed',
+          manual_review: true,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
     } else {
       // InvoiceXpress email flow
@@ -196,8 +213,8 @@ Deno.serve(async (req) => {
       })
 
       if (!res.ok) {
-        const errorText = await res.text()
-        console.error('InvoiceXpress email error:', res.status, errorText)
+        try { await res.text() } catch {}
+        console.error('[send-invoice-email] invoicexpress_email_failed', res.status)
         return new Response(JSON.stringify({ error: `InvoiceXpress error: ${res.status}` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
@@ -208,9 +225,10 @@ Deno.serve(async (req) => {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('send-invoice-email error:', err)
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Erro ao enviar email" }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const safe = safeKeyInvoiceError(err)
+    console.error('[send-invoice-email]', safe.code)
+    return new Response(JSON.stringify({ error: safe.message, code: safe.code, retryable: safe.retryable }), {
+      status: safe.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })

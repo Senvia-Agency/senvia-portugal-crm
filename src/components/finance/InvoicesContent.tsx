@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Search, FileText, X, Loader2, ArrowUpDown, ArrowUp, ArrowDown, FileDown, Plus } from "lucide-react";
+import { Download, Search, FileText, X, Loader2, ArrowUpDown, ArrowUp, ArrowDown, FileDown, Plus, RefreshCw } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SaleInvoicePicker } from "@/components/finance/SaleInvoicePicker";
 import { CreditNoteInvoicePicker } from "@/components/finance/CreditNoteInvoicePicker";
@@ -37,7 +37,9 @@ interface UnifiedDocument {
   sale_id: string | null;
   payment_id: string | null;
   pdf_path: string | null;
-  invoicexpress_id: number;
+  invoicexpress_id: number | null;
+  invoice_id: string | null;
+  provider: string;
   related_doc_reference: string | null;
 }
 
@@ -58,7 +60,10 @@ export function InvoicesContent() {
   const { data: orgData } = useOrganization();
   // Invoicing is active for both InvoiceXpress and KeyInvoice orgs (the old
   // check only looked at the invoicexpress flag, which is false for KeyInvoice).
-  const isInvoicexpressEnabled = isInvoiceXpressActive(orgData) || isInvoiceXpressActive(organization);
+  const isInvoicexpressEnabled = isInvoiceXpressActive(organization ?? orgData);
+  const isVendusActive = organization?.billing_provider === 'vendus'
+    && (organization.integrations_enabled as Record<string, boolean> | null)?.vendus === true
+    && organization.tem_vendus_api_key === true;
   const syncInvoices = useSyncInvoices();
   const syncCreditNotes = useSyncCreditNotes();
   const hasSynced = useRef(false);
@@ -84,7 +89,9 @@ export function InvoicesContent() {
     return 'desc';
   });
   const [selectedInvoice, setSelectedInvoice] = useState<{
-    invoicexpress_id: number;
+    invoicexpress_id: number | null;
+    invoice_id: string | null;
+    provider: string;
     document_type: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
     sale_id?: string;
     payment_id?: string;
@@ -98,12 +105,12 @@ export function InvoicesContent() {
 
   // Auto-sync both on mount (only if InvoiceXpress is enabled)
   useEffect(() => {
-    if (!hasSynced.current && isInvoicexpressEnabled && !syncInvoices.isPending && !syncCreditNotes.isPending) {
+    if (!hasSynced.current && isInvoicexpressEnabled && !isVendusActive && !syncInvoices.isPending && !syncCreditNotes.isPending) {
       hasSynced.current = true;
       syncInvoices.mutate(undefined, { onError: () => {} });
       syncCreditNotes.mutate(undefined, { onError: () => {} });
     }
-  }, [isInvoicexpressEnabled]);
+  }, [isInvoicexpressEnabled, isVendusActive]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -128,6 +135,8 @@ export function InvoicesContent() {
       payment_id: inv.payment_id,
       pdf_path: inv.pdf_path,
       invoicexpress_id: inv.invoicexpress_id,
+      invoice_id: inv.id,
+      provider: inv.provider,
       related_doc_reference: inv.credit_note_reference || null,
     }));
 
@@ -143,6 +152,8 @@ export function InvoicesContent() {
       payment_id: cn.payment_id,
       pdf_path: cn.pdf_path,
       invoicexpress_id: cn.invoicexpress_id,
+      invoice_id: null,
+      provider: 'invoicexpress',
       related_doc_reference: cn.related_invoice_reference || null,
     }));
 
@@ -196,13 +207,22 @@ export function InvoicesContent() {
     setDateRange(undefined);
   };
 
-  const getDocTypeLabel = (type: string) => {
+  const getDocTypeLabel = (type: string, provider?: string) => {
     switch (type) {
       case 'invoice': return 'Fatura';
       case 'invoice_receipt': return 'Fatura-Recibo';
+      case 'receipt': return provider === 'vendus' ? 'Recibo (RG)' : 'Recibo';
       case 'simplified_invoice': return 'Fatura Simplificada';
       case 'credit_note': return 'Nota de Crédito';
       default: return type;
+    }
+  };
+
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case 'vendus': return 'Vendus';
+      case 'keyinvoice': return 'KeyInvoice';
+      default: return 'InvoiceXpress';
     }
   };
 
@@ -230,7 +250,8 @@ export function InvoicesContent() {
   const handleExport = () => {
     const exportData = sortedDocuments.map(doc => ({
       Referência: doc.reference || '-',
-      Tipo: getDocTypeLabel(doc.document_type),
+      Tipo: getDocTypeLabel(doc.document_type, doc.provider),
+      Origem: getProviderLabel(doc.provider),
       Data: doc.date ? formatDate(doc.date) : '-',
       Cliente: doc.client_name || '-',
       Estado: getStatusLabel(doc.status),
@@ -257,11 +278,27 @@ export function InvoicesContent() {
         <div>
           <h2 className="text-lg font-semibold">Faturas</h2>
           <p className="text-sm text-muted-foreground">
-            Documentos fiscais importados do InvoiceXpress
+            Documentos fiscais da organização
           </p>
         </div>
         <div className="flex gap-2">
-          {isInvoicexpressEnabled && (
+          {isVendusActive && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={syncInvoices.isPending}
+              onClick={() => syncInvoices.mutate(undefined, {
+                onSuccess: (result) => toast.success(result.failed
+                  ? `${result.total} documento(s) sincronizado(s); ${result.failed} requer(em) revisão`
+                  : `${result.total} documento(s) Vendus sincronizado(s)`),
+              })}
+            >
+              <RefreshCw className={`h-4 w-4 ${syncInvoices.isPending ? 'animate-spin' : ''}`} />
+              <span>Sincronizar Vendus</span>
+            </Button>
+          )}
+          {(isInvoicexpressEnabled || isVendusActive) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-2">
@@ -271,7 +308,7 @@ export function InvoicesContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setPickerMode('invoice')}>Nova Fatura</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPickerMode('credit-note')}>Nota de Crédito</DropdownMenuItem>
+                {!isVendusActive && <DropdownMenuItem onClick={() => setPickerMode('credit-note')}>Nota de Crédito</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -345,6 +382,7 @@ export function InvoicesContent() {
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort('document_type')}>
                       <span className="flex items-center">Tipo <SortIcon field="document_type" sortField={sortField} sortDirection={sortDirection} /></span>
                     </TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
                       <span className="flex items-center">Data <SortIcon field="date" sortField={sortField} sortDirection={sortDirection} /></span>
                     </TableHead>
@@ -368,6 +406,8 @@ export function InvoicesContent() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => setSelectedInvoice({
                         invoicexpress_id: doc.invoicexpress_id,
+                        invoice_id: doc.invoice_id,
+                        provider: doc.provider,
                         document_type: (doc.document_type || 'invoice') as any,
                         sale_id: doc.sale_id || undefined,
                         payment_id: doc.payment_id || undefined,
@@ -378,8 +418,11 @@ export function InvoicesContent() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 whitespace-nowrap">
-                          {getDocTypeLabel(doc.document_type)}
+                          {getDocTypeLabel(doc.document_type, doc.provider)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {getProviderLabel(doc.provider)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {doc.date ? formatDate(doc.date) : '-'}
@@ -437,6 +480,8 @@ export function InvoicesContent() {
           open={!!selectedInvoice}
           onOpenChange={(open) => !open && setSelectedInvoice(null)}
           documentId={selectedInvoice.invoicexpress_id}
+          invoiceId={selectedInvoice.invoice_id}
+          provider={selectedInvoice.provider}
           documentType={selectedInvoice.document_type}
           organizationId={organization.id}
           saleId={selectedInvoice.sale_id}

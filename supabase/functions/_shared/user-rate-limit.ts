@@ -18,7 +18,7 @@ export async function userRateLimit(client: any, userId: string, action: string,
 // Exclude read/poll endpoints: applying 5/min to synchronization would break inboxes.
 export const LIMITED_USER_ACTIONS = new Set([
   'create-checkout', 'customer-portal', 'buy-extra-seats', 'generate-prospects',
-  'cancel-invoice', 'create-credit-note', 'generate-receipt', 'issue-invoice', 'issue-invoice-receipt',
+  'cancel-invoice', 'create-credit-note', 'generate-receipt', 'issue-invoice', 'issue-invoice-receipt', 'keyinvoice-auth',
   'send-access-email', 'send-invoice-email', 'send-proposal-email', 'send-template-email',
   'stripe-sale-checkout', 'stripe-product-sync', 'update-invoicexpress-item',
 ]);

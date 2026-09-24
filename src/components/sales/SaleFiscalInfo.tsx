@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import type { Product } from "@/types/proposals";
+import { roundCurrency, splitLineVat } from "@/lib/product-fiscal";
 
 interface ClientFiscalData {
   nif?: string | null;
@@ -16,6 +17,16 @@ interface ClientFiscalData {
 interface SaleFiscalInfoProps {
   client: ClientFiscalData | null | undefined;
   isInvoiceXpressActive: boolean;
+}
+
+interface BillingOrganization {
+  integrations_enabled?: unknown;
+  billing_provider?: string | null;
+  invoicexpress_account_name?: string | null;
+  tem_invoicexpress_api_key?: boolean | null;
+  tem_keyinvoice_password?: boolean | null;
+  tem_vendus_api_key?: boolean | null;
+  tax_config?: unknown;
 }
 
 /**
@@ -114,31 +125,33 @@ interface VatTotalsProps {
 export function useVatCalculation({ items, products, orgTaxValue, discount, subtotal }: VatTotalsProps) {
   return useMemo(() => {
     const defaultTax = orgTaxValue ?? 23;
-
-    let totalVat = 0;
     const itemTaxRates: Map<string, number> = new Map();
-
-    for (const item of items) {
+    const lines = items.map((item) => {
       const product = item.product_id ? products?.find(p => p.id === item.product_id) : undefined;
-      const taxRate = product?.tax_value ?? defaultTax;
-      const itemTotal = item.quantity * item.unit_price;
-      const itemVat = itemTotal * (taxRate / 100);
-      totalVat += itemVat;
-
-      // Store rate for each item by a composite key
+      const split = splitLineVat(
+        item.quantity * item.unit_price,
+        product,
+        { tax_value: defaultTax },
+      );
       if (item.product_id) {
-        itemTaxRates.set(item.product_id, taxRate);
+        itemTaxRates.set(item.product_id, split.taxRate);
       }
-    }
+      return split;
+    });
 
-    // Apply discount proportionally to VAT
-    const discountRatio = subtotal > 0 ? discount / subtotal : 0;
-    const adjustedVat = totalVat * (1 - discountRatio);
-    const totalWithVat = subtotal - discount + adjustedVat;
+    const subtotalWithoutVat = lines.reduce((sum, line) => sum + line.net, 0);
+    const discountRatio = subtotalWithoutVat > 0
+      ? Math.min(1, Math.max(0, discount / subtotalWithoutVat))
+      : 0;
+    const totalWithoutVat = subtotalWithoutVat * (1 - discountRatio);
+    const totalVat = lines.reduce((sum, line) => sum + line.vat, 0) * (1 - discountRatio);
+    const totalWithVat = lines.reduce((sum, line) => sum + line.gross, 0) * (1 - discountRatio);
 
     return {
-      totalVat: adjustedVat,
-      totalWithVat,
+      subtotalWithoutVat: roundCurrency(subtotalWithoutVat),
+      totalWithoutVat: roundCurrency(totalWithoutVat),
+      totalVat: roundCurrency(totalVat),
+      totalWithVat: roundCurrency(totalWithVat),
       getItemTaxRate: (productId: string | null): number | null => {
         if (!productId) return defaultTax;
         return itemTaxRates.get(productId) ?? defaultTax;
@@ -151,16 +164,19 @@ export function useVatCalculation({ items, products, orgTaxValue, discount, subt
 /**
  * Helper to check if any billing integration is active for the organization.
  */
-export function isInvoiceXpressActive(organization: any): boolean {
+export function isInvoiceXpressActive(organization: BillingOrganization | null | undefined): boolean {
   const enabled = organization?.integrations_enabled as Record<string, boolean> | null;
+  const provider = organization?.billing_provider || 'invoicexpress';
+
+  if (provider === 'vendus') {
+    return enabled?.vendus === true && organization?.tem_vendus_api_key === true;
+  }
+  if (provider === 'keyinvoice') {
+    return enabled?.keyinvoice === true && organization?.tem_keyinvoice_password === true;
+  }
   
   // Check if InvoiceXpress is enabled and has credentials
   if (enabled?.invoicexpress !== false && organization?.invoicexpress_account_name && organization?.tem_invoicexpress_api_key) {
-    return true;
-  }
-  
-  // Check if KeyInvoice is enabled and has API key
-  if (enabled?.keyinvoice === true && organization?.tem_keyinvoice_password) {
     return true;
   }
   
@@ -175,7 +191,7 @@ export const isBillingActive = isInvoiceXpressActive;
 /**
  * Get the org tax value from tax_config.
  */
-export function getOrgTaxValue(organization: any): number | undefined {
+export function getOrgTaxValue(organization: BillingOrganization | null | undefined): number | undefined {
   const taxConfig = organization?.tax_config as { tax_value?: number } | null;
   return taxConfig?.tax_value ?? undefined;
 }

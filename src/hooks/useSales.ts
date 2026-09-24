@@ -43,7 +43,7 @@ export function useSales() {
           *,
           lead:leads(name, email, phone, assigned_to),
           proposal:proposals(id, code, proposal_date),
-          client:crm_clients(id, name, code, email, phone, company, nif, address_line1, address_line2, city, postal_code, country)
+          client:crm_clients(id, name, code, email, phone, company, nif, company_nif, billing_target, address_line1, address_line2, city, postal_code, country)
         `)
         .eq("organization_id", organization.id)
         .order("created_at", { ascending: false });
@@ -264,6 +264,7 @@ export function useCreateSale() {
       client_id?: string;
       status?: SaleStatus;
       total_value: number;
+      gross_value?: number;
       subtotal?: number;
       discount?: number;
       payment_method?: PaymentMethod;
@@ -315,6 +316,7 @@ export function useCreateSale() {
           lead_id: data.lead_id || null,
           client_id: data.client_id || null,
           total_value: data.total_value,
+          gross_value: data.gross_value ?? null,
           subtotal: data.subtotal || data.total_value,
           discount: data.discount || 0,
           payment_method: data.payment_method || null,
@@ -429,6 +431,7 @@ export function useUpdateSale() {
         status?: SaleStatus; 
         notes?: string; 
         total_value?: number;
+        gross_value?: number | null;
         payment_method?: PaymentMethod | null;
         payment_status?: PaymentStatus;
         due_date?: string | null;

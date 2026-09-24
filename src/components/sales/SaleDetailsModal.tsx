@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { Progress } from "@/components/ui/progress";
@@ -83,7 +84,7 @@ import {
 
 /** Radix Select can't hold an empty string as a value. */
 const NO_TELECOM_STATUS = "__none__";
-import { SalePaymentsList } from "./SalePaymentsList";
+import { SalePaymentsList, useSaleFiscalDocuments } from "./SalePaymentsList";
 import { RecurringSalePanel } from "./RecurringSalePanel";
 import { useSalePayments, calculatePaymentSummary } from "@/hooks/useSalePayments";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
@@ -92,6 +93,7 @@ import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
 import { openPdfInNewTab } from "@/lib/download";
 import { useSaleActivationHistory } from "@/hooks/useSaleActivationHistory";
 import { useSaleFieldsSettings } from "@/hooks/useSaleFieldsSettings";
+import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
 
 interface SaleDetailsModalProps {
   sale: SaleWithDetails | null;
@@ -111,6 +113,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const [pendingActivationDate, setPendingActivationDate] = useState("");
 
   const { organization, user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: fiscalDocuments = [], isLoading: fiscalDocumentsLoading } = useSaleFiscalDocuments(organization?.id, sale?.id);
   const { isAdmin } = usePermissions();
   const { data: orgData } = useOrganization();
   const salesSettings = (orgData?.sales_settings as { lock_delivered_sales?: boolean; lock_fulfilled_sales?: boolean; prevent_payment_deletion?: boolean }) || {};
@@ -148,9 +152,22 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
 
   const { data: salePayments = [] } = useSalePayments(sale?.id);
   const hasPaidPayments = salePayments.some(p => p.status === 'paid');
-  const paymentSummary = calculatePaymentSummary(salePayments, sale?.total_value || 0);
+  const paymentObligation = sale?.gross_value ?? sale?.total_value ?? 0;
+  const paymentSummary = calculatePaymentSummary(salePayments, paymentObligation);
 
   const hasInvoiceXpress = checkIxActive(organization);
+  const billingCompany = sale?.client?.billing_target === 'company';
+  const billingName = billingCompany ? sale?.client?.company : sale?.client?.name;
+  const billingNif = billingCompany ? sale?.client?.company_nif : sale?.client?.nif;
+  const saleDocumentType = sale?.invoicexpress_type === "FR" ? "invoice_receipt" : "invoice";
+  const saleDocumentCandidates = fiscalDocuments.filter((document) =>
+    document.payment_id == null
+    && document.document_type === saleDocumentType
+    && document.invoicexpress_id === sale?.invoicexpress_id);
+  const saleFiscalDocument = saleDocumentCandidates.find((document) => document.reference === sale?.invoice_reference)
+    || (saleDocumentCandidates.length === 1 ? saleDocumentCandidates[0] : null);
+  const supportsInvoiceXpressActions = (organization?.billing_provider ?? "invoicexpress") === "invoicexpress"
+    && saleFiscalDocument?.provider === "invoicexpress";
   const orgTaxValue = getOrgTaxValue(organization);
 
   // VAT calculation for display
@@ -403,7 +420,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                   {hasInvoiceXpress && (
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-primary/10">
                       <span className="text-xs text-muted-foreground">IVA: {formatCurrency(vatCalc.totalVat)}</span>
-                      <span className="text-sm font-semibold">c/ IVA: {formatCurrency(vatCalc.totalWithVat)}</span>
+                      <span className="text-sm font-semibold">c/ IVA: {formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)}</span>
                     </div>
                   )}
                 </div>
@@ -1026,7 +1043,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         <SalePaymentsList
                           saleId={sale.id}
                           organizationId={organization.id}
-                          saleTotal={sale.total_value}
+                          saleTotal={paymentObligation}
                           readonly={false}
                           hasInvoiceXpress={hasInvoiceXpress}
                           invoicexpressId={sale.invoicexpress_id}
@@ -1034,8 +1051,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           invoiceReference={sale.invoice_reference}
                           invoiceQrCodeUrl={(sale as any).qr_code_url}
                           invoicePdfUrl={(sale as any).invoice_pdf_url}
-                          clientNif={sale.client?.nif}
-                          clientName={sale.client?.name || sale.lead?.name}
+                          clientNif={billingNif}
+                          clientName={billingName || sale.lead?.name}
                           clientEmail={sale.client?.email || sale.lead?.email}
                           taxConfig={organization?.tax_config as { tax_value?: number; tax_exemption_reason?: string } | null}
                           creditNoteId={sale.credit_note_id}
@@ -1061,7 +1078,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         {hasInvoiceXpress && (
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-primary/10">
                             <span className="text-xs text-muted-foreground">IVA: {formatCurrency(vatCalc.totalVat)}</span>
-                            <span className="text-sm font-semibold">c/ IVA: {formatCurrency(vatCalc.totalWithVat)}</span>
+                            <span className="text-sm font-semibold">c/ IVA: {formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)}</span>
                           </div>
                         )}
                       </div>
@@ -1200,11 +1217,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           <div className="p-4 border-t border-border/50 shrink-0">
             <div className="flex gap-3 max-w-6xl mx-auto">
               {(() => {
-                const canEmit = hasInvoiceXpress && !sale.invoicexpress_id && !!sale.client?.nif && !sale.credit_note_id;
+                const canEmit = hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && !sale.credit_note_id;
                 if (canEmit) {
-                  const allPaid = salePayments.length > 0 && salePayments.every(p => p.status === 'paid');
-                  const mode = allPaid ? "invoice_receipt" as const : "invoice" as const;
-                  const emitLabel = allPaid ? "Emitir Fatura-Recibo" : "Emitir Fatura";
+                  const paidInFull = isSalePaidInFull(paymentObligation, salePayments);
+                  const mode = paidInFull ? "invoice_receipt" as const : "invoice" as const;
+                  const emitLabel = paidInFull ? "Emitir Fatura-Recibo" : "Emitir Fatura";
                   return (
                     <>
                       <Button
@@ -1221,7 +1238,9 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         disabled={issueInvoice.isPending || issueInvoiceReceipt.isPending}
                         onClick={() => {
                           if (mode === 'invoice_receipt') {
-                            issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '' });
+                            issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '' }, {
+                              onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", organization?.id, "sale", sale.id] }),
+                            });
                           } else {
                             issueInvoice.mutate({ saleId: sale.id, organizationId: organization?.id || '' });
                           }
@@ -1239,7 +1258,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                 }
 
                 // Post-emission actions
-                const hasInvoice = hasInvoiceXpress && !!sale.invoicexpress_id;
+                const hasInvoice = !!sale.invoicexpress_id;
                 if (hasInvoice) {
                   return (
                     <>
@@ -1253,7 +1272,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           Ver PDF
                         </Button>
                       )}
-                      {(sale.client?.email || sale.lead?.email) && (
+                      {supportsInvoiceXpressActions && (sale.client?.email || sale.lead?.email) && (
                         <Button
                           variant="outline"
                           className="flex-1"
@@ -1266,12 +1285,13 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       <Button
                         variant="outline"
                         className="flex-1"
+                        disabled={fiscalDocumentsLoading || (organization?.billing_provider === 'vendus' && !saleFiscalDocument)}
                         onClick={() => setInvoiceDetailsModal(true)}
                       >
                         <Info className="h-4 w-4 mr-2" />
                         Detalhes
                       </Button>
-                      {!sale.credit_note_id && (
+                      {supportsInvoiceXpressActions && !sale.credit_note_id && (
                         <Button
                           variant="destructive"
                           className="flex-1"
@@ -1362,17 +1382,19 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           mode={draftMode}
           onConfirm={(obs) => {
             if (draftMode === 'invoice_receipt') {
-              issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '', observations: obs });
+              issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '', observations: obs }, {
+                onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", organization?.id, "sale", sale.id] }),
+              });
             } else {
               issueInvoice.mutate({ saleId: sale.id, organizationId: organization?.id || '', observations: obs });
             }
           }}
           isLoading={issueInvoice.isPending || issueInvoiceReceipt.isPending}
-          clientName={sale.client?.name || sale.lead?.name || ''}
-          clientNif={sale.client?.nif || ''}
+          clientName={billingName || sale.lead?.name || ''}
+          clientNif={billingNif || ''}
           amount={sale.total_value}
           paymentDate={sale.sale_date}
-          saleTotal={sale.total_value}
+          saleTotal={paymentObligation}
           saleItems={saleItems.map((item: any) => ({
             name: item.name,
             quantity: Number(item.quantity),
@@ -1390,7 +1412,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       {/* Post-emission modals */}
       {sale.invoicexpress_id && organization && (
         <>
-          <SendInvoiceEmailModal
+          {supportsInvoiceXpressActions && <SendInvoiceEmailModal
             open={invoiceEmailModal}
             onOpenChange={setInvoiceEmailModal}
             documentId={sale.invoicexpress_id}
@@ -1398,16 +1420,18 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             organizationId={organization.id}
             reference={sale.invoice_reference || `${sale.invoicexpress_type || 'FT'} #${sale.invoicexpress_id}`}
             clientEmail={sale.client?.email || sale.lead?.email}
-          />
+          />}
           <InvoiceDetailsModal
             open={invoiceDetailsModal}
             onOpenChange={setInvoiceDetailsModal}
             documentId={sale.invoicexpress_id}
+            invoiceId={saleFiscalDocument?.id}
+            provider={saleFiscalDocument?.provider}
             documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
             organizationId={organization.id}
             saleId={sale.id}
           />
-          <CreateCreditNoteModal
+          {supportsInvoiceXpressActions && <CreateCreditNoteModal
             open={invoiceCreditNoteModal}
             onOpenChange={setInvoiceCreditNoteModal}
             organizationId={organization.id}
@@ -1415,7 +1439,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             documentId={sale.invoicexpress_id}
             documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
             documentReference={sale.invoice_reference || `${sale.invoicexpress_type || 'FT'} #${sale.invoicexpress_id}`}
-          />
+          />}
         </>
       )}
     </>

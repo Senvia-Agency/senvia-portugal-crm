@@ -6,7 +6,7 @@
 
 | Table | Purpose |
 |-------|---------|
-| `organizations` | Tenant root. Holds plan, niche, settings (sales_settings, form_settings, tax_config, integrations_enabled), InvoiceXpress/WhatsApp credentials. |
+| `organizations` | Tenant root. Holds plan, niche, settings (sales_settings, form_settings, tax_config, integrations_enabled), fiscal-provider and WhatsApp credentials. |
 | `profiles` | User profile. Links to `organization_id` (primary org). Has `full_name`, `avatar_url`. |
 | `organization_members` | Many-to-many: users ↔ orgs. Holds `role` (admin/member), `commission_rate`, `is_active`. |
 
@@ -41,10 +41,115 @@ Telecom commission timing: `operators.commission_payment_month_offset` configure
 | `expenses` | Expense records. Has `category_id`, `is_recurring`, `next_recurrence_date`, `bank_account_id`. |
 | `expense_categories` | Org-level categories with `name`, `color`. |
 | `bank_accounts` | Bank accounts for expense tracking. |
-| `invoices` | InvoiceXpress synced invoices. |
+| `invoices` | Fiscal documents from InvoiceXpress, KeyInvoice or Vendus (after the local provider migrations are applied). |
 | `credit_notes` | InvoiceXpress synced credit notes. |
 | `stripe_commission_records` | Commission tracking for recurring Stripe payments. Fields: `sale_id`, `user_id` (salesperson), `client_org_id`, `amount`, `commission_rate`, `commission_amount`, `stripe_invoice_id`, `plan`, `status` (pending/paid). |
 | `internal_requests` | Finance requests (advances, reimbursements). |
+
+### Vendus fiscal provider (local migration 20260924130000)
+
+`organizations.vendus_api_key` stores the API credential for server-side use.
+The generated `tem_vendus_api_key` flag is readable by the browser, while the
+key itself is excluded from its column-level SELECT grants. The optional
+positive IDs `vendus_register_id` and `vendus_payment_method_id` select the
+default register and payment method used to issue documents. Both IDs are
+non-secret and readable subject to organization RLS. The existing `invoices`
+ledger accepts `provider = 'vendus'`; its provider identity constraint and
+unique provider/type/series/number index apply without a separate table. A
+partial unique index allows at most one active Vendus RG per payment. Apply
+this migration after the local KeyInvoice fiscal-ledger migration. The
+service-role-only `reserve_manual_vendus_receipt` RPC locks the source FT,
+checks the confirmed payment and remaining invoice value, and reserves each RG
+before its Vendus API request.
+
+### Recurring KeyInvoice fiscal ledger (local migration 20260924120000)
+
+This migration is prepared locally and must be reviewed/applied before the
+feature is enabled. It adds no table: `sale_recurring_cycles` is the commercial
+schedule and `invoices` is both the durable fiscal outbox and immutable document
+ledger.
+
+- `sale_recurrences` selects `fiscal_mode` (`manual` or `automatic`) and the
+  document policy. `invoice_then_receipt` queues an FT when the cycle becomes
+  due and one RC for each confirmed payment. `invoice_receipt_when_paid` queues
+  one FR only after paid payments cover the cycle. Existing recurrences remain
+  manual. Email delivery is opt-in through `fiscal_auto_email` and
+  `fiscal_email_config`. Automatic credit notes are reserved and rejected until
+  the KeyInvoice demo contract is validated.
+- `organizations.keyinvoice_series_config` is an object keyed by `invoice`,
+  `invoice_receipt`, `receipt`, and `credit_note`. Each value contains the exact
+  KeyInvoice `provider_document_type_code` and `series`; optional validation
+  metadata may be stored there, but never credentials. The series must already
+  exist in KeyInvoice and be communicated to AT. SENVIA never constructs an
+  ATCUD: `invoices.provider_atcud` only stores the value returned by KeyInvoice.
+  FT uses KeyInvoice document type `4` and FR uses `34`; configuration and queue
+  RPCs reject different values.
+- `products` stores the exact `keyinvoice_product_id`, `price_includes_vat`, and
+  `retention_rate`. New `sale_items` copy editable fiscal defaults (`tax_value`,
+  exemption, VAT-in-price, retention, discount); historical rows are not
+  rewritten. A recurring snapshot uses recurring product rows only. If a legacy
+  sale has no recurring row, it creates an explicit synthetic recurrence line
+  instead of billing one-time products again.
+- Each snapshot freezes tenant/sale/cycle/payment IDs, Lisbon fiscal date,
+  client identity/address, organization tax config, series/email config, totals,
+  and line values. `sourceLineTotal` values sum exactly to the cycle amount;
+  `billedUnitPrice` already allocates the discount and removes IVA once from the
+  gross amount charged before KeyInvoice reapplies the frozen tax rate.
+  Workers send `billedUnitPrice` and do not reapply discount or IVA. The snapshot
+  cannot change after a job is claimed; provider identity and document links are
+  immutable after assignment.
+- `invoices` identifies a fiscal document by
+  `(organization_id, provider, provider_document_type_code, provider_series,
+  provider_document_number)`. Before issuance, the unique
+  `fiscal_idempotency_key` protects retries. `invoicexpress_id` is nullable and
+  remains only a provider/legacy numeric ID. A cycle has at most one FT/FR and
+  one RC per payment. NCs require an issued source document and cannot exceed
+  its remaining value.
+- Issuance states are `pending`, `processing`, `issued`, `retry`, `failed`,
+  `reconciliation_required`, `reconciling`, `manual_review`, `cancelled`, and
+  `void` (`legacy` is retained for imported rows). Email states are
+  `not_requested`, `pending`, `processing`, `sent`, `delivered`, `bounced`,
+  `blocked`, `retry`, `failed`, and `suppressed`. Claims use `FOR UPDATE SKIP
+  LOCKED`, attempt counters, UUID claim tokens, and explicit retry timestamps.
+  A normal completion does not mark a row reconciled; only a completion claimed
+  from `reconciling` records `reconciled_at`.
+- The issue claim intentionally includes snapshots without an existing provider
+  product mapping. The worker atomically owns the job, resolves/creates the exact
+  product from the frozen code and values, and stores the resolved map in
+  `raw_data`. This avoids unclaimed mapping jobs getting stuck silently. Invalid
+  mappings go to manual review, transient failures retry, and ambiguous remote
+  responses require reconciliation.
+- `sale_payments` supports several partial payments per cycle and records Stripe
+  payment/charge IDs plus reversal metadata. Net paid is
+  `sum(max(amount - reversed_amount, 0))` for confirmed payments. A refund or
+  chargeback does not reopen commercial debt or emit an NC automatically; it
+  moves fiscal work to manual review. An RC already accepted remotely can still
+  complete from the immutable pre-reversal snapshot so the local ledger never
+  hides a real fiscal document.
+- Authenticated configuration RPCs require MFA and the finance invoice-issue
+  permission. Queue claims and completion/failure/reconciliation/email RPCs are
+  service-role only. Direct authenticated writes to the fiscal ledger are
+  revoked. Automatic mode additionally requires KeyInvoice to be the active and
+  enabled provider with a configured credential. Switching to manual mode leaves
+  a queued job dormant and preserves its idempotency key/snapshot; switching it
+  back on resumes the same job. The worker endpoint uses actions `issue`, `email`, and `reconcile`;
+  issue/email run every five minutes and reconciliation is scheduled at 04:50
+  UTC (the worker must interpret fiscal dates in `Europe/Lisbon`).
+
+The main service RPCs are:
+
+```text
+schedule_due_recurring_fiscal_documents(limit) -> integer
+claim_recurring_fiscal_documents(limit, worker_uuid) -> setof invoices
+complete_recurring_fiscal_document(invoice, claim, provider identity, raw/pdf) -> invoice
+fail_recurring_fiscal_document(invoice, claim, error, retry|reconciliation_required|manual_review, retry_at) -> invoice
+claim_fiscal_reconciliation(limit, worker_uuid) -> setof invoices
+mark_fiscal_reconciliation_unresolved(invoice, claim, error) -> invoice
+claim_fiscal_email_deliveries(limit, worker_uuid) -> setof invoices
+complete_fiscal_email_delivery(invoice, claim, message_id) -> invoice
+fail_fiscal_email_delivery(invoice, claim, error, retryable, retry_at) -> invoice
+record_fiscal_email_event(message_id, event, event_at, payload) -> invoice
+```
 
 ### Marketing
 

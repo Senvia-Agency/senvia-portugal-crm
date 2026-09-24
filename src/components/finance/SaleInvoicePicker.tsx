@@ -17,6 +17,7 @@ import { getOrgTaxValue } from "@/components/sales/SaleFiscalInfo";
 import { InvoiceDraftModal } from "@/components/sales/InvoiceDraftModal";
 import { SALE_STATUS_LABELS } from "@/types/sales";
 import type { SaleWithDetails } from "@/types/sales";
+import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
 
 interface Props {
   open: boolean;
@@ -32,8 +33,9 @@ function EmitInvoiceForSale({ sale, onClose }: { sale: SaleWithDetails; onClose:
   const issueInvoice = useIssueInvoice();
   const issueInvoiceReceipt = useIssueInvoiceReceipt();
 
-  const allPaid = payments.length > 0 && payments.every((p) => p.status === "paid");
-  const mode = allPaid ? "invoice_receipt" : "invoice";
+  const paymentObligation = sale.gross_value ?? sale.total_value;
+  const paidInFull = isSalePaidInFull(paymentObligation, payments);
+  const mode = paidInFull ? "invoice_receipt" : "invoice";
   const orgTaxValue = getOrgTaxValue(organization);
 
   return (
@@ -49,14 +51,14 @@ function EmitInvoiceForSale({ sale, onClose }: { sale: SaleWithDetails; onClose:
       }}
       clientName={sale.client?.name || sale.lead?.name || ""}
       clientNif={sale.client?.nif || ""}
-      amount={sale.total_value}
+      amount={paymentObligation}
       paymentDate={sale.sale_date}
-      saleTotal={sale.total_value}
+      saleTotal={paymentObligation}
       saleItems={items.map((it: any) => ({
         name: it.name,
         quantity: Number(it.quantity),
         unit_price: Number(it.unit_price),
-        tax_value: it.product?.tax_value ?? null,
+        tax_value: it.tax_value ?? it.product?.tax_value ?? null,
       }))}
       payments={payments}
       taxConfig={{
@@ -130,7 +132,7 @@ export function SaleInvoicePicker({ open, onOpenChange }: Props) {
                     <Badge variant="outline" className="shrink-0 text-[10px]">{s.code}</Badge>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {SALE_STATUS_LABELS[s.status]} · {formatCurrency(s.total_value)}
+                    {SALE_STATUS_LABELS[s.status]} · {formatCurrency(s.gross_value ?? s.total_value)}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

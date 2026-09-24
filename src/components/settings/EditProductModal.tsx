@@ -8,7 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { RefreshCw } from 'lucide-react';
 import { useUpdateProduct } from '@/hooks/useProducts';
 import { useOrganization } from '@/hooks/useOrganization';
+import { effectiveProductTaxRate, effectiveTaxExemptionReason, type OrganizationTaxConfig } from '@/lib/product-fiscal';
 import { ProductImageGallery } from './ProductImageGallery';
+import { ProductFiscalFields } from './ProductFiscalFields';
 import { ProductStripeSync } from './ProductStripeSync';
 import type { Product } from '@/types/proposals';
 
@@ -34,6 +36,16 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
   const [isRecurring, setIsRecurring] = useState(product.is_recurring);
   const [commissionValue, setCommissionValue] = useState(product.commission_value?.toString() || '');
   const [commissionRenewalValue, setCommissionRenewalValue] = useState(product.commission_renewal_value?.toString() ?? '0');
+  const [taxValue, setTaxValue] = useState<number | null>(product.tax_value ?? null);
+  const [taxExemptionReason, setTaxExemptionReason] = useState(product.tax_exemption_reason ?? '');
+  const [priceIncludesVat, setPriceIncludesVat] = useState(product.price_includes_vat ?? false);
+  const [retentionRate, setRetentionRate] = useState(String(product.retention_rate ?? 0));
+  const organizationTaxConfig = org?.tax_config as OrganizationTaxConfig | null | undefined;
+  const exemptionMissing = effectiveProductTaxRate(taxValue, organizationTaxConfig) === 0
+    && !effectiveTaxExemptionReason(taxExemptionReason, organizationTaxConfig);
+  const retentionInvalid = !Number.isFinite(Number(retentionRate))
+    || Number(retentionRate) < 0
+    || Number(retentionRate) > 100;
 
   useEffect(() => {
     setName(product.name);
@@ -43,11 +55,15 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
     setIsRecurring(product.is_recurring);
     setCommissionValue(product.commission_value?.toString() || '');
     setCommissionRenewalValue(product.commission_renewal_value?.toString() ?? '0');
+    setTaxValue(product.tax_value ?? null);
+    setTaxExemptionReason(product.tax_exemption_reason ?? '');
+    setPriceIncludesVat(product.price_includes_vat ?? false);
+    setRetentionRate(String(product.retention_rate ?? 0));
   }, [product]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || exemptionMissing || retentionInvalid) return;
 
     updateProduct.mutate({
       id: product.id,
@@ -56,8 +72,10 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
       price: price ? parseFloat(price) : null,
       is_active: isActive,
       is_recurring: isRecurring,
-      tax_value: null,
-      tax_exemption_reason: null,
+      tax_value: taxValue,
+      tax_exemption_reason: taxExemptionReason.trim() || null,
+      price_includes_vat: priceIncludesVat,
+      retention_rate: Number(retentionRate) || 0,
       invoicexpress_id: product.invoicexpress_id,
       commission_value: commissionValue ? parseFloat(commissionValue) : null,
       commission_renewal_value: commissionRenewalValue !== '' ? parseFloat(commissionRenewalValue) : 0,
@@ -92,6 +110,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
               rows={3}
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="edit-price">Preço Base (€)</Label>
             <Input
@@ -104,6 +123,19 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
               placeholder="0.00"
             />
           </div>
+
+          <ProductFiscalFields
+            price={price}
+            taxValue={taxValue}
+            onTaxValueChange={setTaxValue}
+            taxExemptionReason={taxExemptionReason}
+            onTaxExemptionReasonChange={setTaxExemptionReason}
+            priceIncludesVat={priceIncludesVat}
+            onPriceIncludesVatChange={setPriceIncludesVat}
+            retentionRate={retentionRate}
+            onRetentionRateChange={setRetentionRate}
+            organizationTaxConfig={organizationTaxConfig}
+          />
 
           {showCommission && (
           <div className="rounded-lg border bg-primary/5 p-4 space-y-3">
@@ -186,7 +218,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={updateProduct.isPending || !name.trim()}>
+            <Button type="submit" disabled={updateProduct.isPending || !name.trim() || exemptionMissing || retentionInvalid}>
               {updateProduct.isPending ? 'A guardar...' : 'Guardar'}
             </Button>
           </DialogFooter>

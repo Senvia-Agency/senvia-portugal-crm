@@ -214,6 +214,11 @@ verify_jwt = false
 [functions.generate-recurring-sales]
 verify_jwt = false
 
+# Fila fiscal KeyInvoice: emissão, envio do PDF e reconciliação. Todas as ações
+# validam x-cron-secret contra o Vault dentro da própria função.
+[functions.keyinvoice-fiscal-worker]
+verify_jwt = false
+
 [functions.reconcile-connected-stripe]
 verify_jwt = false
 
