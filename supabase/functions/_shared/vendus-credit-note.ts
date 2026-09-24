@@ -1,5 +1,5 @@
 import { lisbonFiscalDate } from './keyinvoice.ts'
-import { getVendusPdf, parseVendusIdentity, selectNormalVendusRegister, VendusError, vendusRequest } from './vendus.ts'
+import { getVendusPdf, parseVendusIdentity, VendusError, vendusRequest } from './vendus.ts'
 
 const cents = (value: unknown) => Math.round((Number(value) + Number.EPSILON) * 100) / 100
 
@@ -119,7 +119,6 @@ export async function issueVendusFullCreditNote(db: any, org: any, input: Vendus
   if (cents(items.reduce((sum, item) => sum + Number(item.gross_price) * Number(item.qty), 0)) !== expectedTotal) {
     throw new VendusError('As linhas da fatura não somam o valor original. Revise a nota na Vendus.', 409, 'original_items_total_mismatch')
   }
-  const registerId = selectNormalVendusRegister(await vendusRequest<unknown>(apiKey, '/registers/'))
   const fiscalDate = lisbonFiscalDate()
   const claimToken = crypto.randomUUID()
   const snapshot = { schemaVersion: 1, fiscalDate, reason: reason.trim(), originalInvoiceId: original.id,
@@ -147,7 +146,7 @@ export async function issueVendusFullCreditNote(db: any, org: any, input: Vendus
   }).select('id').single()
   if (jobError || !job) throw new VendusError('Não foi possível reservar a nota de crédito. Nenhum pedido foi enviado à Vendus.', 409, 'credit_reservation_failed')
 
-  const payload = { type: 'NC', mode: 'normal', register_id: registerId, date: fiscalDate,
+  const payload = { type: 'NC', mode: 'normal', date: fiscalDate,
     notes: reason.trim(), related_document_id: remoteId, tx_id: externalReference,
     external_reference: externalReference,
     client: { id: clientId }, items }

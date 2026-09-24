@@ -9,25 +9,6 @@ export class VendusError extends Error {
   }
 }
 
-/** A real document must use a register already configured for normal mode. */
-export function selectNormalVendusRegister(value: unknown): number {
-  if (!Array.isArray(value)) {
-    throw new VendusError('A Vendus devolveu uma lista de caixas inválida.', 502, 'invalid_registers')
-  }
-  const normal = value.filter((register) => register && typeof register === 'object'
-    && register.mode === 'normal' && register.situation !== 'off'
-    && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
-  if (normal.length === 0) {
-    throw new VendusError('A caixa da Vendus está em Formação/Testes. Em Vendus → Configuração → Definições → Lojas e Caixas, muda o Modo de Funcionamento para Normal.', 409, 'normal_register_missing')
-  }
-  const api = normal.filter((register) => register.type === 'api')
-  const candidates = api.length > 0 ? api : normal
-  if (candidates.length !== 1) {
-    throw new VendusError('A Vendus devolveu várias caixas possíveis. Defina uma caixa API única na Vendus antes de emitir.', 409, 'ambiguous_register')
-  }
-  return Number(candidates[0].id)
-}
-
 function vendusUrl(path: string): string {
   if (!path.startsWith('/') || path.startsWith('//')) {
     throw new VendusError('Caminho Vendus inválido', 500, 'invalid_api_path')

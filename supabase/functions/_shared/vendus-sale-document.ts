@@ -1,5 +1,5 @@
 import { lisbonFiscalDate, prepareKeyInvoiceSaleLines } from './keyinvoice.ts'
-import { getVendusPdf, parseVendusIdentity, selectNormalVendusRegister, VendusError, vendusRequest } from './vendus.ts'
+import { getVendusPdf, parseVendusIdentity, VendusError, vendusRequest } from './vendus.ts'
 import { allocateVendusPayments, getVendusPaymentMethods, type SalePaymentForVendus } from './vendus-payment-methods.ts'
 import { saleBillingRecipient } from './sale-billing-recipient.ts'
 
@@ -284,14 +284,13 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   if (calculatedTotal !== expectedTotal) {
     throw new VendusError('A soma fiscal dos artigos não coincide com o total cobrado na venda.', 422, 'total_mismatch')
   }
-  const registerId = selectNormalVendusRegister(await vendusRequest<unknown>(apiKey, '/registers/'))
   const vendusPayments = kind === 'invoice_receipt'
     ? allocateVendusPayments(paidPayments, await getVendusPaymentMethods(apiKey), expectedTotal)
     : []
   const payload: Record<string, unknown> = {
     type,
+    // Vendus chooses its default register when omitted; the API only requires items for an FT.
     mode: 'normal',
-    register_id: registerId,
     date: lisbonFiscalDate(),
     tx_id: externalReference,
     external_reference: externalReference,
@@ -330,7 +329,8 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     }
     if (!recovered) {
       if (!recoveryFailed && error instanceof VendusError
-        && ['invalid_document', 'rate_limited'].includes(error.code)) throw error
+        && error.status >= 400 && error.status < 500
+        && error.status !== 408 && error.status !== 409) throw error
       throw new VendusError('Não foi possível confirmar o resultado na Vendus. Consulte os documentos antes de repetir.', 409, 'remote_outcome_uncertain')
     }
     document = recovered
@@ -339,8 +339,7 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   if (identity.type !== type) {
     throw new VendusError('A referência da venda pertence a outro tipo de documento Vendus.', 409, 'document_type_conflict')
   }
-  // A test-mode POS can accept a request with mode=normal. Confirm that the
-  // resulting document is retrievable in normal mode before recording it as fiscal.
+  // Confirm the document is retrievable in normal mode before recording it as fiscal.
   let verified: Record<string, any>
   try {
     verified = await vendusRequest<Record<string, any>>(apiKey, `/documents/${identity.id}/?mode=normal`)
