@@ -11,6 +11,8 @@ import {
   safeKeyInvoiceError,
   voidKeyInvoiceDocument,
 } from '../_shared/keyinvoice.ts'
+import { issueVendusFullCreditNote } from '../_shared/vendus-credit-note.ts'
+import { VendusError } from '../_shared/vendus.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,7 +99,7 @@ Deno.serve(async (req) => {
     // Fetch org credentials
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
+      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, vendus_api_key')
       .eq('id', organization_id)
       .single()
 
@@ -109,10 +111,11 @@ Deno.serve(async (req) => {
     }
 
     const billingProvider = org?.billing_provider || 'invoicexpress'
+    let vendusInvoiceId: string | null = null
     if (invoice_id) {
       const { data: selectedInvoice, error: selectedInvoiceError } = await supabase
         .from('invoices')
-        .select('provider')
+        .select('id,provider')
         .eq('id', invoice_id)
         .eq('organization_id', organization_id)
         .maybeSingle()
@@ -123,9 +126,7 @@ Deno.serve(async (req) => {
         })
       }
       if (selectedInvoice.provider === 'vendus') {
-        return new Response(JSON.stringify({ error: 'A nota de crédito para documentos Vendus ainda não é suportada.', code: 'vendus_operation_unsupported' }), {
-          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        vendusInvoiceId = selectedInvoice.id
       }
     } else if (Number.isSafeInteger(Number(original_document_id)) && Number(original_document_id) > 0) {
       const { data: vendusDocument, error: vendusLookupError } = await supabase
@@ -139,14 +140,32 @@ Deno.serve(async (req) => {
         .maybeSingle()
       if (vendusLookupError) throw vendusLookupError
       if (vendusDocument) {
-        return new Response(JSON.stringify({ error: 'Este número também pertence a um documento Vendus. Seleciona o documento pelo identificador interno.', code: 'ambiguous_document_identity' }), {
+        if (billingProvider === 'vendus') vendusInvoiceId = vendusDocument.id
+        else return new Response(JSON.stringify({ error: 'Este número também pertence a um documento Vendus. Seleciona o documento pelo identificador interno.', code: 'ambiguous_document_identity' }), {
           status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
     }
-    if (billingProvider === 'vendus') {
-      return new Response(JSON.stringify({ error: 'A nota de crédito via Vendus ainda não é suportada.', code: 'vendus_operation_unsupported' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (vendusInvoiceId || billingProvider === 'vendus') {
+      if ((org.integrations_enabled as Record<string, boolean> | null)?.vendus === false) {
+        return new Response(JSON.stringify({ error: 'A integração Vendus está desativada.', code: 'vendus_disabled' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (!vendusInvoiceId) return new Response(JSON.stringify({ error: 'Fatura Vendus original não encontrada.', code: 'document_not_found' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+      if (Array.isArray(items) && items.length > 0) return new Response(JSON.stringify({
+        error: 'A nota de crédito parcial exige revisão na Vendus. Esta ação credita a fatura integralmente.',
+        code: 'partial_credit_note_manual_review',
+      }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const result = await issueVendusFullCreditNote(supabase, org, {
+        organizationId: organization_id, invoiceId: vendusInvoiceId, reason,
+      })
+      return new Response(JSON.stringify({ success: true, already_issued: result.alreadyIssued,
+        credit_note_id: result.id, credit_note_reference: result.reference,
+        invoice_id: result.invoiceId, pdf_path: result.pdfPath }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
     const integrationsEnabled = (org?.integrations_enabled as Record<string, boolean> | null) || {}
@@ -650,6 +669,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
+    if (err instanceof VendusError) {
+      console.error('[create-credit-note] vendus', err.code)
+      return new Response(JSON.stringify({ error: err.message, code: err.code }), {
+        status: err.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     const safe = safeKeyInvoiceError(err)
     console.error('[create-credit-note]', safe.code)
     return new Response(JSON.stringify({

@@ -8,21 +8,22 @@ export class VendusError extends Error {
   }
 }
 
-/** Pick the Vendus register, never a training register for a real invoice. */
+/** Pick one active register. Document requests explicitly override its mode. */
 export function selectNormalVendusRegister(value: unknown): number {
   if (!Array.isArray(value)) {
     throw new VendusError('A Vendus devolveu uma lista de caixas inválida.', 502, 'invalid_registers')
   }
-  const normal = value.filter((register) => register && typeof register === 'object'
-    && register.mode === 'normal' && register.situation !== 'off'
+  const available = value.filter((register) => register && typeof register === 'object'
+    && register.situation !== 'off'
     && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
-  if (normal.length === 0) {
-    throw new VendusError('A conta Vendus não tem uma caixa em modo Normal. Ative-a na Vendus antes de emitir uma fatura real.', 409, 'normal_register_missing')
+  if (available.length === 0) {
+    throw new VendusError('A conta Vendus não tem uma caixa ativa para emitir documentos.', 409, 'register_missing')
   }
-  const api = normal.filter((register) => register.type === 'api')
-  const candidates = api.length > 0 ? api : normal
+  const api = available.filter((register) => register.type === 'api')
+  const normal = (api.length > 0 ? api : available).filter((register) => register.mode === 'normal')
+  const candidates = normal.length > 0 ? normal : api.length > 0 ? api : available
   if (candidates.length !== 1) {
-    throw new VendusError('A Vendus devolveu várias caixas normais possíveis. Defina uma caixa API única na Vendus antes de emitir.', 409, 'ambiguous_register')
+    throw new VendusError('A Vendus devolveu várias caixas possíveis. Defina uma caixa API única na Vendus antes de emitir.', 409, 'ambiguous_register')
   }
   return Number(candidates[0].id)
 }
@@ -86,7 +87,7 @@ export async function getVendusPdf(apiKey: string, id: number): Promise<Uint8Arr
   if (!Number.isSafeInteger(id) || id <= 0) throw new VendusError('Documento Vendus inválido', 400, 'invalid_document_id')
   let response: Response
   try {
-    response = await fetch(vendusUrl(`/documents/${id}.pdf`), {
+    response = await fetch(vendusUrl(`/documents/${id}.pdf?mode=normal`), {
       headers: apiHeaders(apiKey, { Accept: 'application/pdf' }),
     })
   } catch {
@@ -103,7 +104,7 @@ export async function getVendusPdf(apiKey: string, id: number): Promise<Uint8Arr
 
 export interface VendusIdentity {
   id: number
-  type: 'FT' | 'FR' | 'RG'
+  type: 'FT' | 'FR' | 'RG' | 'NC'
   series: string
   number: string
   reference: string
@@ -115,7 +116,7 @@ export function parseVendusIdentity(document: Record<string, unknown>): VendusId
   const id = Number(document.id)
   const type = String(document.type || '').trim().toUpperCase()
   const reference = String(document.number || '').trim()
-  const match = /^(FT|FR|RG)\s+(.+)\/([^/]+)$/.exec(reference)
+  const match = /^(FT|FR|RG|NC)\s+(.+)\/([^/]+)$/.exec(reference)
   if (!Number.isSafeInteger(id) || id <= 0 || !match || type !== match[1]) {
     throw new VendusError('A Vendus não devolveu a identidade fiscal completa do documento', 502, 'missing_fiscal_identity')
   }

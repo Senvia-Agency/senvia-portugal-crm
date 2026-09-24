@@ -1,12 +1,10 @@
 import { assertEquals, assertThrows } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 import { selectNormalVendusRegister, VendusError } from './vendus.ts'
 
-Deno.test('real Vendus issuance never selects a training register', () => {
-  const error = assertThrows(() => selectNormalVendusRegister([
+Deno.test('a single training register can be used with an explicit normal document mode', () => {
+  assertEquals(selectNormalVendusRegister([
     { id: 1, type: 'pos', mode: 'tests', situation: 'on' },
-  ]))
-  assertEquals(error instanceof VendusError, true)
-  if (error instanceof VendusError) assertEquals(error.code, 'normal_register_missing')
+  ]), 1)
 })
 
 Deno.test('an active normal API register wins over a POS register', () => {

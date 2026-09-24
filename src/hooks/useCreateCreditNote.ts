@@ -7,6 +7,7 @@ interface CreateCreditNoteParams {
   saleId?: string;
   paymentId?: string;
   originalDocumentId: number;
+  invoiceId?: string;
   originalDocumentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   reason: string;
   items?: Array<{
@@ -32,13 +33,18 @@ export function useCreateCreditNote() {
           sale_id: params.saleId || null,
           payment_id: params.paymentId || null,
           original_document_id: params.originalDocumentId,
+          invoice_id: params.invoiceId || null,
           original_document_type: params.originalDocumentType,
           reason: params.reason,
           items: params.items || null,
         },
       });
 
-      if (res.error) throw new Error(res.error.message || "Erro ao criar nota de crédito");
+      if (res.error) {
+        const context = res.error.context;
+        const payload = context instanceof Response ? await context.json().catch(() => null) : null;
+        throw new Error(payload?.error || res.error.message || "Erro ao criar nota de crédito");
+      }
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
@@ -47,6 +53,8 @@ export function useCreateCreditNote() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["sale-payments"] });
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao criar nota de crédito");

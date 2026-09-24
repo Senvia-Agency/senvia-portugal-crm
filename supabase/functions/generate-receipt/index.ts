@@ -600,8 +600,8 @@ Deno.serve(async (req) => {
           })
         }
 
-        const clientData = sale.client as any
-        const selectedRecipient = saleBillingRecipient(sale)
+        const clientData = Array.isArray(sale.client) ? sale.client[0] : sale.client
+        const selectedRecipient = saleBillingRecipient({ ...sale, client: clientData })
         const sourceClient = (invoiceRecord.raw_data as any)?.snapshot?.client
         const receiptAddress = {
           address: sourceClient?.address ?? selectedRecipient.address,

@@ -174,6 +174,9 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
     || (saleDocumentCandidates.length === 1 ? saleDocumentCandidates[0] : null);
   const supportsInvoiceXpressActions = (organization?.billing_provider ?? "invoicexpress") === "invoicexpress"
     && saleFiscalDocument?.provider === "invoicexpress";
+  const supportsCreditNoteActions = supportsInvoiceXpressActions
+    || (organization?.billing_provider === 'vendus' && saleFiscalDocument?.provider === 'vendus'
+      && saleFiscalDocument.processing_status === 'issued');
   const orgTaxValue = getOrgTaxValue(organization);
 
   // VAT calculation for display
@@ -1308,7 +1311,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         <Info className="h-4 w-4 mr-2" />
                         Detalhes
                       </Button>
-                      {supportsInvoiceXpressActions && !sale.credit_note_id && (
+                      {supportsCreditNoteActions && !sale.credit_note_id && (
                         <Button
                           variant="destructive"
                           className="flex-1"
@@ -1448,12 +1451,13 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             organizationId={organization.id}
             saleId={sale.id}
           />
-          {supportsInvoiceXpressActions && <CreateCreditNoteModal
+          {supportsCreditNoteActions && <CreateCreditNoteModal
             open={invoiceCreditNoteModal}
             onOpenChange={setInvoiceCreditNoteModal}
             organizationId={organization.id}
             saleId={sale.id}
             documentId={sale.invoicexpress_id}
+            invoiceId={saleFiscalDocument?.id}
             documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
             documentReference={sale.invoice_reference || `${sale.invoicexpress_type || 'FT'} #${sale.invoicexpress_id}`}
           />}
