@@ -1,5 +1,6 @@
 import { lisbonFiscalDate, prepareKeyInvoiceSaleLines } from './keyinvoice.ts'
 import { getVendusPdf, parseVendusIdentity, VendusError, vendusRequest } from './vendus.ts'
+import { allocateVendusPayments, getVendusPaymentMethods, type SalePaymentForVendus } from './vendus-payment-methods.ts'
 
 type SaleDocumentKind = 'invoice' | 'invoice_receipt'
 
@@ -137,10 +138,8 @@ async function linkVendusSale(
 export async function issueVendusSaleDocument(db: any, org: any, input: IssueVendusSaleInput) {
   const { organizationId, saleId, kind } = input
   const apiKey = String(org.vendus_api_key || '').trim()
-  const registerId = Number(org.vendus_register_id)
-  const paymentMethodId = Number(org.vendus_payment_method_id)
-  if (!apiKey || (kind === 'invoice_receipt' && (!Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0))) {
-    throw new VendusError('Configure a chave API Vendus e, para faturas-recibo, um método de pagamento.', 400, 'missing_configuration')
+  if (!apiKey) {
+    throw new VendusError('Configure a chave API Vendus antes de emitir.', 400, 'missing_configuration')
   }
   const type = kind === 'invoice' ? 'FT' : 'FR'
   const idempotencyKey = `vendus:sale:${saleId}`
@@ -220,10 +219,13 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     throw new VendusError('O total da venda não é válido.', 422, 'invalid_total')
   }
 
+  let paidPayments: SalePaymentForVendus[] = []
   if (kind === 'invoice_receipt') {
     const { data: payments, error: paymentError } = await db.from('sale_payments')
-      .select('status,amount,reversal_status,reversed_amount').eq('sale_id', saleId)
-      .eq('organization_id', organizationId)
+      .select('id,status,amount,payment_method,payment_date,reversal_status,reversed_amount')
+      .eq('sale_id', saleId).eq('organization_id', organizationId)
+      .is('recurring_cycle_id', null)
+      .order('payment_date', { ascending: true }).order('id', { ascending: true })
     if (paymentError) throw new VendusError('Não foi possível validar os pagamentos', 500, 'payment_lookup_failed')
     const paidNet = (payments || []).reduce((sum: number, payment: any) => {
       if (payment.status !== 'paid') return sum
@@ -237,6 +239,7 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     if (sale.payment_status !== 'paid' || amount(paidNet) + 0.005 < expectedTotal) {
       throw new VendusError('A Fatura-Recibo exige pagamento integral confirmado.', 409, 'not_fully_paid')
     }
+    paidPayments = (payments || []).filter((payment: any) => payment.status === 'paid')
   }
 
   const { data: saleItems, error: itemsError } = await db.from('sale_items')
@@ -270,8 +273,10 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
   if (calculatedTotal !== expectedTotal) {
     throw new VendusError('A soma fiscal dos artigos não coincide com o total cobrado na venda.', 422, 'total_mismatch')
   }
+  const vendusPayments = kind === 'invoice_receipt'
+    ? allocateVendusPayments(paidPayments, await getVendusPaymentMethods(apiKey), expectedTotal)
+    : []
   const payload: Record<string, unknown> = {
-    ...(Number.isSafeInteger(registerId) && registerId > 0 ? { register_id: registerId } : {}),
     type,
     mode: 'normal',
     date: lisbonFiscalDate(),
@@ -290,7 +295,7 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     },
     items,
     ...(input.observations?.trim() ? { notes: input.observations.trim() } : {}),
-    ...(kind === 'invoice_receipt' ? { payments: [{ id: paymentMethodId, amount: expectedTotal }] } : {}),
+    ...(kind === 'invoice_receipt' ? { payments: vendusPayments } : {}),
   }
 
   let document: Record<string, any>
@@ -345,6 +350,7 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     fiscal_idempotency_key: idempotencyKey,
     fiscal_snapshot: { ...prepared.fiscalSnapshot, discount: Number(sale.discount || 0),
       vendusAllocatedDiscount: vendusDiscount,
+      ...(kind === 'invoice_receipt' ? { payments: vendusPayments } : {}),
       client: { name: clientName, nif: clientNif },
       expectedTotal, providerTotal, totalMatches, observations: input.observations || null },
     processing_status: 'manual_review',

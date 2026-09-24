@@ -1,5 +1,5 @@
 // Versão actual do Senvia OS
-export const APP_VERSION = '26.5.2';
+export const APP_VERSION = '26.5.3';
 
 // URL canónica usada APENAS como fallback (links externos/edge functions
 // quando não há `window`). Em runtime, preferimos sempre o host actual

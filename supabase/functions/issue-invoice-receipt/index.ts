@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     // Fetch org credentials
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, keyinvoice_series_config, vendus_api_key, vendus_register_id, vendus_payment_method_id')
+      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, keyinvoice_series_config, vendus_api_key')
       .eq('id', organization_id)
       .single()
 

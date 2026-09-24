@@ -20,6 +20,7 @@ import {
   parseVendusIdentity,
   vendusRequest,
 } from '../_shared/vendus.ts'
+import { getVendusPaymentMethods, resolveVendusPaymentMethod } from '../_shared/vendus-payment-methods.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,9 +30,13 @@ const corsHeaders = {
 const PAYMENT_METHOD_MAP: Record<string, string> = {
   mbway: 'MB',
   transfer: 'TB',
+  transferencia: 'TB',
   cash: 'NU',
   card: 'CC',
+  credit_card: 'CC',
+  debit_card: 'CD',
   check: 'CH',
+  cheque: 'CH',
   other: 'OU',
 }
 
@@ -74,11 +79,8 @@ async function handleVendusReceipt(
   paymentId: string,
 ): Promise<Response> {
   const integrationsEnabled = (org.integrations_enabled as Record<string, boolean> | null) || {}
-  const registerId = Number(org.vendus_register_id)
-  const paymentMethodId = Number(org.vendus_payment_method_id)
-  if (integrationsEnabled.vendus === false || !org.vendus_api_key?.trim()
-      || !Number.isSafeInteger(paymentMethodId) || paymentMethodId <= 0) {
-    return receiptResponse({ error: 'Configure a chave API e um método de pagamento da Vendus antes de emitir recibos.' }, 400)
+  if (integrationsEnabled.vendus === false || !org.vendus_api_key?.trim()) {
+    return receiptResponse({ error: 'Configure a chave API Vendus antes de emitir recibos.' }, 400)
   }
 
   const amount = Number(payment.amount)
@@ -114,6 +116,24 @@ async function handleVendusReceipt(
     return receiptResponse({ error: 'A Fatura Vendus não tem uma referência fiscal completa.' }, 409)
   }
 
+  // A retry must be able to reconcile an already issued receipt even when
+  // payment methods changed in Vendus after the original fiscal POST.
+  const { data: priorReceipt, error: priorError } = await supabase.from('invoices')
+    .select('id').eq('organization_id', organizationId)
+    .eq('fiscal_idempotency_key', `vendus:RG:${paymentId}`).maybeSingle()
+  if (priorError) return receiptResponse({ error: 'Não foi possível verificar recibos anteriores.' }, 500)
+  let paymentMethodId: number | null = null
+  if (!priorReceipt) {
+    try {
+      const methods = await getVendusPaymentMethods(org.vendus_api_key)
+      paymentMethodId = resolveVendusPaymentMethod(payment.payment_method, methods)
+    } catch (error) {
+      const safe = error instanceof VendusError
+        ? error : new VendusError('Não foi possível obter o método de pagamento na Vendus.', 502, 'payment_method_lookup_failed')
+      return receiptResponse({ error: safe.message, code: safe.code }, safe.status)
+    }
+  }
+
   const txId = `senvia-rg-${paymentId}`
   const externalReference = `senvia-payment-${paymentId}`
   const fiscalDate = lisbonFiscalDate(new Date())
@@ -144,8 +164,8 @@ async function handleVendusReceipt(
     },
     txId,
     externalReference,
-    registerId,
     paymentMethodId,
+    paymentMethod: payment.payment_method,
   }
   const claimToken = crypto.randomUUID()
   const { data: reservation, error: reservationError } = await supabase.rpc(
@@ -222,6 +242,10 @@ async function handleVendusReceipt(
     }, 409)
   }
 
+  if (paymentMethodId === null) {
+    return receiptResponse({ error: 'A reserva do recibo exige reconciliação antes da emissão.', manual_review: true }, 409)
+  }
+
   const jobId = String(reservation.job_id)
   let document: Record<string, unknown> | null = null
   let identity: VendusIdentity
@@ -229,7 +253,6 @@ async function handleVendusReceipt(
     document = await vendusRequest<Record<string, unknown>>(org.vendus_api_key, '/documents/', {
       method: 'POST',
       body: JSON.stringify({
-        ...(Number.isSafeInteger(registerId) && registerId > 0 ? { register_id: registerId } : {}),
         type: 'RG',
         mode: 'normal',
         date: fiscalDate,
@@ -434,7 +457,7 @@ Deno.serve(async (req) => {
     // Fetch org credentials (including the active fiscal provider)
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, tax_config, keyinvoice_series_config, vendus_api_key, vendus_register_id, vendus_payment_method_id')
+      .select('invoicexpress_account_name, invoicexpress_api_key, integrations_enabled, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at, tax_config, keyinvoice_series_config, vendus_api_key')
       .eq('id', organization_id)
       .single()
 

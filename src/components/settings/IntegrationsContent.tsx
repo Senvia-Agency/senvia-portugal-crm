@@ -35,8 +35,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useToast } from "@/hooks/use-toast";
 import type { KeyInvoiceSeriesConfig, KeyInvoiceSeriesKind } from '@/types/keyinvoice';
-import type { VendusPaymentMethodOption, VendusRegisterOption } from '@/types/vendus';
-import { paymentMethodsForVendusRegister } from '@/lib/vendus-options';
 
 interface IntegrationsContentProps {
   isLoadingIntegrations: boolean;
@@ -67,12 +65,6 @@ interface IntegrationsContentProps {
   setVendusApiKey: (value: string) => void;
   showVendusApiKey: boolean;
   setShowVendusApiKey: (value: boolean) => void;
-  vendusRegisterId: string;
-  setVendusRegisterId: (value: string) => void;
-  vendusPaymentMethodId: string;
-  setVendusPaymentMethodId: (value: string) => void;
-  vendusRegisters: VendusRegisterOption[];
-  vendusPaymentMethods: VendusPaymentMethodOption[];
   vendusOptionsLoaded: boolean;
   vendusOptionsLoading: boolean;
   handleLoadVendusOptions: () => Promise<void>;
@@ -194,7 +186,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     brevoApiKey, brevoSenderEmail,
     invoiceXpressAccountName, invoiceXpressApiKey,
     integrationsEnabled, onToggleIntegration,
-    keyinvoiceApiKey, vendusApiKey, vendusRegisterId, vendusPaymentMethodId, chavesGuardadas,
+    keyinvoiceApiKey, vendusApiKey, chavesGuardadas,
   } = props;
 
   const visibleIntegrations = integrations;
@@ -235,9 +227,6 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     }
     if (integrationsEnabled[key] === false) {
       return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">Desativado</Badge>;
-    }
-    if (key === 'vendus' && configured && !vendusPaymentMethodId) {
-      return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">Chave guardada · FT</Badge>;
     }
     if (configured) {
       return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">Configurado</Badge>;
@@ -1754,12 +1743,11 @@ function InvoiceXpressForm({ chavesGuardadas, invoiceXpressAccountName, setInvoi
   );
 }
 
-function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusRegisterId, setVendusRegisterId, vendusPaymentMethodId, setVendusPaymentMethodId, vendusRegisters, vendusPaymentMethods, vendusOptionsLoaded, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
-  const availablePaymentMethods = paymentMethodsForVendusRegister(vendusRegisterId, vendusRegisters, vendusPaymentMethods);
+function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusOptionsLoaded, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-        <p className="text-sm text-blue-600 dark:text-blue-400">A Vendus fornece a chave API. A URL é configurada automaticamente. A caixa é opcional para faturas; faturas-recibo e recibos precisam de um método de pagamento.</p>
+        <p className="text-sm text-blue-600 dark:text-blue-400">Liga a Vendus com a chave API. Nas faturas-recibo e recibos, cada método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="vendus-api-key">Chave de API</Label>
@@ -1781,41 +1769,9 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
       <Button type="button" variant="outline" onClick={handleLoadVendusOptions}
         disabled={vendusOptionsLoading || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {vendusOptionsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {vendusOptionsLoading ? 'A consultar a Vendus...' : 'Validar chave e carregar opções'}
+        {vendusOptionsLoading ? 'A validar a chave...' : 'Validar chave'}
       </Button>
-      {vendusOptionsLoaded && (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="vendus-register">Caixa (opcional)</Label>
-            <Select value={vendusRegisterId || undefined} onValueChange={(value) => {
-              setVendusRegisterId(value);
-              setVendusPaymentMethodId('');
-            }}>
-              <SelectTrigger id="vendus-register"><SelectValue placeholder="Seleciona uma caixa" /></SelectTrigger>
-              <SelectContent>
-                {vendusRegisters.map((register) => (
-                  <SelectItem key={register.id} value={String(register.id)}>
-                    {register.title}{register.type === 'api' ? ' (API)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!vendusRegisters.length && <p className="text-xs text-muted-foreground">A Vendus não devolveu uma caixa ativa. A fatura será enviada sem caixa explícita.</p>}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vendus-payment-method">Método de pagamento para faturas-recibo e recibos</Label>
-            <Select value={vendusPaymentMethodId || undefined} onValueChange={setVendusPaymentMethodId} disabled={!availablePaymentMethods.length}>
-              <SelectTrigger id="vendus-payment-method"><SelectValue placeholder="Seleciona um método de pagamento" /></SelectTrigger>
-              <SelectContent>
-                {availablePaymentMethods.map((method) => (
-                  <SelectItem key={method.id} value={String(method.id)}>{method.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!availablePaymentMethods.length && <p className="text-xs text-muted-foreground">Sem método ativo na Vendus. Podes guardar a chave e emitir faturas; para faturas-recibo e recibos, configura um método na Vendus.</p>}
-          </div>
-        </>
-      )}
+      {vendusOptionsLoaded && <p className="text-xs text-green-600">Chave validada. Podes guardar a integração.</p>}
       <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Guardar

@@ -42,8 +42,7 @@ import {
   normalizeKeyInvoiceSeriesConfig,
   type KeyInvoiceSeriesConfig,
 } from '@/types/keyinvoice';
-import type { VendusOptionsResponse, VendusPaymentMethodOption, VendusRegisterOption } from '@/types/vendus';
-import { paymentMethodsForVendusRegister } from '@/lib/vendus-options';
+import type { VendusOptionsResponse } from '@/types/vendus';
 
 import { ProfilesTab } from '@/components/settings/ProfilesTab';
 import {
@@ -158,10 +157,6 @@ export default function Settings() {
   // Vendus state
   const [vendusApiKey, setVendusApiKey] = useState('');
   const [showVendusApiKey, setShowVendusApiKey] = useState(false);
-  const [vendusRegisterId, setVendusRegisterId] = useState('');
-  const [vendusPaymentMethodId, setVendusPaymentMethodId] = useState('');
-  const [vendusRegisters, setVendusRegisters] = useState<VendusRegisterOption[]>([]);
-  const [vendusPaymentMethods, setVendusPaymentMethods] = useState<VendusPaymentMethodOption[]>([]);
   const [vendusOptionsLoaded, setVendusOptionsLoaded] = useState(false);
   const [vendusOptionsLoading, setVendusOptionsLoading] = useState(false);
   const vendusLookupSequence = useRef(0);
@@ -222,12 +217,8 @@ export default function Settings() {
       setVendusApiKey('');
       setShowVendusApiKey(false);
       vendusLookupSequence.current += 1;
-      setVendusRegisters([]);
-      setVendusPaymentMethods([]);
       setVendusOptionsLoaded(false);
       setVendusOptionsLoading(false);
-      setVendusRegisterId('');
-      setVendusPaymentMethodId('');
       setChavesGuardadas((current) => ({ ...current, vendus: false }));
       // Never keep fiscal series from the previously selected organization
       // while a new tenant is loading (or while it is still on the old schema).
@@ -267,11 +258,9 @@ export default function Settings() {
         // The Vendus columns are installed manually. A pending migration must
         // not prevent the other integrations from loading.
         const { data: vendusData } = await supabase.from('organizations')
-          .select('tem_vendus_api_key,vendus_register_id,vendus_payment_method_id')
+          .select('tem_vendus_api_key')
           .eq('id', organization.id).maybeSingle();
         if (vendusData) {
-          setVendusRegisterId(vendusData.vendus_register_id == null ? '' : String(vendusData.vendus_register_id));
-          setVendusPaymentMethodId(vendusData.vendus_payment_method_id == null ? '' : String(vendusData.vendus_payment_method_id));
           setChavesGuardadas((current) => ({ ...current, vendus: vendusData.tem_vendus_api_key === true }));
         }
 
@@ -382,12 +371,8 @@ export default function Settings() {
   const handleVendusApiKeyChange = (value: string) => {
     vendusLookupSequence.current += 1;
     setVendusApiKey(value);
-    setVendusRegisters([]);
-    setVendusPaymentMethods([]);
     setVendusOptionsLoaded(false);
     setVendusOptionsLoading(false);
-    setVendusRegisterId('');
-    setVendusPaymentMethodId('');
   };
 
   const handleLoadVendusOptions = async () => {
@@ -407,29 +392,17 @@ export default function Settings() {
       });
       if (requestId !== vendusLookupSequence.current) return;
       if (error || !data || !Array.isArray(data.registers) || !Array.isArray(data.payment_methods)) {
-        throw new Error('Não foi possível validar a chave e obter as opções da Vendus.');
+        throw new Error('Não foi possível validar a chave Vendus.');
       }
-      setVendusRegisters(data.registers);
-      setVendusPaymentMethods(data.payment_methods);
-      const registerId = data.registers.some((item) => String(item.id) === vendusRegisterId)
-        ? vendusRegisterId : data.registers.length === 1 ? String(data.registers[0].id) : '';
-      const availableMethods = paymentMethodsForVendusRegister(registerId, data.registers, data.payment_methods);
-      setVendusRegisterId(registerId);
-      setVendusPaymentMethodId(availableMethods.some((item) => String(item.id) === vendusPaymentMethodId)
-        ? vendusPaymentMethodId : availableMethods.length === 1 ? String(availableMethods[0].id) : '');
       setVendusOptionsLoaded(true);
       toast({
         title: 'Chave Vendus validada',
-        description: data.payment_methods.length
-          ? 'Podes guardar a chave. A caixa é opcional; seleciona um método para faturas-recibo e recibos.'
-          : 'Podes guardar a chave para emitir faturas. Para faturas-recibo e recibos, configura um método de pagamento na Vendus.',
+        description: 'O método de pagamento será obtido de cada venda no momento da emissão.',
       });
     } catch {
       if (requestId === vendusLookupSequence.current) {
-        setVendusRegisters([]);
-        setVendusPaymentMethods([]);
         toast({ title: 'Falha na ligação Vendus',
-          description: 'Confirma a chave API, as permissões do utilizador e as opções configuradas na Vendus.',
+          description: 'Confirma a chave API e as permissões do utilizador na Vendus.',
           variant: 'destructive' });
       }
     } finally {
@@ -439,23 +412,18 @@ export default function Settings() {
 
   const handleSaveVendus = () => {
     const apiKey = vendusApiKey.trim();
-    const registerId = vendusRegisterId.trim() ? Number(vendusRegisterId.trim()) : null;
-    const paymentMethodId = vendusPaymentMethodId.trim() ? Number(vendusPaymentMethodId.trim()) : null;
-    if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded
-      || (registerId !== null && !vendusRegisters.some((item) => item.id === registerId))
-      || (paymentMethodId !== null && !paymentMethodsForVendusRegister(vendusRegisterId, vendusRegisters, vendusPaymentMethods)
-        .some((item) => item.id === paymentMethodId))) {
+    if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded) {
       toast({
         title: 'Dados Vendus incompletos',
-        description: 'Valida a chave API e escolhe apenas opções devolvidas pela Vendus.',
+        description: 'Valida a chave API antes de guardar.',
         variant: 'destructive',
       });
       return;
     }
     const settings = {
       ...(apiKey ? { vendus_api_key: apiKey } : {}),
-      vendus_register_id: registerId,
-      vendus_payment_method_id: paymentMethodId,
+      vendus_register_id: null,
+      vendus_payment_method_id: null,
     } as unknown as Parameters<typeof updateOrganization.mutate>[0];
     updateOrganization.mutate(settings, {
       onSuccess: () => {
@@ -723,8 +691,7 @@ export default function Settings() {
     showInvoiceXpressApiKey, setShowInvoiceXpressApiKey,
     handleSaveInvoiceXpress,
     vendusApiKey, setVendusApiKey: handleVendusApiKeyChange, showVendusApiKey, setShowVendusApiKey,
-    vendusRegisterId, setVendusRegisterId, vendusPaymentMethodId, setVendusPaymentMethodId,
-    vendusRegisters, vendusPaymentMethods, vendusOptionsLoaded, vendusOptionsLoading,
+    vendusOptionsLoaded, vendusOptionsLoading,
     handleLoadVendusOptions, handleSaveVendus,
     integrationsEnabled, onToggleIntegration: handleToggleIntegration,
     handleSaveKeyInvoice, keyinvoiceApiKey, setKeyinvoiceApiKey,

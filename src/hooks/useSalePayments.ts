@@ -24,12 +24,16 @@ class SalePaymentValueError extends Error {
 }
 
 function parsePaymentMethod(value: string | null): PaymentMethod | null {
+  if (value === "transferencia") return "transfer";
+  if (value === "cheque") return "check";
   switch (value) {
     case null:
     case "mbway":
     case "transfer":
     case "cash":
     case "card":
+    case "credit_card":
+    case "debit_card":
     case "check":
     case "other":
       return value;

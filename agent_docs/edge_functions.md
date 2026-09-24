@@ -30,7 +30,7 @@ All functions live in `supabase/functions/{name}/index.ts` (Deno runtime). Deplo
 | `sync-invoicexpress-items` | Syncs product catalog from InvoiceXpress. |
 | `update-invoicexpress-item` | Updates a product in InvoiceXpress. |
 | `keyinvoice-auth` | Validates KeyInvoice credentials and caches the SID without returning it to the browser. |
-| `vendus-options` | Validates a Vendus API key for an organization admin and lists available registers and payment methods for selection in Settings. |
+| `vendus-options` | Validates a Vendus API key for an organization admin. Settings no longer requires selecting a register or payment method. |
 | `keyinvoice-fiscal-worker` | Cron worker with `issue`, `email`, and `reconcile` actions. Claims durable recurring jobs, stores PDFs, sends idempotent Brevo email, and reconciles ambiguous FT/FR writes without blind reissue. |
 
 ## Email & Marketing

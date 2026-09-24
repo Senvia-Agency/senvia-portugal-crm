@@ -2,7 +2,7 @@ import type { ServicosDetails } from './proposals';
 
 export type NegotiationType = 'angariacao' | 'angariacao_indexado' | 'renovacao' | 'sem_volume';
 export type SaleStatus = 'in_progress' | 'fulfilled' | 'delivered' | 'cancelled';
-export type PaymentMethod = 'mbway' | 'transfer' | 'cash' | 'card' | 'check' | 'other';
+export type PaymentMethod = 'mbway' | 'transfer' | 'cash' | 'card' | 'credit_card' | 'debit_card' | 'check' | 'other';
 export type PaymentStatus = 'pending' | 'partial' | 'paid';
 export type ProposalType = 'energia' | 'servicos';
 export type ModeloServico = 'transacional' | 'saas';
@@ -121,11 +121,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'Transferência',
   cash: 'Dinheiro',
   card: 'Cartão',
+  credit_card: 'Cartão de crédito',
+  debit_card: 'Cartão de débito',
   check: 'Cheque',
   other: 'Outro',
 };
 
-export const PAYMENT_METHODS: PaymentMethod[] = ['mbway', 'transfer', 'cash', 'card', 'check', 'other'];
+export const PAYMENT_METHODS: PaymentMethod[] = ['mbway', 'transfer', 'cash', 'card', 'credit_card', 'debit_card', 'check', 'other'];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: 'Pendente',
