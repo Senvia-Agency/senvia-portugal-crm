@@ -302,29 +302,59 @@ export function useUpdateProposalProducts() {
       // Empty lines can mean the edit form has not finished loading. Never
       // delete saved proposal products in that state.
       if (products.length === 0) throw new Error('A proposta não tem produtos para guardar');
-      // Delete existing products
-      const { error: deleteError } = await supabase
+      const { data: existing, error: readError } = await supabase
         .from('proposal_products')
-        .delete()
+        .select('id, product_id')
         .eq('proposal_id', proposalId);
-      
-      if (deleteError) throw deleteError;
+      if (readError) throw readError;
 
-      // Insert new products
-      if (products.length > 0) {
-        const { error: insertError } = await supabase
+      const remaining = new Map<string, string>();
+      for (const row of existing ?? []) remaining.set(row.product_id, row.id);
+      const keptIds = new Set<string>();
+      const newProducts: typeof products = [];
+
+      // Update rows in place, then insert additions. Existing rows are never
+      // removed before all replacement data has been saved successfully.
+      for (const product of products) {
+        const id = remaining.get(product.product_id);
+        if (!id) {
+          newProducts.push(product);
+          continue;
+        }
+        const { error } = await supabase
           .from('proposal_products')
-          .insert(
-            products.map(p => ({
-              proposal_id: proposalId,
-              product_id: p.product_id,
-              quantity: p.quantity,
-              unit_price: p.unit_price,
-              total: p.total,
-            }))
-          );
-        
-        if (insertError) throw insertError;
+          .update({
+            quantity: product.quantity,
+            unit_price: product.unit_price,
+            total: product.total,
+          })
+          .eq('id', id)
+          .eq('proposal_id', proposalId);
+        if (error) throw error;
+        keptIds.add(id);
+      }
+
+      if (newProducts.length > 0) {
+        const { error } = await supabase.from('proposal_products').insert(
+          newProducts.map(product => ({
+            proposal_id: proposalId,
+            product_id: product.product_id,
+            quantity: product.quantity,
+            unit_price: product.unit_price,
+            total: product.total,
+          }))
+        );
+        if (error) throw error;
+      }
+
+      const obsoleteIds = (existing ?? []).filter(row => !keptIds.has(row.id)).map(row => row.id);
+      if (obsoleteIds.length > 0) {
+        const { error } = await supabase
+          .from('proposal_products')
+          .delete()
+          .eq('proposal_id', proposalId)
+          .in('id', obsoleteIds);
+        if (error) throw error;
       }
     },
     onSuccess: (_, variables) => {

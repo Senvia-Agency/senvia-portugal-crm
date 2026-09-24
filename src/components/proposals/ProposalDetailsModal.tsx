@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Printer, Mail, Loader2, Router, Zap, Wrench, Pencil, MoreHorizontal, CalendarDays, TrendingUp, FileText, User } from 'lucide-react';
+import { Trash2, Printer, Mail, Loader2, Router, Zap, Wrench, Pencil, MoreHorizontal, CalendarDays, TrendingUp, FileText, User, AlertTriangle } from 'lucide-react';
 import { LeadAttachments } from '@/components/leads/LeadAttachments';
 import {
   DropdownMenu,
@@ -62,7 +62,7 @@ interface ProposalDetailsModalProps {
 }
 
 export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalDetailsModalProps) {
-  const { data: proposalProducts = [] } = useProposalProducts(proposal?.id);
+  const { data: proposalProducts = [], isSuccess: productsLoaded, isFetching: productsFetching, isError: productsError } = useProposalProducts(proposal?.id);
   const { data: proposalCpes = [] } = useProposalCpes(proposal?.id);
   const { data: orgData } = useOrganization();
   const { modules } = useModules();
@@ -116,6 +116,9 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
   });
 
   const hasCompletedSale = !!completedSale;
+  const canOutputProposal = isTelecom || (productsLoaded && !productsFetching && !productsError && proposalProducts.length > 0);
+  const missingLineItems = !isTelecom && productsLoaded && !productsFetching && !productsError
+    && proposalProducts.length === 0 && Number(proposal?.total_value) > 0;
 
   // Sincronizar estado quando proposal muda
   useEffect(() => {
@@ -138,6 +141,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
 
   const handleStatusChange = (newStatus: ProposalStatus) => {
     if (newStatus === 'accepted') {
+      if (!canOutputProposal) return;
       setShowSaleModal(true);
       return;
     }
@@ -172,6 +176,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
   };
 
   const handlePrint = () => {
+    if (!canOutputProposal) return;
     const client = proposal.client;
     const clientName = client?.name || '';
     const clientEmail = client?.email || '';
@@ -369,7 +374,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
   const { organization } = useAuth();
 
   const handleSendEmail = () => {
-    if (!proposal.client?.email || !organization?.id) return;
+    if (!canOutputProposal || !proposal.client?.email || !organization?.id) return;
     
     sendProposalEmail.mutate({
       organizationId: organization.id,
@@ -391,7 +396,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
   };
 
   const isBrevoConfigured = !!(orgData?.tem_brevo_api_key && orgData?.brevo_sender_email);
-  const canSendEmail = proposal.client?.email && isBrevoConfigured && !sendProposalEmail.isPending;
+  const canSendEmail = canOutputProposal && proposal.client?.email && isBrevoConfigured && !sendProposalEmail.isPending;
 
   return (
     <>
@@ -435,7 +440,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                           </SelectTrigger>
                           <SelectContent>
                             {PROPOSAL_STATUSES.map((s) => (
-                              <SelectItem key={s} value={s}>
+                              <SelectItem key={s} value={s} disabled={s === 'accepted' && !canOutputProposal}>
                                 <span className={cn('px-2 py-0.5 rounded text-xs font-medium', PROPOSAL_STATUS_COLORS[s])}>
                                   {PROPOSAL_STATUS_LABELS[s]}
                                 </span>
@@ -640,12 +645,23 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                   )}
 
                   {/* Produtos do catálogo */}
-                  {proposalProducts.length > 0 && (
+                  {(proposalProducts.length > 0 || !isTelecom) && (
                     <Card>
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium text-muted-foreground">Produtos/Serviços</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-2">
+                        {productsFetching && !productsLoaded && <p className="text-sm text-muted-foreground">A carregar produtos...</p>}
+                        {productsError && <p className="text-sm text-destructive">Não foi possível carregar os produtos. Volta a abrir a proposta.</p>}
+                        {missingLineItems && (
+                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                            <p className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" /> Detalhe dos produtos em falta</p>
+                            <p className="mt-1">Esta proposta tem um valor guardado, mas não tem produto, quantidade ou preço unitário registados. Adiciona os produtos em Editar antes de imprimir, enviar ou aceitar.</p>
+                          </div>
+                        )}
+                        {!productsFetching && productsLoaded && proposalProducts.length === 0 && !missingLineItems && (
+                          <p className="text-sm text-muted-foreground">Ainda não há produtos associados a esta proposta.</p>
+                        )}
                         {proposalProducts.map((item) => (
                           <div
                             key={item.id}
@@ -776,6 +792,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                           size="sm"
                           className="w-full justify-start"
                           onClick={handlePrint}
+                          disabled={!canOutputProposal}
                         >
                           <Printer className="h-4 w-4 mr-2" />
                           Imprimir

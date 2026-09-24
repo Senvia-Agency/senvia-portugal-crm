@@ -414,6 +414,20 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
       });
     }
 
+    // Save line items before changing the header total, so a failed item save
+    // cannot leave a new amount with missing or outdated product details.
+    if (!isTelecom && selectedProducts.length > 0) {
+      await updateProposalProducts.mutateAsync({
+        proposalId: proposal.id,
+        products: selectedProducts.map(p => ({
+          product_id: p.product_id,
+          quantity: p.quantity,
+          unit_price: p.unit_price,
+          total: getProductTotal(p),
+        })),
+      });
+    }
+
     await updateProposal.mutateAsync({
       id: proposal.id,
       client_id: selectedClientId || null,
@@ -457,18 +471,6 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
           comissao: cpe.comissao ? parseFloat(cpe.comissao) : null,
           contrato_inicio: cpe.contrato_inicio || null,
           contrato_fim: cpe.contrato_fim || null,
-        })),
-      });
-    }
-
-    if (!isTelecom && (selectedProducts.length > 0 || !legacyWithoutProducts)) {
-      await updateProposalProducts.mutateAsync({
-        proposalId: proposal.id,
-        products: selectedProducts.map(p => ({
-          product_id: p.product_id,
-          quantity: p.quantity,
-          unit_price: p.unit_price,
-          total: getProductTotal(p),
         })),
       });
     }
