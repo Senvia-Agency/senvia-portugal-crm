@@ -45,12 +45,15 @@ For new tables, always:
 ### Version bumps
 
 1. Update `APP_VERSION` in `src/lib/constants.ts`
-2. Create announcement via SQL:
-```sql
-INSERT INTO app_announcements (id, title, content, version, is_active, published_at)
-VALUES (gen_random_uuid(), 'Title', 'Markdown content', 'vX.Y.Z', true, now());
-```
-3. Commit and push
+2. Commit and push. A version bump does not require a public announcement.
+
+Public announcements are exceptional, batched product updates that are relevant
+to every organization. Review the title and content for tenant-specific behavior,
+customer details, credentials, internal incidents, implementation details, and
+unreleased work before publishing. Keep organization-specific fixes in the code
+history or a private support conversation. New announcements start inactive in
+the admin UI; publish only after this review. `is_active = true` makes an entry
+visible to every organization in both the popup and the public changelog.
 
 ## Environment
 

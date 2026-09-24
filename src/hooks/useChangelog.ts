@@ -14,8 +14,8 @@ const SELECT = 'id, title, content, version, image_url, published_at';
 
 // Version history for the "O que há de novo" page. Reuses app_announcements:
 // entries with a `version` are release notes (the changelog); entries without
-// one are maintenance notices and stay out of here. Ignores is_active/expires_at
-// (those only control the popup) so the full history is always available.
+// one are maintenance notices and stay out of here. Inactive entries are
+// internal drafts and must never appear on the public changelog.
 export function useChangelog() {
   return useQuery({
     queryKey: ['changelog'],
@@ -23,6 +23,7 @@ export function useChangelog() {
       const { data, error } = await (supabase as any)
         .from('app_announcements')
         .select(SELECT)
+        .eq('is_active', true)
         .not('version', 'is', null)
         .order('published_at', { ascending: false });
 
@@ -45,6 +46,7 @@ export function useChangelogEntry(id: string | undefined) {
         .from('app_announcements')
         .select(SELECT)
         .eq('id', id)
+        .eq('is_active', true)
         .maybeSingle();
 
       if (error) {
