@@ -1749,7 +1749,7 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-        <p className="text-sm text-blue-600 dark:text-blue-400">Liga a Vendus com a chave API. Nas faturas-recibo e recibos, cada método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.</p>
+        <p className="text-sm text-blue-600 dark:text-blue-400">Liga a Vendus com a chave API. O Senvia usa automaticamente a caixa existente quando há uma única caixa ativa do tipo API e envia as faturas em modo Normal. Nas faturas-recibo e recibos, o método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="vendus-api-key">Chave de API</Label>

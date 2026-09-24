@@ -6,13 +6,13 @@ Deno.test('Vendus rejects a normal POS register for API issuance', () => {
     { id: 101, type: 'pos', mode: 'normal', situation: 'on' },
   ]))
   assertEquals(error instanceof VendusError && error.code, 'api_register_missing')
+  assertEquals(error instanceof VendusError && error.message.includes('#101 (tipo pos, modo normal)'), true)
 })
 
-Deno.test('Vendus requires normal mode on the API register', () => {
-  const error = assertThrows(() => selectVendusApiRegister([
+Deno.test('Vendus selects the sole API register even when its default mode is tests', () => {
+  assertEquals(selectVendusApiRegister([
     { id: 102, type: 'api', mode: 'tests', situation: 'on' },
-  ]))
-  assertEquals(error instanceof VendusError && error.code, 'api_register_test_mode')
+  ]), 102)
 })
 
 Deno.test('Vendus chooses the single active normal API register', () => {

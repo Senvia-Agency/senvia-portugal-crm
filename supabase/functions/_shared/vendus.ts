@@ -9,7 +9,7 @@ export class VendusError extends Error {
   }
 }
 
-/** Vendus requires an API-type register for document creation in API accounts. */
+/** Vendus accepts document creation only through an API-type register. */
 export function selectVendusApiRegister(value: unknown): number {
   if (!Array.isArray(value)) {
     throw new VendusError('A Vendus devolveu uma lista de caixas inválida.', 502, 'invalid_registers')
@@ -18,16 +18,22 @@ export function selectVendusApiRegister(value: unknown): number {
     && register.type === 'api' && register.situation !== 'off'
     && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
   if (api.length === 0) {
-    throw new VendusError('A Vendus exige uma caixa do tipo API. No backoffice Vendus, abre POS → Definições → Tipo de Caixa e configura uma caixa API.', 409, 'api_register_missing')
+    const existing = value.filter((register) => register && typeof register === 'object'
+      && Number.isSafeInteger(Number(register.id)) && Number(register.id) > 0)
+      .map((register) => `#${Number(register.id)} (tipo ${String(register.type || 'desconhecido').slice(0, 16)}, modo ${String(register.mode || 'desconhecido').slice(0, 16)})`)
+      .slice(0, 3).join(', ')
+    throw new VendusError(
+      `A Vendus exige uma caixa do tipo API. ${existing ? `Caixa devolvida: ${existing}. ` : 'Nenhuma caixa foi devolvida. '}No backoffice Vendus, abre POS → Definições → Tipo de Caixa e altera o tipo da caixa para API.`,
+      409, 'api_register_missing',
+    )
   }
-  const normal = api.filter((register) => register.mode === 'normal')
-  if (normal.length === 0) {
-    throw new VendusError('A caixa API da Vendus está em Formação/Testes. Altera o Modo de Funcionamento para Normal no backoffice.', 409, 'api_register_test_mode')
+  // The document POST explicitly sends mode=normal. Vendus only inherits the
+  // register's mode when the request omits mode, so a register in tests mode
+  // must not block a real document before the provider evaluates the request.
+  if (api.length !== 1) {
+    throw new VendusError('Existem várias caixas API ativas na Vendus. Define qual deve ser usada para faturação.', 409, 'ambiguous_api_register')
   }
-  if (normal.length !== 1) {
-    throw new VendusError('Existem várias caixas API em modo Normal na Vendus. Define qual deve ser usada para faturação.', 409, 'ambiguous_api_register')
-  }
-  return Number(normal[0].id)
+  return Number(api[0].id)
 }
 
 function vendusUrl(path: string): string {
