@@ -162,7 +162,28 @@ export async function issueVendusFullCreditNote(db: any, org: any, input: Vendus
     }
     credit = recovered
   }
-  const identity = parseVendusIdentity(credit)
+  let identity = parseVendusIdentity(credit)
+  let verified: Record<string, any>
+  try {
+    verified = await vendusRequest<Record<string, any>>(apiKey, `/documents/${identity.id}/?mode=normal`)
+  } catch {
+    await db.from('invoices').update({ processing_status: 'reconciliation_required',
+      processing_last_error: 'vendus_credit_normal_mode_unverified', processing_claim_token: null,
+      processing_claimed_at: null }).eq('id', job.id).eq('organization_id', organizationId)
+    throw new VendusError('A Vendus não confirmou a nota de crédito no modo normal. Confirme-a antes de repetir.', 409, 'credit_normal_mode_unverified')
+  }
+  const verifiedIdentity = parseVendusIdentity(verified)
+  const related = Array.isArray(verified.related_docs) ? verified.related_docs : []
+  if (verifiedIdentity.id !== identity.id || verifiedIdentity.reference !== identity.reference
+    || verified.external_reference !== externalReference
+    || (related.length > 0 && !related.some((row: any) => row.number === original.reference))) {
+    await db.from('invoices').update({ processing_status: 'manual_review',
+      processing_last_error: 'credit_origin_unverified', processing_claim_token: null,
+      processing_claimed_at: null }).eq('id', job.id).eq('organization_id', organizationId)
+    throw new VendusError('A nota criada na Vendus não corresponde à fatura original. É necessária reconciliação.', 409, 'credit_origin_unverified')
+  }
+  identity = verifiedIdentity
+  credit = verified
   if (identity.type !== 'NC' || cents(credit.amount_gross) !== expectedTotal) {
     await db.from('invoices').update({ processing_status: 'manual_review', processing_last_error: 'credit_total_mismatch',
       processing_claim_token: null, processing_claimed_at: null, raw_data: { source: 'vendus', ...credit } })

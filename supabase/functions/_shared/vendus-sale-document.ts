@@ -49,7 +49,7 @@ function isoCountry(value: unknown): string {
 async function findExistingVendusDocument(apiKey: string, reference: string, type: 'FT' | 'FR') {
   const matches: Record<string, any>[] = []
   for (let page = 1; page <= 10; page++) {
-    const params = new URLSearchParams({ external_reference: reference, type, per_page: '100', page: String(page) })
+    const params = new URLSearchParams({ external_reference: reference, type, mode: 'normal', per_page: '100', page: String(page) })
     const rows = await vendusRequest<any[]>(apiKey, `/documents/?${params}`)
     if (!Array.isArray(rows)) throw new VendusError('Resposta inesperada da Vendus', 502, 'invalid_response')
     for (const row of rows) {
@@ -59,9 +59,9 @@ async function findExistingVendusDocument(apiKey: string, reference: string, typ
         throw new VendusError('Resposta inesperada da Vendus', 502, 'invalid_response')
       }
       const candidate = typeof row.external_reference === 'string'
-        ? row : await vendusRequest<Record<string, any>>(apiKey, `/documents/${candidateId}/`)
+        ? row : await vendusRequest<Record<string, any>>(apiKey, `/documents/${candidateId}/?mode=normal`)
       if (candidate.external_reference === reference && candidate.type === type) {
-        const detail = await vendusRequest<Record<string, any>>(apiKey, `/documents/${candidateId}/`)
+        const detail = await vendusRequest<Record<string, any>>(apiKey, `/documents/${candidateId}/?mode=normal`)
         if (detail.external_reference === reference && detail.type === type) matches.push(detail)
       }
     }
@@ -324,10 +324,25 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     }
     document = recovered
   }
-  const identity = parseVendusIdentity(document)
+  let identity = parseVendusIdentity(document)
   if (identity.type !== type) {
     throw new VendusError('A referência da venda pertence a outro tipo de documento Vendus.', 409, 'document_type_conflict')
   }
+  // A test-mode POS can accept a request with mode=normal. Confirm that the
+  // resulting document is retrievable in normal mode before recording it as fiscal.
+  let verified: Record<string, any>
+  try {
+    verified = await vendusRequest<Record<string, any>>(apiKey, `/documents/${identity.id}/?mode=normal`)
+  } catch {
+    throw new VendusError('A Vendus não confirmou o documento no modo normal. Confirme a emissão antes de repetir.', 409, 'normal_mode_unverified')
+  }
+  const verifiedIdentity = parseVendusIdentity(verified)
+  if (verifiedIdentity.id !== identity.id || verifiedIdentity.reference !== identity.reference
+    || verified.external_reference !== externalReference) {
+    throw new VendusError('A Vendus não confirmou o documento no modo normal. É necessária reconciliação.', 409, 'normal_mode_unverified')
+  }
+  identity = verifiedIdentity
+  document = verified
   const providerTotal = amount(document.amount_gross)
   const totalMatches = Number.isFinite(providerTotal) && providerTotal === expectedTotal
 
