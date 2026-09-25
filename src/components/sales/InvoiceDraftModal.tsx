@@ -43,7 +43,7 @@ interface InvoiceDraftModalProps {
   } | null;
   saleItems?: DraftSaleItem[];
   saleTotal?: number;
-  payments?: SalePayment[];
+  payments?: (SalePayment & { recurring_cycle_id?: string | null; reversed_amount?: number | null })[];
 }
 
 const MODE_LABELS = {
@@ -56,15 +56,7 @@ function generateDefaultObservations(mode: string, payments?: SalePayment[]): st
   if (!payments || payments.length === 0) return "";
   
   if (mode === "invoice") {
-    if (payments.length === 1) {
-      const d = new Date(payments[0].payment_date);
-      return `Data de pagamento: ${format(d, "dd/MM/yyyy")}`;
-    }
-    return `Pagamento em ${payments.length} parcelas:\n` +
-      payments.map((p, i) => {
-        const d = new Date(p.payment_date);
-        return `- ${i + 1}.ª parcela: ${formatCurrency(Number(p.amount))} - ${format(d, "dd/MM/yyyy")}`;
-      }).join("\n");
+    return "";
   }
   
   if (mode === "invoice_receipt") {
@@ -107,6 +99,13 @@ export function InvoiceDraftModal({
   const exemptionReason = taxConfig?.tax_exemption_reason || "Artigo 53.º do CIVA";
 
   const [observations, setObservations] = useState("");
+  const invoicePlanPayments = (payments || [])
+    .filter((payment) => !payment.recurring_cycle_id)
+    .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
+  const invoicePlanComplete = invoicePlanPayments.length > 0
+    && invoicePlanPayments.every((payment) => !Number(payment.reversed_amount || 0))
+    && Math.abs(invoicePlanPayments.reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0)
+      - Math.round(Number(saleTotal ?? amount) * 100)) <= 1;
 
   useEffect(() => {
     if (open) {
@@ -275,10 +274,21 @@ export function InvoiceDraftModal({
           {(mode === "invoice" || mode === "invoice_receipt") && (
             <>
               <Separator />
+              {mode === "invoice" && invoicePlanComplete && (
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                  <p className="font-medium">Plano de pagamento da venda</p>
+                  {invoicePlanPayments.map((payment, index) => (
+                    <p key={payment.id} className="text-muted-foreground">
+                      {index + 1}.ª parcela: {formatCurrency(Number(payment.amount))} — {payment.status === "paid" ? "paga em" : "a pagar até"} {payment.payment_date.split("-").reverse().join("/")}
+                    </p>
+                  ))}
+                  <p className="text-xs text-muted-foreground pt-1">Estas condições serão enviadas ao faturador com a fatura.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Observações</span>
+                  <span>Observações adicionais</span>
                 </div>
                 <Textarea
                   value={observations}

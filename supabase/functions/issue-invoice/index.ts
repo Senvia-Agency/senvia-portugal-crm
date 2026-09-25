@@ -6,6 +6,7 @@ import { VendusError } from '../_shared/vendus.ts'
 import { lisbonFiscalDate, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
 import { userRateLimit } from '../_shared/user-rate-limit.ts'
 import { saleBillingRecipient } from '../_shared/sale-billing-recipient.ts'
+import { appendInvoicePaymentPlan, invoicePaymentPlan } from '../_shared/invoice-payment-plan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -192,13 +193,43 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Build the payment terms from persisted sale data for every billing provider.
+    // The browser only supplies additional free-form observations.
+    const { data: paymentSale, error: paymentSaleError } = await supabase
+      .from('sales')
+      .select('gross_value,total_value')
+      .eq('id', sale_id)
+      .eq('organization_id', organization_id)
+      .single()
+    if (paymentSaleError || !paymentSale) {
+      return new Response(JSON.stringify({ error: 'Venda não encontrada' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const { data: plannedPayments, error: plannedPaymentsError } = await supabase
+      .from('sale_payments')
+      .select('amount,payment_date,status,reversed_amount')
+      .eq('sale_id', sale_id)
+      .eq('organization_id', organization_id)
+      .is('recurring_cycle_id', null)
+    if (plannedPaymentsError) {
+      return new Response(JSON.stringify({ error: 'Não foi possível consultar as parcelas da venda' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const paymentPlan = invoicePaymentPlan(
+      plannedPayments || [],
+      Number(paymentSale.gross_value ?? paymentSale.total_value ?? 0),
+    )
+    const finalObservations = appendInvoicePaymentPlan(observations, paymentPlan)
+
     // Route to KeyInvoice if selected
     if (billingProvider === 'keyinvoice') {
-      return await handleKeyInvoice(supabase, org, sale_id, organization_id, observations, corsHeaders)
+      return await handleKeyInvoice(supabase, org, sale_id, organization_id, finalObservations, corsHeaders)
     }
 
     if (billingProvider === 'vendus') {
-      return await handleVendus(supabase, org, sale_id, organization_id, observations, corsHeaders)
+      return await handleVendus(supabase, org, sale_id, organization_id, finalObservations, corsHeaders)
     }
 
     if (!org?.invoicexpress_account_name || !org?.invoicexpress_api_key) {
@@ -358,39 +389,24 @@ Deno.serve(async (req) => {
 
     const [y, m, d] = dateSource.split('-')
     const formattedDate = `${d}/${m}/${y}`
+    const latestPendingDate = paymentPlan
+      ? (plannedPayments || [])
+        .filter((payment: { status: string }) => payment.status === 'pending')
+        .map((payment: { payment_date: string }) => payment.payment_date)
+        .sort()
+        .at(-1)
+      : null
+    const dueDateIso = latestPendingDate && latestPendingDate > dateSource ? latestPendingDate : dateSource
+    const [dueYear, dueMonth, dueDay] = dueDateIso.split('-')
 
     const clientCode = billingTarget === 'company' ? clientNif : (sale.client?.code || clientNif)
     const proprietary_uid = `senvia-sale-${sale_id}`
-
-    // Build observations from payments if not provided by frontend
-    let finalObservations = observations || ''
-    if (!finalObservations) {
-      const { data: salePayments } = await supabase
-        .from('sale_payments')
-        .select('amount, payment_date, status')
-        .eq('sale_id', sale_id)
-        .order('payment_date', { ascending: true })
-      
-      if (salePayments && salePayments.length > 1) {
-        finalObservations = `Pagamento em ${salePayments.length} parcelas:\n\n` +
-          salePayments.map((p: any, i: number) => {
-            const d = new Date(p.payment_date)
-            const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-            return `- ${i + 1}.ª parcela: ${Number(p.amount).toFixed(2)} EUR - ${dateStr}`
-          }).join('\n\n')
-      } else if (salePayments && salePayments.length === 1) {
-        const p = salePayments[0]
-        const d = new Date(p.payment_date)
-        const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-        finalObservations = `Data de pagamento: ${dateStr}`
-      }
-    }
 
     // Build InvoiceXpress payload - always invoice type
     const invoicePayload = {
       invoice: {
         date: formattedDate,
-        due_date: formattedDate,
+        due_date: `${dueDay}/${dueMonth}/${dueYear}`,
         ...(finalObservations ? { observations: finalObservations } : {}),
         ...(hasExemptItem && firstExemptionReason
           ? { tax_exemption: firstExemptionReason }
