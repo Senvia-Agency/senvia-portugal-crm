@@ -14,7 +14,7 @@ function json(body: Record<string, unknown>, status = 200): Response {
   })
 }
 
-/** Validate the API key and refresh the SID without exposing it to the browser. */
+/** Reuse or create the API session without exposing it to the browser. */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405)
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       .single()
     if (orgError || !org) return json({ error: 'Organização não encontrada' }, 404)
 
-    await getKeyInvoiceSession(authorization.admin, org, organizationId, { forceRefresh: true })
+    await getKeyInvoiceSession(authorization.admin, org, organizationId)
     return json({ success: true, connected: true, expires_in: 3600 })
   } catch (error) {
     const safe = safeKeyInvoiceError(error)

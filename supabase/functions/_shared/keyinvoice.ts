@@ -26,9 +26,11 @@ const SUPPORTED_METHODS = new Set([
   'insertDocument',
   'insertReceipt',
   'getDocumentPDF',
+  'getDocument',
   'sendDocumentPDF2Email',
   'setDocumentVoid',
-  'listDocuments',
+  'documentsList',
+  'listDocumentSeries',
 ])
 const FISCAL_WRITE_METHODS = new Set(['insertDocument', 'insertReceipt', 'setDocumentVoid'])
 
@@ -342,14 +344,47 @@ export async function getKeyInvoiceSession(
   }
   const apiUrl = resolveKeyInvoiceApiUrl(org.keyinvoice_api_url)
   const now = Date.now()
-  if (!options.forceRefresh && org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-    const expiresAt = new Date(org.keyinvoice_sid_expires_at).getTime()
-    if (Number.isFinite(expiresAt) && expiresAt > now + 5 * 60_000) {
-      return { apiUrl, sid: org.keyinvoice_sid }
-    }
+  const usableSid = (row: KeyInvoiceOrganization): string | null => {
+    if (!row.keyinvoice_sid || !row.keyinvoice_sid_expires_at) return null
+    const expiresAt = new Date(row.keyinvoice_sid_expires_at).getTime()
+    // API 5 refuses a second authentication while the existing session has
+    // more than 300 seconds left. Keep using it until safely inside that window.
+    return Number.isFinite(expiresAt) && expiresAt > Date.now() + 4 * 60_000
+      ? row.keyinvoice_sid : null
+  }
+  if (!options.forceRefresh) {
+    const cached = usableSid(org)
+    if (cached) return { apiUrl, sid: cached }
   }
 
-  const result = await callKeyInvoice(apiUrl, { method: 'authenticate' }, { apiKey }, { fetcher: options.fetcher })
+  // Another edge invocation may already have authenticated this organization.
+  // Read the shared cache again before requesting a new provider session.
+  const readLatestSession = async (): Promise<string | null> => {
+    const { data } = await db.from('organizations')
+      .select('keyinvoice_sid,keyinvoice_sid_expires_at')
+      .eq('id', organizationId)
+      .single()
+    return data ? usableSid(data) : null
+  }
+  const latest = await readLatestSession()
+  if (latest) return { apiUrl, sid: latest }
+
+  let result: KeyInvoiceResult
+  try {
+    result = await callKeyInvoice(apiUrl, { method: 'authenticate' }, { apiKey }, { fetcher: options.fetcher })
+  } catch (error) {
+    // If a concurrent request won the authentication race, reuse its SID.
+    const concurrent = await readLatestSession()
+    if (concurrent) return { apiUrl, sid: concurrent }
+    if (error instanceof KeyInvoiceError && error.code === 'provider_rejected'
+      && /autentica[çc][ãa]o inv[áa]lida/i.test(error.message)) {
+      throw new KeyInvoiceError(
+        'O KeyInvoice recusou uma nova sessão API. Pode existir uma sessão anterior ativa; se o erro persistir após a expiração, confirme a chave e o endereço da API.',
+        { code: 'keyinvoice_auth_rejected', httpStatus: 409, retryable: true },
+      )
+    }
+    throw error
+  }
   const sid = typeof result.Sid === 'string' ? result.Sid.trim() : ''
   if (!sid) {
     throw new KeyInvoiceError('O KeyInvoice não devolveu uma sessão válida', {
@@ -396,6 +431,21 @@ export async function resolveKeyInvoiceClient(
   const vatin = client.vatin.replace(/\s+/g, '').toUpperCase()
   if (!name || !vatin) throw manualReviewRequired('O cliente não tem nome ou NIF válido')
 
+  const findExisting = async (): Promise<string | null> => {
+    const listed = await callKeyInvoice(
+      session.apiUrl,
+      { method: 'listClients', VATIN: vatin },
+      { sid: session.sid },
+      { fetcher },
+    )
+    const match = collectionFromData(listed.Data, ['Clients', 'Client']).find((row) =>
+      String(row.VATIN ?? row.vatin ?? '').replace(/\s+/g, '').toUpperCase() === vatin
+    )
+    return match ? identityPart(match.IdClient ?? match.Id ?? match.id) : null
+  }
+  const existingId = await findExisting()
+  if (existingId) return existingId
+
   const payload: Record<string, unknown> = {
     method: 'insertClient',
     Name: name,
@@ -419,21 +469,14 @@ export async function resolveKeyInvoiceClient(
     const insertedId = identityPart(row.IdClient ?? row.Id ?? row.id)
     if (insertedId) return insertedId
   } catch (error) {
-    // Existing VAT numbers commonly make insertClient fail; resolve the exact
-    // existing client below. Network/timeout failures remain retryable.
-    if (error instanceof KeyInvoiceError && error.retryable) throw error
+    // A concurrent insert can create the same VATIN. Authentication and
+    // network errors must never be mistaken for a duplicate client.
+    if (!(error instanceof KeyInvoiceError) || error.code !== 'provider_rejected') throw error
+    const concurrentId = await findExisting()
+    if (concurrentId) return concurrentId
+    throw error
   }
-
-  const listed = await callKeyInvoice(
-    session.apiUrl,
-    { method: 'listClients' },
-    { sid: session.sid },
-    { fetcher },
-  )
-  const match = collectionFromData(listed.Data, ['Clients', 'Client']).find((row) =>
-    String(row.VATIN ?? row.vatin ?? '').replace(/\s+/g, '').toUpperCase() === vatin
-  )
-  return match ? identityPart(match.IdClient ?? match.Id ?? match.id) : null
+  return await findExisting()
 }
 
 function stableProductCode(product: KeyInvoiceProductInput): string {
@@ -856,7 +899,7 @@ function extractBase64Pdf(data: unknown): string | null {
   if (typeof data === 'string') return data.replace(/^data:[^;]+;base64,/, '')
   if (!data || typeof data !== 'object') return null
   const record = data as Record<string, unknown>
-  for (const key of ['PDF', 'pdf', 'Content', 'content', 'File', 'file', 'Base64', 'base64', 'FileContent', 'Document', 'document', 'PDFContent']) {
+  for (const key of ['DocumentBinary', 'PDF', 'pdf', 'Content', 'content', 'File', 'file', 'Base64', 'base64', 'FileContent', 'Document', 'document', 'PDFContent']) {
     const value = record[key]
     if (typeof value === 'string' && value.length > 100) return value.replace(/^data:[^;]+;base64,/, '')
   }
@@ -976,7 +1019,12 @@ export async function lookupKeyInvoiceDocument(
 ): Promise<Record<string, unknown> | null> {
   const result = await callKeyInvoice(
     session.apiUrl,
-    { method: 'listDocuments' },
+    {
+      method: 'documentsList',
+      DocType: identity.docType,
+      ...(identity.docSeries ? { DocSeries: identity.docSeries } : {}),
+      DocNum: identity.docNum,
+    },
     { sid: session.sid },
     { fetcher },
   )
@@ -1005,25 +1053,38 @@ export async function findKeyInvoiceDocumentByIdempotency(
     throw new KeyInvoiceError('Chave de idempotência fiscal inválida', { code: 'invalid_idempotency_key', httpStatus: 400 })
   }
   const marker = `SENVIA:${key}`
-  const result = await callKeyInvoice(
-    session.apiUrl,
-    { method: 'listDocuments' },
-    { sid: session.sid },
-    { fetcher: options.fetcher },
-  )
-  const candidates: Array<Record<string, unknown>> = []
-  collectObjects(result.Data, candidates)
-  const matches = candidates.filter((row) => {
-    const comments = String(row.Comments ?? row.comments ?? row.Observations ?? row.observations ?? '')
-    if (!comments.includes(marker)) return false
-    const docType = identityPart(row.DocType ?? row.docType)
-    if (options.docType && docType !== options.docType) return false
-    if (options.fiscalDate) {
-      const date = identityPart(row.DocDate ?? row.docDate ?? row.Date ?? row.date)
-      if (date && date !== options.fiscalDate) return false
+  const docType = identityPart(options.docType)
+  if (!docType) throw manualReviewRequired('A reconciliação KeyInvoice precisa do tipo do documento')
+  const matches: Array<Record<string, unknown>> = []
+  // API 5 calls this method `documentsList` and omits Comments from its
+  // summaries. Fetch each candidate with `getDocument` before checking the
+  // immutable idempotency marker. Never infer that a write failed from a
+  // summary alone.
+  for (let offset = 0; offset < 500; offset += 100) {
+    const page = await callKeyInvoice(
+      session.apiUrl,
+      { method: 'documentsList', DocType: docType, Offset: String(offset) },
+      { sid: session.sid },
+      { fetcher: options.fetcher },
+    )
+    const candidates = collectionFromData(page.Data, ['Documents', 'Document'])
+    for (const row of candidates) {
+      const series = identityPart(row.DocSeries ?? row.docSeries)
+      const number = identityPart(row.DocNum ?? row.docNum)
+      if (!series || !number) continue
+      const detail = await callKeyInvoice(
+        session.apiUrl,
+        { method: 'getDocument', DocType: docType, DocSeries: series, DocNum: number },
+        { sid: session.sid },
+        { fetcher: options.fetcher },
+      )
+      const document = detail.Data && typeof detail.Data === 'object'
+        ? detail.Data as Record<string, unknown> : {}
+      const comments = String(document.Comments ?? document.comments ?? '')
+      if (comments.includes(marker)) matches.push(document)
     }
-    return true
-  })
+    if (candidates.length < 100) break
+  }
   if (matches.length === 0) return null
   if (matches.length > 1) {
     throw manualReviewRequired('Foram encontrados vários documentos KeyInvoice para a mesma chave de idempotência')

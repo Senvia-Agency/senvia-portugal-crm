@@ -3,6 +3,9 @@ import {
   callKeyInvoice,
   documentIdentityFromApi,
   documentIdentityFromRawData,
+  findKeyInvoiceDocumentByIdempotency,
+  getKeyInvoicePdf,
+  getKeyInvoiceSession,
   issueKeyInvoiceDocument,
   KeyInvoiceError,
   lisbonFiscalDate,
@@ -55,6 +58,59 @@ Deno.test('document issuance without a configured series lets KeyInvoice choose 
   assertEquals(submitted.DocType, '4')
   assertEquals(identity.docSeries, 'FT2026')
   assertEquals(identity.docNum, '1')
+})
+
+Deno.test('a valid shared SID is reused without another authenticate call', async () => {
+  const session = await getKeyInvoiceSession(
+    {},
+    {
+      keyinvoice_password: 'KEY',
+      keyinvoice_sid: 'CACHED-SID',
+      keyinvoice_sid_expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+    },
+    'org-1',
+    { fetcher: (async () => { throw new Error('authenticate must not run') }) as typeof fetch },
+  )
+  assertEquals(session.sid, 'CACHED-SID')
+})
+
+Deno.test('authentication rejection names the active-session possibility', async () => {
+  const db = { from: () => ({
+    select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }),
+  }) }
+  const error = await assertRejects(() => getKeyInvoiceSession(
+    db,
+    { keyinvoice_password: 'KEY' },
+    'org-1',
+    { fetcher: (async () => Response.json({ Status: 0, ErrorMessage: 'Autenticação inválida' })) as typeof fetch },
+  ))
+  assertEquals(error instanceof KeyInvoiceError ? error.code : null, 'keyinvoice_auth_rejected')
+})
+
+Deno.test('PDF and reconciliation use the documented API 5 fields and methods', async () => {
+  const methods: string[] = []
+  const fetcher = (async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as Record<string, unknown>
+    const method = String(request.method)
+    methods.push(method)
+    if (method === 'getDocumentPDF') {
+      return Response.json({ Status: 1, Data: { DocumentBinary: btoa(`%PDF-1.4\n${'A'.repeat(100)}`) } })
+    }
+    if (method === 'documentsList') {
+      assertEquals(request.DocType, '4')
+      return Response.json({ Status: 1, Data: { Documents: [{ DocType: '4', DocSeries: 'FT26', DocNum: '3', Date: '2026-09-25' }] } })
+    }
+    if (method === 'getDocument') {
+      return Response.json({ Status: 1, Data: { DocType: '4', DocSeries: 'FT26', DocNum: '3', Comments: 'SENVIA:test-key' } })
+    }
+    throw new Error(`Unexpected method ${method}`)
+  }) as typeof fetch
+  const session = { apiUrl: 'https://login.keyinvoice.com/API5.php', sid: 'SID' }
+  const identity = documentIdentityFromApi({ DocType: '4', DocSeries: 'FT26', DocNum: '3' })
+  assertEquals((await getKeyInvoicePdf(session, identity, fetcher)).byteLength, 109)
+  const found = await findKeyInvoiceDocumentByIdempotency(session, 'test-key', { docType: '4', fetcher })
+  assertEquals(found?.identityKey, identity.identityKey)
+  assertEquals(methods, ['getDocumentPDF', 'documentsList', 'getDocument'])
 })
 
 Deno.test('Lisbon fiscal date does not use UTC midnight', () => {
