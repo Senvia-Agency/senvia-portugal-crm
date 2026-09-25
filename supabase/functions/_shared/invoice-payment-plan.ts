@@ -35,7 +35,8 @@ export function invoicePaymentPlan(payments: PaymentPlanRow[], invoiceTotal: num
       ? `${label}: ${amount} — pago em ${date}`
       : `${label}: ${amount} — a pagar até ${date}`
   })
-  return [header, ...lines].join('\n')
+  // Fiscal providers may print escaped JSON newlines as a literal "n".
+  return `${header} ${lines.join('; ')}`
 }
 
 export function appendInvoicePaymentPlan(observations: unknown, plan: string): string {

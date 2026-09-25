@@ -548,7 +548,11 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     : `manual:${input.saleId}:${input.recurringCycleId || 'sale'}:${kind}`)
   // Comments are printed on the customer's fiscal document. Keep the
   // idempotency key exclusively in the Senvia fiscal ledger.
-  const comments = input.observations?.trim() || ''
+  const comments = (input.observations || '')
+    .split(/\r\n|\r|\n|\\r\\n|\\n|\\r/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('; ')
   return {
     sale,
     payments: scopedPayments,
