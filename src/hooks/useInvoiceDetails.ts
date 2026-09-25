@@ -85,7 +85,11 @@ export interface InvoiceDetailsData {
   bank_info?: any;
 }
 
-export function useInvoiceDetails({ documentId, invoiceId, documentType, organizationId }: InvoiceDetailsParams, enabled = true) {
+export function useInvoiceDetails(
+  { documentId, invoiceId, documentType, organizationId }: InvoiceDetailsParams,
+  enabled = true,
+  initialDetails?: Partial<InvoiceDetailsData>,
+) {
   return useQuery({
     queryKey: ["invoice-details", organizationId, invoiceId || documentId, documentType],
     queryFn: async () => {
@@ -103,6 +107,35 @@ export function useInvoiceDetails({ documentId, invoiceId, documentType, organiz
       return res.data as InvoiceDetailsData;
     },
     enabled: enabled && !!(invoiceId || documentId) && !!organizationId,
+    placeholderData: initialDetails ? {
+      id: initialDetails.id ?? Number(documentId ?? 0),
+      status: initialDetails.status ?? 'final',
+      sequence_number: initialDetails.sequence_number ?? '',
+      atcud: initialDetails.atcud ?? '',
+      date: initialDetails.date ?? '',
+      due_date: initialDetails.due_date ?? '',
+      permalink: initialDetails.permalink ?? '',
+      sum: initialDetails.sum ?? initialDetails.total ?? 0,
+      discount: initialDetails.discount ?? 0,
+      before_taxes: initialDetails.before_taxes ?? initialDetails.total ?? 0,
+      taxes: initialDetails.taxes ?? 0,
+      total: initialDetails.total ?? 0,
+      retention: initialDetails.retention ?? 0,
+      currency: initialDetails.currency ?? 'EUR',
+      tax_exemption: initialDetails.tax_exemption ?? null,
+      observations: initialDetails.observations ?? null,
+      mb_reference: initialDetails.mb_reference ?? null,
+      cancel_reason: initialDetails.cancel_reason ?? null,
+      qr_code_url: initialDetails.qr_code_url ?? null,
+      owner: initialDetails.owner ?? null,
+      client: initialDetails.client ?? null,
+      items: initialDetails.items ?? [],
+      tax_summary: initialDetails.tax_summary ?? [],
+      pdf_url: initialDetails.pdf_url ?? null,
+      pdf_signed_url: initialDetails.pdf_signed_url ?? null,
+      source: initialDetails.source ?? null,
+      bank_info: initialDetails.bank_info,
+    } : undefined,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
   });

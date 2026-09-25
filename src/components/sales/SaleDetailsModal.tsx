@@ -89,6 +89,7 @@ import { RecurringSalePanel } from "./RecurringSalePanel";
 import { useSalePayments, calculatePaymentSummary } from "@/hooks/useSalePayments";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { InvoiceDetailsModal } from "./InvoiceDetailsModal";
+import type { InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
 import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
 import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
@@ -1454,6 +1455,64 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
             organizationId={organization.id}
             saleId={sale.id}
+            initialDetails={{
+              sequence_number: saleFiscalDocument?.reference || sale.invoice_reference || '',
+              status: 'final',
+              date: sale.sale_date || '',
+              sum: saleItems.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0),
+              discount: Number(sale.discount || 0),
+              before_taxes: Number(sale.subtotal || sale.total_value || 0),
+              taxes: Math.max(0, Number(sale.gross_value ?? sale.total_value ?? 0) - Number(sale.subtotal || 0)),
+              total: Number(sale.gross_value ?? sale.total_value ?? 0),
+              client: sale.client ? {
+                id: 0,
+                name: billingName || sale.client.name,
+                fiscal_id: billingNif || sale.client.nif || '',
+                country: (billingCompany
+                  ? (sale.client.company_country || sale.client.country)
+                  : sale.client.country) || 'PT',
+                address: (billingCompany
+                  ? (sale.client.company_address_same_as_client ? sale.client.address_line1 : sale.client.company_address_line1)
+                  : sale.client.address_line1) || null,
+                postal_code: (billingCompany
+                  ? (sale.client.company_address_same_as_client ? sale.client.postal_code : sale.client.company_postal_code)
+                  : sale.client.postal_code) || null,
+                city: (billingCompany
+                  ? (sale.client.company_address_same_as_client ? sale.client.city : sale.client.company_city)
+                  : sale.client.city) || null,
+                email: sale.client.email || null,
+                phone: sale.client.phone || null,
+              } : sale.lead ? {
+                id: 0,
+                name: sale.lead.name,
+                fiscal_id: '',
+                country: 'PT',
+                address: null,
+                postal_code: null,
+                city: null,
+                email: sale.lead.email || null,
+                phone: sale.lead.phone || null,
+              } : null,
+              items: saleItems.map((item): InvoiceDetailsData['items'][number] => {
+                const quantity = Number(item.quantity || 0);
+                const unitPrice = Number(item.unit_price || 0);
+                const subtotal = unitPrice * quantity;
+                const total = Number(item.total || subtotal);
+                const taxRate = Number(item.tax_value ?? item.product?.tax_value ?? 0);
+                return {
+                  name: item.name,
+                  description: item.name,
+                  unit_price: String(unitPrice),
+                  quantity: String(quantity),
+                  tax: { id: 0, name: taxRate === 0 ? 'IVA isento' : 'IVA', value: taxRate },
+                  discount: Number(item.discount_percent || 0),
+                  subtotal,
+                  tax_amount: Math.max(0, total - subtotal),
+                  total,
+                };
+              }),
+              tax_summary: [],
+            }}
           />
           {supportsCreditNoteActions && <CreateCreditNoteModal
             open={invoiceCreditNoteModal}

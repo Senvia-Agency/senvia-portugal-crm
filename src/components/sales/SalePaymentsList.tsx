@@ -41,6 +41,7 @@ import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
 import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
 import { useSyncInvoice } from "@/hooks/useInvoiceDetails";
+import type { InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -158,6 +159,7 @@ export function SalePaymentsList({
     provider?: string;
     documentType: "invoice" | "invoice_receipt" | "receipt";
     paymentId?: string;
+    initialDetails?: Partial<InvoiceDetailsData>;
   } | null>(null);
 
   // Credit note modal state
@@ -399,6 +401,38 @@ export function SalePaymentsList({
                           provider: document?.provider,
                           documentType: 'receipt',
                           paymentId: payment.id,
+                          initialDetails: {
+                            sequence_number: payment.invoice_reference || document?.reference || '',
+                            status: 'final',
+                            date: payment.payment_date,
+                            sum: Number(payment.amount || 0),
+                            before_taxes: Number(payment.amount || 0),
+                            total: Number(payment.amount || 0),
+                            client: clientName ? {
+                              id: 0,
+                              name: clientName,
+                              fiscal_id: clientNif || '',
+                              country: 'PT',
+                              address: null,
+                              postal_code: null,
+                              city: null,
+                              email: clientEmail || null,
+                              phone: null,
+                            } : null,
+                            items: [{
+                              name: 'Liquidação de pagamento',
+                              description: payment.invoice_reference || '',
+                              unit_price: String(payment.amount || 0),
+                              quantity: '1',
+                              tax: { id: 0, name: 'IVA', value: 0 },
+                              discount: 0,
+                              subtotal: Number(payment.amount || 0),
+                              tax_amount: 0,
+                              total: Number(payment.amount || 0),
+                            }],
+                            tax_summary: [],
+                            source: document?.provider || undefined,
+                          },
                         });
                       }}
                       title="Ver detalhes"
@@ -608,6 +642,7 @@ export function SalePaymentsList({
           organizationId={organizationId}
           saleId={saleId}
           paymentId={detailsModal.paymentId}
+          initialDetails={detailsModal.initialDetails}
         />
       )}
 

@@ -486,6 +486,25 @@ export function InvoicesContent() {
           organizationId={organization.id}
           saleId={selectedInvoice.sale_id}
           paymentId={selectedInvoice.payment_id}
+          initialDetails={{
+            sequence_number: selectedInvoice.reference || '',
+            status: selectedInvoice.status || 'final',
+            date: selectedInvoice.date || '',
+            sum: Number(selectedInvoice.total || 0),
+            before_taxes: Number(selectedInvoice.total || 0),
+            total: Number(selectedInvoice.total || 0),
+            client: selectedInvoice.client_name ? {
+              id: 0,
+              name: selectedInvoice.client_name,
+              fiscal_id: '',
+              country: 'PT',
+              address: null,
+              postal_code: null,
+              city: null,
+              email: null,
+              phone: null,
+            } : null,
+          }}
         />
       )}
 

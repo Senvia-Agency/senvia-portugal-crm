@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInvoiceDetails } from "@/hooks/useInvoiceDetails";
+import { useInvoiceDetails, type InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
 import { formatCurrency } from "@/lib/format";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
@@ -43,6 +43,7 @@ interface InvoiceDetailsModalProps {
   saleId?: string;
   paymentId?: string;
   creditNoteId?: number | null;
+  initialDetails?: Partial<InvoiceDetailsData>;
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -73,11 +74,13 @@ export function InvoiceDetailsModal({
   saleId,
   paymentId,
   creditNoteId,
+  initialDetails,
 }: InvoiceDetailsModalProps) {
   const { organization } = useAuth();
   const { data: details, isLoading, error } = useInvoiceDetails(
     { documentId, invoiceId, documentType, organizationId },
-    open
+    open,
+    initialDetails,
   );
   const cancelInvoice = useCancelInvoice();
 
@@ -377,8 +380,8 @@ export function InvoiceDetailsModal({
                   Ver PDF
                 </Button>
                 {canSendFiscalEmail && (
-                  <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)}>
-                    <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
+          <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)} className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setEmailOpen(true)}>
                       <Mail className="h-3.5 w-3.5 mr-1.5" />
                       Enviar
                     </Button>
