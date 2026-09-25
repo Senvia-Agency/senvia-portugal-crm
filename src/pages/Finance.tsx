@@ -53,12 +53,76 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { CommissionFiltersBar, useCommissionFilterChips } from "@/components/finance/CommissionFilters";
 import { PinnedPageBar } from "@/components/layout/PinnedPageBar";
 import { useSaleChargebacks } from "@/hooks/useSaleChargebacks";
-import { Hammer, PlugZap, Undo2 } from "lucide-react";
+import { Hammer, PlugZap, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   DEFAULT_COMMISSION_FILTERS,
   hasCommissionFilters,
   type CommissionFilters,
 } from "@/lib/commission-filters";
+
+function TelecomFinanceFilters({
+  dateRange,
+  onDateRangeChange,
+  filters,
+  onFiltersChange,
+}: {
+  dateRange?: DateRange;
+  onDateRangeChange: (range: DateRange | undefined) => void;
+  filters: CommissionFilters;
+  onFiltersChange: (filters: CommissionFilters) => void;
+}) {
+  const hasActiveFilters = !!dateRange?.from || hasCommissionFilters(filters);
+  const renderFilters = () => (
+    <CommissionFiltersBar
+      value={filters}
+      onChange={onFiltersChange}
+      className="gap-5"
+      sidebar
+      periodFilter={
+        <DateRangePicker
+          value={dateRange}
+          onChange={onDateRangeChange}
+          placeholder="Todo o histórico"
+          className="w-full"
+        />
+      }
+    />
+  );
+  const description = "Comissões por mês previsto de recebimento. Sem período selecionado, as diferidas de meses futuros ficam excluídas.";
+
+  return (
+    <div className="contents">
+      <aside className="hidden rounded-xl border border-border/70 bg-card p-3 2xl:sticky 2xl:top-4 2xl:block 2xl:max-h-[calc(100dvh-2rem)] 2xl:overflow-y-auto">
+        <div className="mb-4 space-y-1">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
+          </h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
+        </div>
+        {renderFilters()}
+      </aside>
+
+      <div className="2xl:hidden">
+        <Accordion type="single" collapsible className="rounded-xl border border-border/70 bg-card px-3">
+          <AccordionItem value="finance-telecom-filters" className="border-0">
+            <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline">
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                Filtros
+                {hasActiveFilters && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Ativos</span>}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-3 pb-3">
+              <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
+              {renderFilters()}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    </div>
+  );
+}
 
 export default function Finance() {
   const { organization, organizations } = useAuth();
@@ -226,7 +290,7 @@ export default function Finance() {
 
   return (
     <div className="space-y-6 p-4 pb-20 md:p-6 md:pb-6 lg:p-8">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={isTelecom ? "space-y-0" : "space-y-6"}>
         <PinnedPageBar
           icon={Wallet}
           title="Financeiro"
@@ -240,13 +304,11 @@ export default function Finance() {
               <TabsTrigger value="outros" className="h-7 text-xs">Outros</TabsTrigger>
             </TabsList>
           }
-          summary={activeTab === "resumo"
-            ? (isTelecom
-                ? `Ativos e instalados · Total de Comissão ${formatCurrency(stats.totalCommission)}`
-                : `Faturado ${formatCurrency(stats.totalBilled)} · Recebido ${formatCurrency(stats.totalReceived)}`)
+          summary={!isTelecom && activeTab === "resumo"
+            ? `Faturado ${formatCurrency(stats.totalBilled)} · Recebido ${formatCurrency(stats.totalReceived)}`
             : undefined}
           chips={activeTab === "resumo" ? financeChips : []}
-          panel={activeTab === "resumo" ? (
+          panel={!isTelecom && activeTab === "resumo" ? (
             <div className="space-y-3 px-4 md:px-6 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <span className="text-sm font-medium text-muted-foreground">Período:</span>
@@ -257,16 +319,24 @@ export default function Finance() {
                   className="w-full sm:w-auto"
                 />
               </div>
-              {isTelecom && <p className="text-xs text-muted-foreground">As comissões seguem o mês previsto de recebimento da operadora. Sem período selecionado, as comissões diferidas de meses futuros ficam excluídas. Seleciona um mês futuro para consultar a previsão.</p>}
-              {isTelecom && (
-                <CommissionFiltersBar value={commissionFilters} onChange={setCommissionFilters} className="border-t pt-3" />
-              )}
             </div>
           ) : undefined}
+          layout={isTelecom ? "dashboard" : "pinned"}
+          subtitle={isTelecom ? "Comissões, instalações e despesas num só lugar." : undefined}
+          className={isTelecom ? "p-0 md:p-0 lg:p-0 space-y-3" : undefined}
         />
 
-        <TabsContent value="resumo" className="mt-0 space-y-6">
-
+        <TabsContent value="resumo" className={`mt-0 ${isTelecom ? "" : "space-y-6"}`}>
+          <div className={isTelecom ? "mt-[30px] grid items-start gap-4 2xl:grid-cols-[252px_minmax(0,1fr)] 2xl:gap-6" : ""}>
+            {isTelecom && (
+              <TelecomFinanceFilters
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                filters={commissionFilters}
+                onFiltersChange={setCommissionFilters}
+              />
+            )}
+            <div className={isTelecom ? "min-w-0 space-y-6" : ""}>
           {detailView ? (
             <FinanceCardDetail
               type={detailView}
@@ -279,7 +349,7 @@ export default function Finance() {
             />
           ) : (
             <>
-          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 min-[1800px]:grid-cols-4">
             <Card
               className="group cursor-pointer transition-colors hover:bg-muted/50"
               onClick={() => setDetailView("faturado")}
@@ -704,6 +774,8 @@ export default function Finance() {
           </div>
             </>
           )}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="contas" className="mt-0">

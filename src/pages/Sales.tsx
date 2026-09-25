@@ -8,6 +8,7 @@ import { useTeamMembers } from "@/hooks/useTeam";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CommissionsPanel } from "@/components/sales/CommissionsPanel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,59 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+function TelecomSalesFilters({
+  dateRange,
+  onDateRangeChange,
+  filters,
+  onFiltersChange,
+}: {
+  dateRange?: DateRange;
+  onDateRangeChange: (range: DateRange | undefined) => void;
+  filters: CommissionFilters;
+  onFiltersChange: (filters: CommissionFilters) => void;
+}) {
+  const active = !!dateRange?.from || hasCommissionFilters(filters);
+  const controls = () => (
+    <CommissionFiltersBar
+      value={filters}
+      onChange={onFiltersChange}
+      sidebar
+      periodFilter={
+        <DateRangePicker
+          value={dateRange}
+          onChange={onDateRangeChange}
+          placeholder="Todo o histórico"
+          className="w-full"
+        />
+      }
+    />
+  );
+
+  return (
+    <div className="contents">
+      <aside className="hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
+        </h2>
+        {controls()}
+      </aside>
+      <div className="lg:hidden">
+        <Accordion type="single" collapsible className="rounded-xl border border-border/70 bg-card px-3">
+          <AccordionItem value="sales-telecom-filters" className="border-0">
+            <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline">
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
+                {active && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Ativos</span>}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-3">{controls()}</AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    </div>
+  );
+}
 
 /**
  * The operators a sale is under, read off the lines frozen on it. A sale can
@@ -449,191 +503,10 @@ const deleteSale = useMutation({
     }
   };
 
-  // Cards, search and switches — what opens under the pinned bar.
-  const salesPanel = salesTab === 'vendas' ? (
-    <>
-      {/* Filters — pinned while the list scrolls. Plain sticky on the
-          window (the page is not inside a scroll box), opaque background,
-          nothing hanging outside its own width. */}
-      <div className={isGenericNiche
-        ? 'mx-4 md:mx-6 mt-2 space-y-3 rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4'
-        : 'px-4 md:px-6 py-3 space-y-3'}>
-        {/* Drill-down chip: says which dashboard card brought you here, and
-            clears back to the full list. */}
-        {telecomView && (
-          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-            <span className="text-muted-foreground">A mostrar:</span>
-            <span className="font-medium">{TELECOM_VIEW_LABELS[telecomView]}</span>
-            {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
-              <span className="text-xs text-muted-foreground">
-                {format(parseISO(telecomFrom), "d MMM", { locale: pt })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: pt })}
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-7 px-2 text-xs"
-              onClick={() => setSearchParams({}, { replace: true })}
-            >
-              Limpar filtro
-            </Button>
-          </div>
-        )}
-        {/* The period picker shares the filter row and sits at the end, like
-            the Financeiro. Telecom keeps its dedicated multi-row switch bar. */}
-        {isTelecom ? (
-          <div className="space-y-3">
-            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full sm:w-[260px]" />
-            <CommissionFiltersBar value={commissionFilters} onChange={setCommissionFilters} />
-          </div>
-        ) : (
-          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${isGenericNiche ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
-            {isGenericNiche && <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar por nome, empresa ou código..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-              />
-            </div>}
-            <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
-            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as SaleStatus | "all")}>
-              <SelectTrigger className="w-full bg-card/50 border-border/50">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os estados</SelectItem>
-                {SALE_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {SALE_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full" />
-          </div>
-        )}
-      </div>
-
-      {/* Summary cards follow the filters so every total is clearly tied to
-          the selected search, period, team and status. */}
-      <div className={`px-4 md:px-6 pt-4 pb-2 grid grid-cols-2 xl:grid-cols-4 gap-3 ${isTelecom ? 'sm:grid-cols-4' : ''}`}>
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-4' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"><TrendingUp className="h-4 w-4" /></span> : <TrendingUp className="h-4 w-4 text-muted-foreground" />}
-              <span className="text-xs text-muted-foreground">Total Vendas</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight' : 'text-xl'} font-bold leading-tight`}>{stats.total}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(stats.totalValue)} em vendas</p>
-            {isTelecom && modules.energy && telecomMetrics && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {telecomMetrics.totalMWh.toFixed(1)} MWh · {telecomMetrics.totalKWp.toFixed(1)} kWp
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-3' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-blue-500" />}
-              <span className="text-xs text-muted-foreground">Em Progresso</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-amber-700 dark:text-amber-300' : 'text-xl text-blue-500'} font-bold leading-tight`}>{stats.inProgress}</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-2' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-purple-500" />}
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-violet-600 dark:text-violet-300' : 'text-xl text-purple-500'} font-bold leading-tight`}>{stats.fulfilled}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
-          </CardContent>
-        </Card>
-
-        <Card className={isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"><CheckCircle className="h-4 w-4" /></span> : <CheckCircle className="h-4 w-4 text-green-500" />}
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-emerald-600 dark:text-emerald-300' : 'text-xl text-green-500'} font-bold leading-tight`}>{stats.delivered}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
-            {isTelecom && modules.energy && telecomMetrics && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {telecomMetrics.deliveredMWh.toFixed(1)} MWh · {telecomMetrics.deliveredKWp.toFixed(1)} kWp
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </>
-  ) : undefined;
-  return (
-    <div className="flex flex-col min-h-dvh bg-background">
-      {/* Title, tabs, cards and filters pinned together while the list
-          scrolls. Plain sticky on the window, opaque, nothing outside its
-          own width — the version that behaves. */}
-      <PinnedPageBar
-        icon={ShoppingBag}
-        title="Vendas"
-        storageKey="sales-filters-open-v1"
-        search={!isGenericNiche && salesTab === 'vendas' ? (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Pesquisar por nome, empresa ou código..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={isGenericNiche
-                ? 'h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'
-                : 'h-8 border-primary/35 bg-primary/[0.04] pl-9 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'}
-            />
-          </div>
-        ) : undefined}
-        tabs={
-          <Tabs value={salesTab} onValueChange={(v) => setSalesTab(v as 'vendas' | 'comissoes')}>
-            <TabsList className={isGenericNiche ? 'h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto' : 'h-8'}>
-              <TabsTrigger value="vendas" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Vendas</TabsTrigger>
-              <TabsTrigger value="comissoes" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Comissões</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-        summary={!isGenericNiche && salesTab === 'vendas'
-          ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso${isTelecom ? ` · ${formatOperationalUnits(stats.fulfilled)} ativa${stats.fulfilled === 1 ? '' : 's'}` : ''} · ${formatOperationalUnits(stats.delivered)} ${isTelecom ? `instalada${stats.delivered === 1 ? '' : 's'}` : `concluída${stats.delivered === 1 ? '' : 's'}`}`
-          : undefined}
-        chips={salesTab === 'vendas' ? activeFilterChips : []}
-        actions={
-          <>
-            {isPerfect2Gether && (
-              <Button variant="outline" size="sm" className={isGenericNiche ? 'h-10' : 'h-8'} onClick={handleExportPerfect2Gether} disabled={isExporting}>
-                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                <span className="hidden sm:inline">Exportar Perfect2Gether</span>
-                <span className="sm:hidden">Exportar</span>
-              </Button>
-            )}
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
-              <Plus className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Nova Venda</span>
-              <span className="sm:hidden">Nova</span>
-            </Button>
-          </>
-        }
-        panel={salesPanel}
-        layout={isGenericNiche ? 'dashboard' : 'pinned'}
-        subtitle={isGenericNiche ? 'Acompanhe o desempenho, o estado e o valor das suas vendas.' : undefined}
-      />
-      {salesTab === 'comissoes' && <CommissionsPanel />}
-
-      {salesTab === 'vendas' && (
+  const salesResults = salesTab === 'vendas' ? (
       <>
       {/* Sales List */}
-      <div className="flex-1 px-4 md:px-6 pb-nav-safe md:pb-6 space-y-3">
+      <div className={isTelecom ? 'min-w-0 space-y-3 pb-nav-safe md:pb-6' : `flex-1 px-4 md:px-6 ${isGenericNiche ? 'lg:px-14' : ''} pb-nav-safe md:pb-6 space-y-3`}>
         {isLoading ? (
           <>
             <Skeleton className="h-24 w-full" />
@@ -825,7 +698,211 @@ const deleteSale = useMutation({
         )}
       </div>
       </>
+      ) : null;
+
+  // Cards, search and switches — what opens under the pinned bar.
+  const salesPanel = salesTab === 'vendas' ? (
+    <>
+      {/* Generic/other-niche filters stay above their cards. Telecom renders
+          its cards first and places the tabs, search and filters underneath. */}
+      {!isTelecom && <div className={isGenericNiche
+        ? 'mx-4 md:mx-6 mt-2 space-y-3 rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4'
+        : 'px-4 md:px-6 py-3 space-y-3'}>
+        {/* Drill-down chip: says which dashboard card brought you here, and
+            clears back to the full list. */}
+        {telecomView && (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">A mostrar:</span>
+            <span className="font-medium">{TELECOM_VIEW_LABELS[telecomView]}</span>
+            {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
+              <span className="text-xs text-muted-foreground">
+                {format(parseISO(telecomFrom), "d MMM", { locale: pt })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: pt })}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 px-2 text-xs"
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              Limpar filtro
+            </Button>
+          </div>
+        )}
+        {/* The period picker shares the filter row and sits at the end, like
+            the Financeiro. Telecom keeps its dedicated multi-row switch bar. */}
+        {!isTelecom && (
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${isGenericNiche ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            {isGenericNiche && <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome, empresa ou código..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
+              />
+            </div>}
+            <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
+            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as SaleStatus | "all")}>
+              <SelectTrigger className="w-full bg-card/50 border-border/50">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os estados</SelectItem>
+                {SALE_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {SALE_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full" />
+          </div>
+        )}
+      </div>}
+
+      <div className={isTelecom ? "mt-[30px] grid w-full min-w-0 max-w-full items-start gap-4 lg:grid-cols-[252px_minmax(0,1fr)]" : "contents"}>
+      {isTelecom && <TelecomSalesFilters
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        filters={commissionFilters}
+        onFiltersChange={setCommissionFilters}
+      />}
+      <div className={isTelecom ? "w-full min-w-0 max-w-full" : "contents"}>
+      {isTelecom && telecomView && (
+        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm md:mx-0">
+          <span className="text-muted-foreground">A mostrar:</span>
+          <span className="font-medium">{TELECOM_VIEW_LABELS[telecomView]}</span>
+          {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
+            <span className="text-xs text-muted-foreground">
+              {format(parseISO(telecomFrom), "d MMM", { locale: pt })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: pt })}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 px-2 text-xs"
+            onClick={() => setSearchParams({}, { replace: true })}
+          >
+            Limpar filtro
+          </Button>
+        </div>
       )}
+      {/* Summary cards follow the search and sidebar filters. */}
+      <div className={`${isTelecom ? 'w-full min-w-0 pt-4 pb-2' : 'px-4 md:px-6 pt-4 pb-2'} grid grid-cols-2 xl:grid-cols-4 gap-3 ${isTelecom ? 'sm:grid-cols-2 2xl:grid-cols-4' : ''}`}>
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-4' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"><TrendingUp className="h-4 w-4" /></span> : <TrendingUp className="h-4 w-4 text-muted-foreground" />}
+              <span className="text-xs text-muted-foreground">Total Vendas</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight' : 'text-xl'} font-bold leading-tight`}>{stats.total}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(stats.totalValue)} em vendas</p>
+          </CardContent>
+        </Card>
+
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-3' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-blue-500" />}
+              <span className="text-xs text-muted-foreground">Em Progresso</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-amber-700 dark:text-amber-300' : 'text-xl text-blue-500'} font-bold leading-tight`}>{stats.inProgress}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-2' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-purple-500" />}
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-violet-600 dark:text-violet-300' : 'text-xl text-purple-500'} font-bold leading-tight`}>{stats.fulfilled}</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"><CheckCircle className="h-4 w-4" /></span> : <CheckCircle className="h-4 w-4 text-green-500" />}
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-emerald-600 dark:text-emerald-300' : 'text-xl text-green-500'} font-bold leading-tight`}>{stats.delivered}</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
+          </CardContent>
+        </Card>
+      </div>
+      {isTelecom && salesResults}
+
+      </div>
+      </div>
+    </>
+  ) : undefined;
+  return (
+    <div className="flex flex-col min-h-dvh bg-background">
+      {/* Title, tabs, cards and filters pinned together while the list
+          scrolls. Plain sticky on the window, opaque, nothing outside its
+          own width — the version that behaves. */}
+      <PinnedPageBar
+        icon={ShoppingBag}
+        title="Vendas"
+        storageKey="sales-filters-open-v1"
+        search={!isGenericNiche && salesTab === 'vendas' ? (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar por nome, empresa ou código..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={isTelecom
+                ? 'h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'
+                : 'h-8 border-primary/35 bg-primary/[0.04] pl-9 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'}
+            />
+          </div>
+        ) : undefined}
+        tabs={isTelecom ? (
+          <Tabs value={salesTab} onValueChange={(value) => setSalesTab(value as 'vendas' | 'comissoes')}>
+            <TabsList className="h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto">
+              <TabsTrigger value="vendas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Vendas</TabsTrigger>
+              <TabsTrigger value="comissoes" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Comissões</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : !isTelecom ? (
+          <Tabs value={salesTab} onValueChange={(v) => setSalesTab(v as 'vendas' | 'comissoes')}>
+            <TabsList className={isGenericNiche ? 'h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto' : 'h-8'}>
+              <TabsTrigger value="vendas" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Vendas</TabsTrigger>
+              <TabsTrigger value="comissoes" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Comissões</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : undefined}
+        summary={!isGenericNiche && !isTelecom && salesTab === 'vendas'
+          ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso${isTelecom ? ` · ${formatOperationalUnits(stats.fulfilled)} ativa${stats.fulfilled === 1 ? '' : 's'}` : ''} · ${formatOperationalUnits(stats.delivered)} ${isTelecom ? `instalada${stats.delivered === 1 ? '' : 's'}` : `concluída${stats.delivered === 1 ? '' : 's'}`}`
+          : undefined}
+        chips={salesTab === 'vendas' ? activeFilterChips : []}
+        actions={
+          <>
+            {isPerfect2Gether && (
+              <Button variant="outline" size="sm" className={isGenericNiche ? 'h-10' : 'h-8'} onClick={handleExportPerfect2Gether} disabled={isExporting}>
+                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                <span className="hidden sm:inline">Exportar Perfect2Gether</span>
+                <span className="sm:hidden">Exportar</span>
+              </Button>
+            )}
+            <Button onClick={() => setShowCreateModal(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
+              <Plus className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Nova Venda</span>
+              <span className="sm:hidden">Nova</span>
+            </Button>
+          </>
+        }
+        panel={salesPanel}
+        layout={isGenericNiche || isTelecom ? 'dashboard' : 'pinned'}
+        subtitle={isGenericNiche ? 'Acompanhe o desempenho, o estado e o valor das suas vendas.' : undefined}
+      />
+      {salesTab === 'comissoes' && <CommissionsPanel />}
+
+      {!isTelecom && salesResults}
 
         {/* Sale Details Modal */}
         <SaleDetailsModal

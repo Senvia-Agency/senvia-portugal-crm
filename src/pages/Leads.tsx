@@ -50,6 +50,7 @@ import type { Lead, LeadTemperature, LeadTipologia } from "@/types";
 import { TIPOLOGIA_LABELS } from "@/types";
 import { LeadsReportPanel } from "@/components/leads/LeadsReportPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useModules } from "@/hooks/useModules";
 
 export default function Leads() {
@@ -648,224 +649,132 @@ export default function Leads() {
     };
   };
 
+  const leadFilterControls = (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">Período</span>
+        <DateRangePicker
+          value={dateRange.from ? { from: dateRange.from, to: dateRange.to } : undefined}
+          onChange={(range) => setDateRange({ from: range?.from, to: range?.to })}
+          placeholder="Todo o histórico"
+          className="w-full"
+        />
+      </div>
+      <div className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">Vendedor</span>
+        <TeamMemberFilter className="w-full" />
+      </div>
+      <div className="space-y-1">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">Estado</span>
+        <div className="flex flex-wrap gap-1.5">
+          {stages.map((stage) => (
+            <Badge
+              key={stage.id}
+              variant="outline"
+              className="cursor-pointer transition-colors hover:opacity-80 text-xs"
+              style={getBadgeStyle(stage.color, statusFilter.includes(stage.key))}
+              onClick={() => toggleStatus(stage.key)}
+            >
+              {stage.name}
+            </Badge>
+          ))}
+        </div>
+      </div>
+      {showEnergy && (
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Tipologia</span>
+          <Select value={tipologiaFilter} onValueChange={(v) => setTipologiaFilter(v as 'all' | LeadTipologia)}>
+            <SelectTrigger className="h-9 w-full">
+              <Zap className="h-3.5 w-3.5 mr-1" />
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {(Object.entries(TIPOLOGIA_LABELS) as [LeadTipologia, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {hasActiveFilters && (
+        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-0 text-muted-foreground hover:text-foreground">
+          <X className="mr-1 h-3.5 w-3.5" />Limpar filtros
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="p-4 lg:p-8">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pipeline' | 'report')} className="space-y-4">
-        {/* Pinned: title, count, tabs and actions; the filters open under it. */}
-        <div className="sticky top-14 lg:top-0 z-20 mb-4 space-y-3 border-b bg-background pb-3 pt-1 lg:mb-6">
-          {/* Linha 1: Título + Pesquisa */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-4 border-b border-border/70 bg-background pb-4">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 shrink-0 text-primary" />
-                <h1 className="text-lg font-semibold text-foreground">Leads</h1>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">Leads</h1>
                 <Badge variant="secondary" className="text-xs font-medium">
                   {hasActiveFilters ? `${filteredLeads.length} / ${baseLeads.length}` : baseLeads.length}
                 </Badge>
-                {showArchived && (
-                  <Badge variant="outline" className="text-xs font-medium border-amber-500/40 text-amber-600">
-                    Arquivadas
-                  </Badge>
-                )}
+                {showArchived && <Badge variant="outline" className="border-amber-500/40 text-xs font-medium text-amber-600">Arquivadas</Badge>}
               </div>
-              <p className="text-sm text-muted-foreground hidden sm:block">Gerencie os contactos da sua organização.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Gira os contactos e acompanha o progresso do seu pipeline.</p>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {/* Typed search stays here, on the pinned row, whatever the
-                  filter panel is doing. */}
-              <div className="relative w-full sm:w-[220px] lg:w-[300px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Pesquisar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9" />
-              </div>
-              <TabsList className="h-9">
-                <TabsTrigger value="pipeline" className="text-xs gap-1">
-                  <LayoutGrid className="h-3.5 w-3.5" /> Pipeline
-                </TabsTrigger>
-                <TabsTrigger value="report" className="text-xs gap-1">
-                  <BarChart3 className="h-3.5 w-3.5" /> Relatório
-                </TabsTrigger>
-              </TabsList>
-
-              {activeTab === 'pipeline' && (
-                <>
-                  {/* View Mode Toggle */}
-                  <div className="hidden sm:flex items-center border border-border rounded-lg p-1 bg-background">
-                    <Button 
-                      variant={viewMode === 'kanban' ? 'secondary' : 'ghost'} 
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setViewMode('kanban')}
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant={viewMode === 'table' ? 'secondary' : 'ghost'} 
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setViewMode('table')}
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  <Button
-                    variant={leadsFiltersOpen ? "secondary" : "outline"}
-                    className="shrink-0 h-9 lg:h-10"
-                    aria-expanded={leadsFiltersOpen}
-                    onClick={() => setLeadsFiltersOpen(v => !v)}
-                  >
-                    <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Filtros{hasActiveFilters ? " •" : ""}</span>
-                  </Button>
-                  <Button variant="outline" data-otto-target="leads-import-btn" onClick={() => setIsImportModalOpen(true)} className="shrink-0 h-9 lg:h-10">
-                    <Upload className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Importar</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsImportsHistoryOpen(true)} className="shrink-0 h-9 lg:h-10" title="Histórico de importações">
-                    <History className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Histórico</span>
-                  </Button>
-                  <Button onClick={() => setIsAddModalOpen(true)} className="shrink-0 h-9 lg:h-10">
-                    <Plus className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Adicionar</span>
-                  </Button>
-                  {!showArchived && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="shrink-0 h-9 lg:h-10" title="Arquivar leads">
-                          <Archive className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Arquivar</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem onClick={() => setIsArchiveByStageOpen(true)}>
-                          <Layers className="h-4 w-4 mr-2" />
-                          Arquivar leads de um estado
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={selectedIds.length === 0}
-                          onClick={handleBulkArchive}
-                        >
-                          <CheckSquare className="h-4 w-4 mr-2" />
-                          Arquivar leads selecionados{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                  <Button variant={showArchived ? 'secondary' : 'outline'} onClick={() => setShowArchived(v => !v)} className="shrink-0 h-9 lg:h-10" title={showArchived ? 'Voltar às leads ativas' : 'Ver leads arquivadas'}>
-                    <Archive className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{showArchived ? 'Ver ativas' : 'Arquivadas'}</span>
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {activeTab === 'pipeline' && leadsFiltersOpen && (
-            <div className="flex flex-col gap-3 pb-1">
-              <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:gap-3">
-
-                {/* Team Member Filter (Admin Only) */}
-                <TeamMemberFilter className="w-full md:w-[260px] lg:w-[280px] shrink-0" />
-
-                {/* Date Range Picker */}
-                <DateRangePicker
-                  value={dateRange.from ? { from: dateRange.from, to: dateRange.to } : undefined}
-                  onChange={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                  placeholder="Período"
-                  className="h-9 w-full md:w-[240px] lg:w-[260px] shrink-0 justify-start"
-                />
-              </div>
-
+            {activeTab === 'pipeline' && (
               <div className="flex flex-wrap items-center gap-2">
-                {/* Mobile View Mode Toggle */}
-                <div className="flex sm:hidden items-center border border-border rounded-lg p-1 bg-background shrink-0">
-                  <Button 
-                    variant={viewMode === 'kanban' ? 'secondary' : 'ghost'} 
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setViewMode('kanban')}
-                  >
-                    <LayoutGrid className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button 
-                    variant={viewMode === 'table' ? 'secondary' : 'ghost'} 
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setViewMode('table')}
-                  >
-                    <List className="h-3.5 w-3.5" />
-                  </Button>
+                <div className="hidden items-center rounded-lg border border-border bg-background p-1 sm:flex">
+                  <Button variant={viewMode === 'kanban' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('kanban')} aria-label="Vista Kanban"><LayoutGrid className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === 'table' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('table')} aria-label="Vista de tabela"><List className="h-4 w-4" /></Button>
                 </div>
-
-                {/* Mobile: Select dropdown for status filter */}
-                <Select
-                  value={statusFilter.length === 1 ? statusFilter[0] : "all"}
-                  onValueChange={(value) => {
-                    if (value === "all") {
-                      setStatusFilter([]);
-                    } else {
-                      setStatusFilter([value]);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-full md:hidden sm:w-[180px] shrink-0">
-                    <SelectValue placeholder="Filtrar status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os status</SelectItem>
-                    {stages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.key}>
-                        {stage.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Tipologia Filter (Telecom only) */}
-                {showEnergy && (
-                  <Select value={tipologiaFilter} onValueChange={(v) => setTipologiaFilter(v as 'all' | LeadTipologia)}>
-                    <SelectTrigger className="w-[140px] h-8 shrink-0">
-                      <Zap className="h-3.5 w-3.5 mr-1" />
-                      <SelectValue placeholder="Tipologia" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      {(Object.entries(TIPOLOGIA_LABELS) as [LeadTipologia, string][]).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Button variant="outline" data-otto-target="leads-import-btn" onClick={() => setIsImportModalOpen(true)} className="h-9 lg:h-10"><Upload className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Importar</span></Button>
+                <Button variant="outline" onClick={() => setIsImportsHistoryOpen(true)} className="h-9 lg:h-10" title="Histórico de importações"><History className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Histórico</span></Button>
+                <Button onClick={() => setIsAddModalOpen(true)} className="h-9 lg:h-10"><Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Adicionar</span></Button>
+                {!showArchived && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild><Button variant="outline" className="h-9 lg:h-10" title="Arquivar leads"><Archive className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Arquivar</span></Button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => setIsArchiveByStageOpen(true)}><Layers className="mr-2 h-4 w-4" />Arquivar leads de um estado</DropdownMenuItem>
+                      <DropdownMenuItem disabled={selectedIds.length === 0} onClick={handleBulkArchive}><CheckSquare className="mr-2 h-4 w-4" />Arquivar leads selecionados{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-
-                {/* Clear Filters */}
-                {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-muted-foreground hover:text-foreground shrink-0">
-                    <X className="mr-1 h-3.5 w-3.5" />
-                    <span className="text-xs">Limpar</span>
-                  </Button>
-                )}
+                <Button variant={showArchived ? 'secondary' : 'outline'} onClick={() => setShowArchived(v => !v)} className="h-9 lg:h-10" title={showArchived ? 'Voltar às leads ativas' : 'Ver leads arquivadas'}><Archive className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">{showArchived ? 'Ver ativas' : 'Arquivadas'}</span></Button>
               </div>
-
-              {/* Desktop: Status Filter Badges */}
-              <div className="hidden md:flex flex-wrap items-center gap-2">
-                {stages.map((stage) => (
-                  <Badge
-                    key={stage.id}
-                    variant="outline"
-                    className="cursor-pointer transition-colors hover:opacity-80 text-xs"
-                    style={getBadgeStyle(stage.color, statusFilter.includes(stage.key))}
-                    onClick={() => toggleStatus(stage.key)}
-                  >
-                    {stage.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
+          </header>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="h-10 w-full justify-start sm:w-auto">
+              <TabsTrigger value="pipeline" className="gap-1"><LayoutGrid className="h-3.5 w-3.5" />Pipeline</TabsTrigger>
+              <TabsTrigger value="report" className="gap-1"><BarChart3 className="h-3.5 w-3.5" />Relatório</TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
+        {activeTab === 'pipeline' && (
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Pesquisar por nome, email ou telefone..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25" />
+          </div>
+        )}
+
         <TabsContent value="pipeline" className="mt-0">
+          <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[252px_minmax(0,1fr)]">
+            <div className="space-y-3">
+              <aside className="hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros</h2>
+                {leadFilterControls}
+              </aside>
+              <div className="lg:hidden">
+                <Accordion type="single" collapsible value={leadsFiltersOpen ? 'lead-filters' : ''} onValueChange={(value) => setLeadsFiltersOpen(!!value)} className="rounded-xl border border-border/70 bg-card px-3">
+                  <AccordionItem value="lead-filters" className="border-0">
+                    <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline"><span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros{hasActiveFilters ? ' •' : ''}</span></AccordionTrigger>
+                    <AccordionContent className="pb-3">{leadFilterControls}</AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            </div>
+            <div className="min-w-0">
         {/* Bulk Actions Bar */}
         {effectiveViewMode === 'table' && (
           <BulkActionsBar
@@ -921,6 +830,8 @@ export default function Leads() {
             />
           )}
         </div>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="report" className="mt-0">

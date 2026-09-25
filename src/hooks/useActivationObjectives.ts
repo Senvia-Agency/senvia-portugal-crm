@@ -104,7 +104,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   )];
 
   // Fetch proposal_cpes consumo_anual for energia
-  const { data: proposalCpes = [], isLoading: cpesLoading } = useQuery({
+  const { data: proposalCpes = [] } = useQuery({
     queryKey: ["activation-proposal-cpes", orgId, allProposalIds],
     queryFn: async () => {
       if (!orgId || allProposalIds.length === 0) return [];
@@ -119,7 +119,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   });
 
   // Fetch proposal metadata needed for activation filtering and services kWp
-  const { data: proposalsMetadata = [], isLoading: detailsLoading } = useQuery({
+  const { data: proposalsMetadata = [] } = useQuery({
     queryKey: ["activation-proposals-metadata", orgId, allProposalIds],
     queryFn: async () => {
       if (!orgId || allProposalIds.length === 0) return [];
@@ -263,7 +263,10 @@ export function useActivationObjectives(referenceDate?: Date) {
 
   return {
     objectives,
-    isLoading: objectivesLoading || monthlyLoading || annualLoading || cpesLoading || detailsLoading,
+    // Render the panel as soon as its primary data is available. CPE and
+    // proposal metadata are enrichment queries; waiting for them here kept the
+    // entire widget on skeletons when those secondary requests were slow.
+    isLoading: objectivesLoading || monthlyLoading || annualLoading,
     getTarget,
     countActivations: sumActivations,
     saveObjective,

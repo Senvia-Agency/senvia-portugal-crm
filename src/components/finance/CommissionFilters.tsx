@@ -8,6 +8,7 @@ import { useTeamMembers } from '@/hooks/useTeam';
 import { cn } from '@/lib/utils';
 import { NO_OPERATOR, NO_TYPE, type CommissionFilters } from '@/lib/commission-filters';
 import { TELECOM_STATUSES, TELECOM_STATUS_LABELS, type TelecomStatus } from '@/types/sales';
+import type { ReactNode } from 'react';
 
 /**
  * Every switch carries its own colour, so a glance at the bar says which
@@ -69,10 +70,14 @@ export function CommissionFiltersBar({
   value,
   onChange,
   className,
+  periodFilter,
+  sidebar = false,
 }: {
   value: CommissionFilters;
   onChange: (next: CommissionFilters) => void;
   className?: string;
+  periodFilter?: ReactNode;
+  sidebar?: boolean;
 }) {
   const { data: operators = [] } = useOperators();
   const { data: members = [] } = useTeamMembers();
@@ -105,21 +110,58 @@ export function CommissionFiltersBar({
   ];
 
   const switchClass = (on: boolean, tone: string) =>
-    cn('h-8 rounded-full px-3 text-xs font-medium transition-all', on ? tone : OFF_TONE);
+    cn('h-7 rounded-full px-2.5 text-[11px] font-medium transition-all', on ? tone : OFF_TONE);
 
   const operatorSwitches = [
     ...operators.map((o, i) => ({ key: o.id, label: o.name, tone: OPERATOR_TONES[i % OPERATOR_TONES.length] })),
     { key: NO_OPERATOR, label: 'Sem operadora', tone: NO_OPERATOR_TONE },
   ];
 
+  const sellerFilter = (
+    <Select
+      value={value.userId ?? 'all'}
+      onValueChange={(v) => onChange({ ...value, userId: v === 'all' ? null : v })}
+    >
+      <SelectTrigger
+        className={cn(
+          'h-8 w-full text-xs sm:w-[200px]',
+          sidebar && 'sm:w-full',
+          value.userId && 'border-primary/40 bg-primary/10 text-primary',
+        )}
+      >
+        <Users className="mr-2 h-4 w-4 shrink-0" />
+        <SelectValue placeholder="Todos os vendedores" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Todos os vendedores</SelectItem>
+        {members.map((m) => (
+          <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+    <div className={cn('flex flex-col gap-2', className)}>
+      <div className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center', sidebar && 'sm:flex-col sm:items-stretch sm:gap-3')}>
+        {sidebar && periodFilter && (
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Período</span>
+            {periodFilter}
+          </div>
+        )}
+        {sidebar && (
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Vendedor</span>
+            {sellerFilter}
+          </div>
+        )}
+        <div className={sidebar ? 'space-y-1' : 'contents'}>
         <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
           <Radio className="h-4 w-4" />
           Operadoras:
         </span>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
           {operatorSwitches.map((s) => {
             const on = !excluded.has(s.key);
             return (
@@ -148,35 +190,17 @@ export function CommissionFiltersBar({
             </Button>
           )}
         </div>
-
-        <Select
-          value={value.userId ?? 'all'}
-          onValueChange={(v) => onChange({ ...value, userId: v === 'all' ? null : v })}
-        >
-          <SelectTrigger
-            className={cn(
-              'h-8 w-full text-xs sm:w-[200px]',
-              value.userId && 'border-primary/40 bg-primary/10 text-primary',
-            )}
-          >
-            <Users className="mr-2 h-4 w-4 shrink-0" />
-            <SelectValue placeholder="Todos os vendedores" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os vendedores</SelectItem>
-            {members.map((m) => (
-              <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        </div>
+        {!sidebar && sellerFilter}
+        {!sidebar && periodFilter}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-          <Activity className="h-4 w-4" />
-          Estado:
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className={cn('flex flex-col gap-2 2xl:flex-row 2xl:flex-wrap 2xl:items-center 2xl:gap-x-6', sidebar && '2xl:flex-col 2xl:items-stretch 2xl:gap-3')}>
+        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
+          <span className="mr-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <Activity className="h-4 w-4" />Estado:
+          </span>
+          <div className="flex flex-wrap items-center gap-1">
           {TELECOM_STATUSES.map((st) => {
             const on = !excludedStatuses.has(st);
             return (
@@ -198,21 +222,20 @@ export function CommissionFiltersBar({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-[11px]"
               onClick={() => onChange({ ...value, excludedStatuses: [] })}
             >
               Todos
             </Button>
           )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-          <Tags className="h-4 w-4" />
-          Tipos:
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
+          <span className="mr-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <Tags className="h-4 w-4" />Tipos:
+          </span>
+          <div className="flex flex-wrap items-center gap-1">
           {typeSwitches.map((s) => {
             const on = !excludedTypes.has(s.key);
             return (
@@ -234,12 +257,13 @@ export function CommissionFiltersBar({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-[11px]"
               onClick={() => onChange({ ...value, excludedTypes: [] })}
             >
               Todos
             </Button>
           )}
+          </div>
         </div>
       </div>
     </div>
