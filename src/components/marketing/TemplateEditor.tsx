@@ -130,6 +130,14 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
       if (doc) {
         doc.open();
         const previewContent = value || '<p style="color: #999;">O preview aparecerá aqui...</p>';
+        if (previewContent.includes('data-senvia-email-shell="v1"') || (
+          previewContent.includes('https://app.senvia.pt/senvia-logo-white.png') &&
+          previewContent.toUpperCase().includes('#F0F4F8')
+        )) {
+          doc.write(previewContent);
+          doc.close();
+          return;
+        }
         const previewBody = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(previewContent)?.[1] || previewContent;
         const previewStyles = [...(previewContent.matchAll(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi))]
           .map((match) => match[0])

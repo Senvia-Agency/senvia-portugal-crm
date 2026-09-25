@@ -4,7 +4,11 @@ const SHELL_MARKER = 'data-senvia-email-shell="v1"';
 /** Places an email body or full HTML document inside the standard SENVIA OS email frame. */
 export function applySenviaEmailTemplate(html: string, title = "SENVIA OS"): string {
   const source = String(html ?? "").trim();
-  if (source.includes(SHELL_MARKER)) return source;
+  // Do not wrap templates that already contain the complete SENVIA email design.
+  // Older saved templates predate the marker but already use the same logo and palette.
+  if (source.includes(SHELL_MARKER) || (
+    source.includes(EMAIL_LOGO_URL) && source.toUpperCase().includes("#F0F4F8")
+  )) return source;
 
   const head = /<head\b[^>]*>([\s\S]*?)<\/head\s*>/i.exec(source)?.[1] ?? "";
   const preservedStyles = [...head.matchAll(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi)]
