@@ -4,6 +4,7 @@
 // organizations.trial_notified_at para nunca notificar a mesma org duas vezes.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,13 +147,15 @@ serve(async (req) => {
                 sender: { name: senvia.name || "SENVIA OS", email: senvia.brevo_sender_email },
                 to: [{ email: ALERT_TO }],
                 subject: `🎉 Novo trial: ${org.name}`,
-                htmlContent:
+                htmlContent: applySenviaEmailTemplate(
                   `<h2>Novo trial do SENVIA OS</h2>` +
                   `<p><b>Empresa:</b> ${org.name}<br>` +
                   `<b>Responsável:</b> ${ownerName || "—"}<br>` +
                   `<b>Email:</b> ${ownerEmail || "—"}<br>` +
                   `<b>Início:</b> ${startStr}</p>` +
                   `<p>Já foi criado um <b>lead na org SENVIA</b>. Contacta nas primeiras 24-48h.</p>`,
+                  `Novo trial: ${org.name}`,
+                ),
               }),
             });
             if (!r.ok) log("email falhou", { orgId: org.id, status: r.status });

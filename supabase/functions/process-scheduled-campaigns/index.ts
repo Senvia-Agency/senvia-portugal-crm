@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -301,7 +302,7 @@ serve(async (req: Request): Promise<Response> => {
               sender: { name: senderName, email: senderEmail },
               to: [{ email: send.recipient_email, name: send.recipient_name || send.recipient_email }],
               subject: finalSubject,
-              htmlContent: finalHtml,
+              htmlContent: applySenviaEmailTemplate(finalHtml, finalSubject),
             };
 
             if (campaignSettings.different_reply_to && campaignSettingsData.different_reply_to) {

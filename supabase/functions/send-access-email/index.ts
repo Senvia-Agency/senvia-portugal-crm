@@ -1,4 +1,5 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -231,7 +232,7 @@ serve(async (req) => {
         sender: { email: senderEmail, name: orgName },
         to: [{ email: recipientEmail, name: recipientName }],
         subject: `${orgName} — As suas credenciais de acesso`,
-        htmlContent,
+        htmlContent: applySenviaEmailTemplate(htmlContent, `${orgName} — Acesso ao sistema`),
       }),
     });
 

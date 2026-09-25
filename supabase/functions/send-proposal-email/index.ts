@@ -1,4 +1,5 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -237,7 +238,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const senderEmail = orgData?.brevo_sender_email || "noreply@senvia.pt";
     const senderName = orgData?.name || data.orgName || "SENVIA Software House";
 
-    const htmlContent = generateEmailHtml(data, senderName);
+    const htmlContent = applySenviaEmailTemplate(generateEmailHtml(data, senderName), `Proposta ${data.proposalCode}`);
 
     const brevoPayload = {
       sender: {

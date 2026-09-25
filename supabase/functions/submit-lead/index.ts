@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { normalizeEmail, normalizePtPhone, normalizeInternationalPhone } from '../_shared/contact-validation.ts';
 import { ipDoPedido, rateLimitDb, respostaLimiteExcedido } from '../_shared/security.ts';
+import { applySenviaEmailTemplate } from '../_shared/senvia-email-template.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -623,7 +624,7 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
               sender: { email: senderEmail, name: senderName },
               to: recipients,
               subject: `🚀 Novo Lead: ${lead.name} - ${lead.source || 'Webhook'}`,
-              htmlContent,
+              htmlContent: applySenviaEmailTemplate(htmlContent, `Novo lead: ${lead.name}`),
             }),
           })
             .then((res) => console.info(`[Webhook] Brevo new-lead email sent, status: ${res.status}`))
@@ -1351,7 +1352,7 @@ Deno.serve(async (req) => {
                 sender: { email: senderEmail, name: senderName },
                 to: recipients,
                 subject: `🚀 Novo Lead: ${lead.name} - ${lead.source || 'Formulário'}`,
-                htmlContent,
+                htmlContent: applySenviaEmailTemplate(htmlContent, `Novo lead: ${lead.name}`),
               }),
             })
               .then((res) => console.info(`Brevo new-lead email sent, status: ${res.status}`))

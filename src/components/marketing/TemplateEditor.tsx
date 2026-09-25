@@ -129,21 +129,27 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
       const doc = iframeRef.current.contentDocument;
       if (doc) {
         doc.open();
+        const previewContent = value || '<p style="color: #999;">O preview aparecerá aqui...</p>';
+        const previewBody = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(previewContent)?.[1] || previewContent;
+        const previewStyles = [...(previewContent.matchAll(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi))]
+          .map((match) => match[0])
+          .join("\n");
         doc.write(`
           <!DOCTYPE html>
-          <html>
+          <html lang="pt-PT">
             <head>
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              ${previewStyles}
               <style>
                 body {
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                  font-size: 14px;
+                  font-family: Arial, sans-serif;
+                  font-size: 16px;
                   line-height: 1.6;
-                  color: #333;
-                  padding: 16px;
+                  color: #334155;
+                  padding: 0;
                   margin: 0;
-                  background: white;
+                  background: #F0F4F8;
                 }
                 a { color: #3B82F6; }
                 img { max-width: 100%; height: auto; }
@@ -155,7 +161,19 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
                 td, th { padding: 8px; }
               </style>
             </head>
-            <body>${value || '<p style="color: #999;">O preview aparecerá aqui...</p>'}</body>
+            <body style="margin:0;padding:0;background-color:#F0F4F8;font-family:Arial,sans-serif">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F0F4F8;padding:32px 0">
+                <tr><td align="center">
+                  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,.1)">
+                    <tr><td align="center" style="background-color:#1E3A8A;background-image:linear-gradient(135deg,#1E3A8A 0%,#2563EB 100%);padding:32px">
+                      <img src="https://app.senvia.pt/senvia-logo-white.png" alt="SENVIA" width="150" style="display:block;width:150px;max-width:100%;height:auto;margin:0 auto">
+                    </td></tr>
+                    <tr><td style="padding:32px 40px;color:#334155;font-family:Arial,sans-serif;font-size:16px;line-height:1.6">${previewBody}</td></tr>
+                    <tr><td align="center" style="background:#F8FAFC;padding:18px;border-top:1px solid #E2E8F0;color:#64748B;font-size:14px;font-weight:bold">Transforme tráfego em lucro.</td></tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
           </html>
         `);
         doc.close();

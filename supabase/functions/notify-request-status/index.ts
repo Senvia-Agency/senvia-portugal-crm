@@ -1,5 +1,6 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -153,7 +154,7 @@ Deno.serve(async (req) => {
         sender: { email: org.brevo_sender_email, name: org.name || "Senvia" },
         to: [{ email: userData.user.email }],
         subject: `Pedido ${statusLabel}: ${request.title}`,
-        htmlContent: `
+        htmlContent: applySenviaEmailTemplate(`
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #1a1a1a;">Atualização do Pedido Interno</h2>
             <p>O seu pedido foi atualizado com o seguinte estado:</p>
@@ -175,7 +176,7 @@ Deno.serve(async (req) => {
             </table>
             <p style="color: #666; font-size: 14px;">Aceda à plataforma para mais detalhes.</p>
           </div>
-        `,
+        `, `Pedido ${statusLabel}: ${request.title}`),
       }),
     });
 

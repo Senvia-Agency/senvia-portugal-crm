@@ -14,6 +14,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { internalJobGuard } from "../_shared/internal-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,13 +105,15 @@ serve(async (req) => {
                 sender: { name: senvia.name || "SENVIA OS", email: senvia.brevo_sender_email },
                 to: [{ email: ALERT_TO }],
                 subject: `⚠️ Trial parado: ${org.name}`,
-                htmlContent:
+                htmlContent: applySenviaEmailTemplate(
                   `<h2>Trial sem atividade há ${INACTIVITY_HOURS}h</h2>` +
                   `<p><b>Empresa:</b> ${org.name}<br>` +
                   `<b>Responsável:</b> ${owner.name || "—"}<br>` +
                   `<b>Email:</b> ${owner.email}<br>` +
                   `<b>Última atividade:</b> ${refStr}</p>` +
                   `<p>Boa altura para um contacto humano e ajudar na configuração.</p>`,
+                  `Trial parado: ${org.name}`,
+                ),
               }),
             });
             if (!r.ok) log("email alerta falhou", { org: org.name, status: r.status });

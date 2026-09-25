@@ -1,4 +1,5 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -441,7 +442,7 @@ serve(async (req: Request): Promise<Response> => {
           sender: { name: finalSenderName, email: finalSenderEmail },
           to: [{ email: recipient.email, name: toName }],
           subject,
-          htmlContent,
+          htmlContent: applySenviaEmailTemplate(htmlContent, subject),
         };
 
         if (settings.different_reply_to && settingsData.different_reply_to) {

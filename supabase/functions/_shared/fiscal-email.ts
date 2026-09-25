@@ -1,3 +1,5 @@
+import { applySenviaEmailTemplate } from './senvia-email-template.ts'
+
 export interface FiscalEmailConfig {
   to: string
   toName?: string | null
@@ -75,16 +77,6 @@ function escapeHtml(value: string): string {
 /** Shared, branded HTML wrapper for manually and automatically sent fiscal PDFs. */
 export function renderFiscalDocumentEmailTemplate(data: FiscalDocumentEmailTemplateData): string {
   const organizationName = escapeHtml(data.organizationName.trim() || 'SENVIA OS')
-  let logoUrl = ''
-  try {
-    const parsedLogoUrl = new URL(data.logoUrl || '')
-    if (parsedLogoUrl.protocol === 'https:') logoUrl = escapeHtml(parsedLogoUrl.toString())
-  } catch {
-    // Missing or non-HTTPS organization logos use a text brand.
-  }
-  const brand = logoUrl
-    ? `<div style="display:inline-block;margin:0 0 18px;padding:12px 18px;border-radius:8px;background:#fff"><img src="${logoUrl}" alt="${organizationName}" style="display:block;max-width:200px;max-height:52px"></div>`
-    : `<div style="margin:0 0 18px;font-size:22px;font-weight:700">${organizationName}</div>`
   const recipientName = escapeHtml(data.recipientName.trim() || 'Cliente')
   const documentType = escapeHtml(data.documentType.trim() || 'Documento fiscal')
   const documentNumber = escapeHtml(data.documentNumber.trim())
@@ -95,29 +87,18 @@ export function renderFiscalDocumentEmailTemplate(data: FiscalDocumentEmailTempl
     : ''
   const message = escapeHtml(data.message?.trim() || `Olá ${data.recipientName.trim() || 'Cliente'},\n\nSegue em anexo o documento fiscal emitido em seu nome.`)
     .replace(/\r?\n/g, '<br>')
-  return `<!doctype html>
-<html lang="pt-PT"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${documentType} ${documentNumber}</title></head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
-  <div style="max-width:600px;margin:0 auto;padding:32px 16px">
-    <div style="overflow:hidden;border-radius:14px;background:#fff;box-shadow:0 4px 18px rgba(15,23,42,.08)">
-      <div style="padding:28px 32px;background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff">
-        ${brand}
-        <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;opacity:.85">Documento fiscal</div>
-      </div>
-      <div style="padding:32px">
-        <div style="margin:0 0 24px;font-size:15px;line-height:1.75;color:#4b5563">${message}</div>
-        <div style="padding:20px;border:1px solid #dbeafe;border-radius:10px;background:#eff6ff">
-          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b">${documentType}</div>
-          <div style="margin-top:6px;font-size:21px;font-weight:700;color:#1d4ed8">${documentNumber}</div>
-          ${issueDate ? `<div style="margin-top:8px;font-size:13px;color:#64748b">Data de emissão: ${issueDate}</div>` : ''}
-        </div>
-        <div style="margin-top:24px;padding:14px 16px;border-radius:8px;background:#f8fafc;font-size:13px;line-height:1.6;color:#475569">O PDF do documento está anexado a este email.</div>
-        <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#475569">Com os melhores cumprimentos,<br><strong>${organizationName}</strong></p>
-      </div>
-      <div style="padding:16px 24px;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#94a3b8">Email enviado através do Senvia OS</div>
-    </div>
-  </div>
-</body></html>`
+  return `<div style="font-family:Arial,sans-serif;color:#334155;font-size:16px;line-height:1.6">
+  <p style="margin:0 0 24px">${message}</p>
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:24px 0;border-collapse:collapse">
+    <tr><td style="background-color:#EFF6FF;border-left:5px solid #3B82F6;padding:20px;color:#1E40AF;font-size:15px;border-radius:0 5px 5px 0">
+      <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${documentType}</div>
+      <div style="margin-top:6px;font-size:21px;font-weight:700;color:#1E40AF">${documentNumber}</div>
+      ${issueDate ? `<div style="margin-top:8px;font-size:13px;color:#64748B">Data de emissão: ${issueDate}</div>` : ''}
+    </td></tr>
+  </table>
+  <p style="margin:24px 0;padding:14px 16px;border-radius:8px;background-color:#F8FAFC;font-size:13px;line-height:1.6;color:#475569">O PDF do documento está anexado a este email.</p>
+  <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#475569">Com os melhores cumprimentos,<br><strong>${organizationName}</strong></p>
+</div>`
 }
 
 export function buildFiscalBrevoPayload(config: FiscalEmailConfig, pdf: Uint8Array): Record<string, unknown> {
@@ -143,7 +124,7 @@ export function buildFiscalBrevoPayload(config: FiscalEmailConfig, pdf: Uint8Arr
     ...(bcc.length ? { bcc: bcc.map((email) => ({ email })) } : {}),
     ...(config.replyTo ? { replyTo: { email: checkedEmail(config.replyTo, 'Reply-To') } } : {}),
     subject,
-    htmlContent: config.html.slice(0, 100_000),
+    htmlContent: applySenviaEmailTemplate(config.html.slice(0, 100_000), config.subject),
     attachment: [{ content: bytesToBase64(pdf), name: pdfName.toLowerCase().endsWith('.pdf') ? pdfName : `${pdfName}.pdf` }],
     headers: {
       'X-SENVIA-Category': 'fiscal-document',
