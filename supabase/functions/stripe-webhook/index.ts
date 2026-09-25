@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { resolveBillingContext, shouldProcessBillingEvent, type BillingContext } from "../_shared/stripe-billing-context.ts";
 import { handleReferralEvent } from "../_shared/referrals.ts";
 import { rateLimit } from "../_shared/security.ts";
+import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 
 const SENVIA_AGENCY_ORG_ID = "06fe9e1d-9670-45b0-8717-c5a6e90be380";
 
@@ -813,6 +814,14 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       logError("invoice.paid: payment insert error", { error: paymentErr.message });
       throw new Error(`payment insert failed: ${paymentErr.message}`);
     }
+    await recordStripeFeeExpense(supabase, {
+      organizationId: SENVIA_AGENCY_ORG_ID,
+      invoiceId: stripeInvoiceId,
+      fee: stripeFee,
+      gross: amount,
+      net: netAmount,
+      expenseDate: paymentDate,
+    });
     logStep("invoice.paid: payment recorded in sale_payments", { saleId: sale.id, amount, netAmount });
   }
 }

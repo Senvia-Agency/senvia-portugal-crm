@@ -2844,6 +2844,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           receipt_file_url: string | null
+          stripe_invoice_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2860,6 +2861,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           receipt_file_url?: string | null
+          stripe_invoice_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2876,6 +2878,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           receipt_file_url?: string | null
+          stripe_invoice_id?: string | null
           updated_at?: string | null
         }
         Relationships: [

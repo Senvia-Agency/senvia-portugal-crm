@@ -19,6 +19,7 @@ export interface Expense {
   is_recurring: boolean;
   notes: string | null;
   receipt_file_url: string | null;
+  stripe_invoice_id?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

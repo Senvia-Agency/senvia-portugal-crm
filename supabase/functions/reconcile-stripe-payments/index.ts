@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 
 // Daily safety net for the finance pipeline: lists PAID Stripe invoices from
 // the last N days and records any that stripe-webhook missed (delivery failure,
@@ -91,6 +92,40 @@ function invoiceChargeIds(inv: any): { chargeId: string | null; piId: string | n
     piId = idOf(inv.payments.data[0]?.payment?.payment_intent);
   }
   return { chargeId, piId };
+}
+
+async function invoiceFeeBreakdown(invoice: any, stripeKey: string): Promise<{ fee: number; net: number }> {
+  const amount = (invoice.amount_paid || 0) / 100;
+  try {
+    let { chargeId, piId } = invoiceChargeIds(invoice);
+    if (!chargeId && !piId) {
+      const full = await stripeGet(`/invoices/${invoice.id}`, stripeKey, { "expand[]": "payments" });
+      ({ chargeId, piId } = invoiceChargeIds(full));
+    }
+    let charge: any = null;
+    if (chargeId) {
+      charge = await stripeGet(`/charges/${chargeId}`, stripeKey, { "expand[]": "balance_transaction" });
+    } else if (piId) {
+      const pi = await stripeGet(`/payment_intents/${piId}`, stripeKey, { "expand[]": "latest_charge.balance_transaction" });
+      charge = pi.latest_charge;
+    }
+    let transaction: any = charge && typeof charge !== "string" ? charge.balance_transaction : null;
+    if (typeof transaction === "string") transaction = await stripeGet(`/balance_transactions/${transaction}`, stripeKey);
+    if (!transaction) return { fee: 0, net: amount };
+
+    // Stripe's invoice balance transaction contains the card fee; Stripe
+    // Billing's usage fee is charged separately and is calculated as before.
+    const cardFee = (transaction.fee || 0) / 100;
+    const billingFee = round2(amount * BILLING_FEE_RATE);
+    const fee = round2(cardFee + billingFee);
+    return { fee, net: round2(amount - fee) };
+  } catch (error) {
+    logStep("could not fetch Stripe fee, temporarily using gross", {
+      invoice: invoice.id,
+      error: (error as Error).message,
+    });
+    return { fee: 0, net: amount };
+  }
 }
 
 serve(async (req) => {
@@ -194,6 +229,41 @@ serve(async (req) => {
         .limit(1);
       if (existingPayment && existingPayment.length > 0) {
         summary.already_recorded++;
+        const { fee, net } = await invoiceFeeBreakdown(invoice, stripeKey);
+        const paidAt = new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000)
+          .toISOString().split("T")[0];
+        const paymentUpdate: Record<string, unknown> = {
+          amount,
+          stripe_gross_amount: amount,
+          stripe_fee_amount: fee,
+          stripe_net_amount: net,
+          updated_at: new Date().toISOString(),
+        };
+        if (!existingPayment[0].billing_period_start && invoice.period_start) {
+          paymentUpdate.billing_period_start = new Date(invoice.period_start * 1000).toISOString().split("T")[0];
+        }
+        if (!existingPayment[0].billing_period_end && invoice.period_end) {
+          paymentUpdate.billing_period_end = new Date(invoice.period_end * 1000).toISOString().split("T")[0];
+        }
+        const { error: paymentUpdateError } = await supabase.from("sale_payments")
+          .update(paymentUpdate).eq("id", existingPayment[0].id);
+        if (paymentUpdateError) {
+          summary.failed.push({ invoice_id: invoice.id, reason: `payment repair: ${paymentUpdateError.message}` });
+          continue;
+        }
+        try {
+          await recordStripeFeeExpense(supabase, {
+            organizationId: SENVIA_AGENCY_ORG_ID,
+            invoiceId: invoice.id,
+            fee,
+            gross: amount,
+            net,
+            expenseDate: paidAt,
+          });
+        } catch (error) {
+          summary.failed.push({ invoice_id: invoice.id, reason: (error as Error).message });
+          continue;
+        }
         // Backfill: rows written before billing_period_start/end existed (or by
         // the pre-fix webhook) show only the charge date, not the month they pay
         // for — the exact confusion that made a real August payment look missing
@@ -380,46 +450,35 @@ serve(async (req) => {
         }
       }
 
-      // Net amount from the balance transaction (card fee + Stripe Billing fee)
-      let netAmount = amount;
-      let stripeFee = 0;
-      try {
-        let { chargeId, piId } = invoiceChargeIds(invoice);
-        if (!chargeId && !piId) {
-          // List responses don't carry charge/payment_intent on newer API
-          // versions — refetch the single invoice with payments expanded.
-          const full = await stripeGet(`/invoices/${invoice.id}`, stripeKey, { "expand[]": "payments" });
-          ({ chargeId, piId } = invoiceChargeIds(full));
-        }
-        let charge: any = null;
-        if (chargeId) {
-          charge = await stripeGet(`/charges/${chargeId}`, stripeKey, { "expand[]": "balance_transaction" });
-        } else if (piId) {
-          const pi = await stripeGet(`/payment_intents/${piId}`, stripeKey, { "expand[]": "latest_charge.balance_transaction" });
-          charge = pi.latest_charge;
-        }
-        let bt: any = charge && typeof charge !== "string" ? charge.balance_transaction : null;
-        if (typeof bt === "string") bt = await stripeGet(`/balance_transactions/${bt}`, stripeKey);
-        if (bt) {
-          const cardFee = (bt.fee || 0) / 100;
-          const billingFee = round2(amount * BILLING_FEE_RATE);
-          stripeFee = round2(cardFee + billingFee);
-          netAmount = round2(amount - stripeFee);
-        }
-      } catch (e) {
-        logStep("could not fetch net amount, using gross", { error: (e as Error).message });
-      }
+      const { fee: stripeFee, net: netAmount } = await invoiceFeeBreakdown(invoice, stripeKey);
 
       const planLabel = plan ? PLAN_LIST_NAMES[plan] || plan : "subscription";
       const feeNote = stripeFee > 0 ? ` · bruto ${amount.toFixed(2)}€, taxa ${stripeFee.toFixed(2)}€` : "";
+      try {
+        await recordStripeFeeExpense(supabase, {
+          organizationId: SENVIA_AGENCY_ORG_ID,
+          invoiceId: invoice.id,
+          fee: stripeFee,
+          gross: amount,
+          net: netAmount,
+          expenseDate: paymentDate,
+        });
+      } catch (error) {
+        logError("Stripe fee expense insert error", { invoice: invoice.id, error: (error as Error).message });
+        summary.failed.push({ invoice_id: invoice.id, reason: (error as Error).message });
+        continue;
+      }
       const { error: paymentErr } = await supabase.from("sale_payments").insert({
         organization_id: SENVIA_AGENCY_ORG_ID,
         sale_id: sale.id,
-        amount: netAmount,
+        amount,
         payment_date: paymentDate,
         status: "paid",
         payment_method: "card",
         stripe_invoice_id: invoice.id,
+        stripe_gross_amount: amount,
+        stripe_fee_amount: stripeFee,
+        stripe_net_amount: netAmount,
         billing_period_start: periodStart,
         billing_period_end: periodEnd,
         notes: `Stripe ${planLabel} · ${invoice.id}${feeNote} (reconciliado)`,
