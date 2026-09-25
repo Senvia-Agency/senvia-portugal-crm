@@ -47,10 +47,10 @@ export function applySenviaEmailTemplate(html: string, title = "SENVIA OS"): str
           ${content}
         </td></tr>
         <tr><td align="center" bgcolor="#F8FAFC" style="background-color:#F8FAFC;padding:20px;border-top:1px solid #E2E8F0;color:#64748B;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">
-          Transforme tráfego em lucro.
+          SENVIA · Soluções digitais para empresas
         </td></tr>
       </table>
-      <p style="color:#94A3B8;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin:20px 0 0;">© 2025 SENVIA - AI Software House.</p>
+      <p style="color:#94A3B8;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin:20px 0 0;">© 2026 SENVIA · Soluções digitais para empresas.</p>
     </td></tr>
   </table>
 </body>

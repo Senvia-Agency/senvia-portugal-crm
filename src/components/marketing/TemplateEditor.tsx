@@ -177,7 +177,7 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
                       <img src="https://app.senvia.pt/senvia-logo-white.png" alt="SENVIA" width="150" style="display:block;width:150px;max-width:100%;height:auto;margin:0 auto">
                     </td></tr>
                     <tr><td style="padding:32px 40px;color:#334155;font-family:Arial,sans-serif;font-size:16px;line-height:1.6">${previewBody}</td></tr>
-                    <tr><td align="center" style="background:#F8FAFC;padding:18px;border-top:1px solid #E2E8F0;color:#64748B;font-size:14px;font-weight:bold">Transforme tráfego em lucro.</td></tr>
+                    <tr><td align="center" style="background:#F8FAFC;padding:18px;border-top:1px solid #E2E8F0;color:#64748B;font-size:14px;font-weight:bold">SENVIA · Soluções digitais para empresas</td></tr>
                   </table>
                 </td></tr>
               </table>
