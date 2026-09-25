@@ -1039,9 +1039,9 @@ export async function lookupKeyInvoiceDocument(
 }
 
 /**
- * Reconcile an insertDocument call whose HTTP result was ambiguous. The
- * idempotency marker is embedded in Comments before the write. Zero matches
- * means "not found"; more than one is unsafe and requires human review.
+ * Reconcile legacy insertDocument calls that carried a marker in Comments.
+ * New fiscal documents do not print internal markers; without a match,
+ * the worker requires manual review rather than repeating the write.
  */
 export async function findKeyInvoiceDocumentByIdempotency(
   session: KeyInvoiceSession,

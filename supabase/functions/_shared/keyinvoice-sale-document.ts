@@ -232,7 +232,7 @@ export async function prepareKeyInvoiceSnapshotContext(
     docSeries,
     docTypeCode: expectedDocTypeCode,
     idempotencyKey,
-    comments: `SENVIA:${idempotencyKey}`,
+    comments: '',
   }
 }
 
@@ -500,7 +500,9 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     unitPrice: product.unitPrice,
   }))
   const idempotencyKey = input.idempotencyKey || `manual:${input.saleId}:${input.recurringCycleId || 'sale'}:${kind}`
-  const comments = [input.observations?.trim() || null, `SENVIA:${idempotencyKey}`].filter(Boolean).join('\n')
+  // Comments are printed on the customer's fiscal document. Keep the
+  // idempotency key exclusively in the Senvia fiscal ledger.
+  const comments = input.observations?.trim() || ''
   return {
     sale,
     payments: scopedPayments,

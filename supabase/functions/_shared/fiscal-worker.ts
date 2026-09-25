@@ -107,8 +107,10 @@ export function fiscalFailureMode(
   attempt: number,
 ): FiscalFailureMode {
   if (error.ambiguous) {
-    // FT/FR carry the SENVIA idempotency marker in Comments and can be looked
-    // up safely. API 5 does not expose an equivalent verified marker for RC/NC.
+    // FT/FR reconciliation first searches legacy documents that carry an
+    // idempotency marker. New documents omit the printed marker; if no exact
+    // match exists, reconciliation requires manual review and never retries
+    // the fiscal write automatically. RC/NC have no searchable marker.
     return kind === 'invoice' || kind === 'invoice_receipt'
       ? 'reconciliation'
       : 'manual_review'
