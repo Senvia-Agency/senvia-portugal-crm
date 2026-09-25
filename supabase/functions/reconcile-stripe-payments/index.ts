@@ -215,7 +215,6 @@ serve(async (req) => {
 
     for (const invoice of invoices) {
       const email = invoice.customer_email;
-      if (!email) { summary.no_email.push(invoice.id); continue; }
       const amount = (invoice.amount_paid || 0) / 100;
       if (amount <= 0) { summary.zero_amount++; continue; }
 
@@ -282,6 +281,8 @@ serve(async (req) => {
         }
         continue;
       }
+
+      if (!email) { summary.no_email.push(invoice.id); continue; }
 
       const clientOrgId = findOrgByEmail(email);
       if (!clientOrgId) { logStep("no org for email", { email }); summary.no_org.push(invoice.id); continue; }
