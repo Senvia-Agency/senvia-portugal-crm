@@ -13,7 +13,6 @@ import { useCreditNotes, useSyncCreditNotes } from "@/hooks/useCreditNotes";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { usePersistedState } from "@/hooks/usePersistedState";
 import { exportToExcel } from "@/lib/export";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -31,6 +30,7 @@ interface UnifiedDocument {
   reference: string | null;
   document_type: string;
   date: string | null;
+  created_at: string;
   client_name: string | null;
   status: string | null;
   total: number;
@@ -43,7 +43,7 @@ interface UnifiedDocument {
   related_doc_reference: string | null;
 }
 
-type SortField = 'reference' | 'document_type' | 'date' | 'client_name' | 'status' | 'total';
+type SortField = 'recent' | 'reference' | 'document_type' | 'date' | 'client_name' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 
 const SortIcon = ({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) => {
@@ -67,27 +67,12 @@ export function InvoicesContent() {
   const syncInvoices = useSyncInvoices();
   const syncCreditNotes = useSyncCreditNotes();
   const hasSynced = useRef(false);
-  const [searchTerm, setSearchTerm] = usePersistedState("invoices-search-v1", "");
-  const [dateRange, setDateRange] = usePersistedState<DateRange | undefined>("invoices-daterange-v1", undefined);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [pickerMode, setPickerMode] = useState<'invoice' | 'credit-note' | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const SORT_KEY = 'finance-invoices-sort-v1';
-  const VALID_FIELDS: SortField[] = ['reference', 'document_type', 'date', 'client_name', 'status', 'total'];
-
-  const [sortField, setSortField] = useState<SortField>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SORT_KEY) || '{}');
-      if (VALID_FIELDS.includes(saved.field)) return saved.field;
-    } catch {}
-    return 'date';
-  });
-  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SORT_KEY) || '{}');
-      if (saved.direction === 'asc' || saved.direction === 'desc') return saved.direction;
-    } catch {}
-    return 'desc';
-  });
+  const [sortField, setSortField] = useState<SortField>('recent');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedInvoice, setSelectedInvoice] = useState<{
     invoicexpress_id: number | null;
     invoice_id: string | null;
@@ -96,10 +81,6 @@ export function InvoicesContent() {
     sale_id?: string;
     payment_id?: string;
   } | null>(null);
-
-  useEffect(() => {
-    try { localStorage.setItem(SORT_KEY, JSON.stringify({ field: sortField, direction: sortDirection })); } catch {}
-  }, [sortField, sortDirection]);
 
   const isLoading = loadingInvoices || loadingCreditNotes;
 
@@ -129,6 +110,7 @@ export function InvoicesContent() {
       reference: inv.reference,
       document_type: inv.document_type || 'invoice',
       date: inv.date,
+      created_at: inv.created_at,
       client_name: inv.client_name,
       status: inv.status,
       total: inv.total,
@@ -146,6 +128,7 @@ export function InvoicesContent() {
       reference: cn.reference,
       document_type: 'credit_note',
       date: cn.date,
+      created_at: cn.created_at,
       client_name: cn.client_name,
       status: cn.status,
       total: cn.total,
@@ -180,6 +163,8 @@ export function InvoicesContent() {
     return [...filteredDocuments].sort((a, b) => {
       const dir = sortDirection === 'asc' ? 1 : -1;
       switch (sortField) {
+        case 'recent':
+          return dir * a.created_at.localeCompare(b.created_at);
         case 'reference':
           return dir * (a.reference || '').localeCompare(b.reference || '');
         case 'document_type':
@@ -334,6 +319,13 @@ export function InvoicesContent() {
               />
             </div>
             <div className="flex flex-wrap gap-3 items-center">
+              <Button
+                variant={sortField === 'recent' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => { setSortField('recent'); setSortDirection('desc'); }}
+              >
+                Mais recentes
+              </Button>
               <DateRangePicker
                 value={dateRange}
                 onChange={setDateRange}
