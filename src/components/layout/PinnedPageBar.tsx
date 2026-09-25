@@ -26,6 +26,8 @@ export function PinnedPageBar({
   storageKey,
   panel,
   className,
+  layout = 'pinned',
+  subtitle,
 }: {
   icon: LucideIcon;
   title: string;
@@ -44,8 +46,35 @@ export function PinnedPageBar({
   /** Cards + filters. Absent = nothing to open, no Filtros button. */
   panel?: ReactNode;
   className?: string;
+  /** Spacious page header for dashboard-style pages. */
+  layout?: 'pinned' | 'dashboard';
+  subtitle?: string;
 }) {
   const [open, setOpen] = usePersistedState<boolean>(storageKey, false);
+
+  if (layout === 'dashboard') {
+    return (
+      <div className={cn('space-y-5 p-4 pb-6 md:p-6 lg:p-8', className)}>
+        <header className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">{title}</h1>
+            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+          <div className="flex flex-wrap gap-2">{actions}</div>
+        </header>
+        {tabs && <div>{tabs}</div>}
+        {search && <div className="w-full">{search}</div>}
+        {(summary || chips.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {summary}
+            {chips.map((chip) => <Badge key={chip} variant="outline" className="h-6 rounded-full px-2 text-[11px] font-normal">{chip}</Badge>)}
+          </div>
+        )}
+        {panel}
+      </div>
+    );
+  }
 
   return (
     <div className={cn('sticky top-14 lg:top-0 z-20 border-b bg-background', className)}>

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
+import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
 
 // Daily safety net for the finance pipeline: lists PAID Stripe invoices from
 // the last N days and records any that stripe-webhook missed (delivery failure,
@@ -222,7 +223,7 @@ serve(async (req) => {
       // match is kept for rows written before the column existed.
       const { data: existingPayment } = await supabase
         .from("sale_payments")
-        .select("id, billing_period_start, billing_period_end")
+        .select("id, sale_id, billing_period_start, billing_period_end")
         .eq("organization_id", SENVIA_AGENCY_ORG_ID)
         .or(`stripe_invoice_id.eq.${invoice.id},notes.ilike.%${invoice.id}%`)
         .limit(1);
@@ -278,6 +279,50 @@ serve(async (req) => {
             .eq("id", row.id);
           if (backfillErr) logError("billing period backfill error", { invoice: invoice.id, error: backfillErr.message });
           else logStep("backfilled billing period on existing payment", { invoice: invoice.id, payment_id: row.id });
+        }
+        // A recorded Stripe payment does not guarantee that the webhook also
+        // advanced the sale's renewal. Repair this idempotently when the invoice
+        // belongs to the organization's currently bound subscription.
+        const subId = invoiceSubscriptionId(invoice);
+        const saleId = existingPayment[0].sale_id as string | null;
+        if (saleId && subId && invoice.customer) {
+          try {
+            const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer.id;
+            const { data: binding } = await supabase
+              .from("organization_billing_accounts")
+              .select("organization_id, stripe_subscription_id")
+              .eq("stripe_customer_id", customerId)
+              .maybeSingle();
+            if (binding?.organization_id && binding.stripe_subscription_id === subId) {
+              const sub = await stripeGet(`/subscriptions/${subId}`, stripeKey);
+              const subEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
+              const recurringAmount = (sub.items?.data ?? []).reduce((sum: number, item: any) =>
+                item.price?.recurring && item.price.unit_amount != null
+                  ? sum + (item.price.unit_amount / 100) * (item.quantity || 1) : sum, 0);
+              const paymentDate = new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000)
+                .toISOString().slice(0, 10);
+              const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000).toISOString().slice(0, 10) : null;
+              const periodEnd = invoice.period_end ? new Date(invoice.period_end * 1000).toISOString().slice(0, 10) : null;
+              const cycleId = await syncPaidStripeSale(supabase, {
+                saleId,
+                organizationId: SENVIA_AGENCY_ORG_ID,
+                invoiceId: invoice.id,
+                customerId,
+                subscriptionId: subId,
+                paymentDate,
+                periodStart,
+                periodEnd,
+                nextCycleDate: subEnd ? new Date(subEnd * 1000).toISOString().slice(0, 10) : periodEnd,
+                invoiceAmount: amount,
+                recurringAmount,
+                promotePendingSale: true,
+              });
+              logStep("repaired existing payment renewal state", { invoice: invoice.id, saleId, cycleId });
+            }
+          } catch (error) {
+            summary.failed.push({ invoice_id: invoice.id, reason: `renewal repair: ${(error as Error).message}` });
+            continue;
+          }
         }
         continue;
       }
@@ -397,14 +442,32 @@ serve(async (req) => {
         continue;
       }
 
-      const updatePayload: Record<string, any> = {
-        recurring_status: "active",
-        next_renewal_date: subscriptionRenewalDate || periodEnd,
-        last_renewal_date: paymentDate,
-      };
-      if (recurringTotal > 0) updatePayload.recurring_value = recurringTotal;
-      const { error: saleUpdateErr } = await supabase.from("sales").update(updatePayload).eq("id", sale.id);
-      if (saleUpdateErr) logStep("sale update error", { error: saleUpdateErr.message });
+      const subscriptionId = invoiceSubscriptionId(invoice);
+      const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id ?? null;
+      let cycleId: string | null = null;
+      if (subscriptionId && customerId) {
+        const { data: binding } = await supabase
+          .from("organization_billing_accounts")
+          .select("organization_id, stripe_subscription_id")
+          .eq("stripe_customer_id", customerId)
+          .maybeSingle();
+        if (binding?.organization_id === clientOrgId && binding.stripe_subscription_id === subscriptionId) {
+          cycleId = await syncPaidStripeSale(supabase, {
+            saleId: sale.id,
+            organizationId: SENVIA_AGENCY_ORG_ID,
+            invoiceId: invoice.id,
+            customerId,
+            subscriptionId,
+            paymentDate,
+            periodStart,
+            periodEnd,
+            nextCycleDate: subscriptionRenewalDate || periodEnd,
+            invoiceAmount: amount,
+            recurringAmount: recurringTotal,
+            promotePendingSale: sale.status === "pending",
+          });
+        }
+      }
 
       // Commission (same rules and dedupe key as the webhook)
       if (sale.created_by) {
@@ -480,6 +543,7 @@ serve(async (req) => {
         stripe_gross_amount: amount,
         stripe_fee_amount: stripeFee,
         stripe_net_amount: netAmount,
+        recurring_cycle_id: cycleId,
         billing_period_start: periodStart,
         billing_period_end: periodEnd,
         notes: `Stripe ${planLabel} · ${invoice.id}${feeNote} (reconciliado)`,

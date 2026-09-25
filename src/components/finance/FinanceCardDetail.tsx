@@ -52,9 +52,12 @@ interface FinanceCardDetailProps {
   /** All payments, unfiltered by period (used by Pendente/Atrasados). */
   allPayments: PaymentWithSale[];
   dueSoonPayments: PaymentWithSale[];
+  /** Free-text filter for expense detail rows. */
+  searchTerm?: string;
   /** Telecom: the operator/seller filters the card was showing. */
   commissionFilters?: CommissionFilters;
   onBack: () => void;
+  showBack?: boolean;
 }
 
 /** Stripe plan/subscription payments are excluded from pending/overdue, matching the card totals. */
@@ -413,14 +416,18 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
   );
 }
 
-function ExpensesDetailTable({ dateRange }: { dateRange?: DateRange }) {
+function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateRange; searchTerm?: string }) {
   const { data: expenses = [], isLoading } = useExpenses();
   const deleteExpense = useDeleteExpense();
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const filtered = useMemo(
-    () => expenses.filter((e) => inRange(e.expense_date, dateRange)),
-    [expenses, dateRange],
+    () => {
+      const term = searchTerm.trim().toLocaleLowerCase("pt-PT");
+      return expenses.filter((expense) => inRange(expense.expense_date, dateRange) && (!term ||
+        [expense.description, expense.category?.name].some((value) => value?.toLocaleLowerCase("pt-PT").includes(term))));
+    },
+    [expenses, dateRange, searchTerm],
   );
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   const total = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -533,7 +540,7 @@ function BalanceDetail({
   );
 }
 
-export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, commissionFilters, onBack }: FinanceCardDetailProps) {
+export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, searchTerm, commissionFilters, onBack, showBack = true }: FinanceCardDetailProps) {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
 
   const received = useMemo(() => payments.filter((p) => p.status === "paid"), [payments]);
@@ -571,9 +578,9 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+        {showBack && <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
+        </Button>}
         <h2 className="text-lg font-semibold">
           {/* Same override as the card that opened this. */}
           {type === "faturado" && orgIsTelecom ? "Total de Comissão" : TITLES[type]}
@@ -612,7 +619,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "pending" && <PaymentsDetailTable payments={pending} allowMarkPaid />}
       {type === "overdue" && <PaymentsDetailTable payments={overdue} allowMarkPaid />}
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments} />}
-      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} />}
+      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={searchTerm} />}
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}

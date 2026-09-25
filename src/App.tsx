@@ -35,6 +35,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Proposals = lazy(() => import("./pages/Proposals"));
 const Sales = lazy(() => import("./pages/Sales"));
 const Finance = lazy(() => import("./pages/Finance"));
+const NewInvoice = lazy(() => import("./pages/finance/NewInvoice"));
 const FinancePayments = lazy(() => import("./pages/finance/Payments"));
 const FinanceInvoices = lazy(() => import("./pages/finance/Invoices"));
 const FinanceExpenses = lazy(() => import("./pages/finance/Expenses"));
@@ -144,6 +145,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                   <Route path="/proposals" element={<Proposals />} />
                   <Route path="/sales" element={<Sales />} />
                   <Route path="/financeiro" element={<Finance />} />
+                  <Route path="/financeiro/nova-fatura" element={<NewInvoice />} />
                   <Route path="/financeiro/pagamentos" element={<FinancePayments />} />
                   <Route path="/financeiro/faturas" element={<FinanceInvoices />} />
                   <Route path="/financeiro/despesas" element={<FinanceExpenses />} />

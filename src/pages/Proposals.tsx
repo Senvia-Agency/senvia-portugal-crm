@@ -39,6 +39,7 @@ export default function Proposals() {
   const { profile, organization } = useAuth();
   const { data: proposals = [], isLoading } = useProposals();
   const isTelecom = organization?.niche === 'telecom';
+  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
   const { data: telecomMetrics } = useTelecomProposalMetrics();
   
   const [search, setSearch] = usePersistedState('proposals-search-v1', '');
@@ -98,23 +99,23 @@ export default function Proposals() {
 
   return (
     <>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className={isGenericNiche ? 'space-y-6' : 'space-y-6 p-4 sm:p-6 lg:p-8'}>
         <PinnedPageBar
           icon={FileText}
           title="Propostas"
           storageKey="proposals-filters-open-v1"
-          search={
+          search={!isGenericNiche ? (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Pesquisar por cliente, empresa ou código..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-9 text-sm"
+                className="h-8 border-primary/35 bg-primary/[0.04] pl-9 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
               />
             </div>
-          }
-          summary={`${filteredProposals.length} proposta${filteredProposals.length === 1 ? '' : 's'} · ${formatCurrency(totalValue)}`}
+          ) : undefined}
+          summary={!isGenericNiche ? `${filteredProposals.length} proposta${filteredProposals.length === 1 ? '' : 's'} · ${formatCurrency(totalValue)}` : undefined}
           chips={[
             search.trim() ? `“${search.trim()}”` : null,
             dateRange?.from ? 'Período' : null,
@@ -122,64 +123,28 @@ export default function Proposals() {
             isTelecom && typeFilter !== 'all' ? (typeFilter === 'energia' ? 'Energia' : 'Outros Serviços') : null,
           ].filter((c): c is string => !!c)}
           actions={
-            <Button onClick={() => setCreateModalOpen(true)} size="sm" className="h-8">
+            <Button onClick={() => setCreateModalOpen(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
               <Plus className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Nova Proposta</span>
               <span className="sm:hidden">Nova</span>
             </Button>
           }
           panel={
-            <div className="space-y-4 px-4 md:px-6 py-3">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground">Total Propostas</p>
-              <p className="text-2xl font-bold">{filteredProposals.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground">Valor Total</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</p>
-              {isTelecom && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(telecomMetrics?.totalMWh ?? 0).toFixed(1)} MWh · {(telecomMetrics?.totalKWp ?? 0).toFixed(1)} kWp
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground">Em Negociação</p>
-              <p className="text-2xl font-bold text-amber-500">{formatCurrency(pendingValue)}</p>
-              {isTelecom && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(telecomMetrics?.pendingMWh ?? 0).toFixed(1)} MWh · {(telecomMetrics?.pendingKWp ?? 0).toFixed(1)} kWp
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground">Aceites</p>
-              <p className="text-2xl font-bold text-green-500">{proposalsByStatus.accepted?.length || 0}</p>
-            </CardContent>
-          </Card>
-        </div>
-
+            <div className={isGenericNiche ? 'flex flex-col gap-4' : 'flex flex-col gap-4 px-4 md:px-6 py-3'}>
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <DateRangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            placeholder="Período"
-            className="w-full sm:w-auto"
-          />
-
-          <TeamMemberFilter className="w-full sm:w-[180px]" />
+        <div className={`order-1 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isGenericNiche ? 'xl:grid-cols-4' : isTelecom ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4`}>
+          {isGenericNiche && <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar por cliente, empresa ou código..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
+            />
+          </div>}
+          <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ProposalStatus | 'all')}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full bg-card/50 border-border/50">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Todos os status" />
             </SelectTrigger>
@@ -194,7 +159,7 @@ export default function Proposals() {
           </Select>
           {isTelecom && (
             <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | 'energia' | 'servicos')}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger className="w-full bg-card/50 border-border/50">
                 <Zap className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
@@ -205,9 +170,55 @@ export default function Proposals() {
               </SelectContent>
             </Select>
           )}
+          <DateRangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            placeholder="Período"
+            className="w-full"
+          />
         </div>
+        {/* Summary Cards */}
+        <div className="order-2 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Total Propostas</p>
+              <p className="text-2xl font-bold">{filteredProposals.length}</p>
+            </CardContent>
+          </Card>
+          <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Valor Total</p>
+              <p className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</p>
+              {isTelecom && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(telecomMetrics?.totalMWh ?? 0).toFixed(1)} MWh · {(telecomMetrics?.totalKWp ?? 0).toFixed(1)} kWp
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Em Negociação</p>
+              <p className="text-2xl font-bold text-amber-500">{formatCurrency(pendingValue)}</p>
+              {isTelecom && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(telecomMetrics?.pendingMWh ?? 0).toFixed(1)} MWh · {(telecomMetrics?.pendingKWp ?? 0).toFixed(1)} kWp
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Aceites</p>
+              <p className="text-2xl font-bold text-green-500">{proposalsByStatus.accepted?.length || 0}</p>
+            </CardContent>
+          </Card>
+        </div>
+
             </div>
           }
+          layout={isGenericNiche ? 'dashboard' : 'pinned'}
+          subtitle={isGenericNiche ? 'Crie, envie e acompanhe propostas comerciais num só lugar.' : undefined}
         />
         {/* Proposals List */}
         {isLoading ? (
@@ -234,7 +245,12 @@ export default function Proposals() {
             {filteredProposals.map((proposal) => (
               <Card
                 key={proposal.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors relative"
+                className={cn(
+                  'cursor-pointer relative transition-all',
+                  isGenericNiche
+                    ? 'rounded-xl border-border/70 bg-card shadow-sm hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md'
+                    : 'hover:bg-muted/50',
+                )}
                 onClick={() => setSelectedProposal(proposal)}
               >
                 {proposal.status === 'accepted' && !(proposal as any).has_sale && (
@@ -247,7 +263,7 @@ export default function Proposals() {
                     Criar Venda
                   </Button>
                 )}
-                <CardContent className="flex items-center justify-between p-4">
+                <CardContent className={cn('flex items-center justify-between', isGenericNiche ? 'p-5' : 'p-4')}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge className={cn('text-xs', PROPOSAL_STATUS_COLORS[proposal.status])}>

@@ -13,7 +13,6 @@ import { BankAccountsTab } from "@/components/finance/BankAccountsTab";
 import { FinanceCardDetail, type FinanceDetailType } from "@/components/finance/FinanceCardDetail";
 import { InvoicesContent } from "@/components/finance/InvoicesContent";
 import { RenewalAlertsWidget } from "@/components/finance/RenewalAlertsWidget";
-import InternalRequests from "@/pages/finance/InternalRequests";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -67,6 +66,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
   const navigate = useNavigate();
   const [tab, setTab] = useState("resumo");
   const [search, setSearch] = useState("");
+  const [expenseSearch, setExpenseSearch] = useState("");
   const [expenseOpen, setExpenseOpen] = useState(false);
 
   const chartData = useMemo(() => props.stats.cashflowTrend.map((point) => ({
@@ -90,7 +90,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
     ? `${format(props.dateRange.from, "d MMM yyyy", { locale: pt })}${props.dateRange.to ? ` – ${format(props.dateRange.to, "d MMM yyyy", { locale: pt })}` : ""}`
     : "Todo o histórico";
 
-  const handleNewInvoice = () => navigate("/sales?new=1");
+  const handleNewInvoice = () => navigate("/financeiro/nova-fatura");
 
   return (
     <div className="min-h-full space-y-5 p-4 pb-20 md:p-6 md:pb-8 lg:p-8">
@@ -102,7 +102,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleNewInvoice} className="h-10 px-4">
-            <Plus className="mr-1.5 h-4 w-4" /> Nova venda
+            <Plus className="mr-1.5 h-4 w-4" /> Nova fatura
           </Button>
           <Button variant="outline" onClick={() => setExpenseOpen(true)} className="h-10 px-4">
             <Plus className="mr-1.5 h-4 w-4" /> Nova despesa
@@ -115,7 +115,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
           <TabsTrigger value="resumo" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Resumo</TabsTrigger>
           <TabsTrigger value="contas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Contas</TabsTrigger>
           <TabsTrigger value="faturas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Faturas</TabsTrigger>
-          <TabsTrigger value="outros" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Outros</TabsTrigger>
+          <TabsTrigger value="despesas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Despesas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="mt-5 space-y-5">
@@ -126,20 +126,12 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Pesquisar recebimentos por cliente, venda ou referência…"
-                className="h-10 border-0 bg-muted/40 pl-10 shadow-none focus-visible:ring-1"
+                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
                 aria-label="Pesquisar recebimentos"
               />
             </div>
             <DateRangePicker value={props.dateRange} onChange={props.onDateRangeChange} placeholder="Todo o histórico" className="w-full md:w-[260px]" />
           </div>
-
-          <nav aria-label="Atalhos financeiros" className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => { setTab("resumo"); setSearch(""); }}>Tudo</Button>
-            <Button size="sm" variant="outline" onClick={() => setTab("faturas")}><FileText className="mr-1.5 h-4 w-4" />Faturas</Button>
-            <Button size="sm" variant="outline" onClick={() => props.onDetailViewChange("expenses")}><Receipt className="mr-1.5 h-4 w-4" />Despesas</Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/clients")}><Users className="mr-1.5 h-4 w-4" />Clientes</Button>
-            <span className="ml-auto hidden items-center text-xs text-muted-foreground sm:flex">Período: {selectedPeriod}</span>
-          </nav>
 
           {props.detailView ? (
             <FinanceCardDetail
@@ -161,9 +153,9 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
                   <span className="hidden text-xs text-muted-foreground lg:inline">Selecione um indicador para ver os movimentos</span>
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-                  {moneyCards.map(({ title, icon: Icon, tone, detail, value, foot }) => (
-                    <Card key={title} role="button" tabIndex={0} onClick={() => props.onDetailViewChange(detail)}
-                      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); props.onDetailViewChange(detail); } }}
+                    {moneyCards.map(({ title, icon: Icon, tone, detail, value, foot }) => (
+                    <Card key={title} role="button" tabIndex={0} onClick={() => detail === "expenses" ? setTab("despesas") : props.onDetailViewChange(detail)}
+                      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); detail === "expenses" ? setTab("despesas") : props.onDetailViewChange(detail); } }}
                       className="group cursor-pointer border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       <CardContent className="flex min-h-[116px] items-start gap-3 p-4">
                         <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${toneClasses[tone]}`}><Icon className="h-5 w-5" /></span>
@@ -213,7 +205,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
                 <RenewalAlertsWidget />
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.8fr)_minmax(270px,0.7fr)]">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(270px,0.7fr)]">
                 <Card className="min-w-0">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div><CardTitle className="text-base">{search ? "Resultados" : "Próximos recebimentos"}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{search ? "Pagamentos encontrados" : "Pagamentos previstos para os próximos 7 dias"}</p></div>
@@ -235,17 +227,10 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-base">Ações rápidas</CardTitle><p className="text-xs text-muted-foreground">Acesso às tarefas frequentes</p></CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-2 pt-1">
-                    <Button variant="outline" className="h-auto justify-start gap-2 p-3" onClick={handleNewInvoice}><span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40"><Plus className="h-4 w-4" /></span><span className="text-left"><span className="block text-xs font-semibold">Nova venda</span><span className="block text-[10px] text-muted-foreground">Faturar depois</span></span></Button>
-                    <Button variant="outline" className="h-auto justify-start gap-2 p-3" onClick={() => setExpenseOpen(true)}><span className="grid h-8 w-8 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40"><Plus className="h-4 w-4" /></span><span className="text-left"><span className="block text-xs font-semibold">Nova despesa</span><span className="block text-[10px] text-muted-foreground">Registar custo</span></span></Button>
-                    <Button variant="outline" className="h-auto justify-start gap-2 p-3" onClick={() => navigate("/clients")}><span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-950/40"><Users className="h-4 w-4" /></span><span className="text-left"><span className="block text-xs font-semibold">Clientes</span><span className="block text-[10px] text-muted-foreground">Ver carteira</span></span></Button>
-                    <Button variant="outline" className="h-auto justify-start gap-2 p-3" onClick={() => setTab("faturas")}><span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40"><FileText className="h-4 w-4" /></span><span className="text-left"><span className="block text-xs font-semibold">Faturas</span><span className="block text-[10px] text-muted-foreground">Ver documentos</span></span></Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><CreditCard className="h-4 w-4 text-primary" />Comissões</CardTitle><p className="text-xs text-muted-foreground">Resumo da atividade comercial</p></CardHeader>
+                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                    <div><CardTitle className="flex items-center gap-2 text-base"><CreditCard className="h-4 w-4 text-primary" />Comissões</CardTitle><p className="mt-1 text-xs text-muted-foreground">Resumo da atividade comercial</p></div>
+                    <Button variant="ghost" size="sm" className="-mr-2 -mt-1 h-8" onClick={() => props.onDetailViewChange("commissions")}>Ver todas <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
+                  </CardHeader>
                   <CardContent className="space-y-3 pt-1">
                     <div><p className="text-2xl font-semibold tracking-tight text-primary">{formatCurrency(props.teamCommissionTotal)}</p><p className="text-xs text-muted-foreground">{props.teamSalesCount} venda{props.teamSalesCount === 1 ? "" : "s"} {props.dateRange?.from ? "no período" : "no total"}</p></div>
                     <div className="flex items-center justify-between border-t pt-3"><span className="text-xs text-muted-foreground">As minhas comissões</span><button onClick={props.onMyCommissions} className="text-sm font-semibold hover:text-primary">{formatCurrency(props.myConfirmedTotal)}</button></div>
@@ -259,7 +244,30 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
 
         <TabsContent value="contas" className="mt-5"><BankAccountsTab /></TabsContent>
         <TabsContent value="faturas" className="mt-5"><InvoicesContent /></TabsContent>
-        <TabsContent value="outros" className="mt-5"><InternalRequests /></TabsContent>
+        <TabsContent value="despesas" className="mt-5">
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-card p-3 md:flex-row md:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={expenseSearch}
+                onChange={(event) => setExpenseSearch(event.target.value)}
+                placeholder="Pesquisar despesas por descrição ou categoria…"
+                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
+                aria-label="Pesquisar despesas"
+              />
+            </div>
+            <DateRangePicker value={props.dateRange} onChange={props.onDateRangeChange} placeholder="Todo o histórico" className="w-full md:w-[260px]" />
+          </div>
+          <FinanceCardDetail
+            type="expenses"
+            dateRange={props.dateRange}
+            searchTerm={expenseSearch}
+            payments={props.payments}
+            allPayments={props.allPayments}
+            dueSoonPayments={props.stats.dueSoonPayments}
+            onBack={() => setTab("resumo")}
+          />
+        </TabsContent>
       </Tabs>
       <AddExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
     </div>

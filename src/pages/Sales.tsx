@@ -127,6 +127,7 @@ export default function Sales() {
   const { data: sales, isLoading } = useSales();
 
   const isTelecom = organization?.niche === 'telecom';
+  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
   const isPerfect2Gether = hasPerfect2GetherAccess({
     organizationId: organization?.id,
     memberships: organizations,
@@ -451,66 +452,12 @@ const deleteSale = useMutation({
   // Cards, search and switches — what opens under the pinned bar.
   const salesPanel = salesTab === 'vendas' ? (
     <>
-      {/* Summary Cards */}
-      <div className="px-4 md:px-6 pt-3 pb-1 grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
-        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-4' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Total Vendas</span>
-            </div>
-            <p className="text-xl font-bold leading-tight">{stats.total}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.totalValue)}</p>
-            {isTelecom && modules.energy && telecomMetrics && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {telecomMetrics.totalMWh.toFixed(1)} MWh · {telecomMetrics.totalKWp.toFixed(1)} kWp
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-3' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-4 w-4 text-blue-500" />
-              <span className="text-xs text-muted-foreground">Em Progresso</span>
-            </div>
-            <p className="text-xl font-bold leading-tight text-blue-500">{stats.inProgress}</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`bg-card/50 border-border/50 ${isTelecom ? 'order-2' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-4 w-4 text-purple-500" />
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
-            </div>
-            <p className="text-xl font-bold leading-tight text-purple-500">{stats.fulfilled}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 border-border/50">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
-            </div>
-            <p className="text-xl font-bold leading-tight text-green-500">{stats.delivered}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
-            {isTelecom && modules.energy && telecomMetrics && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {telecomMetrics.deliveredMWh.toFixed(1)} MWh · {telecomMetrics.deliveredKWp.toFixed(1)} kWp
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Filters — pinned while the list scrolls. Plain sticky on the
           window (the page is not inside a scroll box), opaque background,
           nothing hanging outside its own width. */}
-      <div className="px-4 md:px-6 py-3 space-y-3">
+      <div className={isGenericNiche
+        ? 'mx-4 md:mx-6 mt-2 space-y-3 rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4'
+        : 'px-4 md:px-6 py-3 space-y-3'}>
         {/* Drill-down chip: says which dashboard card brought you here, and
             clears back to the full list. */}
         {telecomView && (
@@ -532,41 +479,98 @@ const deleteSale = useMutation({
             </Button>
           </div>
         )}
-        <div className="space-y-3">
-        {/* Search gets its own row so it never fights the filter grid for
-            width — that's what was squeezing every label down to "Todos
-            as...". Everything below sits in a grid instead of a single flex
-            row, so each control gets a real column instead of shrinking. */}
-        <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full sm:w-[260px]" />
-        {/* Telecom: operators, states and seller as switches, same bar as the
-            Financeiro. Its seller picker replaces the team filter here. */}
-        {isTelecom && (
-          <CommissionFiltersBar value={commissionFilters} onChange={setCommissionFilters} />
+        {/* The period picker shares the filter row and sits at the end, like
+            the Financeiro. Telecom keeps its dedicated multi-row switch bar. */}
+        {isTelecom ? (
+          <div className="space-y-3">
+            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full sm:w-[260px]" />
+            <CommissionFiltersBar value={commissionFilters} onChange={setCommissionFilters} />
+          </div>
+        ) : (
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${isGenericNiche ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            {isGenericNiche && <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome, empresa ou código..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
+              />
+            </div>}
+            <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
+            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as SaleStatus | "all")}>
+              <SelectTrigger className="w-full bg-card/50 border-border/50">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os estados</SelectItem>
+                {SALE_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {SALE_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full" />
+          </div>
         )}
-        {!isTelecom && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {!isTelecom && <TeamMemberFilter className="w-full bg-card/50 border-border/50" />}
-        {!isTelecom && (
-          <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as SaleStatus | "all")}>
-            <SelectTrigger className="w-full bg-card/50 border-border/50">
-              <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os estados</SelectItem>
-              {SALE_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {SALE_STATUS_LABELS[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+      </div>
 
-        {/* The old Energia / Outros Serviços pair is gone: the product
-            types on the switch bar above are the real ones. */}
-        </div>
-        )}
-        </div>
+      {/* Summary cards follow the filters so every total is clearly tied to
+          the selected search, period, team and status. */}
+      <div className={`px-4 md:px-6 pt-4 pb-2 grid grid-cols-2 xl:grid-cols-4 gap-3 ${isTelecom ? 'sm:grid-cols-4' : ''}`}>
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-4' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"><TrendingUp className="h-4 w-4" /></span> : <TrendingUp className="h-4 w-4 text-muted-foreground" />}
+              <span className="text-xs text-muted-foreground">Total Vendas</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight' : 'text-xl'} font-bold leading-tight`}>{stats.total}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(stats.totalValue)} em vendas</p>
+            {isTelecom && modules.energy && telecomMetrics && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {telecomMetrics.totalMWh.toFixed(1)} MWh · {telecomMetrics.totalKWp.toFixed(1)} kWp
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-3' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-blue-500" />}
+              <span className="text-xs text-muted-foreground">Em Progresso</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-amber-700 dark:text-amber-300' : 'text-xl text-blue-500'} font-bold leading-tight`}>{stats.inProgress}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-2' : ''}`}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-purple-500" />}
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-violet-600 dark:text-violet-300' : 'text-xl text-purple-500'} font-bold leading-tight`}>{stats.fulfilled}</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'}>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"><CheckCircle className="h-4 w-4" /></span> : <CheckCircle className="h-4 w-4 text-green-500" />}
+              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
+            </div>
+            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-emerald-600 dark:text-emerald-300' : 'text-xl text-green-500'} font-bold leading-tight`}>{stats.delivered}</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
+            {isTelecom && modules.energy && telecomMetrics && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {telecomMetrics.deliveredMWh.toFixed(1)} MWh · {telecomMetrics.deliveredKWp.toFixed(1)} kWp
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </>
   ) : undefined;
@@ -579,39 +583,41 @@ const deleteSale = useMutation({
         icon={ShoppingBag}
         title="Vendas"
         storageKey="sales-filters-open-v1"
-        search={
+        search={!isGenericNiche && salesTab === 'vendas' ? (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Pesquisar por nome, empresa ou código..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-9 text-sm"
+              className={isGenericNiche
+                ? 'h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'
+                : 'h-8 border-primary/35 bg-primary/[0.04] pl-9 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'}
             />
           </div>
-        }
+        ) : undefined}
         tabs={
           <Tabs value={salesTab} onValueChange={(v) => setSalesTab(v as 'vendas' | 'comissoes')}>
-            <TabsList className="h-8">
-              <TabsTrigger value="vendas" className="h-7 text-xs">Vendas</TabsTrigger>
-              <TabsTrigger value="comissoes" className="h-7 text-xs">Comissões</TabsTrigger>
+            <TabsList className={isGenericNiche ? 'h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto' : 'h-8'}>
+              <TabsTrigger value="vendas" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Vendas</TabsTrigger>
+              <TabsTrigger value="comissoes" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Comissões</TabsTrigger>
             </TabsList>
           </Tabs>
         }
-        summary={salesTab === 'vendas'
+        summary={!isGenericNiche && salesTab === 'vendas'
           ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso${isTelecom ? ` · ${formatOperationalUnits(stats.fulfilled)} ativa${stats.fulfilled === 1 ? '' : 's'}` : ''} · ${formatOperationalUnits(stats.delivered)} ${isTelecom ? `instalada${stats.delivered === 1 ? '' : 's'}` : `concluída${stats.delivered === 1 ? '' : 's'}`}`
           : undefined}
         chips={salesTab === 'vendas' ? activeFilterChips : []}
         actions={
           <>
             {isPerfect2Gether && (
-              <Button variant="outline" size="sm" className="h-8" onClick={handleExportPerfect2Gether} disabled={isExporting}>
+              <Button variant="outline" size="sm" className={isGenericNiche ? 'h-10' : 'h-8'} onClick={handleExportPerfect2Gether} disabled={isExporting}>
                 {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 <span className="hidden sm:inline">Exportar Perfect2Gether</span>
                 <span className="sm:hidden">Exportar</span>
               </Button>
             )}
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8">
+            <Button onClick={() => setShowCreateModal(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
               <Plus className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Nova Venda</span>
               <span className="sm:hidden">Nova</span>
@@ -619,6 +625,8 @@ const deleteSale = useMutation({
           </>
         }
         panel={salesPanel}
+        layout={isGenericNiche ? 'dashboard' : 'pinned'}
+        subtitle={isGenericNiche ? 'Acompanhe o desempenho, o estado e o valor das suas vendas.' : undefined}
       />
       {salesTab === 'comissoes' && <CommissionsPanel />}
 
@@ -651,10 +659,10 @@ const deleteSale = useMutation({
           filteredSales.map((sale) => (
             <Card 
               key={sale.id} 
-              className="bg-card/50 border-border/50 hover:bg-accent/50 transition-colors cursor-pointer"
+              className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md' : 'bg-card/50 border-border/50 hover:bg-accent/50 transition-colors'} cursor-pointer`}
               onClick={() => setSelectedSale(sale)}
             >
-              <CardContent className="p-4">
+              <CardContent className={isGenericNiche ? 'p-5' : 'p-4'}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
