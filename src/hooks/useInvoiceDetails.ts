@@ -94,6 +94,7 @@ export function useInvoiceDetails({ documentId, invoiceId, documentType, organiz
           ...(invoiceId ? { invoice_id: invoiceId } : { document_id: documentId }),
           document_type: documentType,
           organization_id: organizationId,
+          include_pdf: false,
         },
       });
 
@@ -102,6 +103,8 @@ export function useInvoiceDetails({ documentId, invoiceId, documentType, organiz
       return res.data as InvoiceDetailsData;
     },
     enabled: enabled && !!(invoiceId || documentId) && !!organizationId,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
 }
 
@@ -116,6 +119,7 @@ export function useSyncInvoice() {
           document_type: documentType,
           organization_id: organizationId,
           sync: true,
+          include_pdf: true,
           sale_id: saleId,
           payment_id: paymentId,
         },

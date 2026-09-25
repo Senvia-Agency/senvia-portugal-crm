@@ -85,18 +85,32 @@ export function InvoiceDetailsModal({
   const [viewingPdf, setViewingPdf] = useState(false);
 
   const handleViewPdf = async () => {
-    if (details?.pdf_signed_url) {
-      window.open(details.pdf_signed_url, '_blank');
-      return;
-    }
-    if (!details?.pdf_url) {
-      toast.error("PDF não disponível");
-      return;
-    }
     setViewingPdf(true);
     try {
-      await openPdfInNewTab(details.pdf_url);
-    } catch { toast.error("Erro ao abrir PDF"); }
+      let pdfUrl = details?.pdf_signed_url || null;
+      let pdfPath = details?.pdf_url || null;
+
+      if (!pdfUrl && !pdfPath) {
+        const response = await supabase.functions.invoke("get-invoice-details", {
+          body: {
+            ...(invoiceId ? { invoice_id: invoiceId } : { document_id: documentId }),
+            document_type: documentType,
+            organization_id: organizationId,
+            include_pdf: true,
+          },
+        });
+        if (response.error) throw new Error(response.error.message || "Erro ao obter PDF");
+        if (response.data?.error) throw new Error(response.data.error);
+        pdfUrl = response.data?.pdf_signed_url || null;
+        pdfPath = response.data?.pdf_url || null;
+      }
+
+      if (pdfUrl) window.open(pdfUrl, '_blank');
+      else if (pdfPath) await openPdfInNewTab(pdfPath);
+      else toast.error("PDF não disponível");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao abrir PDF");
+    }
     finally { setViewingPdf(false); }
   };
 

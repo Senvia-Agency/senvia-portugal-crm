@@ -275,7 +275,8 @@ Deno.serve(async (req) => {
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
 
-    const { invoice_id, document_id, document_type, organization_id, sync, sale_id, payment_id } = await req.json()
+    const { invoice_id, document_id, document_type, organization_id, sync, include_pdf, sale_id, payment_id } = await req.json()
+    const shouldFetchPdf = include_pdf === true || sync === true
 
     if ((!invoice_id && (document_id === null || document_id === undefined)) || !document_type || !organization_id) {
       return new Response(JSON.stringify({ error: 'invoice_id (ou document_id), document_type e organization_id são obrigatórios' }), {
@@ -395,7 +396,7 @@ Deno.serve(async (req) => {
       let pdfSignedUrl: string | null = null
       let currentPdfPath = invoiceRecord.pdf_path
 
-      if (!currentPdfPath && org?.keyinvoice_password) {
+      if (shouldFetchPdf && !currentPdfPath && org?.keyinvoice_password) {
         const pdfResult = await fetchKeyInvoicePdf(supabase, org, organization_id, invoiceRecord)
         if (pdfResult.storagePath) {
           currentPdfPath = pdfResult.storagePath
@@ -403,7 +404,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (currentPdfPath && !pdfSignedUrl) {
+      if (shouldFetchPdf && currentPdfPath && !pdfSignedUrl) {
         const { data: signedData } = await supabase.storage
           .from('invoices')
           .createSignedUrl(currentPdfPath, 3600)
@@ -589,14 +590,16 @@ Deno.serve(async (req) => {
 
       let pdfPath: string | null = invoiceRecord?.pdf_path || null
       let pdfSignedUrl: string | null = null
-      try {
-        const pdf = await ensureVendusPdfInStorage(
-          supabase, org.vendus_api_key, organization_id, vendusId, document_type, invoiceRecord,
-        )
-        pdfPath = pdf.storagePath
-        pdfSignedUrl = pdf.signedUrl
-      } catch (error) {
-        console.error('[get-invoice-details] vendus_pdf_failed', error instanceof VendusError ? error.code : 'storage_error')
+      if (shouldFetchPdf) {
+        try {
+          const pdf = await ensureVendusPdfInStorage(
+            supabase, org.vendus_api_key, organization_id, vendusId, document_type, invoiceRecord,
+          )
+          pdfPath = pdf.storagePath
+          pdfSignedUrl = pdf.signedUrl
+        } catch (error) {
+          console.error('[get-invoice-details] vendus_pdf_failed', error instanceof VendusError ? error.code : 'storage_error')
+        }
       }
 
       const rawItems = Array.isArray(doc.items) ? doc.items : []
@@ -744,25 +747,28 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Fetch QR code URL
+    // Fetch ancillary assets only on explicit PDF/sync requests so document
+    // details are not held up by PDF polling, downloads, or extra provider calls.
     let qrCodeUrl: string | null = null
-    try {
-      const qrRes = await fetch(`${baseUrl}/api/qr_codes/${externalDocumentId}.json?api_key=${apiKey}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      })
-      if (qrRes.ok) {
-        const qrData = await qrRes.json()
-        qrCodeUrl = qrData?.qr_code?.url || null
+    if (shouldFetchPdf) {
+      try {
+        const qrRes = await fetch(`${baseUrl}/api/qr_codes/${externalDocumentId}.json?api_key=${apiKey}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        })
+        if (qrRes.ok) {
+          const qrData = await qrRes.json()
+          qrCodeUrl = qrData?.qr_code?.url || null
+        }
+      } catch {
+        console.warn('[get-invoice-details] qr_code_fetch_failed')
       }
-    } catch {
-      console.warn('[get-invoice-details] qr_code_fetch_failed')
     }
 
-    // 2. Always ensure PDF is in storage and get signed URL
-    const { storagePath, signedUrl: pdfSignedUrl } = await ensurePdfInStorage(
-      supabase, baseUrl, apiKey, externalDocumentId, document_type, organization_id
-    )
+    // Generate/store the PDF only when requested (or during explicit sync).
+    const { storagePath, signedUrl: pdfSignedUrl } = shouldFetchPdf
+      ? await ensurePdfInStorage(supabase, baseUrl, apiKey, externalDocumentId, document_type, organization_id)
+      : { storagePath: invoiceRecord?.pdf_path || null, signedUrl: null }
 
     // Build response
     const result: any = {
