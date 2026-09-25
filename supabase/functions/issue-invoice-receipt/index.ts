@@ -191,6 +191,18 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    const { data: fiscalSale, error: fiscalSaleError } = await supabase.from('sales')
+      .select('status').eq('id', sale_id).eq('organization_id', organization_id).maybeSingle()
+    if (fiscalSaleError || !fiscalSale) {
+      return new Response(JSON.stringify({ error: 'Venda não encontrada' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (fiscalSale.status === 'cancelled' || fiscalSale.status === 'canceled') {
+      return new Response(JSON.stringify({ error: 'Não é possível emitir documentos fiscais para uma venda cancelada.', code: 'sale_cancelled' }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // Route to KeyInvoice if selected
     if (billingProvider === 'keyinvoice') {

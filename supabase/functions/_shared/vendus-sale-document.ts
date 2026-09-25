@@ -211,6 +211,9 @@ export async function issueVendusSaleDocument(db: any, org: any, input: IssueVen
     .select('*, client:crm_clients(name, company, nif, company_nif, billing_target, email, phone, address_line1, city, postal_code, country, company_address_same_as_client, company_address_line1, company_city, company_postal_code, company_country), lead:leads(name,email)')
     .eq('id', saleId).eq('organization_id', organizationId).maybeSingle()
   if (saleError || !sale) throw new VendusError('Venda não encontrada', 404, 'sale_not_found')
+  if (sale.status === 'cancelled' || sale.status === 'canceled') {
+    throw new VendusError('Não é possível emitir documentos fiscais para uma venda cancelada.', 409, 'sale_cancelled')
+  }
   if (sale.invoicexpress_id || sale.invoice_reference) {
     throw new VendusError('Esta venda já tem um documento fiscal associado.', 409, 'existing_document')
   }

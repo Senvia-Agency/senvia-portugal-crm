@@ -562,7 +562,7 @@ export function SalePaymentsList({
 
       {/* Invoice Draft Modal - Receipt mode (RC - requires existing FT) */}
       <InvoiceDraftModal
-        open={draftMode === "receipt" && !!draftPayment}
+        open={!readonly && draftMode === "receipt" && !!draftPayment}
         onOpenChange={(open) => { 
           if (!open) { setDraftMode(null); setDraftPayment(null); }
         }}
@@ -570,7 +570,7 @@ export function SalePaymentsList({
           // A receipt settles money already received. Keep this guard at the
           // action boundary as well as in the button visibility so stale UI
           // state can never submit a pending payment.
-          if (!draftPayment || draftPayment.status !== 'paid' || !paymentHasNoReversal(draftPayment)) return;
+          if (readonly || !draftPayment || draftPayment.status !== 'paid' || !paymentHasNoReversal(draftPayment)) return;
           generateReceipt.mutate(
             { saleId, paymentId: draftPayment.id, organizationId },
             { onSuccess: () => {

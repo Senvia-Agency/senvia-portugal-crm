@@ -197,13 +197,18 @@ Deno.serve(async (req) => {
     // The browser only supplies additional free-form observations.
     const { data: paymentSale, error: paymentSaleError } = await supabase
       .from('sales')
-      .select('gross_value,total_value')
+      .select('gross_value,total_value,status')
       .eq('id', sale_id)
       .eq('organization_id', organization_id)
       .single()
     if (paymentSaleError || !paymentSale) {
       return new Response(JSON.stringify({ error: 'Venda não encontrada' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (paymentSale.status === 'cancelled' || paymentSale.status === 'canceled') {
+      return new Response(JSON.stringify({ error: 'Não é possível emitir documentos fiscais para uma venda cancelada.', code: 'sale_cancelled' }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
     const { data: plannedPayments, error: plannedPaymentsError } = await supabase

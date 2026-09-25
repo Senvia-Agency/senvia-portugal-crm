@@ -130,6 +130,18 @@ export async function prepareKeyInvoiceSnapshotContext(
   if (job.provider && job.provider !== 'keyinvoice') {
     throw new KeyInvoiceError('O trabalho fiscal não pertence ao KeyInvoice', { code: 'wrong_provider', httpStatus: 400 })
   }
+  const { data: saleState, error: saleStateError } = await db.from('sales')
+    .select('status').eq('id', job.sale_id).eq('organization_id', job.organization_id).maybeSingle()
+  if (saleStateError || !saleState) {
+    throw new KeyInvoiceError('Não foi possível confirmar o estado da venda antes da emissão.', {
+      code: 'sale_status_unavailable', httpStatus: 500, retryable: true,
+    })
+  }
+  if (saleState.status === 'cancelled' || saleState.status === 'canceled') {
+    throw new KeyInvoiceError('Não é possível emitir documentos fiscais para uma venda cancelada.', {
+      code: 'sale_cancelled', httpStatus: 409,
+    })
+  }
   const kind = job.document_type as 'invoice' | 'invoice_receipt'
   if (kind !== 'invoice' && kind !== 'invoice_receipt') {
     throw new KeyInvoiceError('Tipo de documento não suportado para emissão automática', {
@@ -299,6 +311,11 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     .eq('organization_id', input.organizationId)
     .single()
   if (saleError || !sale) throw new KeyInvoiceError('Venda não encontrada', { code: 'sale_not_found', httpStatus: 404 })
+  if (sale.status === 'cancelled' || sale.status === 'canceled') {
+    throw new KeyInvoiceError('Não é possível emitir documentos fiscais para uma venda cancelada.', {
+      code: 'sale_cancelled', httpStatus: 409,
+    })
+  }
   const voidedPredecessorId = await verifiedVoidedPredecessor(db, input)
 
   const { data: payments, error: paymentsError } = await db

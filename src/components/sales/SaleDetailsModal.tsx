@@ -1067,7 +1067,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           saleId={sale.id}
                           organizationId={organization.id}
                           saleTotal={paymentObligation}
-                          readonly={false}
+                          readonly={sale.status === 'cancelled'}
                           hasInvoiceXpress={hasInvoiceXpress}
                           invoicexpressId={sale.invoicexpress_id}
                           invoicexpressType={sale.invoicexpress_type}
@@ -1240,7 +1240,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           <div className="p-4 border-t border-border/50 shrink-0">
             <div className="flex gap-3 max-w-6xl mx-auto">
               {(() => {
-                const canEmit = hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
+                const canEmit = sale.status !== 'cancelled' && hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
                 if (canEmit) {
                   const paidInFull = isSalePaidInFull(paymentObligation, salePayments);
                   const mode = paidInFull ? "invoice_receipt" as const : "invoice" as const;
@@ -1402,10 +1402,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       {/* Invoice Draft Modal */}
       {draftMode && (
         <InvoiceDraftModal
-          open={!!draftMode}
+          open={!!draftMode && sale.status !== 'cancelled'}
           onOpenChange={(open) => { if (!open) setDraftMode(null); }}
           mode={draftMode}
           onConfirm={(obs) => {
+            if (sale.status === 'cancelled') return;
             if (draftMode === 'invoice_receipt') {
               issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '', observations: obs }, {
                 onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", organization?.id, "sale", sale.id] }),
