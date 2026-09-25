@@ -457,7 +457,7 @@ export function SalePaymentsList({
                           <Mail className="h-3.5 w-3.5" />
                         </Button>
                       </EmailTemplateGate>
-                      <Button
+                      {supportsInvoiceXpressActions(payment) && <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
@@ -465,7 +465,7 @@ export function SalePaymentsList({
                         title="Anular recibo"
                       >
                         <Ban className="h-3.5 w-3.5" />
-                      </Button>
+                      </Button>}
                     </>
                   )}
                 </div>

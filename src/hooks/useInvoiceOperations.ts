@@ -91,6 +91,7 @@ export function useIssueInvoiceReceipt() {
 // ─── Cancel Invoice ─────────────────────────────────────────────
 
 export interface CancelInvoiceParams {
+  invoiceId?: string;
   paymentId?: string;
   saleId?: string;
   organizationId: string;
@@ -103,13 +104,14 @@ export function useCancelInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ paymentId, saleId, organizationId, reason, invoicexpressId, documentType }: CancelInvoiceParams) => {
+    mutationFn: async ({ invoiceId, paymentId, saleId, organizationId, reason, invoicexpressId, documentType }: CancelInvoiceParams) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Não autenticado");
 
       const response = await supabase.functions.invoke("cancel-invoice", {
         body: {
           payment_id: paymentId || null,
+          invoice_id: invoiceId || null,
           sale_id: saleId || null,
           organization_id: organizationId,
           reason,
@@ -122,8 +124,8 @@ export function useCancelInvoice() {
       if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
-    onSuccess: () => {
-      sonnerToast.success("Documento anulado com sucesso");
+    onSuccess: (data) => {
+      sonnerToast.success(data?.operation === 'credit_note_reversal' ? "Nota de crédito emitida no KeyInvoice" : "Documento anulado com sucesso");
       queryClient.invalidateQueries({ queryKey: ["sale-payments"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });

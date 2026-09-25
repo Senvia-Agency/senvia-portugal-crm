@@ -59,6 +59,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const supportsProviderActions = organization?.billing_provider !== 'vendus'
     && invoice.provider !== 'vendus' && !!invoice.invoicexpressId;
   const hasLocalPdf = !!invoice.invoiceFileUrl;
+  const isKeyInvoice = invoice.provider === 'keyinvoice';
 
   const handleView = async () => {
     if (!invoice.invoiceFileUrl) return;
@@ -91,6 +92,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
         ...(isSaleLevel ? { saleId: invoice.saleId } : { paymentId: invoice.paymentId }),
         organizationId: invoice.organizationId,
         reason,
+        invoiceId: invoice.invoiceId || undefined,
         invoicexpressId: invoice.invoicexpressId,
         documentType: invoice.documentType,
       },
@@ -148,10 +150,10 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
             </DropdownMenuItem>
           )}
 
-          {supportsProviderActions && (
+          {supportsProviderActions && (!isKeyInvoice || invoice.documentType !== 'receipt') && (
             <>
               <DropdownMenuSeparator />
-              {!invoice.creditNoteId && (
+              {!isKeyInvoice && !invoice.creditNoteId && (
                 <DropdownMenuItem onClick={() => setShowCreditNote(true)}>
                   <FileText className="h-4 w-4 mr-2" />
                   Nota de Crédito
@@ -162,7 +164,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
                 className="text-destructive focus:text-destructive"
               >
                 <Ban className="h-4 w-4 mr-2" />
-                Anular Documento
+                {isKeyInvoice ? 'Estornar (Nota de Crédito)' : 'Anular Documento'}
               </DropdownMenuItem>
             </>
           )}
@@ -190,6 +192,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
         onConfirm={handleCancelConfirm}
         isLoading={cancelInvoice.isPending}
         invoiceReference={invoice.invoiceReference}
+        createsCreditNote={isKeyInvoice}
       />
 
       {showEmail && canSendFiscalEmail && (

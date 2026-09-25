@@ -18,6 +18,7 @@ interface CancelInvoiceDialogProps {
   onConfirm: (reason: string) => void;
   isLoading: boolean;
   invoiceReference: string;
+  createsCreditNote?: boolean;
 }
 
 export function CancelInvoiceDialog({
@@ -26,6 +27,7 @@ export function CancelInvoiceDialog({
   onConfirm,
   isLoading,
   invoiceReference,
+  createsCreditNote = false,
 }: CancelInvoiceDialogProps) {
   const [reason, setReason] = useState("");
 
@@ -44,18 +46,21 @@ export function CancelInvoiceDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Anular Fatura</AlertDialogTitle>
+          <AlertDialogTitle>{createsCreditNote ? "Estornar (Nota de Crédito)" : "Anular Fatura"}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem a certeza que deseja anular a fatura <strong>{invoiceReference}</strong>?
-            Esta ação será refletida no sistema de faturação e não pode ser desfeita.
+            {createsCreditNote ? (
+              <>O KeyInvoice vai emitir uma nota de crédito para a fatura <strong>{invoiceReference}</strong>. O documento fiscal original continuará no histórico. Esta operação não pode ser desfeita.</>
+            ) : (
+              <>Tem a certeza que deseja anular a fatura <strong>{invoiceReference}</strong>? Esta ação será refletida no sistema de faturação e não pode ser desfeita.</>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className="space-y-2 py-2">
-          <Label htmlFor="cancel-reason">Motivo de anulação *</Label>
+          <Label htmlFor="cancel-reason">{createsCreditNote ? "Motivo do estorno *" : "Motivo de anulação *"}</Label>
           <Textarea
             id="cancel-reason"
-            placeholder="Indique o motivo da anulação..."
+            placeholder={createsCreditNote ? "Indique o motivo do estorno..." : "Indique o motivo da anulação..."}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
@@ -69,7 +74,7 @@ export function CancelInvoiceDialog({
             disabled={!reason.trim() || isLoading}
             className="bg-destructive hover:bg-destructive/90"
           >
-            {isLoading ? "A anular..." : "Anular Fatura"}
+            {isLoading ? (createsCreditNote ? "A estornar..." : "A anular...") : (createsCreditNote ? "Emitir Nota de Crédito" : "Anular Fatura")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

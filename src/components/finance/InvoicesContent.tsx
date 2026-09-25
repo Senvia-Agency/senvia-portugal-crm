@@ -226,7 +226,8 @@ export function InvoicesContent() {
     }
   };
 
-  const getStatusLabel = (status: string | null) => {
+  const getStatusLabel = (status: string | null, provider?: string) => {
+    if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Estornada';
     const map: Record<string, string> = {
       settled: 'Liquidada',
       final: 'Finalizada',
@@ -254,7 +255,7 @@ export function InvoicesContent() {
       Origem: getProviderLabel(doc.provider),
       Data: doc.date ? formatDate(doc.date) : '-',
       Cliente: doc.client_name || '-',
-      Estado: getStatusLabel(doc.status),
+      Estado: getStatusLabel(doc.status, doc.provider),
       Valor: doc.total,
     }));
     exportToExcel(exportData, 'documentos-fiscais');
@@ -432,7 +433,7 @@ export function InvoicesContent() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={getStatusVariant(doc.status)} className="text-xs">
-                          {getStatusLabel(doc.status)}
+                          {getStatusLabel(doc.status, doc.provider)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">

@@ -41,6 +41,49 @@ function canonicalSnapshot(value: unknown): string {
   ) ?? ''
 }
 
+/** A cancelled fiscal document remains in the ledger. Reissue is possible only
+ * after its provider credit note has been persisted with the exact origin ID. */
+async function verifiedVoidedPredecessor(db: any, input: IssueSaleDocumentInput): Promise<string | null> {
+  if (input.recurringCycleId) return null
+  const { data: prior, error: priorError } = await db.from('invoices')
+    .select('id,processing_status')
+    .eq('organization_id', input.organizationId)
+    .eq('sale_id', input.saleId)
+    .eq('provider', 'keyinvoice')
+    .in('document_type', ['invoice', 'invoice_receipt'])
+    .in('status', ['canceled', 'cancelled'])
+    .is('recurring_cycle_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (priorError) throw new KeyInvoiceError('Não foi possível verificar a anulação anterior', {
+    code: 'prior_void_lookup_failed', httpStatus: 500, retryable: true,
+  })
+  if (!prior) return null
+  if (prior.processing_status !== 'void') throw new KeyInvoiceError(
+    'A anulação anterior ainda não está reconciliada. Confirme o estado no KeyInvoice antes de emitir outra fatura.',
+    { code: 'prior_void_unconfirmed', httpStatus: 409, manualReview: true },
+  )
+  const { data: credit, error: creditError } = await db.from('invoices')
+    .select('id')
+    .eq('organization_id', input.organizationId)
+    .eq('provider', 'keyinvoice')
+    .eq('related_invoice_id', prior.id)
+    .eq('document_type', 'credit_note')
+    .eq('status', 'final')
+    .eq('processing_status', 'issued')
+    .limit(1)
+    .maybeSingle()
+  if (creditError) throw new KeyInvoiceError('Não foi possível verificar a nota de crédito', {
+    code: 'prior_credit_lookup_failed', httpStatus: 500, retryable: true,
+  })
+  if (!credit) throw new KeyInvoiceError(
+    'A fatura anterior foi anulada, mas a nota de crédito ainda não está confirmada. Não repita a emissão.',
+    { code: 'prior_credit_unconfirmed', httpStatus: 409, manualReview: true },
+  )
+  return prior.id
+}
+
 export function confirmedPaymentNet(payment: Record<string, unknown>): number {
   if (payment.status !== 'paid') return 0
   const amount = Number(payment.amount || 0)
@@ -256,6 +299,7 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     .eq('organization_id', input.organizationId)
     .single()
   if (saleError || !sale) throw new KeyInvoiceError('Venda não encontrada', { code: 'sale_not_found', httpStatus: 404 })
+  const voidedPredecessorId = await verifiedVoidedPredecessor(db, input)
 
   const { data: payments, error: paymentsError } = await db
     .from('sale_payments')
@@ -499,7 +543,9 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     quantity: prepared.quantities[index],
     unitPrice: product.unitPrice,
   }))
-  const idempotencyKey = input.idempotencyKey || `manual:${input.saleId}:${input.recurringCycleId || 'sale'}:${kind}`
+  const idempotencyKey = input.idempotencyKey || (voidedPredecessorId
+    ? `manual:${input.saleId}:after-void:${voidedPredecessorId}:${kind}`
+    : `manual:${input.saleId}:${input.recurringCycleId || 'sale'}:${kind}`)
   // Comments are printed on the customer's fiscal document. Keep the
   // idempotency key exclusively in the Senvia fiscal ledger.
   const comments = input.observations?.trim() || ''
@@ -533,6 +579,7 @@ async function findExisting(db: any, input: IssueSaleDocumentInput, kind?: strin
   if (input.idempotencyKey) query = query.eq('fiscal_idempotency_key', input.idempotencyKey)
   else {
     query = query.eq('sale_id', input.saleId)
+      .not('processing_status', 'in', '(void,cancelled)')
     if (input.recurringCycleId) query = query.eq('recurring_cycle_id', input.recurringCycleId)
     else query = query.is('recurring_cycle_id', null)
     if (kind) query = query.eq('document_type', kind)

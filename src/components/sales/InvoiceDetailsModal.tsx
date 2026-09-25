@@ -122,7 +122,7 @@ export function InvoiceDetailsModal({
   const handleCancel = (reason: string) => {
     if (documentId == null || provider === 'vendus' || details?.source === 'vendus') return;
     cancelInvoice.mutate(
-      { invoicexpressId: documentId, documentType, organizationId, reason, saleId, paymentId },
+      { invoiceId: invoiceId || undefined, invoicexpressId: documentId, documentType, organizationId, reason, saleId, paymentId },
       { onSuccess: () => setCancelOpen(false) }
     );
   };
@@ -131,6 +131,7 @@ export function InvoiceDetailsModal({
   const ref = details?.sequence_number || '';
   const isCancelled = details?.status === 'cancelled' || details?.status === 'canceled';
   const isVendus = provider === 'vendus' || details?.source === 'vendus';
+  const isKeyInvoice = provider === 'keyinvoice' || details?.source === 'keyinvoice';
   const supportsProviderActions = organization?.billing_provider !== 'vendus'
     && !isVendus && documentId != null;
   const canSendFiscalEmail = documentId != null || !!invoiceId;
@@ -148,7 +149,7 @@ export function InvoiceDetailsModal({
               {isVendus && <Badge variant="outline">Vendus</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
-                  {statusInfo.label}
+                  {isKeyInvoice && isCancelled ? 'Estornada' : statusInfo.label}
                 </Badge>
               )}
             </DialogTitle>
@@ -387,9 +388,9 @@ export function InvoiceDetailsModal({
                     </Button>
                   </EmailTemplateGate>
                 )}
-                {supportsProviderActions && !isCancelled && (
+                {supportsProviderActions && !isCancelled && (!isKeyInvoice || documentType === 'invoice' || documentType === 'invoice_receipt') && (
                   <>
-                    {!creditNoteId && (
+                    {!isKeyInvoice && !creditNoteId && (
                       <Button variant="outline" size="sm" onClick={() => setCreditNoteOpen(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
                         Nota Crédito
@@ -397,7 +398,7 @@ export function InvoiceDetailsModal({
                     )}
                     <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}>
                       <Ban className="h-3.5 w-3.5 mr-1.5" />
-                      Anular
+                      {isKeyInvoice ? 'Estornar (Nota de Crédito)' : 'Anular'}
                     </Button>
                   </>
                 )}
@@ -437,6 +438,7 @@ export function InvoiceDetailsModal({
             onConfirm={handleCancel}
             isLoading={cancelInvoice.isPending}
             invoiceReference={ref}
+            createsCreditNote={isKeyInvoice}
           />
         </>
       )}
