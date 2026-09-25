@@ -337,6 +337,29 @@ async function failIssue(
 
 async function processIssueJob(db: AdminClient, job: FiscalWorkerJob, claimToken: string): Promise<boolean> {
   try {
+    // A claim may predate a mode change. Recheck the activation boundary before
+    // making any fiscal API call, including when the job was queued earlier.
+    const { data: cycle, error: cycleError } = await db
+      .from('sale_recurring_cycles')
+      .select('id,recurrence_id,period_start')
+      .eq('id', job.recurring_cycle_id)
+      .eq('organization_id', job.organization_id)
+      .single()
+    if (cycleError || !cycle) {
+      throw manualReviewRequired('Não foi possível validar o ciclo antes da emissão fiscal')
+    }
+    const { data: recurrence, error: recurrenceError } = await db
+      .from('sale_recurrences')
+      .select('id,fiscal_mode,fiscal_auto_start_after')
+      .eq('id', cycle.recurrence_id)
+      .eq('organization_id', job.organization_id)
+      .single()
+    if (recurrenceError || !recurrence || recurrence.fiscal_mode !== 'automatic') {
+      throw manualReviewRequired('A emissão automática da recorrência não está ativa ou não pôde ser validada')
+    }
+    if (recurrence.fiscal_auto_start_after && cycle.period_start <= recurrence.fiscal_auto_start_after) {
+      throw manualReviewRequired('Este ciclo já existia quando a emissão automática foi ativada; requer revisão manual')
+    }
     const org = await loadOrganization(db, job.organization_id)
     if (job.document_type === 'invoice' || job.document_type === 'invoice_receipt') {
       await issuePrimaryDocument(db, org, job, claimToken)

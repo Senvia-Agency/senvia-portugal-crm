@@ -76,6 +76,13 @@ ledger.
   manual. Email delivery is opt-in through `fiscal_auto_email` and
   `fiscal_email_config`. Automatic credit notes are reserved and rejected until
   the KeyInvoice demo contract is validated.
+- Migration `20260925230000` adds `sale_recurrences.fiscal_auto_start_after`.
+  When automatic issuance is activated, the boundary is the later of the
+  Lisbon activation date and the latest existing cycle period start. Only
+  cycles after that boundary may be queued or claimed. Existing automatic
+  recurrences are backfilled conservatively, and their pending/retry jobs for
+  older periods require manual reconciliation. This protects cycles invoiced
+  outside Senvia, which are not necessarily represented in `invoices`.
 - `organizations.keyinvoice_series_config` is an object keyed by `invoice`,
   `invoice_receipt`, `receipt`, and `credit_note`. Each value contains the exact
   KeyInvoice `provider_document_type_code` and `series`; optional validation

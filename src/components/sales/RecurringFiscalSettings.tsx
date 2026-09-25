@@ -106,6 +106,11 @@ export function RecurringFiscalSettings({
             {automaticDisabledReason || 'Liga e configura o KeyInvoice para disponibilizar a emissão automática.'}
           </p>
         )}
+        {value.fiscal_mode === 'automatic' && (
+          <p className="text-xs text-muted-foreground">
+            A emissão automática começa nos próximos ciclos. Os ciclos já existentes exigem tratamento manual, mesmo que estejam pagos.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
