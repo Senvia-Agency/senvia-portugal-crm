@@ -33,6 +33,14 @@ function filePart(value: string | null): string {
   return (value || 'default').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80)
 }
 
+function canonicalSnapshot(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([left], [right]) => left.localeCompare(right)))
+      : item,
+  ) ?? ''
+}
+
 export function confirmedPaymentNet(payment: Record<string, unknown>): number {
   if (payment.status !== 'paid') return 0
   const amount = Number(payment.amount || 0)
@@ -566,11 +574,30 @@ export async function issueKeyInvoiceSaleDocument(
   if (duplicate?.processing_status === 'issued' || duplicate?.status === 'final') {
     return { invoice: duplicate, identity: identityFromResult(duplicate), alreadyIssued: true }
   }
-  if (duplicate) {
+  const rejectedAttempt = duplicate?.processing_status === 'failed'
+    && /^provider_(?:rejected|[A-Za-z0-9_-]+)$/.test(String(duplicate.processing_last_error || ''))
+    && !duplicate.provider_document_number
+    && !duplicate.reference
+  if (duplicate && !rejectedAttempt) {
     throw new KeyInvoiceError('Já existe uma emissão em curso ou por reconciliar para esta venda', {
       code: 'fiscal_operation_in_progress',
       httpStatus: 409,
       manualReview: duplicate.processing_status === 'manual_review' || duplicate.processing_status === 'reconciliation_required',
+    })
+  }
+
+  if (rejectedAttempt && (
+    duplicate.fiscal_idempotency_key !== context.idempotencyKey
+    || duplicate.date !== context.fiscalDate
+    || Number(duplicate.total) !== expectedTotal
+    || duplicate.provider_document_type_code !== context.docTypeCode
+    || String(duplicate.provider_series || '') !== String(context.docSeries || '')
+    || canonicalSnapshot(duplicate.fiscal_snapshot) !== canonicalSnapshot(fiscalSnapshot)
+  )) {
+    throw new KeyInvoiceError('Os dados fiscais mudaram após a tentativa rejeitada. Reveja a emissão antes de repetir.', {
+      code: 'rejected_attempt_snapshot_changed',
+      httpStatus: 409,
+      manualReview: true,
     })
   }
 
@@ -605,11 +632,21 @@ export async function issueKeyInvoiceSaleDocument(
     email_status: input.requestEmail ? 'pending' : 'not_requested',
     updated_at: startedAt,
   }
-  const { data: pendingInvoice, error: pendingError } = await db
-    .from('invoices')
-    .insert(pendingRow)
-    .select('*')
-    .single()
+  const { data: pendingInvoice, error: pendingError } = rejectedAttempt
+    ? await db.from('invoices').update({
+      processing_status: 'processing',
+      processing_attempts: Number(duplicate.processing_attempts || 0) + 1,
+      processing_last_error: null,
+      processing_next_retry_at: null,
+      processing_claim_token: claimToken,
+      processing_claimed_at: startedAt,
+      updated_at: startedAt,
+    }).eq('id', duplicate.id)
+      .eq('organization_id', input.organizationId)
+      .eq('processing_status', 'failed')
+      .eq('processing_last_error', duplicate.processing_last_error)
+      .select('*').maybeSingle()
+    : await db.from('invoices').insert(pendingRow).select('*').single()
   if (pendingError || !pendingInvoice) {
     const concurrent = await findExisting(db, { ...input, idempotencyKey: context.idempotencyKey })
     if (concurrent?.processing_status === 'issued' || concurrent?.status === 'final') {
@@ -645,6 +682,10 @@ export async function issueKeyInvoiceSaleDocument(
     const { error: stateError } = await db.from('invoices').update({
       processing_status: processingStatus,
       processing_last_error: safe.code,
+      raw_data: {
+        ...(pendingInvoice.raw_data || {}),
+        ...(processingStatus === 'failed' ? { lastProviderError: safe.message } : {}),
+      },
       processing_next_retry_at: safe.retryable ? new Date(Date.now() + 60_000).toISOString() : null,
       processing_claim_token: null,
       processing_claimed_at: null,
