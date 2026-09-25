@@ -704,6 +704,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     const { error: paymentErr } = await supabase
       .from("sale_payments")
       .insert({
+        organization_id: SENVIA_AGENCY_ORG_ID,
         sale_id: sale.id,
         // O BRUTO é o que o cliente pagou e o que abate à dívida da venda.
         // Registar o líquido (como era) deixava cada venda com o valor da taxa
