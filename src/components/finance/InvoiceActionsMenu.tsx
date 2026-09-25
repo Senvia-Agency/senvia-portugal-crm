@@ -164,7 +164,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
                 className="text-destructive focus:text-destructive"
               >
                 <Ban className="h-4 w-4 mr-2" />
-                {isKeyInvoice ? 'Estornar (Nota de Crédito)' : 'Anular Documento'}
+                {isKeyInvoice ? 'Nota de Crédito' : 'Anular Documento'}
               </DropdownMenuItem>
             </>
           )}

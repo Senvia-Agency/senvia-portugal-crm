@@ -149,7 +149,7 @@ export function InvoiceDetailsModal({
               {isVendus && <Badge variant="outline">Vendus</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
-                  {isKeyInvoice && isCancelled ? 'Estornada' : statusInfo.label}
+                  {isKeyInvoice && isCancelled ? 'Com nota de crédito' : statusInfo.label}
                 </Badge>
               )}
             </DialogTitle>
@@ -398,7 +398,7 @@ export function InvoiceDetailsModal({
                     )}
                     <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}>
                       <Ban className="h-3.5 w-3.5 mr-1.5" />
-                      {isKeyInvoice ? 'Estornar (Nota de Crédito)' : 'Anular'}
+                      {isKeyInvoice ? 'Nota de Crédito' : 'Anular'}
                     </Button>
                   </>
                 )}

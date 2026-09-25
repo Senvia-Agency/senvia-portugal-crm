@@ -227,7 +227,7 @@ export function InvoicesContent() {
   };
 
   const getStatusLabel = (status: string | null, provider?: string) => {
-    if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Estornada';
+    if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Com nota de crédito';
     const map: Record<string, string> = {
       settled: 'Liquidada',
       final: 'Finalizada',
