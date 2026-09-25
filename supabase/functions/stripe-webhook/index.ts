@@ -464,7 +464,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     // one instead of an arbitrary row that can change between runs.
     const { data: sales, error: salesErr } = await supabase
       .from("sales")
-      .select("id, created_by, total_value, has_recurring, status")
+      .select("id, created_by, seller_id, total_value, has_recurring, status")
       .eq("organization_id", SENVIA_AGENCY_ORG_ID)
       .eq("client_org_id", clientOrgId)
       .in("status", ["pending", "in_progress", "fulfilled", "delivered"])
@@ -526,7 +526,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
             total_value: recurringTotal > 0 ? recurringTotal : amount,
             notes: `Venda criada automaticamente no primeiro pagamento (${invoice.id}).`,
           })
-          .select("id, created_by, total_value, has_recurring, status")
+          .select("id, created_by, seller_id, total_value, has_recurring, status")
           .maybeSingle();
         if (saleErr) throw new Error(`sale insert failed: ${saleErr.message}`);
         sale = createdSale;
@@ -597,8 +597,9 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       logStep("invoice.paid: sale recurrence and paid cycle synchronized", { saleId: sale.id, cycleId });
     }
 
-    // --- Commission record (only if sale + salesperson exist) ---
-    if (sale?.created_by) {
+    // An explicit seller owns the commission; the creator is only a fallback.
+    const commissionUserId = sale?.seller_id || sale?.created_by;
+    if (commissionUserId) {
       const stripeInvoiceId = invoice.id;
 
       const { data: existing } = await supabase
@@ -617,7 +618,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
           .from("organization_members")
           .select("commission_rate")
           .eq("organization_id", SENVIA_AGENCY_ORG_ID)
-          .eq("user_id", sale.created_by)
+          .eq("user_id", commissionUserId)
           .eq("is_active", true)
           .maybeSingle();
 
@@ -628,8 +629,9 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
           const { error: insertErr } = await supabase
             .from("stripe_commission_records")
             .insert({
+              organization_id: SENVIA_AGENCY_ORG_ID,
               sale_id: sale.id,
-              user_id: sale.created_by,
+              user_id: commissionUserId,
               client_org_id: clientOrgId,
               amount,
               commission_rate: rate,
@@ -645,15 +647,15 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
             logError("invoice.paid: commission insert error", { error: insertErr.message });
           } else {
             logStep("invoice.paid: commission recorded", {
-              userId: sale.created_by, amount, rate, commissionAmount, plan
+              userId: commissionUserId, amount, rate, commissionAmount, plan
             });
           }
         } else {
-          logStep("invoice.paid: no commission rate, skipping commission record", { userId: sale.created_by });
+          logStep("invoice.paid: no commission rate, skipping commission record", { userId: commissionUserId });
         }
       }
     } else if (sale) {
-      logStep("invoice.paid: sale has no created_by, skipping commission", { saleId: sale.id });
+      logStep("invoice.paid: sale has no seller, skipping commission", { saleId: sale.id });
     }
 
     // --- Payment record (only if sale found) ---

@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import Stripe from "https://esm.sh/stripe@18.5.0";
+import { handleReferralEvent, prepareAvailableReferralMonths } from "../_shared/referrals.ts";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
 
@@ -152,6 +154,7 @@ serve(async (req) => {
   try {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY not set");
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     let lookbackDays = DEFAULT_LOOKBACK_DAYS;
     try {
@@ -212,12 +215,23 @@ serve(async (req) => {
       skipped_possible_manual: [] as Array<Record<string, unknown>>,
       /** Invoices this run tried and failed to record. Non-empty means action is needed. */
       failed: [] as Array<Record<string, unknown>>,
+      referral_months: { scanned: 0, failed: [] as Array<{ organization_id: string; reason: string }> },
     };
 
     for (const invoice of invoices) {
       const email = invoice.customer_email;
       const amount = (invoice.amount_paid || 0) / 100;
-      if (amount <= 0) { summary.zero_amount++; continue; }
+      if (amount <= 0) {
+        summary.zero_amount++;
+        if (invoiceSubscriptionId(invoice)) {
+          try {
+            await handleReferralEvent(supabase, stripe, { type: "invoice.paid", data: { object: { id: invoice.id } } });
+          } catch (error) {
+            summary.failed.push({ invoice_id: invoice.id, reason: `referral reconciliation: ${(error as Error).message}` });
+          }
+        }
+        continue;
+      }
 
       // Dedupe on the dedicated column (backed by a unique index). The notes
       // match is kept for rows written before the column existed.
@@ -396,7 +410,7 @@ serve(async (req) => {
       // resolve to the same sale.
       const { data: sales, error: salesErr } = await supabase
         .from("sales")
-        .select("id, created_by, total_value, has_recurring, status")
+        .select("id, created_by, seller_id, total_value, has_recurring, status")
         .eq("organization_id", SENVIA_AGENCY_ORG_ID)
         .eq("client_org_id", clientOrgId)
         .in("status", ["pending", "in_progress", "fulfilled", "delivered"])
@@ -470,7 +484,8 @@ serve(async (req) => {
       }
 
       // Commission (same rules and dedupe key as the webhook)
-      if (sale.created_by) {
+      const commissionUserId = sale.seller_id || sale.created_by;
+      if (commissionUserId) {
         const { data: existingCommission } = await supabase
           .from("stripe_commission_records")
           .select("id")
@@ -487,7 +502,7 @@ serve(async (req) => {
             .from("organization_members")
             .select("commission_rate")
             .eq("organization_id", SENVIA_AGENCY_ORG_ID)
-            .eq("user_id", sale.created_by)
+            .eq("user_id", commissionUserId)
             .eq("is_active", true)
             .maybeSingle();
           const rate = globalRate > 0 ? globalRate : Number(member?.commission_rate || 0);
@@ -498,7 +513,7 @@ serve(async (req) => {
             const { error: commissionErr } = await supabase.from("stripe_commission_records").insert({
               organization_id: SENVIA_AGENCY_ORG_ID,
               sale_id: sale.id,
-              user_id: sale.created_by,
+              user_id: commissionUserId,
               client_org_id: clientOrgId,
               amount,
               commission_rate: rate,
@@ -573,6 +588,10 @@ serve(async (req) => {
       });
     }
 
+    summary.referral_months = await prepareAvailableReferralMonths(supabase, stripe);
+    for (const failure of summary.referral_months.failed) {
+      logError("referral month preparation failed", failure);
+    }
     if (summary.failed.length > 0) {
       logError("run finished WITH FAILURES — these invoices are still unrecorded", { failed: summary.failed });
     }

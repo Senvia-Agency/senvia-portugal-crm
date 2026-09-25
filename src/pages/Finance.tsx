@@ -349,7 +349,9 @@ export default function Finance() {
             />
           ) : (
             <>
-          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 min-[1800px]:grid-cols-4">
+          <div className={`grid grid-cols-1 xs:grid-cols-2 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 ${isTelecom
+            ? "min-[1800px]:[grid-template-columns:repeat(auto-fill,minmax(15rem,16.25rem))] min-[1800px]:justify-start min-[1800px]:[&>*]:min-h-[170px]"
+            : "min-[1800px]:grid-cols-4"}`}>
             <Card
               className="group cursor-pointer transition-colors hover:bg-muted/50"
               onClick={() => setDetailView("faturado")}

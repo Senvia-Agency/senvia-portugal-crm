@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
 import { pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -35,6 +35,7 @@ import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { EditExpenseModal } from "@/components/finance/EditExpenseModal";
 import type { Expense } from "@/types/expenses";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -418,6 +419,29 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
 
 function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateRange; searchTerm?: string }) {
   const { data: expenses = [], isLoading } = useExpenses();
+  const { organization } = useAuth();
+  const stripeInvoiceIds = useMemo(
+    () => [...new Set(expenses.map((expense) => expense.stripe_invoice_id).filter((id): id is string => Boolean(id)))],
+    [expenses],
+  );
+  const { data: stripePaymentOrigins = {} } = useQuery({
+    queryKey: ["stripe-expense-payment-origins", organization?.id, stripeInvoiceIds],
+    queryFn: async () => {
+      if (!organization?.id || stripeInvoiceIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("sale_payments")
+        .select(`stripe_invoice_id, sales:sale_id!inner(code, crm_clients:client_id(name), leads:lead_id(name))`)
+        .eq("organization_id", organization.id)
+        .in("stripe_invoice_id", stripeInvoiceIds);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map((payment: any) => {
+        const sale = payment.sales;
+        const clientName = sale?.crm_clients?.name || sale?.leads?.name;
+        return [payment.stripe_invoice_id, [sale?.code ? `Venda ${sale.code}` : null, clientName].filter(Boolean).join(" · ")];
+      }));
+    },
+    enabled: !!organization?.id && stripeInvoiceIds.length > 0,
+  });
   const deleteExpense = useDeleteExpense();
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -437,7 +461,7 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
         <TableHeader>
           <TableRow>
             <TableHead>Data</TableHead>
-            <TableHead>Descrição</TableHead>
+            <TableHead>Descrição / origem</TableHead>
             <TableHead>Categoria</TableHead>
             <TableHead className="text-right">Valor</TableHead>
             <TableHead className="w-[1%]"></TableHead>
@@ -450,7 +474,14 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
             filtered.map((e) => (
               <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap">{fmtDate(e.expense_date)}</TableCell>
-                <TableCell>{e.description}</TableCell>
+                <TableCell>
+                  <div>{e.description}</div>
+                  {e.stripe_invoice_id && (
+                    <div className="text-xs text-muted-foreground">
+                      {stripePaymentOrigins[e.stripe_invoice_id] || "Pagamento Stripe"}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>{e.category?.name || "—"}</TableCell>
                 <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
                 <TableCell>

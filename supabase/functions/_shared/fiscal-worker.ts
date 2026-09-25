@@ -1,4 +1,4 @@
-import { renderFiscalDocumentEmailTemplate, type FiscalEmailConfig } from './fiscal-email.ts'
+import type { FiscalEmailConfig } from './fiscal-email.ts'
 import type { KeyInvoiceDocumentIdentity } from './keyinvoice.ts'
 
 export type FiscalDocumentKind = 'invoice' | 'invoice_receipt' | 'receipt' | 'credit_note'
@@ -119,12 +119,16 @@ export function fiscalFailureMode(
   return 'manual_review'
 }
 
-const TEMPLATE_VARIABLES = new Set(['client_name', 'document_type', 'document_number'])
-
 export function renderFiscalTemplate(template: string, values: Record<string, string>): string {
-  return template.replace(/{{\s*([a-z_]+)\s*}}/gi, (whole, name: string) => {
-    const key = name.toLowerCase()
-    return TEMPLATE_VARIABLES.has(key) ? values[key] || '' : whole
+  return template.replace(/{{\s*([^{}]+?)\s*}}/g, (whole, name: string) => {
+    const key = name.trim().toLowerCase()
+    if (!Object.prototype.hasOwnProperty.call(values, key)) return whole
+    return values[key]
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
   })
 }
 
@@ -132,6 +136,7 @@ export function resolveFiscalEmailConfig(
   job: FiscalWorkerJob,
   organization: FiscalWorkerOrganization,
   identity: KeyInvoiceDocumentIdentity,
+  emailTemplate: { subject: string | null; html_content: string | null },
 ): FiscalEmailConfig {
   const snapshot = fiscalSnapshotContext(job.fiscal_snapshot)
   const config = record(snapshot.email.config)
@@ -143,22 +148,37 @@ export function resolveFiscalEmailConfig(
     : firstText(clientEmail, config.fallback_email)
   if (!to) throw new Error('O documento fiscal não tem destinatário de email')
 
-  const senderEmail = firstText(config.sender_email, organization.brevo_sender_email)
-  if (!senderEmail) throw new Error('Configure um remetente Brevo para o envio fiscal')
-
   const label = fiscalDocumentLabel(job.document_type)
   const documentNumber = identity.fullDocNumber || job.reference || identity.docNum
+  const issueDate = snapshot.fiscalDate
+    ? new Date(`${snapshot.fiscalDate}T00:00:00`).toLocaleDateString('pt-PT')
+    : ''
+  const total = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
+    .format(Number(job.total ?? snapshot.payment.amount ?? 0))
   const variables = {
+    nome: clientName,
+    cliente: clientName,
+    email: to,
+    empresa: firstText(organization.name, 'SENVIA OS'),
+    organizacao: firstText(organization.name, 'SENVIA OS'),
+    tipo_documento: label,
+    documento: label,
+    numero_documento: documentNumber,
+    numero: documentNumber,
+    referencia: documentNumber,
+    data: issueDate,
+    data_emissao: issueDate,
+    valor: total,
+    total,
     client_name: clientName,
     document_type: label,
     document_number: documentNumber,
   }
-  const subjectTemplate = firstText(config.subject_template, '{{document_type}} {{document_number}}')
-  const bodyTemplate = firstText(
-    config.body_template,
-    'Olá {{client_name}},\n\nSegue em anexo o documento {{document_type}} {{document_number}}.',
-  )
-  const body = renderFiscalTemplate(bodyTemplate, variables)
+  const subjectTemplate = firstText(emailTemplate.subject, '{{tipo_documento}} {{numero_documento}}')
+  const htmlTemplate = firstText(emailTemplate.html_content)
+  if (!htmlTemplate) throw new Error('O template HTML do documento fiscal está vazio')
+  const senderEmail = firstText(organization.brevo_sender_email)
+  if (!senderEmail) throw new Error('Configure um remetente Brevo para o envio fiscal')
 
   return {
     to,
@@ -166,18 +186,10 @@ export function resolveFiscalEmailConfig(
     cc: Array.isArray(config.cc) ? config.cc.filter((value: unknown) => typeof value === 'string') : [],
     bcc: Array.isArray(config.bcc) ? config.bcc.filter((value: unknown) => typeof value === 'string') : [],
     senderEmail,
-    senderName: firstText(config.sender_name, organization.name, 'SENVIA OS'),
-    replyTo: firstText(config.reply_to, senderEmail),
+    senderName: firstText(organization.name, 'SENVIA OS'),
+    replyTo: senderEmail,
     subject: renderFiscalTemplate(subjectTemplate, variables),
-    html: renderFiscalDocumentEmailTemplate({
-      organizationName: firstText(config.sender_name, organization.name, 'SENVIA OS'),
-      logoUrl: organization.logo_url,
-      recipientName: clientName,
-      documentType: label,
-      documentNumber,
-      issueDate: snapshot.fiscalDate,
-      message: body,
-    }),
+    html: renderFiscalTemplate(htmlTemplate, variables),
     pdfName: `${label}-${documentNumber}.pdf`,
     idempotencyKey: job.id,
   }

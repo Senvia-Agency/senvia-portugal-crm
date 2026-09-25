@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleReferralEvent } from './referrals.ts';
+import { handleReferralEvent, prepareReferralMonths } from './referrals.ts';
 
 function fixture() {
  const calls:any[]=[];
@@ -8,7 +8,7 @@ function fixture() {
  const sub:any={id:'sub1',customer:'cus1',status:'active',items:{data:[{price:{product:'prod_U0wAc7Tuy8w6gA',recurring:{interval:'month',interval_count:1}}}]}};
  const current:any={id:'inv1',customer:'cus1',subscription:'sub1',status:'draft',amount_paid:0,created:1789000000,billing_reason:'subscription_cycle',total:5900,discounts:[],metadata:{},lines:{data:[{id:'il1',amount:5900,discountable:true,price:{product:'prod_U0wAc7Tuy8w6gA'}}],has_more:false}};
  const state:any={reward:null,binding:{organization_id:org.id},current:true};
- const db:any={rpc:async(name:string,args:any)=>{calls.push([name,args]);return {data:name==='reserve_referral_month'?'reward1':name==='sync_referral_billing'?state.current:null};},from:(table:string)=>{
+ const db:any={rpc:async(name:string,args:any)=>{calls.push([name,args]);return {data:name==='reserve_referral_month'||name==='reserve_referral_month_for_reward'?'11111111-1111-4111-8111-111111111111':name==='sync_referral_billing'?state.current:null};},from:(table:string)=>{
   const query:any={select:()=>query,eq:(k:string,v:any)=>{calls.push(['filter',table,k,v]);return query;},is:(k:string,v:any)=>{calls.push(['is',table,k,v]);return query;},
    update:(value:any)=>{calls.push([table,value]);return query;},single:async()=>({data:org}),
    maybeSingle:async()=>({data:table==='organization_billing_accounts'?state.binding:table==='organization_referrals'?state.reward:org}),
@@ -37,7 +37,73 @@ test('renewal replay does not reserve another reward or duplicate an existing di
  await handleReferralEvent(f.db,f.stripe,f.event());await handleReferralEvent(f.db,f.stripe,f.event());
  assert.equal(f.calls.filter(c=>c[0]==='reserve_referral_month').length,1);
  const updates=f.calls.filter(c=>c[0]==='invoice_update');assert.equal(updates.length,1);
- assert.deepEqual(updates[0][1].discounts,[{discount:'di_existing'},{coupon:'senvia-referral-month-v2'}]);
+ assert.deepEqual(updates[0][1].discounts,[{discount:'di_existing'},{coupon:'senvia-referral-month-11111111-1111-4111-8111-111111111111'}]);
+});
+test('a referral coupon applied to the subscription before renewal is linked without applying it twice',async()=>{
+ const f=fixture();
+ f.current.total=0;
+ f.current.discounts=[{id:'di_ref',coupon:{id:'senvia-referral-month-v2'}}];
+ f.current.total_discount_amounts=[{discount:'di_ref',amount:5900}];
+ await handleReferralEvent(f.db,f.stripe,f.event());
+ assert.equal(f.calls.filter(c=>c[0]==='reserve_referral_month').length,1);
+ const updates=f.calls.filter(c=>c[0]==='invoice_update');
+ assert.equal(updates.length,1);
+ assert.deepEqual(updates[0][1],{metadata:{senvia_referral_reward:'11111111-1111-4111-8111-111111111111'}});
+});
+test('a paid zero-value renewal still consumes its pre-applied referral month when events arrive late',async()=>{
+ const f=fixture();
+ f.current.status='paid';f.current.total=0;
+ f.current.discounts=[{id:'di_ref',coupon:{id:'senvia-referral-month-v2'}}];
+ f.current.total_discount_amounts=[{discount:'di_ref',amount:5900}];
+ f.state.reward={id:'11111111-1111-4111-8111-111111111111',redeemed_at:null};
+ await handleReferralEvent(f.db,f.stripe,f.event('invoice.paid'));
+ assert.equal(f.calls.filter(c=>c[0]==='reserve_referral_month').length,1);
+ assert.ok(f.calls.some(c=>c[0]==='organization_referrals'&&c[1].redeemed_at));
+});
+test('a reward-specific coupon reserves only its matching referral month',async()=>{
+ const f=fixture();f.current.total=0;
+ f.current.discounts=[{id:'di_ref',coupon:{id:'senvia-referral-month-11111111-1111-4111-8111-111111111111'}}];
+ f.current.total_discount_amounts=[{discount:'di_ref',amount:5900}];
+ await handleReferralEvent(f.db,f.stripe,f.event());
+ assert.deepEqual(f.calls.find(c=>c[0]==='reserve_referral_month_for_reward')?.[1],{
+  _organization_id:'org1',_invoice_id:'inv1',_reward_id:'11111111-1111-4111-8111-111111111111',
+ });
+ assert.equal(f.calls.filter(c=>c[0]==='reserve_referral_month').length,0);
+});
+test('ten confirmed months create ten distinct coupons and attach one at a time',async()=>{
+ const calls:any[]=[];
+ const rows=Array.from({length:10},(_,i)=>({
+  id:`${String(i+1).padStart(8,'0')}-1111-4111-8111-111111111111`,
+  qualified_at:new Date(Date.UTC(2026,8,i+1)).toISOString(),
+  redemption_invoice_id:null,redeemed_at:null,revoked_at:null,stripe_coupon_id:null,
+ }));
+ const sub:any={id:'sub1',customer:'cus1',status:'active',current_period_end:Math.floor(Date.now()/1000)+86400*30,
+  discounts:[],items:{data:[{price:{product:'prod_U0wAc7Tuy8w6gA',recurring:{interval:'month',interval_count:1}}}]}};
+ const db:any={from:(table:string)=>{
+  let filterId:string|null=null;const query:any={select:()=>query,eq:(k:string,v:any)=>{if(k==='id')filterId=v;return query;},is:()=>query,
+   update:(value:any)=>{calls.push(['db_update',filterId,value]);const row=rows.find(r=>r.id===filterId);if(row)Object.assign(row,value);return query;},
+   maybeSingle:async()=>({data:{stripe_customer_id:'cus1',stripe_subscription_id:'sub1'}}),
+   single:async()=>({data:{id:'org1',billing_exempt:false}}),
+   then:(resolve:any)=>Promise.resolve({data:table==='organization_referrals'?rows:null,error:null}).then(resolve)};
+  return query;
+ }};
+ const stripe:any={prices:{retrieve:async()=>({product:'prod_seats'})},coupons:{
+  retrieve:async()=>{throw Object.assign(new Error('missing'),{code:'resource_missing'});},
+  create:async(value:any)=>{calls.push(['coupon_create',value.id]);return {...value,valid:true};}},
+  subscriptions:{retrieve:async()=>sub,update:async(_:string,value:any)=>{
+   calls.push(['subscription_update',value]);sub.discounts=[{id:`di_${calls.length}`,coupon:{id:value.discounts.at(-1).coupon}}];return sub;
+  }}};
+ await prepareReferralMonths(db,stripe,'org1');
+ assert.equal(calls.filter(c=>c[0]==='coupon_create').length,10);
+ assert.equal(new Set(calls.filter(c=>c[0]==='coupon_create').map(c=>c[1])).size,10);
+ assert.equal(calls.filter(c=>c[0]==='subscription_update').length,1);
+ await prepareReferralMonths(db,stripe,'org1');
+ assert.equal(calls.filter(c=>c[0]==='subscription_update').length,1);
+ rows[0].redeemed_at=new Date().toISOString();
+ await prepareReferralMonths(db,stripe,'org1');
+ const updates=calls.filter(c=>c[0]==='subscription_update');
+ assert.equal(updates.length,2);
+ assert.equal(updates[1][1].discounts.at(-1).coupon,`senvia-referral-month-${rows[1].id}`);
 });
 test('ledger errors propagate for webhook retry',async()=>{
  const f=fixture();f.db.rpc=async()=>({error:{message:'database unavailable'}});
@@ -62,13 +128,13 @@ test('paginated Basil invoice lines find eligible seats beyond the first page',a
  await handleReferralEvent(f.db,f.stripe,f.event());assert.equal(f.calls.filter(c=>c[0]==='reserve_referral_month').length,1);
 });
 test('payment metadata with zero actual discount releases the reservation instead of using it',async()=>{
- const f=fixture();Object.assign(f.current,{status:'paid',amount_paid:5900,metadata:{senvia_referral_reward:'reward1'},discounts:[{id:'di_ref',coupon:{id:'senvia-referral-month-v2'}}],total_discount_amounts:[{discount:'di_ref',amount:0}]});
- f.state.reward={id:'reward1',redeemed_at:null};await handleReferralEvent(f.db,f.stripe,f.event('invoice.paid'));
+ const f=fixture();Object.assign(f.current,{status:'paid',amount_paid:5900,metadata:{senvia_referral_reward:'11111111-1111-4111-8111-111111111111'},discounts:[{id:'di_ref',coupon:{id:'senvia-referral-month-v2'}}],total_discount_amounts:[{discount:'di_ref',amount:0}]});
+ f.state.reward={id:'11111111-1111-4111-8111-111111111111',redeemed_at:null};await handleReferralEvent(f.db,f.stripe,f.event('invoice.paid'));
  assert.ok(f.calls.some(c=>c[0]==='organization_referrals'&&c[1].redemption_invoice_id===null));
  assert.equal(f.calls.some(c=>c[0]==='organization_referrals'&&c[1].redeemed_at),false);
 });
 test('finalization after a failed discount request returns the unused month',async()=>{
- const f=fixture();f.current.status='open';f.state.reward={id:'reward1',redeemed_at:null};
+ const f=fixture();f.current.status='open';f.state.reward={id:'11111111-1111-4111-8111-111111111111',redeemed_at:null};
  await handleReferralEvent(f.db,f.stripe,f.event('invoice.finalized'));
  assert.ok(f.calls.some(c=>c[0]==='organization_referrals'&&c[1].redemption_invoice_id===null));
 });

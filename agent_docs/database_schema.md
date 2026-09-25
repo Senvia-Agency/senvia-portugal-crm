@@ -279,3 +279,7 @@ Referral SELECT policies now require is_org_admin, matching dashboard permission
 ### Production activation, 2026-09-13
 
 The six prepared referral, action-limit, single-plan and support-attachment migrations were applied in one transaction after explicit publication approval. The known legacy Stripe customer was bound to Escolha Inteligente using matching Stripe invoice IDs in CRM sales. BDS Telecomunicações was attributed to Escolha Inteligente by explicit user instruction, with attribution dated to BDS creation and no qualified reward: no first payment was present in the CRM or available Stripe invoice history. The organizations' current access, exemptions, extra seats and limits were preserved.
+
+### Referral reward coupons (local migration 20260925210000)
+
+Each confirmed referral reward can store a unique `stripe_coupon_id` in `organization_referrals`. The service-role-only `reserve_referral_month_for_reward` RPC binds a renewal invoice to the exact reward identified by its coupon, under the organization lock. This prevents a pre-applied coupon from consuming a different earned month. The existing reservation RPC remains for legacy shared coupons. Apply this migration before deploying the referral webhook and reconciliation changes.

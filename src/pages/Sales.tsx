@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { matchesSearch, cn } from "@/lib/utils";
-import { ShoppingBag, Search, TrendingUp, Package, CheckCircle, Plus, Zap, Download, Loader2, Trash2, CalendarClock, SlidersHorizontal } from "lucide-react";
+import { ShoppingBag, Search, TrendingUp, Package, CheckCircle, Plus, Zap, Download, Loader2, Trash2, CalendarClock, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import { useProductTypes } from "@/hooks/useProductTypes";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -587,6 +587,21 @@ const deleteSale = useMutation({
                       )}
                       {sale.code && (
                         <span className="text-xs font-medium text-primary">{sale.code}</span>
+                      )}
+                      {sale.recurrence?.billing_provider === 'stripe' && !sale.seller_id && !sale.created_by && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                          title="Esta venda Stripe ainda não tem vendedor associado"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (isAdmin) setSaleToEdit(sale);
+                            else setSelectedSale(sale);
+                          }}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Associar vendedor
+                        </button>
                       )}
                       {/* Which operator(s) the sale is under, read off the lines
                           frozen on it — until now this needed opening the sale. */}

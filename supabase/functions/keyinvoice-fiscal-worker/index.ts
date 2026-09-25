@@ -29,6 +29,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 }
 
+const FISCAL_EMAIL_TRIGGERS: Record<FiscalWorkerJob['document_type'], string> = {
+  invoice: 'invoice_email',
+  invoice_receipt: 'invoice_receipt_email',
+  receipt: 'receipt_email',
+  credit_note: 'credit_note_email',
+}
+
 type AdminClient = SupabaseClient<any, 'public', any>
 
 interface WorkerOrganization extends FiscalWorkerOrganization {
@@ -462,11 +469,28 @@ async function runEmail(db: AdminClient): Promise<Record<string, number>> {
   for (const job of (data || []) as FiscalWorkerJob[]) {
     try {
       const org = await loadOrganization(db, job.organization_id)
-      if (!org.brevo_api_key) throw new Error('A organização não tem Brevo configurado')
+      const apiKey = Deno.env.get('BREVO_TRANSACTIONAL_API_KEY')
+        || org.brevo_api_key
+        || Deno.env.get('BREVO_API_KEY')
+      if (!apiKey) throw new Error('A organização não tem Brevo configurado')
       const identity = identityFromFiscalJob(job)
       const pdf = await loadPdfForEmail(db, org, job)
-      const config = resolveFiscalEmailConfig(job, org, identity)
-      const delivered = await sendFiscalPdfWithBrevo(org.brevo_api_key, config, pdf)
+      const { data: emailTemplate, error: templateError } = await db
+        .from('email_templates')
+        .select('subject,html_content')
+        .eq('organization_id', job.organization_id)
+        .eq('is_active', true)
+        .eq('automation_trigger_type', FISCAL_EMAIL_TRIGGERS[job.document_type])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (templateError) throw new Error('Não foi possível consultar o template de email fiscal')
+      if (!emailTemplate) throw new Error('Configure um template HTML ativo para este documento em Marketing → Templates')
+      org.brevo_sender_email = org.brevo_sender_email
+        || Deno.env.get('BREVO_SENDER_EMAIL')
+        || 'noreply@senvia.pt'
+      const config = resolveFiscalEmailConfig(job, org, identity, emailTemplate)
+      const delivered = await sendFiscalPdfWithBrevo(apiKey, config, pdf)
       const { error: completeError } = await db.rpc('complete_fiscal_email_delivery', {
         p_invoice_id: job.id,
         p_claim_token: claimToken,

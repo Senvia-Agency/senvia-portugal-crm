@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { ChevronDown, FileCheck2, Mail, ReceiptText } from 'lucide-react';
+import { FileCheck2, Mail, ReceiptText } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,8 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type {
   RecurringFiscalConfig,
@@ -41,8 +38,6 @@ export function RecurringFiscalSettings({
   automaticDisabled = false,
   automaticDisabledReason,
 }: RecurringFiscalSettingsProps) {
-  const [messageOpen, setMessageOpen] = useState(false);
-
   const setMode = (fiscal_mode: RecurringFiscalMode) => onChange({
     ...value,
     fiscal_mode,
@@ -224,70 +219,9 @@ export function RecurringFiscalSettings({
               </p>
             )}
 
-            <Collapsible open={messageOpen} onOpenChange={setMessageOpen}>
-              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md py-1 text-sm font-medium">
-                Assunto e mensagem
-                <ChevronDown className={cn('h-4 w-4 transition-transform', messageOpen && 'rotate-180')} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 pt-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="fiscal-sender-name">Nome do remetente</Label>
-                    <Input
-                      id="fiscal-sender-name"
-                      value={value.fiscal_email_config.sender_name}
-                      onChange={(event) => setEmail({ sender_name: event.target.value })}
-                      placeholder="Nome da organização"
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fiscal-sender-email">Email do remetente</Label>
-                    <Input
-                      id="fiscal-sender-email"
-                      type="email"
-                      value={value.fiscal_email_config.sender_email}
-                      onChange={(event) => setEmail({ sender_email: event.target.value })}
-                      placeholder="Remetente Brevo da organização"
-                      disabled={disabled}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fiscal-reply-to">Responder para</Label>
-                  <Input
-                    id="fiscal-reply-to"
-                    type="email"
-                    value={value.fiscal_email_config.reply_to}
-                    onChange={(event) => setEmail({ reply_to: event.target.value })}
-                    placeholder="Por omissão, o email do remetente"
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fiscal-subject-template">Assunto</Label>
-                  <Input
-                    id="fiscal-subject-template"
-                    value={value.fiscal_email_config.subject_template}
-                    onChange={(event) => setEmail({ subject_template: event.target.value })}
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fiscal-body-template">Mensagem</Label>
-                  <Textarea
-                    id="fiscal-body-template"
-                    rows={5}
-                    value={value.fiscal_email_config.body_template}
-                    onChange={(event) => setEmail({ body_template: event.target.value })}
-                    disabled={disabled}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Variáveis: {'{{client_name}}'}, {'{{document_type}}'} e {'{{document_number}}'}. Se o remetente ficar vazio, é usado o remetente Brevo da organização; qualquer remetente personalizado tem de estar verificado na Brevo.
-                </p>
-              </CollapsibleContent>
-            </Collapsible>
+            <div className="rounded-md bg-muted/40 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+              O assunto e o email HTML são obtidos do template ativo em <strong className="text-foreground">Marketing → Templates</strong>, conforme o tipo de documento emitido. O PDF segue anexado pela Brevo.
+            </div>
           </div>
         )}
       </div>

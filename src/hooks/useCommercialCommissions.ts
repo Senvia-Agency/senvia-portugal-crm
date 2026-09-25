@@ -88,25 +88,27 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
 
       const commissionSales = (sales || []).filter((s: any) => Number(s.comissao || 0) > 0);
 
-      // For recurring sales, fetch existing stripe_commission_records so we
-      // can skip the direct commission — the recurring one already covers it.
+      // Dedupe by paid Stripe invoice, not by sale. A recurring record for a
+      // later renewal must not erase an earlier month's direct commission.
       const recurringSaleIds = commissionSales
         .filter((s: any) => s.has_recurring)
         .map((s: any) => s.id) as string[];
       const existingRecurringIds = new Set<string>();
+      const commissionedInvoiceIds = new Set<string>();
       if (recurringSaleIds.length > 0) {
         const { data: recs } = await (supabase as any)
           .from('stripe_commission_records')
-          .select('sale_id')
+          .select('sale_id, stripe_invoice_id')
           .in('sale_id', recurringSaleIds);
         for (const r of (recs || []) as any[]) {
           existingRecurringIds.add(r.sale_id);
+          if (r.stripe_invoice_id) commissionedInvoiceIds.add(r.stripe_invoice_id);
         }
       }
 
       const allIds = commissionSales.map((s: any) => s.id);
       const { data: allPays } = allIds.length
-        ? await supabase.from('sale_payments').select('sale_id, amount, status, payment_date').in('sale_id', allIds)
+        ? await supabase.from('sale_payments').select('sale_id, amount, status, payment_date, stripe_invoice_id').in('sale_id', allIds)
         : { data: [] as any[] };
 
       // --- Direct commissions: proportional to payments received in the month ---
@@ -117,9 +119,6 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       const monthKey = format(monthStart, 'yyyy-MM');
       const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean }[] = [];
       for (const s of commissionSales) {
-        // Skip recurring sales already covered by stripe_commission_records.
-        if (s.has_recurring && existingRecurringIds.has(s.id)) continue;
-
         const tv = Number(s.total_value) || 0;
         const comissao = Number(s.comissao || 0);
         if (comissao <= 0) continue;
@@ -144,6 +143,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         );
 
         if (salePays.length === 0) {
+          if (s.has_recurring && existingRecurringIds.has(s.id)) continue;
           // Fallback: payment_status='paid' but no payment rows. Show full
           // commission in the sale month (preserves legacy behavior for
           // sales marked paid without recorded payment rows).
@@ -167,6 +167,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         let paidThisMonth = 0;
         let lastPayDate: string | null = null;
         for (const p of salePays) {
+          if (p.stripe_invoice_id && commissionedInvoiceIds.has(p.stripe_invoice_id)) continue;
           const pd = p.payment_date as string;
           const payDate = new Date(pd);
           if (payDate < monthStart || payDate > monthEnd) continue;

@@ -37,7 +37,7 @@ Deno.test('snapshot parser supports immutable wrapped lines', () => {
   assertEquals(parsed.taxConfig.tax_value, 23)
 })
 
-Deno.test('email config uses the client snapshot and escapes its body', () => {
+Deno.test('recurring fiscal email uses the active HTML template with escaped document variables', () => {
   const config = resolveFiscalEmailConfig({
     id: 'j1',
     organization_id: 'o1',
@@ -47,13 +47,7 @@ Deno.test('email config uses the client snapshot and escapes its body', () => {
     fiscal_idempotency_key: 'key',
     fiscal_snapshot: {
       client: { name: 'Cliente <Teste>', email: 'cliente@example.com' },
-      email: {
-        config: {
-          recipient_mode: 'client',
-          subject_template: '{{document_type}} {{document_number}}',
-          body_template: 'Olá {{client_name}}',
-        },
-      },
+      email: { config: { recipient_mode: 'client' } },
     },
   }, { id: 'o1', name: 'Empresa', brevo_sender_email: 'faturas@example.com' }, {
     provider: 'keyinvoice',
@@ -63,11 +57,11 @@ Deno.test('email config uses the client snapshot and escapes its body', () => {
     fullDocNumber: 'FT 2026/7',
     atcud: 'ABC-7',
     identityKey: 'keyinvoice:4:2026:7',
-  })
+  }, { subject: '{{tipo_documento}} {{numero_documento}}', html_content: '<p>Olá {{cliente}}</p>' })
 
   assertEquals(config.to, 'cliente@example.com')
   assertEquals(config.subject, 'Fatura FT 2026/7')
-  assertStringIncludes(config.html, 'Cliente &lt;Teste&gt;')
+  assertStringIncludes(config.html, '<p>Olá Cliente &lt;Teste&gt;</p>')
   assertEquals(config.idempotencyKey, 'j1')
 })
 

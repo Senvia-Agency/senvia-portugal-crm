@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 
 interface SellerSelectProps {
-  /** Who the sale belongs to. null means "whoever created it". */
+  /** Persisted seller. A null value means the sale has no seller assigned. */
   value: string | null;
   onChange: (userId: string | null) => void;
   /** Fallback name shown to non-admins, who cannot change the assignment. */
@@ -24,7 +24,7 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
   const { data: members = [], isLoading } = useTeamMembers();
 
   const activeMembers = members.filter((m) => !m.is_banned);
-  const effectiveValue = value ?? user?.id ?? '';
+  const effectiveValue = value ?? '';
   const selected = activeMembers.find((m) => m.user_id === effectiveValue);
 
   if (!isAdmin) {
@@ -32,7 +32,7 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
       <div className={className}>
         <Label>Vendedor</Label>
         <p className="mt-2 text-sm text-muted-foreground">
-          {selected?.full_name || createdByName || 'Eu'}
+          {selected?.full_name || createdByName || 'Sem vendedor'}
         </p>
       </div>
     );
@@ -64,7 +64,7 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
         </SelectContent>
       </Select>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        A comissão desta venda é paga a quem estiver aqui selecionado.
+        {value ? 'A comissão desta venda é paga a quem estiver aqui selecionado.' : 'Selecione um vendedor para atribuir a comissão.'}
       </p>
     </div>
   );
