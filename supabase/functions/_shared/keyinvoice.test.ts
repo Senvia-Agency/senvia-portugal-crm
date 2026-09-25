@@ -74,7 +74,7 @@ Deno.test('a valid shared SID is reused without another authenticate call', asyn
   assertEquals(session.sid, 'CACHED-SID')
 })
 
-Deno.test('authentication rejection names the active-session possibility', async () => {
+Deno.test('authentication rejection does not invent an active-session conflict', async () => {
   const db = { from: () => ({
     select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }),
   }) }
@@ -85,6 +85,8 @@ Deno.test('authentication rejection names the active-session possibility', async
     { fetcher: (async () => Response.json({ Status: 0, ErrorMessage: 'Autenticação inválida' })) as typeof fetch },
   ))
   assertEquals(error instanceof KeyInvoiceError ? error.code : null, 'keyinvoice_auth_rejected')
+  assertEquals(error instanceof KeyInvoiceError ? error.httpStatus : null, 422)
+  assertEquals(error instanceof KeyInvoiceError ? error.retryable : null, false)
 })
 
 Deno.test('PDF and reconciliation use the documented API 5 fields and methods', async () => {

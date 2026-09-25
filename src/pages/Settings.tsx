@@ -53,6 +53,7 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const updateOrganization = useUpdateOrganization();
+  const updateKeyInvoiceOrganization = useUpdateOrganization({ silent: true });
   const updateFiscalOrganization = useUpdateOrganization({ silent: true });
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
@@ -409,6 +410,8 @@ export default function Settings() {
   };
 
   const handleSaveKeyInvoice = async () => {
+    const organizationId = organization?.id;
+    if (!organizationId) return;
     const customUrl = keyinvoiceApiUrl.trim();
     if (customUrl) {
       try {
@@ -435,7 +438,7 @@ export default function Settings() {
     }
 
     try {
-      await updateOrganization.mutateAsync({
+      await updateKeyInvoiceOrganization.mutateAsync({
         ...(keyinvoiceApiKey.trim() ? { keyinvoice_password: keyinvoiceApiKey.trim() } : {}),
         keyinvoice_api_url: customUrl || null,
       });
@@ -447,6 +450,28 @@ export default function Settings() {
 
     } catch {
       // useUpdateOrganization already reports the credential error.
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke<{ connected?: boolean; error?: string }>('keyinvoice-auth', {
+        body: { organization_id: organizationId },
+      });
+      if (error || !data?.connected) {
+        let message = data?.error || 'Não foi possível confirmar a ligação ao KeyInvoice.';
+        if (error?.context instanceof Response) {
+          const detail = await error.context.json().catch(() => null);
+          if (typeof detail?.error === 'string') message = detail.error;
+        }
+        throw new Error(message);
+      }
+      toast({ title: 'Ligação KeyInvoice validada', description: 'A chave foi guardada e o acesso à empresa foi confirmado.' });
+    } catch (error) {
+      toast({
+        title: 'Chave guardada, ligação não validada',
+        description: error instanceof Error ? error.message : 'Não foi possível contactar o KeyInvoice.',
+        variant: 'destructive',
+      });
     }
   };
 

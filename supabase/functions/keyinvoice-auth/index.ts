@@ -1,5 +1,5 @@
 import { authorizeKeyInvoiceAdmin } from '../_shared/fiscal-authorization.ts'
-import { getKeyInvoiceSession, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
+import { callKeyInvoice, getKeyInvoiceSession, safeKeyInvoiceError } from '../_shared/keyinvoice.ts'
 import { userRateLimit } from '../_shared/user-rate-limit.ts'
 
 const corsHeaders = {
@@ -36,8 +36,11 @@ Deno.serve(async (req) => {
       .single()
     if (orgError || !org) return json({ error: 'Organização não encontrada' }, 404)
 
-    await getKeyInvoiceSession(authorization.admin, org, organizationId)
-    return json({ success: true, connected: true, expires_in: 3600 })
+    const session = await getKeyInvoiceSession(authorization.admin, org, organizationId)
+    // A cached SID alone does not prove that the provider still accepts it.
+    // Validate it with a read-only request before reporting a working connection.
+    await callKeyInvoice(session.apiUrl, { method: 'company' }, { sid: session.sid })
+    return json({ success: true, connected: true })
   } catch (error) {
     const safe = safeKeyInvoiceError(error)
     console.error('[keyinvoice-auth]', safe.code)

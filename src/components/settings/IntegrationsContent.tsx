@@ -1806,7 +1806,7 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
             {showKeyinvoiceApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Encontre a Apikey em KeyInvoice → Painel → API 5.0 REST.</p>
+        <p className="text-xs text-muted-foreground">Encontre a Apikey em KeyInvoice → Configurações → API KEYINVOICE. Se gerar uma nova chave, substitua-a aqui e guarde.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="ki-api-url">URL da API</Label>
@@ -1819,7 +1819,7 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
       </p>
       <Button onClick={save} disabled={updateOrganizationIsPending || saving}>
         {(updateOrganizationIsPending || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar
+        {saving ? 'A validar ligação…' : 'Guardar e validar'}
       </Button>
     </>
   );

@@ -19,6 +19,7 @@ export const KEYINVOICE_ISSUE_DOC_TYPES = {
 
 const SUPPORTED_METHODS = new Set([
   'authenticate',
+  'company',
   'insertClient',
   'listClients',
   'insertProduct',
@@ -347,8 +348,7 @@ export async function getKeyInvoiceSession(
   const usableSid = (row: KeyInvoiceOrganization): string | null => {
     if (!row.keyinvoice_sid || !row.keyinvoice_sid_expires_at) return null
     const expiresAt = new Date(row.keyinvoice_sid_expires_at).getTime()
-    // API 5 refuses a second authentication while the existing session has
-    // more than 300 seconds left. Keep using it until safely inside that window.
+    // Reuse the shared session; leave a short margin for the next API request.
     return Number.isFinite(expiresAt) && expiresAt > Date.now() + 4 * 60_000
       ? row.keyinvoice_sid : null
   }
@@ -379,8 +379,8 @@ export async function getKeyInvoiceSession(
     if (error instanceof KeyInvoiceError && error.code === 'provider_rejected'
       && /autentica[çc][ãa]o inv[áa]lida/i.test(error.message)) {
       throw new KeyInvoiceError(
-        'O KeyInvoice recusou uma nova sessão API. Pode existir uma sessão anterior ativa; se o erro persistir após a expiração, confirme a chave e o endereço da API.',
-        { code: 'keyinvoice_auth_rejected', httpStatus: 409, retryable: true },
+        'O KeyInvoice respondeu «Autenticação inválida» ao validar a chave API guardada.',
+        { code: 'keyinvoice_auth_rejected', httpStatus: 422, retryable: false },
       )
     }
     throw error
