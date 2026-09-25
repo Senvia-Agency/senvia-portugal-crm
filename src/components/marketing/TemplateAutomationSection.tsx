@@ -6,6 +6,7 @@ import { TRIGGER_TYPES, DELAY_OPTIONS } from '@/hooks/useAutomations';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { SALE_STATUS_LABELS, SALE_STATUSES } from '@/types/sales';
 import { PROPOSAL_STATUS_LABELS, type ProposalStatus } from '@/types/proposals';
+import { EMAIL_TEMPLATE_TRIGGER_LABELS } from '@/lib/email-template-triggers';
 
 const PROPOSAL_STATUSES_LIST: ProposalStatus[] = ['draft', 'sent', 'negotiating', 'accepted', 'rejected', 'expired'];
 
@@ -39,6 +40,7 @@ export function TemplateAutomationSection({
   const showStatusConfig = ['lead_status_changed', 'client_status_changed', 'sale_status_changed', 'proposal_status_changed'].includes(triggerType);
   const usesPipelineStages = triggerType === 'lead_status_changed' || triggerType === 'client_status_changed';
   const isRenewalTrigger = ['sale_renewal_due_today', 'sale_renewal_due_in_2_days'].includes(triggerType);
+  const isManualSendTrigger = Object.prototype.hasOwnProperty.call(EMAIL_TEMPLATE_TRIGGER_LABELS, triggerType);
 
   const renderStatusOptions = () => {
     if (usesPipelineStages) {
@@ -55,7 +57,7 @@ export function TemplateAutomationSection({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
-          <Label className="text-base font-medium">Automação</Label>
+            <Label className="text-base font-medium">{isManualSendTrigger ? 'Uso no envio manual' : 'Automação'}</Label>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
@@ -111,7 +113,9 @@ export function TemplateAutomationSection({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            O email será enviado automaticamente para o contacto associado ao gatilho, incluindo vendas recorrentes e avisos de renovação.
+            {isManualSendTrigger
+              ? 'Este template fica disponível para o tipo de envio selecionado e não é enviado automaticamente.'
+              : 'O email será enviado automaticamente para o contacto associado ao gatilho, incluindo vendas recorrentes e avisos de renovação.'}
           </p>
         </div>
       )}

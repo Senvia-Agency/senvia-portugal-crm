@@ -137,7 +137,7 @@ export function useCancelInvoice() {
 // ─── Send Invoice Email ─────────────────────────────────────────
 
 export interface SendInvoiceEmailParams {
-  documentId: number;
+  documentId?: number | null;
   invoiceId?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;

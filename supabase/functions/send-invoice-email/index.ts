@@ -1,7 +1,7 @@
 import { requestMfaResponse } from '../_shared/user-authorization.ts'
 import { userRateLimit } from '../_shared/user-rate-limit.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { FiscalEmailError, renderFiscalDocumentEmailTemplate, sendFiscalPdfWithBrevo } from '../_shared/fiscal-email.ts'
+import { FiscalEmailError, sendFiscalPdfWithBrevo } from '../_shared/fiscal-email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,11 +15,28 @@ const DOCUMENT_LABELS: Record<string, string> = {
   credit_note: 'Nota de Crédito',
 }
 
+const EMAIL_TEMPLATE_TRIGGERS: Record<string, string> = {
+  invoice: 'invoice_email',
+  invoice_receipt: 'invoice_receipt_email',
+  receipt: 'receipt_email',
+  credit_note: 'credit_note_email',
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+function renderTemplate(content: string, variables: Record<string, string>): string {
+  const normalized = new Map(Object.entries(variables).map(([key, value]) => [key.toLowerCase(), escapeHtml(value)]))
+  return content.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, key: string) => normalized.get(key.trim().toLowerCase()) ?? match)
 }
 
 Deno.serve(async (req) => {
@@ -76,6 +93,20 @@ Deno.serve(async (req) => {
       return json({ error: 'Sem permissão para enviar documentos fiscais.' }, 403)
     }
 
+    const { data: emailTemplate, error: templateError } = await supabase
+      .from('email_templates')
+      .select('id,subject,html_content')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .eq('automation_trigger_type', EMAIL_TEMPLATE_TRIGGERS[documentType])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (templateError) return json({ error: 'Não foi possível verificar o template de email fiscal.' }, 500)
+    if (!emailTemplate) {
+      return json({ error: `Configure um template de email ativo para «${DOCUMENT_LABELS[documentType]}» em Marketing → Templates antes de enviar.` }, 422)
+    }
+
     const { data: organization, error: organizationError } = await supabase
       .from('organizations')
       .select('id,name,logo_url,brevo_api_key,brevo_sender_email')
@@ -92,7 +123,7 @@ Deno.serve(async (req) => {
 
     let invoiceQuery = supabase
       .from('invoices')
-      .select('id,organization_id,provider,document_type,status,client_name,reference,date,pdf_path,email_attempts')
+      .select('id,organization_id,provider,document_type,status,client_name,reference,date,total,pdf_path,email_attempts')
       .eq('organization_id', organizationId)
       .eq('document_type', documentType)
     if (invoiceId) invoiceQuery = invoiceQuery.eq('id', invoiceId)
@@ -123,14 +154,26 @@ Deno.serve(async (req) => {
     const messageId = crypto.randomUUID()
     const senderEmail = organization.brevo_sender_email || Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@senvia.pt'
     const senderName = organization.name || 'SENVIA OS'
-    const html = renderFiscalDocumentEmailTemplate({
-      organizationName: senderName,
-      logoUrl: organization.logo_url,
-      recipientName: invoice.client_name || 'Cliente',
-      documentType: documentLabel,
-      documentNumber: reference,
-      issueDate: invoice.date,
-    })
+    const issueDate = invoice.date ? new Date(`${invoice.date}T00:00:00`).toLocaleDateString('pt-PT') : ''
+    const formattedTotal = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(invoice.total || 0))
+    const variables = {
+      nome: invoice.client_name || 'Cliente',
+      cliente: invoice.client_name || 'Cliente',
+      email: recipient,
+      empresa: senderName,
+      organizacao: senderName,
+      tipo_documento: documentLabel,
+      documento: documentLabel,
+      numero_documento: reference,
+      numero: reference,
+      referencia: reference,
+      data: issueDate,
+      data_emissao: issueDate,
+      valor: formattedTotal,
+      total: formattedTotal,
+    }
+    const subject = renderTemplate(emailTemplate.subject || `${documentLabel} ${reference}`, variables)
+    const html = renderTemplate(emailTemplate.html_content || '', variables)
     const pdfName = `${reference}.pdf`
     const attempts = Number(invoice.email_attempts || 0) + 1
 
@@ -142,7 +185,7 @@ Deno.serve(async (req) => {
         senderEmail,
         senderName,
         replyTo: senderEmail,
-        subject: `${documentLabel} ${reference}`,
+        subject,
         html,
         pdfName,
         idempotencyKey: messageId,

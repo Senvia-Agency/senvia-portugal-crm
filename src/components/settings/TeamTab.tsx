@@ -21,12 +21,15 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Users, UserPlus, Copy, X, Check, Clock, Loader2, RefreshCw, Eye, EyeOff, MoreHorizontal, Key, UserCog, Ban, CheckCircle, Mail, Pencil, Phone, Trash2, Lightbulb, ArrowRight, AlertTriangle, Crown, Info, Plus } from 'lucide-react';
+import { Users, UserPlus, Copy, X, Check, Clock, Loader2, RefreshCw, Eye, EyeOff, MoreHorizontal, Key, UserCog, Ban, CheckCircle, Mail, Pencil, Phone, Trash2, Lightbulb, ArrowRight, AlertTriangle, Crown, Info, Plus, MessageCircleMore } from 'lucide-react';
 
 import { formatDistanceToNow } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { getBaseUrl } from '@/lib/constants';
 import { hardGo } from '@/lib/nav';
+import { EmailTemplateGate } from '@/components/marketing/EmailTemplateGate';
+import { EMAIL_TEMPLATE_TRIGGERS, EMAIL_TEMPLATE_TRIGGER_LABELS } from '@/lib/email-template-triggers';
+import { useEmailTemplateRequirement } from '@/hooks/useEmailTemplateRequirement';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -55,6 +58,8 @@ export function TeamTab() {
   const createTeamMember = useCreateTeamMember();
   const manageTeamMember = useManageTeamMember();
   const { toast } = useToast();
+  const teamAccessTemplate = useEmailTemplateRequirement(EMAIL_TEMPLATE_TRIGGERS.teamAccess);
+  const teamAccessTemplateMessage = `Configure um template de email ativo com o gatilho «${EMAIL_TEMPLATE_TRIGGER_LABELS[EMAIL_TEMPLATE_TRIGGERS.teamAccess]}» em Marketing → Templates antes de enviar.`;
 
   const salesSettings = (orgData?.sales_settings as any) || {};
   const commissionsEnabled = !!salesSettings.commissions_enabled;
@@ -198,7 +203,7 @@ export function TeamTab() {
   };
 
   const handleSendAccessEmail = async () => {
-    if (!createdMember || !organization) return;
+    if (!createdMember || !organization || !teamAccessTemplate.isConfigured) return;
     
     setSendingEmail(true);
     try {
@@ -341,7 +346,7 @@ export function TeamTab() {
   };
 
   const handleSendAccessEmailToMember = async () => {
-    if (!selectedMember || !organization) return;
+    if (!selectedMember || !organization || !teamAccessTemplate.isConfigured) return;
 
     setSendingAccessEmail(true);
     try {
@@ -648,21 +653,23 @@ export function TeamTab() {
                     </div>
                   </div>
                   <DialogFooter className="flex-col sm:flex-row gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleSendAccessEmail}
-                      disabled={sendingEmail || emailSent}
-                      className="w-full sm:w-auto"
-                    >
-                      {sendingEmail ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : emailSent ? (
-                        <Check className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Mail className="mr-2 h-4 w-4" />
-                      )}
-                      {emailSent ? 'Email Enviado' : 'Enviar Acesso por Email'}
-                    </Button>
+                    <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.teamAccess}>
+                      <Button
+                        variant="outline"
+                        onClick={handleSendAccessEmail}
+                        disabled={sendingEmail || emailSent}
+                        className="w-full sm:w-auto"
+                      >
+                        {sendingEmail ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : emailSent ? (
+                          <Check className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Mail className="mr-2 h-4 w-4" />
+                        )}
+                        {emailSent ? 'Email Enviado' : 'Enviar Acesso por Email'}
+                      </Button>
+                    </EmailTemplateGate>
                     <Button onClick={handleCloseDialog}>Fechar</Button>
                   </DialogFooter>
                 </>
@@ -744,9 +751,24 @@ export function TeamTab() {
                             <Key className="mr-2 h-4 w-4" />
                             Recuperar acesso
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openSendAccessModal(member)}>
+                          <DropdownMenuItem
+                            aria-disabled={teamAccessTemplate.isLoading || !teamAccessTemplate.isConfigured}
+                            className={!teamAccessTemplate.isLoading && !teamAccessTemplate.isConfigured ? 'opacity-50' : undefined}
+                            onSelect={(event) => {
+                              if (teamAccessTemplate.isLoading || !teamAccessTemplate.isConfigured) {
+                                event.preventDefault();
+                                return;
+                              }
+                              openSendAccessModal(member);
+                            }}
+                          >
                             <Mail className="mr-2 h-4 w-4" />
                             Enviar Email de Acesso
+                            {!teamAccessTemplate.isLoading && !teamAccessTemplate.isConfigured && (
+                              <span className="ml-auto" title={teamAccessTemplateMessage} aria-label={teamAccessTemplateMessage}>
+                                <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
+                              </span>
+                            )}
                           </DropdownMenuItem>
                           {!isCurrentUser(member) && member.role !== 'super_admin' && (
                             <>
@@ -831,13 +853,15 @@ export function TeamTab() {
             <Button variant="outline" onClick={() => setSendAccessOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={handleSendAccessEmailToMember}
-              disabled={sendingAccessEmail}
-            >
-              {sendingAccessEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Enviar Email
-            </Button>
+            <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.teamAccess}>
+              <Button
+                onClick={handleSendAccessEmailToMember}
+                disabled={sendingAccessEmail}
+              >
+                {sendingAccessEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Enviar Email
+              </Button>
+            </EmailTemplateGate>
           </DialogFooter>
         </DialogContent>
       </Dialog>

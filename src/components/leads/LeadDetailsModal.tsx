@@ -8,6 +8,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useModules } from "@/hooks/useModules";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 
 // Formata número com espaços nos milhares (estilo PT)
 const formatNumberWithSpaces = (value: string | number): string => {
@@ -847,15 +849,17 @@ export function LeadDetailsModal({
                         <MessageCircle className="h-4 w-4" />
                         Enviar WhatsApp
                       </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        disabled={!lead.email || isPlaceholderEmail(lead.email)}
-                        onClick={() => setShowEmailModal(true)}
-                      >
-                        <Mail className="h-4 w-4" />
-                        Enviar Email
-                      </Button>
+                      <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead}>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={!lead.email || isPlaceholderEmail(lead.email)}
+                          onClick={() => setShowEmailModal(true)}
+                        >
+                          <Mail className="h-4 w-4" />
+                          Enviar Email
+                        </Button>
+                      </EmailTemplateGate>
                       <Button
                         variant="outline"
                         className="w-full"

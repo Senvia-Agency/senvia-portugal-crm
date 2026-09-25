@@ -18,6 +18,7 @@ interface SendTemplateRequest {
   settingsData?: Record<string, string>;
   subject?: string;
   htmlContent?: string;
+  requiredTriggerType?: string;
 }
 
 interface SendTemplateResponse {
@@ -39,7 +40,7 @@ export function useSendTemplateEmail() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ templateId, recipients, campaignId, settings, settingsData, subject, htmlContent }: SendTemplateRequest): Promise<SendTemplateResponse> => {
+    mutationFn: async ({ templateId, recipients, campaignId, settings, settingsData, subject, htmlContent, requiredTriggerType }: SendTemplateRequest): Promise<SendTemplateResponse> => {
       if (!organization?.id) throw new Error('Sem organização');
 
       const { data, error } = await supabase.functions.invoke('send-template-email', {
@@ -52,6 +53,7 @@ export function useSendTemplateEmail() {
           settingsData,
           subject,
           htmlContent,
+          requiredTriggerType,
         },
       });
 

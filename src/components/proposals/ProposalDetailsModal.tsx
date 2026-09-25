@@ -13,6 +13,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSendProposalEmail } from '@/hooks/useSendProposalEmail';
+import { EmailTemplateGate } from '@/components/marketing/EmailTemplateGate';
+import { EMAIL_TEMPLATE_TRIGGERS } from '@/lib/email-template-triggers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -797,20 +799,22 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                           <Printer className="h-4 w-4 mr-2" />
                           Imprimir
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={handleSendEmail}
-                          disabled={!canSendEmail}
-                        >
-                          {sendProposalEmail.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Mail className="h-4 w-4 mr-2" />
-                          )}
-                          {!isBrevoConfigured ? 'Configurar Email' : 'Enviar Email'}
-                        </Button>
+                        <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.proposal}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={handleSendEmail}
+                            disabled={!canSendEmail}
+                          >
+                            {sendProposalEmail.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4 mr-2" />
+                            )}
+                            {!isBrevoConfigured ? 'Configurar Email' : 'Enviar Email'}
+                          </Button>
+                        </EmailTemplateGate>
                         <Button
                           variant="destructive"
                           size="sm"

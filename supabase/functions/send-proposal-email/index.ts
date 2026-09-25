@@ -42,6 +42,18 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+function renderTemplate(content: string, variables: Record<string, string>, productsHtml: string): string {
+  const normalized = new Map(Object.entries(variables).map(([key, value]) => [key.toLowerCase(), escapeHtml(value)]))
+  normalized.set('produtos', productsHtml)
+  normalized.set('products', productsHtml)
+  return content.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, key: string) => normalized.get(key.trim().toLowerCase()) ?? match)
+}
+
 function generateEmailHtml(data: ProposalEmailRequest, senderName: string): string {
   const productsRows = data.products.map(p => `
     <tr>
@@ -214,6 +226,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
+    const { data: proposalEmailTemplate, error: templateError } = await supabaseClient
+      .from("email_templates")
+      .select("id, subject, html_content")
+      .eq("organization_id", data.organizationId)
+      .eq("is_active", true)
+      .eq("automation_trigger_type", "proposal_email")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (templateError) {
+      return new Response(JSON.stringify({ error: "Não foi possível verificar o template de email da proposta" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!proposalEmailTemplate) {
+      return new Response(JSON.stringify({ error: "Configure um template de email ativo para Proposta em Marketing → Templates antes de enviar." }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Fetch organization's Brevo configuration
     const { data: orgData, error: orgError } = await supabaseClient
       .from("organizations")
@@ -238,7 +270,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const senderEmail = orgData?.brevo_sender_email || "noreply@senvia.pt";
     const senderName = orgData?.name || data.orgName || "SENVIA Software House";
 
-    const htmlContent = applySenviaEmailTemplate(generateEmailHtml(data, senderName), `Proposta ${data.proposalCode}`);
+    const productsHtml = data.products.length > 0
+      ? `<table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse"><thead><tr><th align="left">Descrição</th><th align="right">Qtd</th><th align="right">Preço unitário</th><th align="right">Total</th></tr></thead><tbody>${data.products.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td align="right">${item.quantity}</td><td align="right">${escapeHtml(formatCurrency(item.unitPrice))}</td><td align="right">${escapeHtml(formatCurrency(item.total))}</td></tr>`).join('')}</tbody></table>`
+      : ''
+    const templateVariables = {
+      nome: data.clientName,
+      cliente: data.clientName,
+      email: data.to,
+      empresa: senderName,
+      proposta: data.proposalCode,
+      codigo_proposta: data.proposalCode,
+      numero_proposta: data.proposalCode,
+      data: data.proposalDate,
+      valor: formatCurrency(data.totalValue),
+      valor_total: formatCurrency(data.totalValue),
+      notas: data.notes || '',
+      observacoes: data.notes || '',
+    }
+    const subject = renderTemplate(proposalEmailTemplate.subject || `Proposta #${data.proposalCode} - ${senderName}`, templateVariables, '')
+    const htmlContent = applySenviaEmailTemplate(
+      renderTemplate(proposalEmailTemplate.html_content || '', templateVariables, productsHtml), subject,
+    )
 
     const brevoPayload = {
       sender: {
@@ -251,7 +303,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           name: data.clientName,
         },
       ],
-      subject: `Proposta #${data.proposalCode} - ${senderName}`,
+      subject,
       htmlContent: htmlContent,
     };
 

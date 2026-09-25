@@ -23,6 +23,16 @@ interface SendAccessEmailRequest {
   password?: string;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+function renderTemplate(content: string, variables: Record<string, string>): string {
+  const normalized = new Map(Object.entries(variables).map(([key, value]) => [key.toLowerCase(), escapeHtml(value)]))
+  return content.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, key: string) => normalized.get(key.trim().toLowerCase()) ?? match)
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -84,6 +94,26 @@ serve(async (req) => {
       );
     }
 
+    const { data: emailTemplate, error: templateError } = await supabaseAdmin
+      .from('email_templates')
+      .select('id,subject,html_content')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .eq('automation_trigger_type', 'team_access_email')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (templateError) {
+      return new Response(JSON.stringify({ error: 'Não foi possível verificar o template do email de acesso' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!emailTemplate) {
+      return new Response(JSON.stringify({ error: 'Configure um template ativo com o gatilho «Acesso à equipa» em Marketing → Templates antes de enviar.' }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Get org Brevo config
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations')
@@ -113,7 +143,7 @@ serve(async (req) => {
 
     const orgName = org.name;
 
-    const htmlContent = `
+    let htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -220,6 +250,19 @@ serve(async (req) => {
 </body>
 </html>`;
 
+    const templateVariables = {
+      nome: recipientName,
+      nome_completo: recipientName,
+      empresa: orgName,
+      codigo_empresa: companyCode,
+      email: recipientEmail,
+      link_acesso: loginUrl,
+      password: password || '',
+      palavra_passe: password || '',
+    };
+    const subject = renderTemplate(emailTemplate.subject || `${orgName} — As suas credenciais de acesso`, templateVariables);
+    htmlContent = applySenviaEmailTemplate(renderTemplate(emailTemplate.html_content || '', templateVariables), subject);
+
     // Send via Brevo API
     const brevoRes = await fetchWithTimeout('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -231,8 +274,8 @@ serve(async (req) => {
       body: JSON.stringify({
         sender: { email: senderEmail, name: orgName },
         to: [{ email: recipientEmail, name: recipientName }],
-        subject: `${orgName} — As suas credenciais de acesso`,
-        htmlContent: applySenviaEmailTemplate(htmlContent, `${orgName} — Acesso ao sistema`),
+        subject,
+        htmlContent,
       }),
     });
 

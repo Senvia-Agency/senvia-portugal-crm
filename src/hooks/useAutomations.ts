@@ -11,6 +11,15 @@ export const TRIGGER_TYPES = [
   { value: 'sale_renewal_due_in_2_days', label: 'Renovação Vence em 2 Dias' },
   { value: 'proposal_created', label: 'Nova Proposta Criada' },
   { value: 'proposal_status_changed', label: 'Proposta Muda de Estado' },
+  // Templates selected by manual send actions.
+  { value: 'invoice_email', label: 'Envio Manual: Fatura' },
+  { value: 'invoice_receipt_email', label: 'Envio Manual: Fatura-Recibo' },
+  { value: 'receipt_email', label: 'Envio Manual: Recibo' },
+  { value: 'credit_note_email', label: 'Envio Manual: Nota de Crédito' },
+  { value: 'proposal_email', label: 'Envio Manual: Proposta' },
+  { value: 'lead_email', label: 'Envio Manual: Lead' },
+  { value: 'event_invitation_email', label: 'Envio Manual: Convite de Reunião' },
+  { value: 'team_access_email', label: 'Envio Manual: Acesso à Equipa' },
   // Ciclo de vida do trial (disparados pelo cron check-trial-status)
   { value: 'trial_started', label: 'Trial: Início (Boas-vindas)' },
   { value: 'trial_day_3', label: 'Trial: Dia 3' },

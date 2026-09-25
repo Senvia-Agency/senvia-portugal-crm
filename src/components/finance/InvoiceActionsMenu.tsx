@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Eye, RefreshCw, Mail, Ban, FileText, Loader2, FileDown } from "lucide-react";
+import { MoreHorizontal, Eye, RefreshCw, Mail, Ban, FileText, Loader2, FileDown, MessageCircleMore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmailTemplateRequirement } from "@/hooks/useEmailTemplateRequirement";
+import { EMAIL_TEMPLATE_TRIGGER_LABELS, getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 
 interface InvoiceActionItem {
   id: string;
@@ -50,6 +52,10 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const cancelInvoice = useCancelInvoice();
 
   const hasDocument = !!(invoice.invoiceId || invoice.invoicexpressId);
+  const canSendFiscalEmail = !!(invoice.invoiceId || invoice.invoicexpressId);
+  const emailTrigger = getFiscalEmailTrigger(invoice.documentType);
+  const emailTemplate = useEmailTemplateRequirement(emailTrigger);
+  const emailTemplateMessage = `Configure um template de email ativo com o gatilho «${EMAIL_TEMPLATE_TRIGGER_LABELS[emailTrigger]}» em Marketing → Templates antes de enviar.`;
   const supportsProviderActions = organization?.billing_provider !== 'vendus'
     && invoice.provider !== 'vendus' && !!invoice.invoicexpressId;
   const hasLocalPdf = !!invoice.invoiceFileUrl;
@@ -120,10 +126,25 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
             </DropdownMenuItem>
           ) : null}
 
-          {supportsProviderActions && (
-            <DropdownMenuItem onClick={() => setShowEmail(true)}>
+          {canSendFiscalEmail && (
+            <DropdownMenuItem
+              aria-disabled={emailTemplate.isLoading || !emailTemplate.isConfigured}
+              className={!emailTemplate.isLoading && !emailTemplate.isConfigured ? 'opacity-50' : undefined}
+              onSelect={(event) => {
+                if (emailTemplate.isLoading || !emailTemplate.isConfigured) {
+                  event.preventDefault();
+                  return;
+                }
+                setShowEmail(true);
+              }}
+            >
               <Mail className="h-4 w-4 mr-2" />
               Enviar por Email
+              {!emailTemplate.isLoading && !emailTemplate.isConfigured && (
+                <span className="ml-auto" title={emailTemplateMessage} aria-label={emailTemplateMessage}>
+                  <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
+                </span>
+              )}
             </DropdownMenuItem>
           )}
 
@@ -171,7 +192,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
         invoiceReference={invoice.invoiceReference}
       />
 
-      {showEmail && supportsProviderActions && invoice.invoicexpressId && (
+      {showEmail && canSendFiscalEmail && (
         <SendInvoiceEmailModal
           open={showEmail}
           onOpenChange={setShowEmail}
@@ -180,6 +201,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           organizationId={invoice.organizationId}
           reference={invoice.invoiceReference}
           clientEmail={invoice.clientEmail}
+          invoiceId={invoice.invoiceId}
         />
       )}
 

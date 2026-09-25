@@ -37,6 +37,8 @@ import { openPdfInNewTab } from "@/lib/download";
 
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { InvoiceDetailsModal } from "./InvoiceDetailsModal";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
 import { useSyncInvoice } from "@/hooks/useInvoiceDetails";
 import { useAuth } from "@/contexts/AuthContext";
@@ -145,7 +147,7 @@ export function SalePaymentsList({
   // Email modal state
   const [emailModal, setEmailModal] = useState<{
     invoiceId?: string;
-    documentId: number;
+    documentId?: number | null;
     documentType: "invoice" | "invoice_receipt" | "receipt";
   } | null>(null);
 
@@ -173,8 +175,7 @@ export function SalePaymentsList({
 
   const receiptDocument = (payment: SalePayment): SaleFiscalDocument | null => {
     const candidates = fiscalDocuments.filter((document) =>
-      document.document_type === "receipt" && document.payment_id === payment.id
-      && document.invoicexpress_id === payment.invoicexpress_id);
+      document.document_type === "receipt" && document.payment_id === payment.id);
     return candidates.find((document) => document.reference === payment.invoice_reference)
       || (candidates.length === 1 ? candidates[0] : null);
   };
@@ -405,23 +406,23 @@ export function SalePaymentsList({
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  {payment.invoice_reference && hasInvoiceXpress && supportsInvoiceXpressActions(payment) && !readonly && (
+                  {payment.invoice_reference && (payment.invoicexpress_id || receiptDocument(payment)?.id) && !readonly && (
                     <>
-                      {payment.invoicexpress_id && (
+                      <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.receipt} noticePosition="inline" className="shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => setEmailModal({
                             invoiceId: receiptDocument(payment)?.id,
-                            documentId: payment.invoicexpress_id!,
+                            documentId: payment.invoicexpress_id,
                             documentType: 'receipt',
                           })}
                           title="Enviar por email"
                         >
                           <Mail className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                      </EmailTemplateGate>
                       <Button
                         variant="ghost"
                         size="icon"

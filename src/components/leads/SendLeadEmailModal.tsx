@@ -14,6 +14,7 @@ import { Loader2, Mail, Send, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { isPlaceholderEmail } from "@/lib/leadUtils";
+import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 
 interface SendLeadEmailModalProps {
   lead: Lead;
@@ -26,8 +27,11 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
   const sendEmail = useSendTemplateEmail();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const welcomeTemplates = templates?.filter(t => t.is_active && t.category === 'welcome') || [];
-  const otherTemplates = templates?.filter(t => t.is_active && t.category !== 'welcome') || [];
+  const leadTemplates = templates?.filter(t =>
+    t.is_active && t.automation_trigger_type === EMAIL_TEMPLATE_TRIGGERS.lead
+  ) || [];
+  const welcomeTemplates = leadTemplates.filter(t => t.category === 'welcome');
+  const otherTemplates = leadTemplates.filter(t => t.category !== 'welcome');
   const selected = templates?.find(t => t.id === selectedId);
 
   const handleSend = () => {
@@ -35,6 +39,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
 
     sendEmail.mutate({
       templateId: selected.id,
+      requiredTriggerType: EMAIL_TEMPLATE_TRIGGERS.lead,
       recipients: [{
         email: lead.email,
         name: lead.name,
@@ -73,7 +78,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
           </div>
         ) : (welcomeTemplates.length === 0 && otherTemplates.length === 0) ? (
           <p className="text-sm text-muted-foreground py-4">
-            Nenhum template de email disponível. Crie um em Marketing → Templates.
+            Configure um template de email com o gatilho «Envio Manual: Lead» em Marketing → Templates.
           </p>
         ) : (
           <div className="space-y-4">

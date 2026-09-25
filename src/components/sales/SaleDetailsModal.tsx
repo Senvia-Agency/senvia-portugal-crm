@@ -89,6 +89,8 @@ import { RecurringSalePanel } from "./RecurringSalePanel";
 import { useSalePayments, calculatePaymentSummary } from "@/hooks/useSalePayments";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { InvoiceDetailsModal } from "./InvoiceDetailsModal";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
 import { openPdfInNewTab } from "@/lib/download";
 import { useSaleActivationHistory } from "@/hooks/useSaleActivationHistory";
@@ -1292,15 +1294,17 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           Ver PDF
                         </Button>
                       )}
-                      {supportsInvoiceXpressActions && (sale.client?.email || sale.lead?.email) && (
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setInvoiceEmailModal(true)}
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          Enviar Email
-                        </Button>
+                      {(sale.client?.email || sale.lead?.email) && (
+                        <EmailTemplateGate triggerType={getFiscalEmailTrigger(saleDocumentType)} className="flex-1">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setInvoiceEmailModal(true)}
+                          >
+                            <Mail className="h-4 w-4 mr-2" />
+                            Enviar Email
+                          </Button>
+                        </EmailTemplateGate>
                       )}
                       <Button
                         variant="outline"
@@ -1432,15 +1436,15 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       {/* Post-emission modals */}
       {sale.invoicexpress_id && organization && (
         <>
-          {supportsInvoiceXpressActions && <SendInvoiceEmailModal
+          <SendInvoiceEmailModal
             open={invoiceEmailModal}
             onOpenChange={setInvoiceEmailModal}
             invoiceId={saleFiscalDocument?.id}
             documentId={sale.invoicexpress_id}
-            documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
+            documentType={saleDocumentType}
             organizationId={organization.id}
             clientEmail={sale.client?.email || sale.lead?.email}
-          />}
+          />
           <InvoiceDetailsModal
             open={invoiceDetailsModal}
             onOpenChange={setInvoiceDetailsModal}

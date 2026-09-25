@@ -29,6 +29,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 
 interface InvoiceDetailsModalProps {
   open: boolean;
@@ -128,6 +130,7 @@ export function InvoiceDetailsModal({
   const isVendus = provider === 'vendus' || details?.source === 'vendus';
   const supportsProviderActions = organization?.billing_provider !== 'vendus'
     && !isVendus && documentId != null;
+  const canSendFiscalEmail = documentId != null || !!invoiceId;
   const typeLabel = documentType === 'receipt' && isVendus
     ? 'Recibo (RG)'
     : TYPE_LABELS[documentType] || 'Documento';
@@ -373,11 +376,13 @@ export function InvoiceDetailsModal({
                   {viewingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
                   Ver PDF
                 </Button>
-                {supportsProviderActions && (
-                  <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
-                    <Mail className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar
-                  </Button>
+                {canSendFiscalEmail && (
+                  <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)}>
+                    <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
+                      <Mail className="h-3.5 w-3.5 mr-1.5" />
+                      Enviar
+                    </Button>
+                  </EmailTemplateGate>
                 )}
                 {supportsProviderActions && !isCancelled && (
                   <>
@@ -400,9 +405,8 @@ export function InvoiceDetailsModal({
       </Dialog>
 
       {/* Sub-modals */}
-      {details && supportsProviderActions && documentId != null && (
-        <>
-          <SendInvoiceEmailModal
+      {details && canSendFiscalEmail && (
+        <SendInvoiceEmailModal
             open={emailOpen}
             onOpenChange={setEmailOpen}
             invoiceId={invoiceId}
@@ -410,7 +414,10 @@ export function InvoiceDetailsModal({
             documentType={documentType}
             organizationId={organizationId}
             clientEmail={details.client?.email}
-          />
+        />
+      )}
+      {details && supportsProviderActions && documentId != null && (
+        <>
           <CreateCreditNoteModal
             open={creditNoteOpen}
             onOpenChange={setCreditNoteOpen}

@@ -30,6 +30,7 @@ import { TemplateEditor } from "./TemplateEditor";
 import { TemplateAutomationSection } from "./TemplateAutomationSection";
 import { useUpdateEmailTemplate } from "@/hooks/useEmailTemplates";
 import { TEMPLATE_CATEGORIES, type EmailTemplate, type EmailTemplateCategory } from "@/types/marketing";
+import { isManualEmailTrigger } from "@/lib/email-template-triggers";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -78,7 +79,7 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
         html_content: template.html_content,
         is_active: template.is_active,
       });
-      setAutomationEnabled(template.automation_enabled ?? false);
+      setAutomationEnabled(Boolean(template.automation_enabled) || isManualEmailTrigger(template.automation_trigger_type ?? ''));
       setTriggerType(template.automation_trigger_type ?? '');
       const config = (template.automation_trigger_config as Record<string, string>) ?? {};
       setFromStatus(config.from_status ?? '');
@@ -103,7 +104,7 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
       category: data.category as EmailTemplateCategory,
       html_content: data.html_content,
       is_active: data.is_active,
-      automation_enabled: automationEnabled,
+      automation_enabled: automationEnabled && !isManualEmailTrigger(triggerType),
       automation_trigger_type: automationEnabled ? triggerType : null,
       automation_trigger_config: triggerConfig,
       automation_delay_minutes: delayMinutes,

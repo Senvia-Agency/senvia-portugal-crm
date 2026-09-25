@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSendInvoiceEmail } from "@/hooks/useSendInvoiceEmail";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 
 interface SendInvoiceEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoiceId?: string | null;
-  documentId: number;
+  documentId?: number | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
   clientEmail?: string | null;
@@ -82,14 +84,16 @@ export function SendInvoiceEmailModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={!email || sendEmail.isPending}>
-            {sendEmail.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Mail className="h-4 w-4 mr-1" />
-            )}
-            Enviar
-          </Button>
+          <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)}>
+            <Button onClick={handleSubmit} disabled={!email || sendEmail.isPending}>
+              {sendEmail.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4 mr-1" />
+              )}
+              Enviar
+            </Button>
+          </EmailTemplateGate>
         </DialogFooter>
       </DialogContent>
     </Dialog>
