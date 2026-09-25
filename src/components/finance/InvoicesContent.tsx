@@ -58,9 +58,9 @@ export function InvoicesContent() {
   const { data: creditNotesData, isLoading: loadingCreditNotes } = useCreditNotes();
   const { organization } = useAuth();
   const { data: orgData } = useOrganization();
-  // Invoicing is active for both InvoiceXpress and KeyInvoice orgs (the old
-  // check only looked at the invoicexpress flag, which is false for KeyInvoice).
-  const isInvoicexpressEnabled = isInvoiceXpressActive(organization ?? orgData);
+  const billingOrganization = organization ?? orgData;
+  const isBillingEnabled = isInvoiceXpressActive(billingOrganization);
+  const isInvoiceXpressProvider = billingOrganization?.billing_provider === 'invoicexpress';
   const isVendusActive = organization?.billing_provider === 'vendus'
     && (organization.integrations_enabled as Record<string, boolean> | null)?.vendus === true
     && organization.tem_vendus_api_key === true;
@@ -103,14 +103,15 @@ export function InvoicesContent() {
 
   const isLoading = loadingInvoices || loadingCreditNotes;
 
-  // Auto-sync both on mount (only if InvoiceXpress is enabled)
+  // These sync functions import InvoiceXpress documents only. KeyInvoice
+  // documents are already persisted when issued and loaded by useInvoices.
   useEffect(() => {
-    if (!hasSynced.current && isInvoicexpressEnabled && !isVendusActive && !syncInvoices.isPending && !syncCreditNotes.isPending) {
+    if (!hasSynced.current && isInvoiceXpressProvider && !syncInvoices.isPending && !syncCreditNotes.isPending) {
       hasSynced.current = true;
       syncInvoices.mutate(undefined, { onError: () => {} });
       syncCreditNotes.mutate(undefined, { onError: () => {} });
     }
-  }, [isInvoicexpressEnabled, isVendusActive]);
+  }, [isInvoiceXpressProvider]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -299,7 +300,7 @@ export function InvoicesContent() {
               <span>Sincronizar Vendus</span>
             </Button>
           )}
-          {(isInvoicexpressEnabled || isVendusActive) && (
+          {(isBillingEnabled || isVendusActive) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-2">
