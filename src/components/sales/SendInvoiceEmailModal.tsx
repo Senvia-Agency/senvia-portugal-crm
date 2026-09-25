@@ -76,9 +76,6 @@ export function SendInvoiceEmailModal({
               placeholder="email@exemplo.com"
             />
           </div>
-          <div className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-            O Senvia envia um email fiscal em HTML através da Brevo, com os dados do documento e o PDF anexado.
-          </div>
         </div>
 
         <DialogFooter>
