@@ -3,6 +3,7 @@ import {
   callKeyInvoice,
   documentIdentityFromApi,
   documentIdentityFromRawData,
+  issueKeyInvoiceDocument,
   KeyInvoiceError,
   lisbonFiscalDate,
   prepareKeyInvoiceSaleLines,
@@ -32,6 +33,28 @@ Deno.test('document identity keeps type, series and number distinct', () => {
   assertEquals(identity.fullDocNumber, 'FT 2026-A/17')
   assertEquals(identity.atcud, 'ABC-17')
   assertEquals(documentIdentityFromRawData({ identity }).identityKey, identity.identityKey)
+})
+
+Deno.test('document issuance without a configured series lets KeyInvoice choose and records its identity', async () => {
+  let submittedJson = '{}'
+  const identity = await issueKeyInvoiceDocument(
+    { apiUrl: 'https://login.keyinvoice.com/API5.php', sid: 'SID' },
+    {
+      kind: 'invoice',
+      lines: [{ productId: 'SERVICE-1', quantity: 1, unitPrice: 10 }],
+      clientId: 'CLIENT-1',
+      docSeries: null,
+    },
+    (async (_url, init) => {
+      submittedJson = String(init?.body)
+      return Response.json({ Status: 1, Data: { DocType: 4, DocSeries: 'FT2026', DocNum: 1, FullDocNumber: 'FT FT2026/1' } })
+    }) as typeof fetch,
+  )
+  const submitted = JSON.parse(submittedJson) as Record<string, unknown>
+  assertEquals(Object.hasOwn(submitted, 'DocSeries'), false)
+  assertEquals(submitted.DocType, '4')
+  assertEquals(identity.docSeries, 'FT2026')
+  assertEquals(identity.docNum, '1')
 })
 
 Deno.test('Lisbon fiscal date does not use UTC midnight', () => {

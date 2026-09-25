@@ -37,11 +37,6 @@ import { PushNotificationsCard } from '@/components/settings/PushNotificationsCa
 import { BillingTab } from '@/components/settings/BillingTab';
 import { ReferralProgram } from '@/components/settings/ReferralProgram';
 import { SupportTicketsTab } from '@/components/settings/SupportTicketsTab';
-import {
-  EMPTY_KEYINVOICE_SERIES_CONFIG,
-  normalizeKeyInvoiceSeriesConfig,
-  type KeyInvoiceSeriesConfig,
-} from '@/types/keyinvoice';
 import type { VendusOptionsResponse } from '@/types/vendus';
 
 import { ProfilesTab } from '@/components/settings/ProfilesTab';
@@ -62,7 +57,6 @@ export default function Settings() {
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
   const { can, canManageTeam, canManageIntegrations, isAdmin } = usePermissions();
-  const canConfigureKeyInvoiceSeries = isAdmin && can('finance', 'invoices', 'issue');
   const pushNotifications = usePushNotifications();
 
   // Unified navigation state (2 levels): group card -> tabbed content.
@@ -167,12 +161,6 @@ export default function Settings() {
   const [keyinvoiceApiKey, setKeyinvoiceApiKey] = useState('');
   const [keyinvoiceApiUrl, setKeyinvoiceApiUrl] = useState('');
   const [showKeyinvoiceApiKey, setShowKeyinvoiceApiKey] = useState(false);
-  const [keyinvoiceSeriesConfig, setKeyinvoiceSeriesConfig] = useState<KeyInvoiceSeriesConfig>(() => ({
-    invoice: { ...EMPTY_KEYINVOICE_SERIES_CONFIG.invoice },
-    invoice_receipt: { ...EMPTY_KEYINVOICE_SERIES_CONFIG.invoice_receipt },
-    receipt: { ...EMPTY_KEYINVOICE_SERIES_CONFIG.receipt },
-    credit_note: { ...EMPTY_KEYINVOICE_SERIES_CONFIG.credit_note },
-  }));
 
   // Integrations enabled state
   const [integrationsEnabled, setIntegrationsEnabled] = useState<Record<string, boolean>>({
@@ -224,9 +212,6 @@ export default function Settings() {
       setVendusReadinessError('');
       setVendusOptionsLoading(false);
       setChavesGuardadas((current) => ({ ...current, vendus: false }));
-      // Never keep fiscal series from the previously selected organization
-      // while a new tenant is loading (or while it is still on the old schema).
-      setKeyinvoiceSeriesConfig(normalizeKeyInvoiceSeriesConfig(null));
       const { data, error } = await supabase
         .from('organizations')
         // As chaves de API ja nao sao legiveis pelo cliente (ver a migracao
@@ -270,28 +255,6 @@ export default function Settings() {
 
 
         setKeyinvoiceApiUrl((data as any).keyinvoice_api_url || '');
-
-        // This column is introduced independently from the credentials. Read
-        // it separately so Settings keeps working while an older database is
-        // still waiting for the fiscal migration.
-        const organizationsTable = supabase.from('organizations') as unknown as {
-          select: (columns: string) => {
-            eq: (column: string, value: string) => {
-              maybeSingle: () => Promise<{
-                data: { keyinvoice_series_config?: unknown } | null;
-                error: { message?: string } | null;
-              }>;
-            };
-          };
-        };
-        const { data: seriesData } = await organizationsTable
-          .select('keyinvoice_series_config')
-          .eq('id', organization.id)
-          .maybeSingle();
-        const storedSeries = seriesData?.keyinvoice_series_config;
-        if (storedSeries && typeof storedSeries === 'object') {
-          setKeyinvoiceSeriesConfig(normalizeKeyInvoiceSeriesConfig(storedSeries));
-        }
 
         const tc = (data as any).tax_config;
         if (tc) {
@@ -471,22 +434,6 @@ export default function Settings() {
       }
     }
 
-    if (canConfigureKeyInvoiceSeries) {
-      const incompleteEntry = Object.entries(keyinvoiceSeriesConfig).find(([, entry]) => {
-        const hasSeries = entry.series.trim().length > 0;
-        const hasCode = entry.provider_document_type_code.trim().length > 0;
-        return hasSeries !== hasCode;
-      });
-      if (incompleteEntry) {
-        toast({
-          title: 'Série incompleta',
-          description: 'Cada série configurada precisa também do respetivo código DocType da API.',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
     try {
       await updateOrganization.mutateAsync({
         ...(keyinvoiceApiKey.trim() ? { keyinvoice_password: keyinvoiceApiKey.trim() } : {}),
@@ -498,36 +445,6 @@ export default function Settings() {
         setShowKeyinvoiceApiKey(false);
       }
 
-      if (!canConfigureKeyInvoiceSeries) return;
-
-      const normalizedSeries = Object.fromEntries(
-        Object.entries(keyinvoiceSeriesConfig)
-          .filter(([, entry]) => entry.series.trim() && entry.provider_document_type_code.trim())
-          .map(([kind, entry]) => [kind, {
-            series: entry.series.trim(),
-            provider_document_type_code: entry.provider_document_type_code.trim(),
-          }]),
-      );
-      const { error: seriesError } = await (supabase.rpc as unknown as (
-        name: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>)(
-        'configure_keyinvoice_series',
-        {
-          p_organization_id: organization?.id,
-          p_config: normalizedSeries,
-        },
-      );
-      if (seriesError) {
-        const migrationMissing = ['PGRST202', 'PGRST203', 'PGRST204', '42703'].includes(seriesError.code ?? '');
-        toast({
-          title: migrationMissing ? 'Séries ainda não disponíveis' : 'Não foi possível guardar as séries',
-          description: migrationMissing
-            ? 'As credenciais foram guardadas. As séries ficam disponíveis depois da migração fiscal.'
-            : seriesError.message,
-          variant: migrationMissing ? 'default' : 'destructive',
-        });
-      }
     } catch {
       // useUpdateOrganization already reports the credential error.
     }
@@ -707,8 +624,6 @@ export default function Settings() {
     integrationsEnabled, onToggleIntegration: handleToggleIntegration,
     handleSaveKeyInvoice, keyinvoiceApiKey, setKeyinvoiceApiKey,
     showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl,
-    keyinvoiceSeriesConfig, setKeyinvoiceSeriesConfig,
-    canConfigureKeyInvoiceSeries,
     // Personal email-sending config (Brevo sender + signature), moved into the
     // Brevo integration screen. Saved via handleSaveProfile.
     profileSenderEmail: profileBrevoSenderEmail, setProfileSenderEmail: setProfileBrevoSenderEmail,

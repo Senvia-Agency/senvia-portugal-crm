@@ -466,8 +466,9 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     ? String(kindConfig?.provider_document_type_code || '').trim()
     : ''
   const expectedDocTypeCode = KEYINVOICE_ISSUE_DOC_TYPES[kind]
-  if (!configuredSeries || configuredDocTypeCode !== expectedDocTypeCode) {
-    throw new KeyInvoiceError('Configure e valide a série e o tipo de documento KeyInvoice antes de emitir', {
+  if ((configuredSeries && configuredDocTypeCode !== expectedDocTypeCode)
+    || (!configuredSeries && configuredDocTypeCode)) {
+    throw new KeyInvoiceError('A série KeyInvoice configurada não corresponde ao tipo de documento', {
       code: 'invalid_series_configuration',
       httpStatus: 422,
       manualReview: true,
@@ -506,7 +507,7 @@ export async function prepareKeyInvoiceSaleDocumentContext(
     session,
     providerClientId,
     lines,
-    docSeries: configuredSeries,
+    docSeries: configuredSeries || null,
     docTypeCode: expectedDocTypeCode,
     idempotencyKey,
     comments,
@@ -659,7 +660,8 @@ export async function issueKeyInvoiceSaleDocument(
     }
     throw error
   }
-  if (!identity.docSeries || identity.docSeries !== context.docSeries || identity.docType !== context.docTypeCode) {
+  if (!identity.docSeries || (context.docSeries && identity.docSeries !== context.docSeries)
+    || identity.docType !== context.docTypeCode) {
     const identityErrorCode = !identity.docSeries
       ? 'provider_document_series_missing'
       : 'provider_document_identity_mismatch'
@@ -671,7 +673,7 @@ export async function issueKeyInvoiceSaleDocument(
       raw_data: identityRawData(identity, { fiscalDate: context.fiscalDate }),
     }).eq('id', pendingInvoice.id).eq('organization_id', input.organizationId)
     if (stateError) console.error('[keyinvoice-sale-document] identity_state_failed')
-    throw new KeyInvoiceError('O documento foi emitido, mas a identidade devolvida não coincide com a configuração fiscal. É necessária reconciliação.', {
+    throw new KeyInvoiceError('O documento foi emitido, mas a identidade fiscal devolvida está incompleta ou não coincide com a série escolhida. É necessária reconciliação.', {
       code: identityErrorCode,
       httpStatus: 500,
       manualReview: true,

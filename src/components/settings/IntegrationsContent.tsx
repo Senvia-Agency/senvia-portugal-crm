@@ -34,7 +34,6 @@ import { AssignmentSelector, deriveAssignmentMode, assignmentToFields, type Assi
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useToast } from "@/hooks/use-toast";
-import type { KeyInvoiceSeriesConfig, KeyInvoiceSeriesKind } from '@/types/keyinvoice';
 
 interface IntegrationsContentProps {
   isLoadingIntegrations: boolean;
@@ -89,9 +88,6 @@ interface IntegrationsContentProps {
   showKeyinvoiceApiKey: boolean;
   setShowKeyinvoiceApiKey: (value: boolean) => void;
   handleSaveKeyInvoice: () => Promise<void>;
-  keyinvoiceSeriesConfig: KeyInvoiceSeriesConfig;
-  setKeyinvoiceSeriesConfig: (value: KeyInvoiceSeriesConfig) => void;
-  canConfigureKeyInvoiceSeries: boolean;
   // Personal email-sending config (per-user), moved here from the profile so all
   // Brevo/email setup lives in one place. Saved via handleSaveProfile.
   profileSenderEmail: string;
@@ -1784,18 +1780,8 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
   );
 }
 
-function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl, showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, keyinvoiceSeriesConfig, setKeyinvoiceSeriesConfig, canConfigureKeyInvoiceSeries, handleSaveKeyInvoice, updateOrganizationIsPending }: IntegrationsContentProps) {
+function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl, showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, handleSaveKeyInvoice, updateOrganizationIsPending }: IntegrationsContentProps) {
   const [saving, setSaving] = useState(false);
-  const updateSeries = (
-    kind: KeyInvoiceSeriesKind,
-    field: 'series' | 'provider_document_type_code',
-    value: string,
-  ) => {
-    setKeyinvoiceSeriesConfig({
-      ...keyinvoiceSeriesConfig,
-      [kind]: { ...keyinvoiceSeriesConfig[kind], [field]: value },
-    });
-  };
   const save = async () => {
     setSaving(true);
     try {
@@ -1828,65 +1814,9 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
         <p className="text-xs text-muted-foreground">Endereço base da API KeyInvoice. Deixe em branco para usar o valor padrão.</p>
       </div>
 
-      <div className="space-y-4 rounded-lg border p-4">
-        <div className="flex items-start gap-2.5">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <h4 className="text-sm font-medium">Séries fiscais</h4>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Use os códigos exatos das séries já criadas no KeyInvoice. A emissão automática exige uma série explícita para cada tipo de documento usado.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          {([
-            ['invoice', 'FT', 'Fatura'],
-            ['invoice_receipt', 'FR', 'Fatura-recibo'],
-            ['receipt', 'RC', 'Recibo'],
-            ['credit_note', 'NC', 'Nota de crédito'],
-          ] as const).map(([kind, shortCode, label]) => (
-            <div key={kind} className="space-y-2 rounded-md border bg-muted/15 p-3">
-              <Label htmlFor={`ki-series-${kind}`}>
-                {shortCode} · {label}
-              </Label>
-              <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
-                <div className="space-y-1">
-                  <Input
-                    id={`ki-series-${kind}`}
-                    value={keyinvoiceSeriesConfig[kind].series}
-                    onChange={(event) => updateSeries(kind, 'series', event.target.value)}
-                    maxLength={100}
-                    placeholder={`Série ${shortCode}`}
-                    aria-label={`Série ${shortCode}`}
-                    disabled={!canConfigureKeyInvoiceSeries}
-                  />
-                  <p className="text-[11px] text-muted-foreground">Código da série</p>
-                </div>
-                <div className="space-y-1">
-                  <Input
-                    value={keyinvoiceSeriesConfig[kind].provider_document_type_code}
-                    onChange={(event) => updateSeries(kind, 'provider_document_type_code', event.target.value)}
-                    maxLength={50}
-                    placeholder={kind === 'invoice' ? 'ex.: 4' : kind === 'invoice_receipt' ? 'ex.: 34' : 'DocType'}
-                    aria-label={`Código DocType ${shortCode}`}
-                    disabled={!canConfigureKeyInvoiceSeries}
-                  />
-                  <p className="text-[11px] text-muted-foreground">DocType API</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
-          Estas séries têm de estar criadas e comunicadas à AT no KeyInvoice antes de serem usadas.
-          O SENVIA OS não cria séries nem gera ATCUD; apresenta no histórico o ATCUD devolvido pelo fornecedor.
-        </div>
-        {!canConfigureKeyInvoiceSeries && (
-          <p className="text-xs text-muted-foreground">Só um administrador da organização pode alterar as séries fiscais.</p>
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Os documentos usam a série predefinida no KeyInvoice. O número, a série e o ATCUD são atribuídos pelo KeyInvoice.
+      </p>
       <Button onClick={save} disabled={updateOrganizationIsPending || saving}>
         {(updateOrganizationIsPending || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Guardar
