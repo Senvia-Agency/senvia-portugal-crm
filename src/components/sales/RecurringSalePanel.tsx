@@ -367,7 +367,10 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
             <div className="flex gap-2.5">
               <Settings2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-medium">Faturação fiscal recorrente</p>
+                <p className="text-sm font-medium">
+                  Faturação fiscal recorrente
+                  {fiscalDirty && <span className="ml-2 text-xs font-normal text-amber-600">Alterações por guardar</span>}
+                </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Define o documento e o envio de email para cada ciclo desta venda.
                 </p>

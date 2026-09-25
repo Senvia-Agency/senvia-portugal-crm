@@ -1815,7 +1815,7 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Os documentos usam a série predefinida no KeyInvoice. O número, a série e o ATCUD são atribuídos pelo KeyInvoice.
+        A ligação à API é configurada aqui. As séries para emissão automática são definidas em Definições → Financeiro → Fiscal.
       </p>
       <Button onClick={save} disabled={updateOrganizationIsPending || saving}>
         {(updateOrganizationIsPending || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

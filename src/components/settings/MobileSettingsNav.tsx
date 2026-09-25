@@ -43,7 +43,7 @@ const sections: SectionItem[] = [
   { id: "sales", label: "Vendas e Comissões", icon: TrendingUp, description: "Pipeline, regras, comissões e produtos", tint: "bg-green-500/10", iconColor: "text-green-600" },
   { id: "team", label: "Equipa e Acessos", icon: UsersRound, description: "Colaboradores, perfis e equipas", tint: "bg-orange-500/10", iconColor: "text-orange-600", requiresTeam: true },
   { id: "integrations", label: "Integrações", icon: Plug, description: "WhatsApp, email, webhooks e faturação", tint: "bg-pink-500/10", iconColor: "text-pink-600", requiresIntegrations: true },
-  { id: "finance", label: "Financeiro", icon: Receipt, description: "IVA e tipos de despesas", tint: "bg-amber-500/10", iconColor: "text-amber-600", requiresIntegrations: true },
+  { id: "finance", label: "Financeiro", icon: Receipt, description: "IVA, séries e tipos de despesas", tint: "bg-amber-500/10", iconColor: "text-amber-600", requiresIntegrations: true },
   { id: "alerts", label: "Notificações e Alertas", icon: Bell, description: "Push, calendário, email e fidelização", tint: "bg-red-500/10", iconColor: "text-red-600" },
 ];
 
@@ -123,7 +123,7 @@ export const subSectionsMap: Record<SettingsSection, SubSectionItem[]> = {
     { id: "integrations-connect", label: "Integrações", icon: Link2, description: "WhatsApp, email, webhooks e faturação" },
   ],
   finance: [
-    { id: "finance-fiscal", label: "Fiscal", icon: Calculator, description: "IVA e isenções" },
+    { id: "finance-fiscal", label: "Fiscal", icon: Calculator, description: "IVA, isenções e séries" },
     { id: "finance-expenses", label: "Tipos de Despesas", icon: Receipt, description: "Categorias de despesas" },
   ],
   alerts: [

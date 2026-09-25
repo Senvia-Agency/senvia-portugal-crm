@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Info } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { KeyInvoiceSeriesSettings } from './KeyInvoiceSeriesSettings';
 
 interface FiscalSettingsTabProps {
   taxRate: string;
@@ -29,6 +31,7 @@ const EXEMPTION_OPTIONS = [
 ];
 
 export function FiscalSettingsTab({ taxRate, setTaxRate, taxExemptionReason, setTaxExemptionReason, onSave, isPending }: FiscalSettingsTabProps) {
+  const { organization } = useAuth();
   return (
     <div className="space-y-6">
       <Card>
@@ -91,6 +94,17 @@ export function FiscalSettingsTab({ taxRate, setTaxRate, taxExemptionReason, set
         </Button>
       </CardContent>
     </Card>
+    {organization?.billing_provider === 'keyinvoice' && (
+      <Card>
+        <CardHeader>
+          <CardTitle>Séries KeyInvoice</CardTitle>
+          <CardDescription>Escolha as séries usadas nos documentos fiscais recorrentes automáticos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <KeyInvoiceSeriesSettings />
+        </CardContent>
+      </Card>
+    )}
     </div>
   );
 }

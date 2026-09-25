@@ -299,7 +299,14 @@ export async function configureSaleRecurrenceFiscal(
   if (error) {
     const message = error.message || 'Não foi possível guardar a configuração fiscal';
     if (message.includes('Configure the KeyInvoice')) {
-      throw new Error('Configura as séries fiscais necessárias no KeyInvoice antes de ativar a emissão automática.');
+      const kind = /KeyInvoice (invoice_receipt|invoice|receipt|credit_note) series/.exec(message)?.[1];
+      const label = {
+        invoice_receipt: 'Fatura-recibo (FR)',
+        invoice: 'Fatura (FT)',
+        receipt: 'Recibo (RC)',
+        credit_note: 'Nota de crédito (NC)',
+      }[kind ?? ''] ?? 'documento fiscal';
+      throw new Error(`Configura a série de ${label} em Definições → Financeiro → Fiscal antes de ativar a emissão automática.`);
     }
     if (message.includes('KeyInvoice must be the active fiscal provider')) {
       throw new Error('O KeyInvoice tem de ser o fornecedor fiscal ativo.');
