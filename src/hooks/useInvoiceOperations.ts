@@ -159,7 +159,7 @@ export function useSendInvoiceEmail() {
         },
       });
 
-      if (error) throw error;
+      if (error) throw await fiscalFunctionError(error, "Erro ao enviar documento fiscal");
       if (data?.error) throw new Error(data.error);
       return data;
     },
