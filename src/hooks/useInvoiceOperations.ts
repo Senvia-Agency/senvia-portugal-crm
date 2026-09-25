@@ -138,11 +138,10 @@ export function useCancelInvoice() {
 
 export interface SendInvoiceEmailParams {
   documentId: number;
+  invoiceId?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
   email: string;
-  subject: string;
-  body: string;
 }
 
 export function useSendInvoiceEmail() {
@@ -150,12 +149,11 @@ export function useSendInvoiceEmail() {
     mutationFn: async (params: SendInvoiceEmailParams) => {
       const { data, error } = await supabase.functions.invoke("send-invoice-email", {
         body: {
+          invoice_id: params.invoiceId || undefined,
           document_id: params.documentId,
           document_type: params.documentType,
           organization_id: params.organizationId,
           email: params.email,
-          subject: params.subject,
-          body: params.body,
         },
       });
 
@@ -164,7 +162,7 @@ export function useSendInvoiceEmail() {
       return data;
     },
     onSuccess: () => {
-      sonnerToast.success("Email enviado com sucesso");
+      sonnerToast.success("Documento enviado por email através da Brevo");
     },
     onError: (error: Error) => {
       sonnerToast.error("Erro ao enviar email", { description: error.message });

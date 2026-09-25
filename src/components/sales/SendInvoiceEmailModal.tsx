@@ -10,50 +10,48 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useSendInvoiceEmail } from "@/hooks/useSendInvoiceEmail";
 
 interface SendInvoiceEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  invoiceId?: string | null;
   documentId: number;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
-  reference: string;
   clientEmail?: string | null;
 }
 
 export function SendInvoiceEmailModal({
   open,
   onOpenChange,
+  invoiceId,
   documentId,
   documentType,
   organizationId,
-  reference,
   clientEmail,
 }: SendInvoiceEmailModalProps) {
-  const docLabel = documentType === "receipt" ? "Recibo" : "Fatura";
+  const docLabel = {
+    invoice: "Fatura",
+    invoice_receipt: "Fatura-Recibo",
+    receipt: "Recibo",
+    credit_note: "Nota de Crédito",
+  }[documentType];
 
   const [email, setEmail] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
 
   const sendEmail = useSendInvoiceEmail();
 
   useEffect(() => {
     if (open) {
       setEmail(clientEmail || "");
-      setSubject(`${docLabel} ${reference}`);
-      setBody(
-        `Exmo(a). Cliente,\n\nSegue em anexo o documento ${docLabel} ${reference}.\n\nCom os melhores cumprimentos.`
-      );
     }
-  }, [open, clientEmail, reference, docLabel]);
+  }, [open, clientEmail]);
 
   const handleSubmit = () => {
     if (!email) return;
     sendEmail.mutate(
-      { documentId, documentType, organizationId, email, subject, body },
+      { invoiceId, documentId, documentType, organizationId, email },
       { onSuccess: () => onOpenChange(false) }
     );
   };
@@ -78,22 +76,8 @@ export function SendInvoiceEmailModal({
               placeholder="email@exemplo.com"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label>Assunto</Label>
-            <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Corpo do email</Label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={5}
-            />
+          <div className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+            O Senvia envia um email fiscal em HTML através da Brevo, com os dados do documento e o PDF anexado.
           </div>
         </div>
 

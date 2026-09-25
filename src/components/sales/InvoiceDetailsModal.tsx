@@ -391,10 +391,10 @@ export function InvoiceDetailsModal({
           <SendInvoiceEmailModal
             open={emailOpen}
             onOpenChange={setEmailOpen}
+            invoiceId={invoiceId}
             documentId={documentId}
             documentType={documentType}
             organizationId={organizationId}
-            reference={ref}
             clientEmail={details.client?.email}
           />
           <CreateCreditNoteModal

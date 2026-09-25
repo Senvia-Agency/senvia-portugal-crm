@@ -1435,10 +1435,10 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           {supportsInvoiceXpressActions && <SendInvoiceEmailModal
             open={invoiceEmailModal}
             onOpenChange={setInvoiceEmailModal}
+            invoiceId={saleFiscalDocument?.id}
             documentId={sale.invoicexpress_id}
             documentType={(sale.invoicexpress_type === 'FR' ? 'invoice_receipt' : 'invoice') as any}
             organizationId={organization.id}
-            reference={sale.invoice_reference || `${sale.invoicexpress_type || 'FT'} #${sale.invoicexpress_id}`}
             clientEmail={sale.client?.email || sale.lead?.email}
           />}
           <InvoiceDetailsModal

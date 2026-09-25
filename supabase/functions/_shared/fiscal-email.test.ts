@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.190.0/testing/asserts.ts";
-import { buildFiscalBrevoPayload, sendFiscalPdfWithBrevo } from "./fiscal-email.ts";
+import { buildFiscalBrevoPayload, renderFiscalDocumentEmailTemplate, sendFiscalPdfWithBrevo } from "./fiscal-email.ts";
 
 const config = {
   to: "Cliente@Example.com",
@@ -51,6 +51,20 @@ Deno.test("identificador Brevo é devolvido ao ledger", async () => {
     },
   );
   assertEquals(result, { messageId: "<abc@brevo>" });
+});
+
+Deno.test("template fiscal renderiza email HTML e escapa conteúdo configurável", () => {
+  const html = renderFiscalDocumentEmailTemplate({
+    organizationName: "Empresa <script>alert(1)</script>",
+    recipientName: "Cliente",
+    documentType: "Fatura",
+    documentNumber: "FT 4/1",
+    message: "Olá Cliente,\n\nSegue a fatura.",
+  });
+  assertEquals(html.includes('<script>alert(1)</script>'), false);
+  assertEquals(html.includes('Empresa &lt;script&gt;alert(1)&lt;/script&gt;'), true);
+  assertEquals(html.includes('Segue a fatura.'), true);
+  assertEquals(html.includes('Documento fiscal'), true);
 });
 
 Deno.test("resposta duplicada da Brevo confirma o envio idempotente", async () => {

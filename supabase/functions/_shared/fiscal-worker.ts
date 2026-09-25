@@ -1,4 +1,4 @@
-import type { FiscalEmailConfig } from './fiscal-email.ts'
+import { renderFiscalDocumentEmailTemplate, type FiscalEmailConfig } from './fiscal-email.ts'
 import type { KeyInvoiceDocumentIdentity } from './keyinvoice.ts'
 
 export type FiscalDocumentKind = 'invoice' | 'invoice_receipt' | 'receipt' | 'credit_note'
@@ -29,6 +29,7 @@ export interface FiscalWorkerJob {
 export interface FiscalWorkerOrganization {
   id: string
   name?: string | null
+  logo_url?: string | null
   brevo_sender_email?: string | null
 }
 
@@ -125,15 +126,6 @@ export function renderFiscalTemplate(template: string, values: Record<string, st
   })
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
 export function resolveFiscalEmailConfig(
   job: FiscalWorkerJob,
   organization: FiscalWorkerOrganization,
@@ -175,7 +167,15 @@ export function resolveFiscalEmailConfig(
     senderName: firstText(config.sender_name, organization.name, 'SENVIA OS'),
     replyTo: firstText(config.reply_to, senderEmail),
     subject: renderFiscalTemplate(subjectTemplate, variables),
-    html: `<div style="font-family:Arial,sans-serif;white-space:normal">${escapeHtml(body).replace(/\r?\n/g, '<br>')}</div>`,
+    html: renderFiscalDocumentEmailTemplate({
+      organizationName: firstText(config.sender_name, organization.name, 'SENVIA OS'),
+      logoUrl: organization.logo_url,
+      recipientName: clientName,
+      documentType: label,
+      documentNumber,
+      issueDate: snapshot.fiscalDate,
+      message: body,
+    }),
     pdfName: `${label}-${documentNumber}.pdf`,
     idempotencyKey: job.id,
   }

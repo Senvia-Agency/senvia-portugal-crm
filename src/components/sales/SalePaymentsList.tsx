@@ -144,9 +144,9 @@ export function SalePaymentsList({
   
   // Email modal state
   const [emailModal, setEmailModal] = useState<{
+    invoiceId?: string;
     documentId: number;
     documentType: "invoice" | "invoice_receipt" | "receipt";
-    reference: string;
   } | null>(null);
 
   // Invoice details modal state
@@ -413,9 +413,9 @@ export function SalePaymentsList({
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => setEmailModal({
+                            invoiceId: receiptDocument(payment)?.id,
                             documentId: payment.invoicexpress_id!,
                             documentType: 'receipt',
-                            reference: payment.invoice_reference!,
                           })}
                           title="Enviar por email"
                         >
@@ -587,10 +587,10 @@ export function SalePaymentsList({
         <SendInvoiceEmailModal
           open={!!emailModal}
           onOpenChange={(open) => !open && setEmailModal(null)}
+          invoiceId={emailModal.invoiceId}
           documentId={emailModal.documentId}
           documentType={emailModal.documentType}
           organizationId={organizationId}
-          reference={emailModal.reference}
           clientEmail={clientEmail}
         />
       )}

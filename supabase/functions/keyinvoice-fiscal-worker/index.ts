@@ -32,6 +32,7 @@ const corsHeaders = {
 type AdminClient = SupabaseClient<any, 'public', any>
 
 interface WorkerOrganization extends FiscalWorkerOrganization {
+  logo_url?: string | null
   billing_provider?: string | null
   integrations_enabled?: Record<string, boolean> | null
   keyinvoice_password?: string | null
@@ -68,7 +69,7 @@ async function isAuthorized(req: Request, db: AdminClient): Promise<boolean> {
 async function loadOrganization(db: AdminClient, organizationId: string): Promise<WorkerOrganization> {
   const { data, error } = await db
     .from('organizations')
-    .select('id,name,billing_provider,integrations_enabled,keyinvoice_password,keyinvoice_api_url,keyinvoice_sid,keyinvoice_sid_expires_at,keyinvoice_series_config,tax_config,brevo_api_key,brevo_sender_email')
+    .select('id,name,logo_url,billing_provider,integrations_enabled,keyinvoice_password,keyinvoice_api_url,keyinvoice_sid,keyinvoice_sid_expires_at,keyinvoice_series_config,tax_config,brevo_api_key,brevo_sender_email')
     .eq('id', organizationId)
     .single()
   if (error || !data) {
