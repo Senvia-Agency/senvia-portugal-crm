@@ -242,6 +242,16 @@ const deleteSale = useMutation({
     if (id) setPendingSaleId(id);
   }, [searchParams]);
 
+  // Finance dashboard shortcut: open the normal sale flow so the user can
+  // create a sale and issue its fiscal document from the sale details.
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setShowCreateModal(true);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("new");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // Reactively open sale details when pendingSaleId matches a sale in cache
   useEffect(() => {
     if (pendingSaleId && sales) {

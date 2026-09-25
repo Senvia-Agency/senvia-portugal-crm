@@ -46,6 +46,7 @@ import { useEffect, useState } from "react";
 import { useMyCommissions } from "@/hooks/useSalesApproval";
 import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
 import { RenewalAlertsWidget } from "@/components/finance/RenewalAlertsWidget";
+import { GenericFinanceDashboard } from "@/components/finance/GenericFinanceDashboard";
 import { ChargebacksTab } from "@/components/finance/ChargebacksTab";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -72,6 +73,7 @@ export default function Finance() {
   // Chargebacks only exist for telecom, where a sale cancelled after install
   // claws its commission back.
   const isTelecom = organization?.niche === 'telecom';
+  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
   // Commissions moved to the standalone /comissoes page (available with the
   // Vendas module), so they are no longer tabs here.
   const validTabs = [
@@ -196,6 +198,29 @@ export default function Finance() {
 
         <MinhasComissoesModal open={myCommissionsModalOpen} onOpenChange={setMyCommissionsModalOpen} />
       </div>
+    );
+  }
+
+  if (!isTelecom && isGenericNiche) {
+    return (
+      <>
+        <GenericFinanceDashboard
+          stats={stats}
+          isLoading={isLoading}
+          payments={payments}
+          allPayments={allPayments}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          detailView={detailView}
+          onDetailViewChange={setDetailView}
+          myConfirmedTotal={myConfirmedTotal}
+          myPendingTotal={myPendingTotal}
+          teamCommissionTotal={teamCommissionTotal}
+          teamSalesCount={teamSalesCount}
+          onMyCommissions={() => setMyCommissionsModalOpen(true)}
+        />
+        <MinhasComissoesModal open={myCommissionsModalOpen} onOpenChange={setMyCommissionsModalOpen} />
+      </>
     );
   }
 
