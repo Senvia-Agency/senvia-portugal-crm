@@ -105,6 +105,10 @@ export function InvoicesContent() {
 
   // Combine invoices + credit notes into unified list
   const allDocuments = useMemo((): UnifiedDocument[] => {
+    const invoicesById = new Map((invoicesData || []).map(inv => [inv.id, inv]));
+    const creditNoteByInvoiceId = new Map((invoicesData || [])
+      .filter(inv => inv.document_type === 'credit_note' && inv.related_invoice_id && inv.reference)
+      .map(inv => [inv.related_invoice_id!, inv.reference!]));
     const invoices: UnifiedDocument[] = (invoicesData || []).map(inv => ({
       id: inv.id,
       reference: inv.reference,
@@ -120,7 +124,9 @@ export function InvoicesContent() {
       invoicexpress_id: inv.invoicexpress_id,
       invoice_id: inv.id,
       provider: inv.provider,
-      related_doc_reference: inv.credit_note_reference || null,
+      related_doc_reference: inv.document_type === 'credit_note'
+        ? (inv.related_invoice_id ? invoicesById.get(inv.related_invoice_id)?.reference || null : null)
+        : inv.credit_note_reference || creditNoteByInvoiceId.get(inv.id) || null,
     }));
 
     const creditNotes: UnifiedDocument[] = (creditNotesData || []).map(cn => ({
@@ -214,6 +220,7 @@ export function InvoicesContent() {
 
   const getStatusLabel = (status: string | null, provider?: string) => {
     if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Com nota de crédito';
+    if (status === 'final' && provider === 'keyinvoice') return 'Emitida';
     const map: Record<string, string> = {
       settled: 'Liquidada',
       final: 'Finalizada',

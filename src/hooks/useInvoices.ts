@@ -22,6 +22,7 @@ export interface InvoiceRow {
   created_at: string;
   updated_at: string;
   credit_note_reference: string | null;
+  related_invoice_id: string | null;
 }
 
 export function useInvoices() {
@@ -63,6 +64,7 @@ export function useInvoices() {
         created_at: row.created_at,
         updated_at: row.updated_at,
         credit_note_reference: null as string | null,
+        related_invoice_id: row.related_invoice_id || null,
       }));
 
       // Fetch credit notes that reference these invoices

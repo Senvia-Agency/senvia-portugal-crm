@@ -149,7 +149,7 @@ export function InvoiceDetailsModal({
               {isVendus && <Badge variant="outline">Vendus</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
-                  {isKeyInvoice && isCancelled ? 'Com nota de crédito' : statusInfo.label}
+                  {isKeyInvoice && isCancelled ? 'Com nota de crédito' : isKeyInvoice && details.status === 'final' ? 'Emitida' : statusInfo.label}
                 </Badge>
               )}
             </DialogTitle>
