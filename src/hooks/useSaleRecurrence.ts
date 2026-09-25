@@ -34,6 +34,7 @@ export type FiscalEmailStatus =
 
 export interface RecurrenceFiscalDocument {
   id: string;
+  processing_status: string | null;
   reference: string | null;
   document_type: string | null;
   pdf_path: string | null;
@@ -79,6 +80,7 @@ export interface SaleRecurrenceDetail extends RecurringFiscalConfig {
   stripe_subscription_id: string | null;
   stripe_checkout_session_id: string | null;
   client_email: string | null;
+  fiscal_auto_start_after: string | null;
   cycles: RecurrenceCycle[];
 }
 
@@ -87,7 +89,7 @@ type UnknownRow = Record<string, unknown>;
 const RECURRENCE_BASE_FIELDS =
   'id, sale_id, organization_id, amount, anchor_date, service_status, billing_status, billing_provider, next_cycle_date, last_cycle_date, stripe_subscription_id, stripe_checkout_session_id';
 const RECURRENCE_FISCAL_FIELDS =
-  `${RECURRENCE_BASE_FIELDS}, fiscal_mode, fiscal_document_policy, fiscal_auto_email, fiscal_email_config`;
+  `${RECURRENCE_BASE_FIELDS}, fiscal_mode, fiscal_document_policy, fiscal_auto_email, fiscal_email_config, fiscal_auto_start_after`;
 const CYCLE_BASE_FIELDS =
   'id, period_start, period_end, due_date, amount, status, stripe_invoice_id, paid_at, failure_reason';
 const CYCLE_FISCAL_FIELDS =
@@ -199,7 +201,7 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
           };
         };
         const { data: invoices, error: invoicesError } = await invoicesTable
-          .select('id, recurring_cycle_id, reference, document_type, pdf_path, provider_document_type_code, provider_series, provider_document_number, provider_atcud, email_status, email_last_error')
+          .select('id, recurring_cycle_id, processing_status, reference, document_type, pdf_path, provider_document_type_code, provider_series, provider_document_number, provider_atcud, email_status, email_last_error')
           .in('recurring_cycle_id', rawCycles.map((cycle) => cycle.id));
         if (invoicesError) {
           // A salesperson may be allowed to view the sale but not fiscal
@@ -212,6 +214,9 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
           if (typeof rawInvoice.id !== 'string') continue;
           const document: RecurrenceFiscalDocument = {
             id: rawInvoice.id,
+            processing_status: typeof rawInvoice.processing_status === 'string'
+              ? rawInvoice.processing_status
+              : null,
             reference: typeof rawInvoice.reference === 'string' ? rawInvoice.reference : null,
             document_type: typeof rawInvoice.document_type === 'string' ? rawInvoice.document_type : null,
             pdf_path: typeof rawInvoice.pdf_path === 'string' ? rawInvoice.pdf_path : null,

@@ -414,7 +414,17 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
             </p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {cycles.map((cycle) => (
+              {cycles.map((cycle) => {
+                const activationCutoff = recurrence.fiscal_auto_start_after;
+                const excludedFromAutomatic = recurrence.fiscal_mode === 'automatic'
+                  && activationCutoff !== null
+                  && cycle.period_start <= activationCutoff;
+                const visibleDocuments = excludedFromAutomatic
+                  ? cycle.fiscal_documents.filter((document) =>
+                      document.processing_status === 'issued'
+                      || Boolean(document.reference || document.provider_document_number))
+                  : cycle.fiscal_documents;
+                return (
                 <div
                   key={cycle.id}
                   className="rounded-md border p-3"
@@ -442,8 +452,12 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                   <div className="mt-3 grid gap-2 border-t pt-3 text-xs sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
                     <div className="flex min-w-0 items-center gap-2">
                       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <Badge variant="outline" className={fiscalTone(cycle.fiscal_status)}>
-                        {recurrence.fiscal_mode === 'manual' && cycle.fiscal_status === 'not_scheduled'
+                      <Badge variant="outline" className={excludedFromAutomatic
+                        ? 'border-border bg-muted/50 text-muted-foreground'
+                        : fiscalTone(cycle.fiscal_status)}>
+                        {excludedFromAutomatic
+                          ? 'Excluído da emissão automática'
+                          : recurrence.fiscal_mode === 'manual' && cycle.fiscal_status === 'not_scheduled'
                           ? 'Emissão manual'
                           : cycle.fiscal_status === 'partial'
                             ? recurrence.fiscal_document_policy === 'invoice_then_receipt'
@@ -462,7 +476,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                       </span>
                     </div>
 
-                    {(cycle.fiscal_status === 'retry' || cycle.fiscal_email_status === 'retry') && (
+                    {!excludedFromAutomatic && (cycle.fiscal_status === 'retry' || cycle.fiscal_email_status === 'retry') && (
                       <Button
                         type="button"
                         variant="outline"
@@ -477,9 +491,9 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                     )}
                   </div>
 
-                  {cycle.fiscal_documents.length > 0 && (
+                  {visibleDocuments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {cycle.fiscal_documents.map((document) => {
+                      {visibleDocuments.map((document) => {
                         const reference = document.reference
                           || [document.provider_series, document.provider_document_number].filter(Boolean).join('/')
                           || `Documento ${document.id.slice(0, 8)}`;
@@ -521,13 +535,24 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                     </div>
                   )}
 
-                  {cycle.fiscal_last_error && (
+                  {excludedFromAutomatic && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Este ciclo já existia antes da ativação. O Senvia não vai emitir uma fatura automática para este período.
+                    </p>
+                  )}
+                  {excludedFromAutomatic && cycle.fiscal_last_error && (
+                    <details className="mt-2 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer">Ver tentativa anterior</summary>
+                      <p className="mt-1 break-words">{cycle.fiscal_last_error}</p>
+                    </details>
+                  )}
+                  {cycle.fiscal_last_error && !excludedFromAutomatic && (
                     <div className="mt-2 flex gap-2 rounded-md bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span className="break-words">{cycle.fiscal_last_error}</span>
                     </div>
                   )}
-                  {cycle.fiscal_documents
+                  {!excludedFromAutomatic && cycle.fiscal_documents
                     .filter((document) => document.email_last_error)
                     .map((document) => (
                       <div key={`${document.id}-email-error`} className="mt-2 flex gap-2 rounded-md bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
@@ -536,7 +561,8 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                       </div>
                     ))}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
