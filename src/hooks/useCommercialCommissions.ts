@@ -43,6 +43,7 @@ export interface OrganizationCommissionSale {
   id: string;
   code: string | null;
   clientName: string;
+  products: readonly string[];
   date: string | null;
   telecomStatus: string;
   deferred: boolean;
@@ -418,6 +419,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               id: s.id,
               code: s.code,
               clientName: s.client?.name || s.lead?.name || '—',
+              products: s.servicos_produtos ?? [],
               date: telecomCommissionDate(s),
               deferred: Number(s.commission_payment_month_offset || 0) > 0,
               telecomStatus: s.telecom_status,

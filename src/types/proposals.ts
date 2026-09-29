@@ -739,8 +739,8 @@ export function getSaleLineCommission(
   const grossBase = operatorPerUnit != null ? operatorPerUnit * qty : sellerBase;
 
   const round = (n: number) => Math.round(n * 100) / 100;
-  const gross = round(grossBase + bonus + extra);
   const seller = round(sellerBase + bonus + extra);
+  const gross = tech === 'satelite' ? seller : round(grossBase + bonus + extra);
   return { gross, seller, org: round(gross - seller) };
 }
 

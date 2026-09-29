@@ -33,6 +33,7 @@ import { MinhasComissoesContent } from "@/components/finance/MinhasComissoesCont
 import { TeamCommissionsTab } from "@/components/finance/TeamCommissionsTab";
 import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { EditExpenseModal } from "@/components/finance/EditExpenseModal";
+import { SaleDetailsModal } from "@/components/sales/SaleDetailsModal";
 import type { Expense } from "@/types/expenses";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -387,6 +388,12 @@ function SalesDetailTable({
 function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?: DateRange; commissionFilters?: CommissionFilters }) {
   // Reuse the card's query so rows, permissions, filters and total cannot diverge.
   const { data, isLoading, isError, refetch } = useTeamCommissionTotal(dateRange, commissionFilters);
+  const { data: sales = [] } = useSales();
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const selectedSale = useMemo(
+    () => sales.find((sale) => sale.id === selectedSaleId) ?? null,
+    [sales, selectedSaleId],
+  );
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError) return <div className="rounded-md border p-4">Não foi possível carregar as vendas. <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button></div>;
   const rows = data?.organizationSales ?? [];
@@ -395,7 +402,7 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
       <Table>
         <TableHeader><TableRow>
           <TableHead>Recebimento previsto</TableHead>
-          <TableHead>Cliente</TableHead>
+          <TableHead>Cliente / Produto</TableHead>
           <TableHead>Código</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead className="text-right">Valor da Organização</TableHead>
@@ -404,7 +411,16 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
           {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
             <TableRow key={sale.id}>
               <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
-              <TableCell>{sale.clientName}</TableCell>
+              <TableCell>
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-left font-medium"
+                  onClick={() => setSelectedSaleId(sale.id)}
+                >
+                  {sale.clientName}
+                </Button>
+                <p className="text-xs text-muted-foreground">{sale.products.join(' · ') || 'Produto não identificado'}</p>
+              </TableCell>
               <TableCell>{sale.code || '—'}</TableCell>
               <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
               <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
@@ -413,6 +429,13 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
         </TableBody>
       </Table>
       {rows.length > 0 && <TotalFooter count={rows.length} total={data?.orgTotal ?? 0} />}
+      <SaleDetailsModal
+        sale={selectedSale}
+        open={selectedSale !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSaleId(null);
+        }}
+      />
     </div>
   );
 }

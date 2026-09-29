@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { matchesSearch, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { matchesSaleSearch } from "@/lib/sales-search";
 import { ShoppingBag, Search, TrendingUp, Package, CheckCircle, Plus, Zap, Download, Loader2, Trash2, CalendarClock, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import { useProductTypes } from "@/hooks/useProductTypes";
 import { useTeamMembers } from "@/hooks/useTeam";
@@ -371,15 +372,7 @@ const deleteSale = useMutation({
         return matchesStatus && matchesType && matchesOperator && matchesDate;
       }
 
-      const matchesSearchTerm = matchesSearch(
-        search,
-        sale.lead?.name,
-        sale.lead?.email,
-        sale.client?.name,
-        sale.client?.code,
-        sale.code,
-        sale.notes,
-      );
+      const matchesSearchTerm = matchesSaleSearch(sale, search, isTelecom);
 
       return matchesSearchTerm && matchesStatus && matchesType && matchesOperator && matchesDate;
     });
@@ -751,7 +744,7 @@ const deleteSale = useMutation({
             {isGenericNiche && <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar por nome, empresa ou código..."
+                placeholder={isTelecom ? "Pesquisar por nome, NIF, empresa ou código..." : "Pesquisar por nome, empresa ou código..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
@@ -867,7 +860,7 @@ const deleteSale = useMutation({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Pesquisar por nome, empresa ou código..."
+              placeholder={isTelecom ? "Pesquisar por nome, NIF, empresa ou código..." : "Pesquisar por nome, empresa ou código..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className={isTelecom
