@@ -33,11 +33,11 @@ export const DEFAULT_PLAN_FEATURES = {
   id: 'starter',
   name: 'SENVIA OS',
   modules: { sales: true, finance: true, marketing: true, ecommerce: false },
-  integrations: { invoicing: true, meta_pixels: true, stripe: true },
+  integrations: { invoicing: true, meta_pixels: true, stripe: true, whatsapp: true },
   featureFlags: { conversational_forms: true, multi_org: true, push_notifications: true, fidelization_alerts: true },
   max_users: 5,
   max_forms: null,
-  max_inboxes: null,
+  max_inboxes: 4,
   price_monthly: 49,
 };
 

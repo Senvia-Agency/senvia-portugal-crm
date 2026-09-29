@@ -40,7 +40,7 @@ const DEFAULT_PLAN: SubscriptionPlan = {
   price_monthly: DEFAULT_PLAN_FEATURES.price_monthly,
   features: {
     modules: DEFAULT_PLAN_FEATURES.modules,
-    integrations: { ...DEFAULT_PLAN_FEATURES.integrations, whatsapp: false },
+    integrations: DEFAULT_PLAN_FEATURES.integrations,
     features: { ...DEFAULT_PLAN_FEATURES.featureFlags, multi_org: DEFAULT_PLAN_FEATURES.featureFlags.multi_org },
   },
 };
@@ -116,7 +116,7 @@ export function useSubscription() {
   };
 
   const canUseIntegration = (integration: IntegrationKey): boolean => {
-    return integration !== 'whatsapp';
+    return currentPlan.features?.integrations?.[integration] !== false;
   };
 
   const canUseFeature = (feature: FeatureKey): boolean => {
@@ -153,7 +153,7 @@ export function useSubscription() {
     limits: {
       maxUsers: currentPlan.max_users,
       maxForms: null,
-      maxInboxes: null,
+      maxInboxes: currentPlan.max_inboxes,
     },
     isLoading,
     canUseModule,

@@ -195,7 +195,7 @@ async function execute(cmd) {
     SELECT 1 FROM messaging_channels c
       JOIN organization_members om ON om.organization_id=c.organization_id
       LEFT JOIN organization_profiles op ON op.id=om.profile_id AND op.organization_id=om.organization_id
-    WHERE c.id=$1 AND c.organization_id=$2 AND c.channel_type='email'
+    WHERE c.id=$1 AND c.organization_id=$2 AND c.channel_type='email' AND c.archived_at IS NULL
       AND om.user_id=$3 AND om.is_active=true
       AND (coalesce(cardinality(c.assigned_user_ids),0)=0
         OR $3=ANY(c.assigned_user_ids) OR om.role='admin' OR op.base_role='admin')

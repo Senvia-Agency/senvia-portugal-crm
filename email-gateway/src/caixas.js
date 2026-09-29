@@ -22,7 +22,7 @@ const SELECT_CAIXA = `
          COALESCE(s.smtp_password, c.metadata->>'smtp_password') AS smtp_password
     FROM messaging_channels c
     LEFT JOIN messaging_channel_secrets s ON s.channel_id = c.id
-   WHERE c.channel_type='email'`;
+   WHERE c.channel_type='email' AND c.archived_at IS NULL`;
 
 const paraCaixa = (r) => ({
   id: r.id,

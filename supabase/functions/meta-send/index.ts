@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
     // organization_id) e passar a enviar pela Página de outra organização.
     const { data: channel } = await admin
       .from("messaging_channels")
-      .select("metadata, channel_type, archived_at, label")
+      .select("metadata, channel_type, provider, archived_at, label")
       .eq("id", conv.channel_id)
       .eq("organization_id", conv.organization_id)
       .maybeSingle();
@@ -325,13 +325,19 @@ Deno.serve(async (req) => {
         code: "channel_archived",
       }, 409);
     }
+    const meta = (channel?.metadata ?? {}) as { page_id?: string; phone_number_id?: string; managed_by?: string };
+    if (channel?.channel_type === "whatsapp" && channel.provider === "evolution" && meta.managed_by === "senvia_v2") {
+      return json({
+        error: "Este canal é gerido pela fila segura de mensagens.",
+        code: "managed_channel_queue_required",
+      }, 409);
+    }
     // O token vive fora do metadata: aquela tabela é legível por qualquer membro.
     const { data: secret } = await admin
       .from("messaging_channel_secrets")
       .select("page_access_token")
       .eq("channel_id", conv.channel_id)
       .maybeSingle();
-    const meta = (channel?.metadata ?? {}) as { page_id?: string; phone_number_id?: string };
     const pageToken = secret?.page_access_token;
 
     // O WhatsApp é outro produto dentro da mesma API: outro id de origem, outro

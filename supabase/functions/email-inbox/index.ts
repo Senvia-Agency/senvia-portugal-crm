@@ -102,6 +102,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (dbErr || !channel) {
+        if (dbErr?.code === '23514' && dbErr.message?.includes('INBOX_LIMIT_REACHED')) return json({ error: 'O limite de caixas de entrada do plano foi atingido.' }, 409);
         console.error('[email-inbox] insert falhou:', dbErr);
         return json({ error: 'Erro ao guardar caixa na base de dados' }, 500);
       }
@@ -217,16 +218,14 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!ch) return json({ error: 'Caixa não encontrada' }, 404);
 
-      // As credenciais vão atrás por ON DELETE CASCADE; as pastas e mensagens
-      // também. Não fica nada a apontar para uma caixa que já não existe.
       const { error: delErr } = await admin
         .from('messaging_channels')
-        .delete()
+        .update({ archived_at: new Date().toISOString(), status: 'disconnected' })
         .eq('id', channel_id)
         .eq('organization_id', organization_id);
       if (delErr) {
         console.error('[email-inbox] delete falhou:', delErr);
-        return json({ error: 'Erro ao eliminar a caixa' }, 500);
+        return json({ error: 'Erro ao arquivar a caixa' }, 500);
       }
 
       return json({ ok: true });

@@ -7,7 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 test('gateway accepts only an admin profile belonging to the command organization', async () => {
   const db = new PGlite();
   try {
-    await db.exec(`CREATE TABLE messaging_channels (id text, organization_id text, channel_type text, assigned_user_ids text[]);
+    await db.exec(`CREATE TABLE messaging_channels (id text, organization_id text, channel_type text, assigned_user_ids text[], archived_at timestamptz);
       CREATE TABLE organization_members (organization_id text, user_id text, is_active boolean, role text, profile_id text);
       CREATE TABLE organization_profiles (id text, organization_id text, base_role text);
       INSERT INTO messaging_channels VALUES ('channel-a','org-a','email',ARRAY['other-user']);
