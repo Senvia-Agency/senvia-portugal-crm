@@ -1,4 +1,5 @@
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -33,6 +34,7 @@ interface SendTemplateRequest {
   settingsData?: Record<string, string>;
   subject?: string;
   htmlContent?: string;
+  requiredTriggerType?: string;
 }
 
 function sanitizeVariableTags(html: string): string {
@@ -222,7 +224,7 @@ serve(async (req: Request): Promise<Response> => {
     const {
       organizationId, templateId, recipients, campaignId, automationId,
       settings = {}, settingsData = {},
-      subject: customSubject, htmlContent: customHtmlContent,
+      subject: customSubject, htmlContent: customHtmlContent, requiredTriggerType,
     }: SendTemplateRequest = await req.json();
 
     if (!organizationId || !recipients || recipients.length === 0) {
@@ -232,7 +234,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!templateId && (!customSubject || !customHtmlContent)) {
+    if (!templateId && !requiredTriggerType && (!customSubject || !customHtmlContent)) {
       return new Response(
         JSON.stringify({ error: "Missing template or custom content" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -280,6 +282,25 @@ serve(async (req: Request): Promise<Response> => {
     let templateSubject = customSubject || "";
     let templateHtmlContent = customHtmlContent || "";
 
+    if (requiredTriggerType) {
+      const { data: requiredTemplate } = await supabase
+        .from("email_templates")
+        .select("id, subject, html_content, automation_trigger_type")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .eq("automation_trigger_type", requiredTriggerType)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!requiredTemplate) {
+        return new Response(JSON.stringify({ error: "Configure um template de email ativo para este gatilho em Marketing → Templates antes de enviar." }), {
+          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      templateSubject = requiredTemplate.subject;
+      templateHtmlContent = requiredTemplate.html_content;
+    }
+
     if (templateId) {
       const { data: template, error: templateError } = await supabase
         .from("email_templates")
@@ -293,6 +314,11 @@ serve(async (req: Request): Promise<Response> => {
           JSON.stringify({ error: "Template not found" }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+      if (requiredTriggerType && (!template.is_active || template.automation_trigger_type !== requiredTriggerType)) {
+        return new Response(JSON.stringify({ error: "O template selecionado não corresponde ao gatilho configurado para este envio." }), {
+          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       templateSubject = template.subject;
       templateHtmlContent = template.html_content;
@@ -441,7 +467,7 @@ serve(async (req: Request): Promise<Response> => {
           sender: { name: finalSenderName, email: finalSenderEmail },
           to: [{ email: recipient.email, name: toName }],
           subject,
-          htmlContent,
+          htmlContent: applySenviaEmailTemplate(htmlContent, subject),
         };
 
         if (settings.different_reply_to && settingsData.different_reply_to) {

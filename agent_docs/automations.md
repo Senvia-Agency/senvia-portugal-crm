@@ -4,6 +4,15 @@ Customer-facing automation builder: node graphs that send WhatsApp/email, wait,
 branch on conditions, and — the conversational part — **wait for the contact's
 reply and branch on what they wrote**.
 
+The Automations page also shows one protected system flow: **“Documento fiscal
+emitido → Enviar PDF ao cliente”**. It is backed by the immutable `invoices`
+outbox rather than an editable customer graph. Each recurring sale chooses its
+fiscal policy, recipient, sender and message; the worker sends only after the
+provider confirms the fiscal identity and stores/retrieves the PDF. Brevo
+retries reuse the invoice UUID as the idempotency key, and delivery/bounce
+events update the same ledger row through a service-only RPC. Users may
+configure this flow from the recurring sale, but cannot delete or rewire it.
+
 ## Two systems, on purpose
 
 | | Legacy | Flows |

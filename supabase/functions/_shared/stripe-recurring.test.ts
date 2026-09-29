@@ -150,6 +150,8 @@ Deno.test("estado da subscrição traduz-se em cobrança, nunca em serviço", ()
 
 Deno.test("só os eventos conhecidos são tratados", () => {
   assertEquals(isHandledEvent("invoice.paid"), true);
+  assertEquals(isHandledEvent("charge.refunded"), true);
+  assertEquals(isHandledEvent("charge.dispute.created"), true);
   assertEquals(isHandledEvent("customer.subscription.deleted"), true);
   assertEquals(isHandledEvent("payout.paid"), false);
 });

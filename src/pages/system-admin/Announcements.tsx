@@ -40,7 +40,7 @@ function defaultExpiresAt() {
   return d.toISOString().slice(0, 10);
 }
 
-const emptyForm = { title: "", content: "", version: "", image_url: "", is_active: true, expires_at: defaultExpiresAt() };
+const emptyForm = { title: "", content: "", version: "", image_url: "", is_active: false, expires_at: defaultExpiresAt() };
 
 export default function SystemAdminAnnouncements() {
   const qc = useQueryClient();
@@ -246,9 +246,12 @@ export default function SystemAdminAnnouncements() {
               />
               <p className="mt-1 text-xs text-muted-foreground">Deixa em branco para não expirar automaticamente. Por omissão: 7 dias.</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
-              <Label>Ativo (visível aos utilizadores)</Label>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
+                <Label>Publicar para todas as organizações</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">Publica apenas novidades gerais. Não incluas correções de uma organização, dados de clientes ou detalhes internos.</p>
             </div>
           </div>
           <DialogFooter>

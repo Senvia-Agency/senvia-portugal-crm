@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useInvoiceDetails } from "@/hooks/useInvoiceDetails";
+import { useInvoiceDetails, type InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
 import { formatCurrency } from "@/lib/format";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
@@ -28,16 +28,22 @@ import { useCancelInvoice } from "@/hooks/useCancelInvoice";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
+import { useAuth } from "@/contexts/AuthContext";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 
 interface InvoiceDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: number;
+  documentId?: number | null;
+  invoiceId?: string | null;
+  provider?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
   saleId?: string;
   paymentId?: string;
   creditNoteId?: number | null;
+  initialDetails?: Partial<InvoiceDetailsData>;
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -61,15 +67,20 @@ export function InvoiceDetailsModal({
   open,
   onOpenChange,
   documentId,
+  invoiceId,
+  provider,
   documentType,
   organizationId,
   saleId,
   paymentId,
   creditNoteId,
+  initialDetails,
 }: InvoiceDetailsModalProps) {
+  const { organization } = useAuth();
   const { data: details, isLoading, error } = useInvoiceDetails(
-    { documentId, documentType, organizationId },
-    open
+    { documentId, invoiceId, documentType, organizationId },
+    open,
+    initialDetails,
   );
   const cancelInvoice = useCancelInvoice();
 
@@ -79,24 +90,39 @@ export function InvoiceDetailsModal({
   const [viewingPdf, setViewingPdf] = useState(false);
 
   const handleViewPdf = async () => {
-    if (details?.pdf_signed_url) {
-      window.open(details.pdf_signed_url, '_blank');
-      return;
-    }
-    if (!details?.pdf_url) {
-      toast.error("PDF não disponível");
-      return;
-    }
     setViewingPdf(true);
     try {
-      await openPdfInNewTab(details.pdf_url);
-    } catch { toast.error("Erro ao abrir PDF"); }
+      let pdfUrl = details?.pdf_signed_url || null;
+      let pdfPath = details?.pdf_url || null;
+
+      if (!pdfUrl && !pdfPath) {
+        const response = await supabase.functions.invoke("get-invoice-details", {
+          body: {
+            ...(invoiceId ? { invoice_id: invoiceId } : { document_id: documentId }),
+            document_type: documentType,
+            organization_id: organizationId,
+            include_pdf: true,
+          },
+        });
+        if (response.error) throw new Error(response.error.message || "Erro ao obter PDF");
+        if (response.data?.error) throw new Error(response.data.error);
+        pdfUrl = response.data?.pdf_signed_url || null;
+        pdfPath = response.data?.pdf_url || null;
+      }
+
+      if (pdfUrl) window.open(pdfUrl, '_blank');
+      else if (pdfPath) await openPdfInNewTab(pdfPath);
+      else toast.error("PDF não disponível");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao abrir PDF");
+    }
     finally { setViewingPdf(false); }
   };
 
   const handleCancel = (reason: string) => {
+    if (documentId == null || provider === 'vendus' || details?.source === 'vendus') return;
     cancelInvoice.mutate(
-      { invoicexpressId: documentId, documentType, organizationId, reason, saleId, paymentId },
+      { invoiceId: invoiceId || undefined, invoicexpressId: documentId, documentType, organizationId, reason, saleId, paymentId },
       { onSuccess: () => setCancelOpen(false) }
     );
   };
@@ -104,6 +130,14 @@ export function InvoiceDetailsModal({
   const statusInfo = details ? STATUS_MAP[details.status] || { label: details.status, className: "bg-muted text-muted-foreground" } : null;
   const ref = details?.sequence_number || '';
   const isCancelled = details?.status === 'cancelled' || details?.status === 'canceled';
+  const isVendus = provider === 'vendus' || details?.source === 'vendus';
+  const isKeyInvoice = provider === 'keyinvoice' || details?.source === 'keyinvoice';
+  const supportsProviderActions = organization?.billing_provider !== 'vendus'
+    && !isVendus && documentId != null;
+  const canSendFiscalEmail = documentId != null || !!invoiceId;
+  const typeLabel = documentType === 'receipt' && isVendus
+    ? 'Recibo (RG)'
+    : TYPE_LABELS[documentType] || 'Documento';
 
   return (
     <>
@@ -111,10 +145,11 @@ export function InvoiceDetailsModal({
          <DialogContent className="max-w-2xl max-h-[95dvh] p-0 gap-0">
           <DialogHeader className="px-6 py-4 border-b border-border/50">
             <DialogTitle className="flex items-center gap-2 flex-wrap">
-              <span>{TYPE_LABELS[documentType] || "Documento"} n.º {ref}</span>
+              <span>{typeLabel} n.º {ref}</span>
+              {isVendus && <Badge variant="outline">Vendus</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
-                  {statusInfo.label}
+                  {isKeyInvoice && isCancelled ? 'Com nota de crédito' : isKeyInvoice && details.status === 'final' ? 'Emitida' : statusInfo.label}
                 </Badge>
               )}
             </DialogTitle>
@@ -345,13 +380,17 @@ export function InvoiceDetailsModal({
                   {viewingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
                   Ver PDF
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
-                  <Mail className="h-3.5 w-3.5 mr-1.5" />
-                  Enviar
-                </Button>
-                {!isCancelled && (
+                {canSendFiscalEmail && (
+          <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)} className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setEmailOpen(true)}>
+                      <Mail className="h-3.5 w-3.5 mr-1.5" />
+                      Enviar
+                    </Button>
+                  </EmailTemplateGate>
+                )}
+                {supportsProviderActions && !isCancelled && (!isKeyInvoice || documentType === 'invoice' || documentType === 'invoice_receipt') && (
                   <>
-                    {!creditNoteId && (
+                    {!isKeyInvoice && !creditNoteId && (
                       <Button variant="outline" size="sm" onClick={() => setCreditNoteOpen(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
                         Nota Crédito
@@ -359,7 +398,7 @@ export function InvoiceDetailsModal({
                     )}
                     <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}>
                       <Ban className="h-3.5 w-3.5 mr-1.5" />
-                      Anular
+                      {isKeyInvoice ? 'Nota de Crédito' : 'Anular'}
                     </Button>
                   </>
                 )}
@@ -370,17 +409,19 @@ export function InvoiceDetailsModal({
       </Dialog>
 
       {/* Sub-modals */}
-      {details && (
-        <>
-          <SendInvoiceEmailModal
+      {details && canSendFiscalEmail && (
+        <SendInvoiceEmailModal
             open={emailOpen}
             onOpenChange={setEmailOpen}
+            invoiceId={invoiceId}
             documentId={documentId}
             documentType={documentType}
             organizationId={organizationId}
-            reference={ref}
             clientEmail={details.client?.email}
-          />
+        />
+      )}
+      {details && supportsProviderActions && documentId != null && (
+        <>
           <CreateCreditNoteModal
             open={creditNoteOpen}
             onOpenChange={setCreditNoteOpen}
@@ -397,6 +438,7 @@ export function InvoiceDetailsModal({
             onConfirm={handleCancel}
             isLoading={cancelInvoice.isPending}
             invoiceReference={ref}
+            createsCreditNote={isKeyInvoice}
           />
         </>
       )}

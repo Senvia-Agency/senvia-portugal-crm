@@ -84,6 +84,9 @@ verify_jwt = false
 [functions.keyinvoice-auth]
 verify_jwt = false
 
+[functions.vendus-options]
+verify_jwt = false
+
 [functions.brevo-webhook]
 verify_jwt = false
 
@@ -212,6 +215,11 @@ verify_jwt = false
 # Crons financeiros. Autenticam-se no x-cron-secret contra um segredo do Vault
 # (isAuthorized em cada funcao), tal como o reconcile-stripe-payments.
 [functions.generate-recurring-sales]
+verify_jwt = false
+
+# Fila fiscal KeyInvoice: emissão, envio do PDF e reconciliação. Todas as ações
+# validam x-cron-secret contra o Vault dentro da própria função.
+[functions.keyinvoice-fiscal-worker]
 verify_jwt = false
 
 [functions.reconcile-connected-stripe]

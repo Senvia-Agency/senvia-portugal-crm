@@ -11,6 +11,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 
+async function fiscalFunctionError(error: { message?: string; context?: unknown }, fallback: string): Promise<Error> {
+  const payload = error.context instanceof Response
+    ? await error.context.json().catch(() => null)
+    : null;
+  return new Error(typeof payload?.error === 'string' ? payload.error : error.message || fallback);
+}
+
 // ─── Issue Invoice ──────────────────────────────────────────────
 
 export interface IssueInvoiceParams {
@@ -31,7 +38,7 @@ export function useIssueInvoice() {
         body: { sale_id: saleId, organization_id: organizationId, observations: observations || undefined },
       });
 
-      if (res.error) throw new Error(res.error.message || "Erro ao emitir fatura");
+      if (res.error) throw await fiscalFunctionError(res.error, "Erro ao emitir fatura");
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
@@ -66,7 +73,7 @@ export function useIssueInvoiceReceipt() {
         body: { sale_id: saleId, organization_id: organizationId, observations: observations || undefined },
       });
 
-      if (res.error) throw new Error(res.error.message || "Erro ao emitir fatura-recibo");
+      if (res.error) throw await fiscalFunctionError(res.error, "Erro ao emitir fatura-recibo");
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
@@ -84,6 +91,7 @@ export function useIssueInvoiceReceipt() {
 // ─── Cancel Invoice ─────────────────────────────────────────────
 
 export interface CancelInvoiceParams {
+  invoiceId?: string;
   paymentId?: string;
   saleId?: string;
   organizationId: string;
@@ -96,13 +104,14 @@ export function useCancelInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ paymentId, saleId, organizationId, reason, invoicexpressId, documentType }: CancelInvoiceParams) => {
+    mutationFn: async ({ invoiceId, paymentId, saleId, organizationId, reason, invoicexpressId, documentType }: CancelInvoiceParams) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Não autenticado");
 
       const response = await supabase.functions.invoke("cancel-invoice", {
         body: {
           payment_id: paymentId || null,
+          invoice_id: invoiceId || null,
           sale_id: saleId || null,
           organization_id: organizationId,
           reason,
@@ -115,8 +124,8 @@ export function useCancelInvoice() {
       if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
-    onSuccess: () => {
-      sonnerToast.success("Documento anulado com sucesso");
+    onSuccess: (data) => {
+      sonnerToast.success(data?.operation === 'credit_note_reversal' ? "Nota de crédito emitida no KeyInvoice" : "Documento anulado com sucesso");
       queryClient.invalidateQueries({ queryKey: ["sale-payments"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -130,12 +139,11 @@ export function useCancelInvoice() {
 // ─── Send Invoice Email ─────────────────────────────────────────
 
 export interface SendInvoiceEmailParams {
-  documentId: number;
+  documentId?: number | null;
+  invoiceId?: string | null;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   organizationId: string;
   email: string;
-  subject: string;
-  body: string;
 }
 
 export function useSendInvoiceEmail() {
@@ -143,21 +151,20 @@ export function useSendInvoiceEmail() {
     mutationFn: async (params: SendInvoiceEmailParams) => {
       const { data, error } = await supabase.functions.invoke("send-invoice-email", {
         body: {
+          invoice_id: params.invoiceId || undefined,
           document_id: params.documentId,
           document_type: params.documentType,
           organization_id: params.organizationId,
           email: params.email,
-          subject: params.subject,
-          body: params.body,
         },
       });
 
-      if (error) throw error;
+      if (error) throw await fiscalFunctionError(error, "Erro ao enviar documento fiscal");
       if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
-      sonnerToast.success("Email enviado com sucesso");
+      sonnerToast.success("Documento enviado por email através da Brevo");
     },
     onError: (error: Error) => {
       sonnerToast.error("Erro ao enviar email", { description: error.message });

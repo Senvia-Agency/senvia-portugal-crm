@@ -186,6 +186,8 @@ async function settleInvoiceCycle(
       status: "paid",
       payment_method: "card",
       stripe_invoice_id: invoice.id,
+      stripe_charge_id: chargeId,
+      stripe_payment_intent_id: paymentIntentId,
       stripe_gross_amount: gross,
       stripe_fee_amount: fee,
       stripe_net_amount: net,
@@ -197,6 +199,18 @@ async function settleInvoiceCycle(
     if (error && error.code !== "23505") {
       log("falha a registar pagamento", { cycleId, message: error.message });
     }
+  } else if (chargeId || paymentIntentId) {
+    // Older rows predate these identities. Backfilling them here lets a later
+    // refund/dispute find the payment without guessing by amount or customer.
+    const { error } = await supabase
+      .from("sale_payments")
+      .update({
+        stripe_charge_id: chargeId,
+        stripe_payment_intent_id: paymentIntentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", already.id);
+    if (error) log("falha a guardar identidade do pagamento Stripe", { cycleId, message: error.message });
   }
 
   // A cobrança volta a 'current' apenas se não houver outro ciclo por pagar.
@@ -215,6 +229,102 @@ async function settleInvoiceCycle(
   }
 
   log("ciclo liquidado", { cycleId, gross, fee, net });
+}
+
+function objectId(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "id" in value) {
+    const id = (value as { id?: unknown }).id;
+    return typeof id === "string" ? id : null;
+  }
+  return null;
+}
+
+/**
+ * Refunds and disputes do not reliably carry our subscription metadata. They
+ * are therefore linked through the immutable Stripe charge/payment-intent ids
+ * captured when the recurring payment was first recorded.
+ */
+async function handlePaymentReversal(
+  supabase: Supabase,
+  event: Stripe.Event,
+  organizationId: string,
+): Promise<void> {
+  const object = event.data.object as unknown as Record<string, unknown>;
+  let chargeId: string | null = null;
+  let paymentIntentId: string | null = null;
+  let reversalStatus: "none" | "refunded" | "chargeback" = "none";
+  let reversedAmount = 0;
+  let reversalReference = event.id;
+  let reversedAt = new Date(event.created * 1000).toISOString();
+
+  if (event.type === "charge.refunded") {
+    chargeId = objectId(object.id);
+    paymentIntentId = objectId(object.payment_intent);
+    reversalStatus = "refunded";
+    reversedAmount = Math.max(0, Number(object.amount_refunded ?? 0)) / 100;
+    const refunds = object.refunds as { data?: Array<{ id?: string; created?: number }> } | undefined;
+    const latest = refunds?.data?.[0];
+    reversalReference = latest?.id ?? chargeId ?? event.id;
+    if (latest?.created) reversedAt = new Date(latest.created * 1000).toISOString();
+  } else {
+    chargeId = objectId(object.charge);
+    paymentIntentId = objectId(object.payment_intent);
+    const disputeStatus = typeof object.status === "string" ? object.status : "";
+    reversalReference = objectId(object.id) ?? event.id;
+    reversedAmount = Math.max(0, Number(object.amount ?? 0)) / 100;
+
+    // Winning a dispute restores the funds and clears the fiscal review flag.
+    // Every other dispute state remains a review item; a bank dispute does not
+    // itself prove that the underlying sale should be fiscally cancelled.
+    reversalStatus = event.type === "charge.dispute.closed" && disputeStatus === "won"
+      ? "none"
+      : "chargeback";
+    if (reversalStatus === "none") reversedAmount = 0;
+  }
+
+  let query = supabase
+    .from("sale_payments")
+    .select("id")
+    .eq("organization_id", organizationId);
+  if (chargeId) query = query.eq("stripe_charge_id", chargeId);
+  else if (paymentIntentId) query = query.eq("stripe_payment_intent_id", paymentIntentId);
+  else {
+    log("reversão sem identidade Stripe — revisão necessária", { event: event.id, type: event.type });
+    return;
+  }
+
+  const { data: payment, error: findError } = await query.maybeSingle<{ id: string }>();
+  if (findError) throw findError;
+  if (!payment) {
+    log("reversão sem pagamento local — reconciliação necessária", {
+      event: event.id,
+      type: event.type,
+      chargeId,
+      paymentIntentId,
+    });
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("sale_payments")
+    .update({
+      reversal_status: reversalStatus,
+      reversed_amount: reversedAmount,
+      reversal_reference: reversalReference,
+      reversed_at: reversalStatus === "none" ? null : reversedAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payment.id)
+    .eq("organization_id", organizationId);
+  if (updateError) throw updateError;
+
+  log("reversão de pagamento registada", {
+    paymentId: payment.id,
+    type: event.type,
+    reversalStatus,
+    reversedAmount,
+  });
 }
 
 async function handleEvent(
@@ -329,6 +439,53 @@ serve(async (req) => {
   if (!account) return new Response("ok", { status: 200 });
 
   const supabase = serviceClient();
+  const isReversalEvent = [
+    "charge.refunded",
+    "charge.dispute.created",
+    "charge.dispute.closed",
+  ].includes(event.type);
+
+  if (isReversalEvent) {
+    const { data: connection, error: connectionError } = await supabase
+      .from("stripe_connections")
+      .select("organization_id")
+      .eq("stripe_account_id", account)
+      .maybeSingle<{ organization_id: string }>();
+    if (connectionError) {
+      log("falha a resolver conta da reversão", { event: event.id, message: connectionError.message });
+      return new Response("processing error", { status: 500 });
+    }
+    if (!connection) return new Response("ok", { status: 200 });
+
+    const { error: ledgerError } = await supabase.from("stripe_events").insert({
+      stripe_event_id: event.id,
+      stripe_account_id: account,
+      organization_id: connection.organization_id,
+      event_type: event.type,
+      livemode: event.livemode,
+      status: "processing",
+    });
+    if (ledgerError?.code === "23505") return new Response("ok", { status: 200 });
+    if (ledgerError) return new Response("ledger error", { status: 500 });
+
+    try {
+      await handlePaymentReversal(supabase, event, connection.organization_id);
+      await supabase
+        .from("stripe_events")
+        .update({ status: "processed", processed_at: new Date().toISOString() })
+        .eq("stripe_event_id", event.id);
+      return new Response("ok", { status: 200 });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "desconhecido";
+      console.error("stripe_reversal_processing_failed", { event: event.id, type: event.type, message });
+      await supabase
+        .from("stripe_events")
+        .update({ status: "failed", last_error: message })
+        .eq("stripe_event_id", event.id);
+      return new Response("processing error", { status: 500 });
+    }
+  }
+
   // Faturas guardam a nossa metadata na subscrição, não em si próprias — ler
   // `object.metadata` numa fatura devolve sempre vazio e descartava o
   // pagamento. Sessões e subscrições trazem-na directamente.

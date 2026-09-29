@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,7 +134,7 @@ async function sendBrevoEmail(
         sender: { email: senderEmail, name: orgName },
         to: [{ email: toEmail }],
         subject,
-        htmlContent,
+        htmlContent: applySenviaEmailTemplate(htmlContent, subject),
       }),
     });
 
@@ -195,7 +196,7 @@ async function sendSaleLoyaltyEmail(
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': brevoApiKey, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ sender: { email: senderEmail, name: orgName }, to: toEmails.map((email) => ({ email })), subject, htmlContent }),
+      body: JSON.stringify({ sender: { email: senderEmail, name: orgName }, to: toEmails.map((email) => ({ email })), subject, htmlContent: applySenviaEmailTemplate(htmlContent, subject) }),
     });
     if (!response.ok) { console.error('Brevo API error (sale loyalty):', await response.text()); return false; }
     return true;

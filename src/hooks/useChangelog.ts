@@ -14,11 +14,11 @@ const SELECT = 'id, title, content, version, image_url, published_at';
 
 // Version history for the "O que há de novo" page. Reuses app_announcements:
 // entries with a `version` are release notes (the changelog); entries without
-// one are maintenance notices and stay out of here. Ignores is_active/expires_at
-// (those only control the popup) so the full history is always available.
+// one are maintenance notices and stay out of here. `is_active` and
+// `expires_at` control the popup, not the historical release list.
 export function useChangelog() {
   return useQuery({
-    queryKey: ['changelog'],
+    queryKey: ['changelog', 'release-history-v2'],
     queryFn: async (): Promise<ChangelogEntry[]> => {
       const { data, error } = await (supabase as any)
         .from('app_announcements')

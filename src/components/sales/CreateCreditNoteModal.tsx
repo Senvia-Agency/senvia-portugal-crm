@@ -20,6 +20,7 @@ interface CreateCreditNoteModalProps {
   saleId?: string;
   paymentId?: string;
   documentId: number;
+  invoiceId?: string;
   documentType: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
   documentReference: string;
 }
@@ -31,6 +32,7 @@ export function CreateCreditNoteModal({
   saleId,
   paymentId,
   documentId,
+  invoiceId,
   documentType,
   documentReference,
 }: CreateCreditNoteModalProps) {
@@ -45,6 +47,7 @@ export function CreateCreditNoteModal({
         saleId,
         paymentId,
         originalDocumentId: documentId,
+        invoiceId,
         originalDocumentType: documentType,
         reason: reason.trim(),
       },
@@ -72,7 +75,7 @@ export function CreateCreditNoteModal({
           </DialogTitle>
           <DialogDescription>
             Será criada uma Nota de Crédito referente ao documento <strong>{documentReference}</strong>. 
-            Os itens serão copiados do documento original.
+            Todos os itens serão creditados pelo valor integral. A nota emitida é um documento fiscal definitivo.
           </DialogDescription>
         </DialogHeader>
 

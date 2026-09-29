@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQueryClient, QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { SALE_FINANCE_QUERY_KEYS } from '@/lib/sale-finance-cache';
 
 type TableName = 'leads' | 'proposals' | 'sales';
 
@@ -59,6 +60,7 @@ export function useRealtimeSubscription(configs: RealtimeConfig[]) {
     const sales = createDebouncedInvalidator(queryClient, [
       ['sales'],
       ['dashboard-stats'],
+      ...SALE_FINANCE_QUERY_KEYS,
     ]);
 
     const channel = supabase
@@ -188,6 +190,7 @@ export function useSalesRealtime() {
 
     const { trigger, cancel } = createDebouncedInvalidator(queryClient, [
       ['sales'],
+      ...SALE_FINANCE_QUERY_KEYS,
     ]);
 
     const channel = supabase

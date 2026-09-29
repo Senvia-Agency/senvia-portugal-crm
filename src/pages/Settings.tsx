@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOrganization } from '@/hooks/useOrganization';
@@ -36,6 +37,7 @@ import { PushNotificationsCard } from '@/components/settings/PushNotificationsCa
 import { BillingTab } from '@/components/settings/BillingTab';
 import { ReferralProgram } from '@/components/settings/ReferralProgram';
 import { SupportTicketsTab } from '@/components/settings/SupportTicketsTab';
+import type { VendusOptionsResponse } from '@/types/vendus';
 
 import { ProfilesTab } from '@/components/settings/ProfilesTab';
 import {
@@ -47,12 +49,15 @@ import {
 } from '@/components/settings/MobileSettingsNav';
 
 export default function Settings() {
-  const { profile, organization } = useAuth();
+  const { profile, organization, refetchUserData } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const updateOrganization = useUpdateOrganization();
+  const updateKeyInvoiceOrganization = useUpdateOrganization({ silent: true });
+  const updateFiscalOrganization = useUpdateOrganization({ silent: true });
   const updateProfile = useUpdateProfile();
   const changePassword = useChangePassword();
-  const { canManageTeam, canManageIntegrations, isAdmin } = usePermissions();
+  const { can, canManageTeam, canManageIntegrations, isAdmin } = usePermissions();
   const pushNotifications = usePushNotifications();
 
   // Unified navigation state (2 levels): group card -> tabbed content.
@@ -142,7 +147,16 @@ export default function Settings() {
   const [showInvoiceXpressApiKey, setShowInvoiceXpressApiKey] = useState(false);
   const [taxRate, setTaxRate] = useState('23');
   const [taxExemptionReason, setTaxExemptionReason] = useState('');
+  const [isSavingFiscal, setIsSavingFiscal] = useState(false);
 
+  // Vendus state
+  const [vendusApiKey, setVendusApiKey] = useState('');
+  const [showVendusApiKey, setShowVendusApiKey] = useState(false);
+  const [vendusOptionsLoaded, setVendusOptionsLoaded] = useState(false);
+  const [vendusRegisterReady, setVendusRegisterReady] = useState(false);
+  const [vendusReadinessError, setVendusReadinessError] = useState('');
+  const [vendusOptionsLoading, setVendusOptionsLoading] = useState(false);
+  const vendusLookupSequence = useRef(0);
 
   // KeyInvoice state
   const [keyinvoiceApiKey, setKeyinvoiceApiKey] = useState('');
@@ -151,7 +165,7 @@ export default function Settings() {
 
   // Integrations enabled state
   const [integrationsEnabled, setIntegrationsEnabled] = useState<Record<string, boolean>>({
-    webhook: true, whatsapp: true, brevo: true, invoicexpress: true, keyinvoice: false,
+    webhook: true, whatsapp: true, brevo: true, invoicexpress: true, keyinvoice: false, vendus: false,
   });
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -191,12 +205,20 @@ export default function Settings() {
       if (!organization?.id) return;
 
       setIsLoadingIntegrations(true);
+      setVendusApiKey('');
+      setShowVendusApiKey(false);
+      vendusLookupSequence.current += 1;
+      setVendusOptionsLoaded(false);
+      setVendusRegisterReady(false);
+      setVendusReadinessError('');
+      setVendusOptionsLoading(false);
+      setChavesGuardadas((current) => ({ ...current, vendus: false }));
       const { data, error } = await supabase
         .from('organizations')
         // As chaves de API ja nao sao legiveis pelo cliente (ver a migracao
         // 20260826140000). Le-se se ESTAO configuradas; o valor nunca volta ao
         // browser, tal como na Stripe ou no GitHub.
-        .select('webhook_url, whatsapp_base_url, whatsapp_instance, tem_whatsapp_api_key, form_settings, tem_brevo_api_key, brevo_sender_email, invoicexpress_account_name, tem_invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, keyinvoice_username, tem_keyinvoice_password, keyinvoice_company_code, keyinvoice_api_url')
+        .select('webhook_url, whatsapp_base_url, whatsapp_instance, tem_whatsapp_api_key, form_settings, tem_brevo_api_key, brevo_sender_email, invoicexpress_account_name, tem_invoicexpress_api_key, integrations_enabled, tax_config, billing_provider, tem_keyinvoice_password, keyinvoice_api_url')
         .eq('id', organization.id)
         .single();
 
@@ -220,7 +242,17 @@ export default function Settings() {
           brevo: !!temChave.tem_brevo_api_key,
           invoicexpress: !!temChave.tem_invoicexpress_api_key,
           keyinvoice: !!temChave.tem_keyinvoice_password,
+          vendus: false,
         });
+
+        // The Vendus columns are installed manually. A pending migration must
+        // not prevent the other integrations from loading.
+        const { data: vendusData } = await supabase.from('organizations')
+          .select('tem_vendus_api_key')
+          .eq('id', organization.id).maybeSingle();
+        if (vendusData) {
+          setChavesGuardadas((current) => ({ ...current, vendus: vendusData.tem_vendus_api_key === true }));
+        }
 
 
         setKeyinvoiceApiUrl((data as any).keyinvoice_api_url || '');
@@ -233,7 +265,7 @@ export default function Settings() {
 
         if ((data as any).integrations_enabled) {
           setIntegrationsEnabled({
-            webhook: true, whatsapp: true, brevo: true, invoicexpress: true, keyinvoice: false,
+            webhook: true, whatsapp: true, brevo: true, invoicexpress: true, keyinvoice: false, vendus: false,
             ...((data as any).integrations_enabled as Record<string, boolean>),
           });
         }
@@ -246,22 +278,39 @@ export default function Settings() {
   }, [organization?.id, refreshTrigger]);
 
   const handleToggleIntegration = async (key: string, enabled: boolean) => {
+    if (!organization?.id) return;
+    const previousState = integrationsEnabled;
     let newState = { ...integrationsEnabled, [key]: enabled };
-    if (enabled && key === 'invoicexpress') newState.keyinvoice = false;
-    else if (enabled && key === 'keyinvoice') newState.invoicexpress = false;
+    const fiscalProviders = ['invoicexpress', 'keyinvoice', 'vendus'] as const;
+    if (enabled && fiscalProviders.some((provider) => provider === key)) {
+      for (const provider of fiscalProviders) {
+        if (provider !== key) newState[provider] = false;
+      }
+    }
     setIntegrationsEnabled(newState);
 
     let billingProviderValue: string | undefined;
-    if (key === 'invoicexpress' || key === 'keyinvoice') {
+    if (fiscalProviders.some((provider) => provider === key)) {
       if (newState.invoicexpress) billingProviderValue = 'invoicexpress';
       else if (newState.keyinvoice) billingProviderValue = 'keyinvoice';
+      else if (newState.vendus) billingProviderValue = 'vendus';
+      // The column is NOT NULL. With every fiscal integration disabled, keep
+      // the last selected provider so it can be re-enabled later.
     }
 
-    if (organization?.id) {
-      const updateData: Record<string, any> = { integrations_enabled: newState };
-      if (billingProviderValue !== undefined) updateData.billing_provider = billingProviderValue;
-      await supabase.from('organizations').update(updateData).eq('id', organization.id);
+    const updateData: Record<string, unknown> = { integrations_enabled: newState };
+    if (billingProviderValue !== undefined) updateData.billing_provider = billingProviderValue;
+    const { error } = await supabase.from('organizations').update(updateData).eq('id', organization.id);
+    if (error) {
+      setIntegrationsEnabled(previousState);
+      toast({
+        title: 'Não foi possível alterar a integração',
+        description: 'Tenta novamente. A definição anterior foi mantida.',
+        variant: 'destructive',
+      });
+      return;
     }
+    await refetchUserData();
   };
 
 
@@ -287,19 +336,251 @@ export default function Settings() {
     });
   };
 
-  const handleSaveKeyInvoice = () => {
-    updateOrganization.mutate({
-      ...(keyinvoiceApiKey.trim() ? { keyinvoice_password: keyinvoiceApiKey.trim() } : {}),
-      keyinvoice_api_url: keyinvoiceApiUrl.trim() || null,
+  const handleVendusApiKeyChange = (value: string) => {
+    vendusLookupSequence.current += 1;
+    setVendusApiKey(value);
+    setVendusOptionsLoaded(false);
+    setVendusRegisterReady(false);
+    setVendusReadinessError('');
+    setVendusOptionsLoading(false);
+  };
+
+  const handleLoadVendusOptions = async () => {
+    if (!organization?.id || (!vendusApiKey.trim() && !chavesGuardadas.vendus)) {
+      toast({ title: 'Introduz a chave API Vendus', variant: 'destructive' });
+      return;
+    }
+    const requestId = ++vendusLookupSequence.current;
+    setVendusOptionsLoading(true);
+    setVendusOptionsLoaded(false);
+    try {
+      const { data, error } = await supabase.functions.invoke<VendusOptionsResponse>('vendus-options', {
+        body: {
+          organization_id: organization.id,
+          ...(vendusApiKey.trim() ? { api_key: vendusApiKey.trim() } : {}),
+        },
+      });
+      if (requestId !== vendusLookupSequence.current) return;
+      if (error || !data || !Array.isArray(data.registers) || !Array.isArray(data.payment_methods)) {
+        throw new Error('Não foi possível validar a chave Vendus.');
+      }
+      setVendusOptionsLoaded(true);
+      setVendusRegisterReady(data.register_ready === true);
+      setVendusReadinessError(data.readiness_error || '');
+      toast({
+        title: 'Chave Vendus validada',
+        description: data.register_ready === true
+          ? 'A caixa API está pronta. O método de pagamento vem de cada venda.'
+          : data.readiness_error || 'A Vendus ainda não tem uma caixa API pronta para faturação.',
+        variant: data.register_ready === true ? 'default' : 'destructive',
+      });
+    } catch {
+      if (requestId === vendusLookupSequence.current) {
+        toast({ title: 'Falha na ligação Vendus',
+          description: 'Confirma a chave API e as permissões do utilizador na Vendus.',
+          variant: 'destructive' });
+      }
+    } finally {
+      if (requestId === vendusLookupSequence.current) setVendusOptionsLoading(false);
+    }
+  };
+
+  const handleSaveVendus = () => {
+    const apiKey = vendusApiKey.trim();
+    if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded) {
+      toast({
+        title: 'Dados Vendus incompletos',
+        description: 'Valida a chave API antes de guardar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const settings = {
+      ...(apiKey ? { vendus_api_key: apiKey } : {}),
+      vendus_register_id: null,
+      vendus_payment_method_id: null,
+    } as unknown as Parameters<typeof updateOrganization.mutate>[0];
+    updateOrganization.mutate(settings, {
+      onSuccess: () => {
+        if (apiKey) setChavesGuardadas((current) => ({ ...current, vendus: true }));
+        setVendusApiKey('');
+        setShowVendusApiKey(false);
+      },
     });
   };
 
-  const handleSaveFiscal = () => {
+  const handleSaveKeyInvoice = async () => {
+    const organizationId = organization?.id;
+    if (!organizationId) return;
+    const customUrl = keyinvoiceApiUrl.trim();
+    if (customUrl) {
+      try {
+        const parsed = new URL(customUrl);
+        if (
+          parsed.protocol !== 'https:'
+          || !!parsed.username
+          || !!parsed.password
+          || !!parsed.search
+          || !!parsed.hash
+          || (!!parsed.port && parsed.port !== '443')
+          || parsed.pathname !== '/API5.php'
+        ) {
+          throw new Error('Formato de endpoint inválido');
+        }
+      } catch {
+        toast({
+          title: 'URL inválido',
+          description: 'Usa um endpoint HTTPS no formato https://servidor/API5.php, sem parâmetros nem credenciais no endereço.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    try {
+      await updateKeyInvoiceOrganization.mutateAsync({
+        ...(keyinvoiceApiKey.trim() ? { keyinvoice_password: keyinvoiceApiKey.trim() } : {}),
+        keyinvoice_api_url: customUrl || null,
+      });
+      if (keyinvoiceApiKey.trim()) {
+        setChavesGuardadas((current) => ({ ...current, keyinvoice: true }));
+        setKeyinvoiceApiKey('');
+        setShowKeyinvoiceApiKey(false);
+      }
+
+    } catch {
+      // useUpdateOrganization already reports the credential error.
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke<{ connected?: boolean; error?: string }>('keyinvoice-auth', {
+        body: { organization_id: organizationId },
+      });
+      if (error || !data?.connected) {
+        let message = data?.error || 'Não foi possível confirmar a ligação ao KeyInvoice.';
+        if (error?.context instanceof Response) {
+          const detail = await error.context.json().catch(() => null);
+          if (typeof detail?.error === 'string') message = detail.error;
+        }
+        throw new Error(message);
+      }
+      toast({ title: 'Ligação KeyInvoice validada', description: 'A chave foi guardada e o acesso à empresa foi confirmado.' });
+    } catch (error) {
+      toast({
+        title: 'Chave guardada, ligação não validada',
+        description: error instanceof Error ? error.message : 'Não foi possível contactar o KeyInvoice.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveFiscal = async () => {
+    const organizationId = organization?.id;
+    if (!organizationId || isSavingFiscal) return;
+
     const taxValue = Number(taxRate);
     const taxName = taxValue === 0 ? 'Isento' : `IVA${taxValue}`;
-    updateOrganization.mutate({
-      tax_config: { tax_name: taxName, tax_value: taxValue, tax_exemption_reason: taxValue === 0 ? taxExemptionReason : null },
-    });
+    let taxConfigSaved = false;
+    setIsSavingFiscal(true);
+
+    try {
+      await updateFiscalOrganization.mutateAsync({
+        tax_config: {
+          tax_name: taxName,
+          tax_value: taxValue,
+          tax_exemption_reason: taxValue === 0 ? taxExemptionReason : null,
+        },
+      });
+      taxConfigSaved = true;
+
+      const { data: activeMappings, error: mappingsError } = await supabase
+        .from('stripe_product_mappings')
+        .select('product_id')
+        .eq('organization_id', organizationId)
+        .eq('active', true);
+      if (mappingsError) {
+        throw new Error('não foi possível consultar os produtos ligados ao Stripe');
+      }
+
+      const mappedProductIds = [...new Set((activeMappings ?? []).map((mapping) => mapping.product_id))];
+      if (mappedProductIds.length === 0) {
+        toast({
+          title: 'Configuração fiscal guardada',
+          description: 'A taxa foi atualizada. Não existem produtos ativos ligados ao Stripe.',
+        });
+        return;
+      }
+
+      const { data: inheritedProducts, error: productsError } = await supabase
+        .from('products')
+        .select('id, name')
+        .eq('organization_id', organizationId)
+        .in('id', mappedProductIds)
+        .is('tax_value', null);
+      if (productsError) {
+        throw new Error('não foi possível identificar os produtos que herdam a taxa global');
+      }
+
+      if (!inheritedProducts?.length) {
+        toast({
+          title: 'Configuração fiscal guardada',
+          description: 'A taxa foi atualizada. Nenhum produto ativo no Stripe herda a taxa global.',
+        });
+        return;
+      }
+
+      const syncResults = await Promise.allSettled(
+        inheritedProducts.map(async (product) => {
+          const { data, error } = await supabase.functions.invoke<{ error?: string }>('stripe-product-sync', {
+            body: { productId: product.id, action: 'sync' },
+          });
+          if (error || data?.error) {
+            throw new Error(data?.error || error?.message || 'erro desconhecido');
+          }
+        }),
+      );
+
+      void queryClient.invalidateQueries({ queryKey: ['stripe-product-mappings', organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+
+      const failures = syncResults.flatMap((result, index) => {
+        if (result.status === 'fulfilled') return [];
+        const reason = result.reason instanceof Error ? result.reason.message : 'erro desconhecido';
+        return [{ name: inheritedProducts[index].name, reason }];
+      });
+
+      if (failures.length > 0) {
+        const details = failures
+          .slice(0, 3)
+          .map((failure) => `${failure.name}: ${failure.reason}`)
+          .join(' · ');
+        const remaining = failures.length > 3 ? ` · Mais ${failures.length - 3} produto(s) com erro.` : '';
+        toast({
+          title: 'Configuração guardada; sincronização incompleta',
+          description: `A taxa ficou guardada, mas ${failures.length} de ${inheritedProducts.length} produto(s) não foram atualizados no Stripe. ${details}${remaining}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Configuração fiscal guardada',
+        description: inheritedProducts.length === 1
+          ? 'A taxa foi atualizada e o produto que a herda foi ressincronizado no Stripe.'
+          : `A taxa foi atualizada e ${inheritedProducts.length} produtos que a herdam foram ressincronizados no Stripe.`,
+      });
+    } catch (error) {
+      if (!taxConfigSaved) return;
+      const reason = error instanceof Error ? error.message : 'ocorreu um erro inesperado';
+      toast({
+        title: 'Configuração fiscal guardada',
+        description: `A taxa ficou guardada, mas ${reason}. Tenta guardar novamente para repetir a sincronização.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingFiscal(false);
+    }
   };
 
   const handleSaveOrgName = () => {
@@ -362,6 +643,9 @@ export default function Settings() {
     invoiceXpressApiKey, setInvoiceXpressApiKey,
     showInvoiceXpressApiKey, setShowInvoiceXpressApiKey,
     handleSaveInvoiceXpress,
+    vendusApiKey, setVendusApiKey: handleVendusApiKeyChange, showVendusApiKey, setShowVendusApiKey,
+    vendusOptionsLoaded, vendusRegisterReady, vendusReadinessError, vendusOptionsLoading,
+    handleLoadVendusOptions, handleSaveVendus,
     integrationsEnabled, onToggleIntegration: handleToggleIntegration,
     handleSaveKeyInvoice, keyinvoiceApiKey, setKeyinvoiceApiKey,
     showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl,
@@ -423,7 +707,7 @@ export default function Settings() {
           taxExemptionReason={taxExemptionReason}
           setTaxExemptionReason={setTaxExemptionReason}
           onSave={handleSaveFiscal}
-          isPending={updateOrganization.isPending}
+          isPending={isSavingFiscal}
         />
       );
       case "finance-expenses": return <ExpenseCategoriesTab />;

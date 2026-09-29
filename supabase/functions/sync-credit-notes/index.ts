@@ -356,7 +356,8 @@ Deno.serve(async (req) => {
       console.log('Running sync_all mode for all organizations...')
       const { data: orgs, error: orgsError } = await supabase
         .from('organizations')
-        .select('id, invoicexpress_account_name, invoicexpress_api_key')
+        .select('id, invoicexpress_account_name, invoicexpress_api_key, billing_provider')
+        .or('billing_provider.eq.invoicexpress,billing_provider.is.null')
         .not('invoicexpress_account_name', 'is', null)
         .not('invoicexpress_api_key', 'is', null)
 
@@ -426,9 +427,15 @@ Deno.serve(async (req) => {
 
     const { data: org } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key')
+      .select('invoicexpress_account_name, invoicexpress_api_key, billing_provider')
       .eq('id', organization_id)
       .single()
+
+    if (org?.billing_provider && org.billing_provider !== 'invoicexpress') {
+      return new Response(JSON.stringify({ total: 0, synced: 0, not_matched: 0 }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (!org?.invoicexpress_account_name || !org?.invoicexpress_api_key) {
       return new Response(JSON.stringify({ error: 'Credenciais InvoiceXpress não configuradas' }), {

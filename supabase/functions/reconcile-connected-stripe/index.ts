@@ -82,7 +82,20 @@ async function recoverInvoice(
     .select("id, status")
     .eq("stripe_invoice_id", invoice.id)
     .maybeSingle<{ id: string; status: string }>();
-  if (existingCycle?.status === "paid") return null;
+  if (existingCycle?.status === "paid") {
+    const ids = invoicePaymentIds(invoice as unknown as Record<string, unknown>);
+    if (ids.chargeId || ids.paymentIntentId) {
+      await supabase
+        .from("sale_payments")
+        .update({
+          stripe_charge_id: ids.chargeId,
+          stripe_payment_intent_id: ids.paymentIntentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("recurring_cycle_id", existingCycle.id);
+    }
+    return null;
+  }
 
   const period = invoicePeriod(invoice);
 
@@ -161,6 +174,8 @@ async function recoverInvoice(
     status: "paid",
     payment_method: "card",
     stripe_invoice_id: invoice.id,
+    stripe_charge_id: chargeId,
+    stripe_payment_intent_id: paymentIntentId,
     stripe_gross_amount: gross,
     stripe_fee_amount: fee,
     stripe_net_amount: net,

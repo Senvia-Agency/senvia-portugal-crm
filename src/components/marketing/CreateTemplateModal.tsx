@@ -29,6 +29,7 @@ import { TemplateEditor } from "./TemplateEditor";
 import { TemplateAutomationSection } from "./TemplateAutomationSection";
 import { useCreateEmailTemplate } from "@/hooks/useEmailTemplates";
 import { TEMPLATE_CATEGORIES, type EmailTemplateCategory } from "@/types/marketing";
+import { isManualEmailTrigger } from "@/lib/email-template-triggers";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -76,7 +77,7 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
       subject: data.subject,
       category: data.category as EmailTemplateCategory,
       html_content: data.html_content,
-      automation_enabled: automationEnabled,
+      automation_enabled: automationEnabled && !isManualEmailTrigger(triggerType),
       automation_trigger_type: automationEnabled ? triggerType : null,
       automation_trigger_config: triggerConfig,
       automation_delay_minutes: delayMinutes,

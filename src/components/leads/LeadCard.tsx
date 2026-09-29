@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { SendLeadEmailModal } from "./SendLeadEmailModal";
 import { isPlaceholderEmail } from "@/lib/leadUtils";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 
 interface UpcomingEvent {
   id: string;
@@ -300,17 +302,19 @@ export function LeadCard({
         >
           <Phone className="h-4 w-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          disabled={!lead.email || isPlaceholderEmail(lead.email)}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowEmailModal(true);
-          }}
-        >
-          <Mail className="h-4 w-4" />
-        </Button>
+        <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead} noticePosition="inline">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={!lead.email || isPlaceholderEmail(lead.email)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowEmailModal(true);
+            }}
+          >
+            <Mail className="h-4 w-4" />
+          </Button>
+        </EmailTemplateGate>
       </div>
 
       {showEmailModal && (

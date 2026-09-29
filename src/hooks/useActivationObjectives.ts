@@ -33,6 +33,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   const { organization } = useAuth();
   const queryClient = useQueryClient();
   const orgId = organization?.id;
+  const isTelecom = organization?.niche === "telecom";
 
   const ref = referenceDate || new Date();
   const currentMonthStart = format(startOfMonth(ref), "yyyy-MM-dd");
@@ -56,7 +57,8 @@ export function useActivationObjectives(referenceDate?: Date) {
     enabled: !!orgId,
   });
 
-  // Fetch delivered sales with proposal_id for current month
+  // Telecom lines count from the moment they become active (fulfilled); in
+  // every other niche, activations are only counted when concluded.
   const { data: monthlyActivations = [], isLoading: monthlyLoading } = useQuery({
     queryKey: ["activations-monthly", orgId, currentMonthStart],
     queryFn: async () => {
@@ -68,14 +70,14 @@ export function useActivationObjectives(referenceDate?: Date) {
         .not("activation_date", "is", null)
         .gte("activation_date", currentMonthStart)
         .lte("activation_date", monthEnd)
-        .eq("status", "delivered");
+        .in("status", isTelecom ? ["fulfilled", "delivered"] : ["delivered"]);
       if (error) throw error;
       return data || [];
     },
     enabled: !!orgId,
   });
 
-  // Fetch delivered sales with proposal_id for current year
+  // Same lifecycle rule for the annual objective.
   const { data: annualActivations = [], isLoading: annualLoading } = useQuery({
     queryKey: ["activations-annual", orgId, currentYearStart],
     queryFn: async () => {
@@ -87,7 +89,7 @@ export function useActivationObjectives(referenceDate?: Date) {
         .not("activation_date", "is", null)
         .gte("activation_date", currentYearStart)
         .lte("activation_date", yearEnd)
-        .eq("status", "delivered");
+        .in("status", isTelecom ? ["fulfilled", "delivered"] : ["delivered"]);
       if (error) throw error;
       return data || [];
     },
@@ -102,7 +104,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   )];
 
   // Fetch proposal_cpes consumo_anual for energia
-  const { data: proposalCpes = [], isLoading: cpesLoading } = useQuery({
+  const { data: proposalCpes = [] } = useQuery({
     queryKey: ["activation-proposal-cpes", orgId, allProposalIds],
     queryFn: async () => {
       if (!orgId || allProposalIds.length === 0) return [];
@@ -117,7 +119,7 @@ export function useActivationObjectives(referenceDate?: Date) {
   });
 
   // Fetch proposal metadata needed for activation filtering and services kWp
-  const { data: proposalsMetadata = [], isLoading: detailsLoading } = useQuery({
+  const { data: proposalsMetadata = [] } = useQuery({
     queryKey: ["activation-proposals-metadata", orgId, allProposalIds],
     queryFn: async () => {
       if (!orgId || allProposalIds.length === 0) return [];
@@ -261,7 +263,10 @@ export function useActivationObjectives(referenceDate?: Date) {
 
   return {
     objectives,
-    isLoading: objectivesLoading || monthlyLoading || annualLoading || cpesLoading || detailsLoading,
+    // Render the panel as soon as its primary data is available. CPE and
+    // proposal metadata are enrichment queries; waiting for them here kept the
+    // entire widget on skeletons when those secondary requests were slow.
+    isLoading: objectivesLoading || monthlyLoading || annualLoading,
     getTarget,
     countActivations: sumActivations,
     saveObjective,

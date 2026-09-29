@@ -28,7 +28,8 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { format } from "date-fns";
-import { ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import { BillingRecipientSelector, ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
+import type { BillingTarget } from "@/types/clients";
 import { supabase } from "@/integrations/supabase/client";
 import { pt } from "date-fns/locale";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -135,10 +136,14 @@ export function EditSaleModal({
 
   // Payment progress
   const { data: salePayments = [] } = useSalePayments(sale?.id);
-  const paymentSummary = calculatePaymentSummary(salePayments, sale?.total_value || 0);
+  const paymentSummary = calculatePaymentSummary(
+    salePayments,
+    sale ? (sale.gross_value ?? sale.total_value) : 0,
+  );
   
   // Form state
   const [clientId, setClientId] = useState<string>("");
+  const [billingTarget, setBillingTarget] = useState<BillingTarget>('client');
   
   const [items, setItems] = useState<SaleItemDraft[]>([]);
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
@@ -201,6 +206,7 @@ export function EditSaleModal({
   useEffect(() => {
     if (open && sale) {
       setClientId(sale.client_id || "");
+      setBillingTarget(sale.billing_target === 'company' || (!sale.billing_target && sale.client?.billing_target === 'company') ? 'company' : 'client');
       setDiscount(sale.discount?.toString() || "0");
       setNotes(sale.notes || "");
       // Energy/Service fields
@@ -379,14 +385,18 @@ export function EditSaleModal({
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   }, [items]);
 
-  const subtotal = hasItems ? itemsSubtotal : parseFloat(manualTotalValue) || 0;
+  const enteredSubtotal = hasItems ? itemsSubtotal : parseFloat(manualTotalValue) || 0;
   const discountValue = parseFloat(discount) || 0;
-  const total = hasItems ? Math.max(0, subtotal - discountValue) : subtotal;
 
   // VAT calculation
   const vatCalc = useVatCalculation({
-    items, products, orgTaxValue, discount: discountValue, subtotal,
+    items, products, orgTaxValue, discount: discountValue, subtotal: enteredSubtotal,
   });
+  const subtotal = isTelecom || !hasItems ? enteredSubtotal : vatCalc.subtotalWithoutVat;
+  const total = isTelecom || !hasItems
+    ? Math.max(0, enteredSubtotal - (hasItems ? discountValue : 0))
+    : vatCalc.totalWithoutVat;
+  const grossValue = isTelecom || !hasItems ? total : vatCalc.totalWithVat;
 
   // Selected client fiscal data
   const selectedClient = useMemo(() => {
@@ -497,8 +507,10 @@ export function EditSaleModal({
         saleId: sale.id,
         updates: {
           client_id: clientId || null,
+          ...(!sale.invoicexpress_id && !sale.invoice_reference ? { billing_target: billingTarget } : {}),
           seller_id: sellerId,
           total_value: total,
+          gross_value: grossValue,
           subtotal: subtotal,
           discount: discountValue,
           notes: notes.trim() || null,
@@ -513,7 +525,7 @@ export function EditSaleModal({
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : null,
           servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
           ...(isTelecom ? {
-            activation_date: activationDate || (telecomStatus === 'ativo' && scheduledInstallDate ? scheduledInstallDate : null),
+            activation_date: activationDate || ((telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : null),
             telecom_status: telecomStatus || null,
             scheduled_install_date: scheduledInstallDate
               ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
@@ -838,7 +850,11 @@ export function EditSaleModal({
                         <SearchableCombobox
                           options={clientOptions}
                           value={clientId}
-                          onValueChange={setClientId}
+                          onValueChange={(id) => {
+                            setClientId(id);
+                            const nextClient = clients?.find(client => client.id === id);
+                            setBillingTarget(nextClient?.billing_target === 'company' ? 'company' : 'client');
+                          }}
                           placeholder="Selecionar cliente..."
                           searchPlaceholder="Pesquisar cliente..."
                           emptyText="Nenhum cliente encontrado"
@@ -848,7 +864,15 @@ export function EditSaleModal({
 
                       {/* Client Fiscal Card */}
                       {clientId && (
-                        <ClientFiscalCard client={selectedClient} isInvoiceXpressActive={ixActive} />
+                        <div className="space-y-3">
+                          <BillingRecipientSelector
+                            client={selectedClient}
+                            value={billingTarget}
+                            onChange={setBillingTarget}
+                            disabled={isDeliveredLocked || sale.status === 'cancelled' || !!sale.invoicexpress_id || !!sale.invoice_reference}
+                          />
+                          <ClientFiscalCard client={selectedClient} billingTarget={billingTarget} isInvoiceXpressActive={ixActive} />
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -916,7 +940,7 @@ export function EditSaleModal({
                   )}
 
                   {/* Service Data (editable) - new catalog format */}
-                  {isNewFormat && catalog && (sale?.proposal_type === 'servicos' || !sale?.proposal_type) && (
+                  {isTelecom && isNewFormat && catalog && (sale?.proposal_type === 'servicos' || !sale?.proposal_type) && (
                     <Card>
                       <CardContent className="p-4">
                         <ServicosSection
@@ -1289,7 +1313,7 @@ export function EditSaleModal({
                         <SalePaymentsList
                           saleId={sale.id}
                           organizationId={organization.id}
-                          saleTotal={total}
+                          saleTotal={grossValue}
                           readonly={!canFullEdit && sale.status === 'cancelled'}
                         />
                       </CardContent>

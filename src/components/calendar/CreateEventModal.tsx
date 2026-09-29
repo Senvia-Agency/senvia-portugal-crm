@@ -15,8 +15,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { EVENT_TYPE_LABELS, REMINDER_OPTIONS, type CalendarEvent, type EventType } from '@/types/calendar';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { Video, Phone, CheckSquare, RefreshCw, Loader2, Mail, Link as LinkIcon } from 'lucide-react';
+import { Video, Phone, CheckSquare, RefreshCw, Loader2, Mail, Link as LinkIcon, MessageCircleMore } from 'lucide-react';
 import { toast } from 'sonner';
+import { useEmailTemplateRequirement } from '@/hooks/useEmailTemplateRequirement';
+import { EMAIL_TEMPLATE_TRIGGERS } from '@/lib/email-template-triggers';
 
 const EVENT_TYPE_ICONS: Record<EventType, React.ReactNode> = {
   meeting: <Video className="h-4 w-4" />,
@@ -98,6 +100,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
 
   const showMeetingLink = eventType === 'meeting' || eventType === 'call';
   const canSendEmail = !!selectedLead?.email && showMeetingLink;
+  const eventEmailTemplate = useEmailTemplateRequirement(EMAIL_TEMPLATE_TRIGGERS.eventInvitation);
 
   const calculateAutoEndTime = (time: string): string => {
     const [hours, minutes] = time.split(':').map(Number);
@@ -165,41 +168,6 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
     setSendEmail(false);
   };
 
-  const buildMeetingEmailHtml = (leadName: string, dateStr: string, timeStr: string, link: string, orgName: string) => {
-    return `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
-        <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 32px 24px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 600;">Reunião Agendada</h1>
-          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">${orgName}</p>
-        </div>
-        <div style="padding: 32px 24px;">
-          <p style="color: #334155; font-size: 16px; margin: 0 0 24px;">Olá <strong>${leadName}</strong>,</p>
-          <p style="color: #475569; font-size: 15px; margin: 0 0 24px;">A sua reunião foi agendada com sucesso. Aqui estão os detalhes:</p>
-          <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 100px;">📅 Data:</td>
-                <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${dateStr}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #64748b; font-size: 14px;">🕐 Hora:</td>
-                <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${timeStr}</td>
-              </tr>
-            </table>
-          </div>
-          ${link ? `
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${link}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600;">
-              🔗 Aceder à Reunião
-            </a>
-          </div>
-          ` : ''}
-          <p style="color: #94a3b8; font-size: 13px; margin: 24px 0 0; text-align: center;">Se tiver alguma questão, não hesite em contactar-nos.</p>
-        </div>
-      </div>
-    `;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -249,12 +217,19 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
         const orgName = organization?.name || 'A nossa equipa';
 
         await sendTemplateEmail.mutateAsync({
+          templateId: eventEmailTemplate.template?.id || undefined,
+          requiredTriggerType: EMAIL_TEMPLATE_TRIGGERS.eventInvitation,
           recipients: [{
             email: selectedLead.email,
             name: selectedLead.name,
+            variables: {
+              nome: selectedLead.name,
+              data: dateStr,
+              hora: timeStr,
+              link_reuniao: meetingLink,
+              empresa: orgName,
+            },
           }],
-          subject: `Reunião Agendada — ${orgName}`,
-          htmlContent: buildMeetingEmailHtml(selectedLead.name, dateStr, timeStr, meetingLink, orgName),
         });
       } catch {
         toast.error('Evento criado, mas falha ao enviar email.');
@@ -399,7 +374,21 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
                   {selectedLead?.email}
                 </p>
               </div>
-              <Switch checked={sendEmail} onCheckedChange={setSendEmail} id="send-email" />
+              {!eventEmailTemplate.isLoading && !eventEmailTemplate.isConfigured && (
+                <span
+                  title="Configure um template de email ativo com o gatilho «Envio Manual: Convite de Reunião» em Marketing → Templates antes de enviar."
+                  aria-label="É necessário configurar o template do convite de reunião"
+                  className="shrink-0 text-muted-foreground"
+                >
+                  <MessageCircleMore className="h-4 w-4" />
+                </span>
+              )}
+              <Switch
+                checked={sendEmail}
+                onCheckedChange={setSendEmail}
+                id="send-email"
+                disabled={eventEmailTemplate.isLoading || !eventEmailTemplate.isConfigured}
+              />
             </div>
           )}
 

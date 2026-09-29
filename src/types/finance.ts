@@ -13,6 +13,8 @@ export interface PaymentWithSale {
   credit_note_id: number | null;
   credit_note_reference: string | null;
   status: PaymentRecordStatus;
+  reversal_status?: string | null;
+  reversed_amount?: number | null;
   notes: string | null;
   /** Start of the subscription cycle this payment covers (Stripe invoices bill in advance,
    *  so this is frequently a different calendar month than payment_date). Null for
@@ -25,6 +27,7 @@ export interface PaymentWithSale {
     id: string;
     code: string;
     total_value: number;
+    gross_value?: number | null;
     invoice_reference: string | null;
     invoicexpress_id: number | null;
     invoicexpress_type: string | null;

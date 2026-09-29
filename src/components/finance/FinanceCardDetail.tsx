@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
 import { pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -18,7 +18,11 @@ import { cn } from "@/lib/utils";
 import type { PaymentWithSale } from "@/types/finance";
 import { saleMatchesCommissionFilters, type CommissionFilters } from "@/lib/commission-filters";
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
-import { PAYMENT_METHOD_LABELS, type TelecomStatus } from "@/types/sales";
+import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
+import { PAYMENT_METHOD_LABELS, TELECOM_STATUS_LABELS, TELECOM_STATUS_COLORS, type TelecomStatus } from "@/types/sales";
+import { TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from "@/lib/telecom-finance";
+import { isTelecomAwaitingScheduledInstall } from "@/lib/telecom-sale-views";
+import { sumOperationalSaleUnits } from "@/lib/sale-units";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { saleStatusBadge, paymentRecordStatusBadge } from "@/lib/status-badge-maps";
 import { useSales } from "@/hooks/useSales";
@@ -31,6 +35,7 @@ import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { EditExpenseModal } from "@/components/finance/EditExpenseModal";
 import type { Expense } from "@/types/expenses";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -38,7 +43,7 @@ import {
 
 export type FinanceDetailType =
   | "faturado" | "received" | "pending" | "overdue" | "dueSoon" | "expenses" | "balance" | "myCommissions" | "commissions"
-  | "porInstalar" | "instalado";
+  | "porInstalar" | "instalado" | "organizationValue";
 
 interface FinanceCardDetailProps {
   type: FinanceDetailType;
@@ -48,9 +53,12 @@ interface FinanceCardDetailProps {
   /** All payments, unfiltered by period (used by Pendente/Atrasados). */
   allPayments: PaymentWithSale[];
   dueSoonPayments: PaymentWithSale[];
+  /** Free-text filter for expense detail rows. */
+  searchTerm?: string;
   /** Telecom: the operator/seller filters the card was showing. */
   commissionFilters?: CommissionFilters;
   onBack: () => void;
+  showBack?: boolean;
 }
 
 /** Stripe plan/subscription payments are excluded from pending/overdue, matching the card totals. */
@@ -67,7 +75,8 @@ const TITLES: Record<FinanceDetailType, string> = {
   myCommissions: "As Minhas Comissões",
   commissions: "Comissões",
   porInstalar: "Por instalar",
-  instalado: "Instalado",
+  instalado: "Ativos e instalados",
+  organizationValue: "Valor da Organização",
 };
 
 function inRange(dateStr: string, dateRange?: DateRange) {
@@ -78,7 +87,8 @@ function inRange(dateStr: string, dateRange?: DateRange) {
   return true;
 }
 
-function fmtDate(dateStr: string) {
+function fmtDate(dateStr?: string | null) {
+  if (!dateStr) return '—';
   return format(parseISO(dateStr), "dd MMM yyyy", { locale: pt });
 }
 
@@ -271,6 +281,7 @@ function SalesDetailTable({
   renewals = [],
   commissionFilters,
   telecomStatuses,
+  scheduledInstallationOnly = false,
   dateBasis = "sale",
 }: {
   dateRange?: DateRange;
@@ -278,26 +289,26 @@ function SalesDetailTable({
   commissionFilters?: CommissionFilters;
   /** Telecom lifecycle cards: keep only these states. */
   telecomStatuses?: TelecomStatus[];
+  scheduledInstallationOnly?: boolean;
   /** "activation" counts a sale when it went live, not when it was sold. */
   dateBasis?: "sale" | "activation";
 }) {
   const { data: sales = [], isLoading } = useSales();
   const saleTypeIds = useSaleTypeIds();
   const { organization } = useAuth();
-  // Telecom shows the commission instead of the invoiced value — same rows,
-  // different money column. The row set must stay identical to
-  // useFinanceStats (cancelled dropped, filtered by sale_date), or the total
-  // at the bottom would not match the card that opened this.
+  // Telecom shows operator commission. Keep the lifecycle, date basis and
+  // filters identical to the summary card in useFinanceStats.
   const isTelecom = organization?.niche === "telecom";
   const filtered = useMemo(
     // Exclude cancelled sales so this detail's total matches the card, which also
     // drops them (useFinanceStats). Both telecom cancellations map onto it.
     () => sales.filter((s) =>
       s.status !== "cancelled"
-      && inRange(dateBasis === "activation" ? (s.activation_date || s.sale_date) : s.sale_date, dateRange)
+      && (dateBasis === "activation" ? telecomCommissionInPeriod(s, dateRange) : inRange(s.sale_date, dateRange))
       && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds)
-      && (!telecomStatuses || telecomStatuses.includes(s.telecom_status as TelecomStatus))),
-    [sales, dateRange, commissionFilters, saleTypeIds, telecomStatuses, dateBasis],
+      && (!telecomStatuses || telecomStatuses.includes(s.telecom_status as TelecomStatus))
+      && (!scheduledInstallationOnly || isTelecomAwaitingScheduledInstall(s))),
+    [sales, dateRange, commissionFilters, saleTypeIds, telecomStatuses, scheduledInstallationOnly, dateBasis],
   );
   // Who gets paid for each sale — the assigned seller, falling back to
   // whoever registered it. Hook stays above the early return.
@@ -321,7 +332,7 @@ function SalesDetailTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
+            <TableHead>{dateBasis === 'activation' ? 'Recebimento previsto' : 'Data'}</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Código</TableHead>
             {isTelecom && <TableHead>Vendedor</TableHead>}
@@ -336,12 +347,16 @@ function SalesDetailTable({
             <>
               {filtered.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="whitespace-nowrap">{fmtDate(s.sale_date)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && (s.commission_payment_month_offset ?? 0) > 0 && telecomCommissionDate(s)
+                    ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: pt })
+                    : fmtDate(dateBasis === 'activation' ? telecomCommissionDate(s) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>
                   <TableCell>{s.code}</TableCell>
                   {isTelecom && <TableCell>{sellerOf(s)}</TableCell>}
                   <TableCell>
-                    <StatusBadge {...saleStatusBadge(s.status)} />
+                    {isTelecom && s.telecom_status ? (
+                      <Badge variant="outline" className={TELECOM_STATUS_COLORS[s.telecom_status]}>{TELECOM_STATUS_LABELS[s.telecom_status]}</Badge>
+                    ) : <StatusBadge {...saleStatusBadge(s.status)} />}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(valueOf(s))}</TableCell>
                 </TableRow>
@@ -364,19 +379,79 @@ function SalesDetailTable({
           )}
         </TableBody>
       </Table>
-      {count > 0 && <TotalFooter count={count} total={total} />}
+      {count > 0 && <TotalFooter count={isTelecom ? sumOperationalSaleUnits(filtered) : count} total={total} />}
     </div>
   );
 }
 
-function ExpensesDetailTable({ dateRange }: { dateRange?: DateRange }) {
+function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?: DateRange; commissionFilters?: CommissionFilters }) {
+  // Reuse the card's query so rows, permissions, filters and total cannot diverge.
+  const { data, isLoading, isError, refetch } = useTeamCommissionTotal(dateRange, commissionFilters);
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isError) return <div className="rounded-md border p-4">Não foi possível carregar as vendas. <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button></div>;
+  const rows = data?.organizationSales ?? [];
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Recebimento previsto</TableHead>
+          <TableHead>Cliente</TableHead>
+          <TableHead>Código</TableHead>
+          <TableHead>Estado</TableHead>
+          <TableHead className="text-right">Valor da Organização</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
+            <TableRow key={sale.id}>
+              <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
+              <TableCell>{sale.clientName}</TableCell>
+              <TableCell>{sale.code || '—'}</TableCell>
+              <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
+              <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {rows.length > 0 && <TotalFooter count={rows.length} total={data?.orgTotal ?? 0} />}
+    </div>
+  );
+}
+
+function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateRange; searchTerm?: string }) {
   const { data: expenses = [], isLoading } = useExpenses();
+  const { organization } = useAuth();
+  const stripeInvoiceIds = useMemo(
+    () => [...new Set(expenses.map((expense) => expense.stripe_invoice_id).filter((id): id is string => Boolean(id)))],
+    [expenses],
+  );
+  const { data: stripePaymentOrigins = {} } = useQuery({
+    queryKey: ["stripe-expense-payment-origins", organization?.id, stripeInvoiceIds],
+    queryFn: async () => {
+      if (!organization?.id || stripeInvoiceIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("sale_payments")
+        .select(`stripe_invoice_id, sales:sale_id!inner(code, crm_clients:client_id(name), leads:lead_id(name))`)
+        .eq("organization_id", organization.id)
+        .in("stripe_invoice_id", stripeInvoiceIds);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map((payment: any) => {
+        const sale = payment.sales;
+        const clientName = sale?.crm_clients?.name || sale?.leads?.name;
+        return [payment.stripe_invoice_id, [sale?.code ? `Venda ${sale.code}` : null, clientName].filter(Boolean).join(" · ")];
+      }));
+    },
+    enabled: !!organization?.id && stripeInvoiceIds.length > 0,
+  });
   const deleteExpense = useDeleteExpense();
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const filtered = useMemo(
-    () => expenses.filter((e) => inRange(e.expense_date, dateRange)),
-    [expenses, dateRange],
+    () => {
+      const term = searchTerm.trim().toLocaleLowerCase("pt-PT");
+      return expenses.filter((expense) => inRange(expense.expense_date, dateRange) && (!term ||
+        [expense.description, expense.category?.name].some((value) => value?.toLocaleLowerCase("pt-PT").includes(term))));
+    },
+    [expenses, dateRange, searchTerm],
   );
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   const total = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -386,7 +461,7 @@ function ExpensesDetailTable({ dateRange }: { dateRange?: DateRange }) {
         <TableHeader>
           <TableRow>
             <TableHead>Data</TableHead>
-            <TableHead>Descrição</TableHead>
+            <TableHead>Descrição / origem</TableHead>
             <TableHead>Categoria</TableHead>
             <TableHead className="text-right">Valor</TableHead>
             <TableHead className="w-[1%]"></TableHead>
@@ -399,7 +474,14 @@ function ExpensesDetailTable({ dateRange }: { dateRange?: DateRange }) {
             filtered.map((e) => (
               <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap">{fmtDate(e.expense_date)}</TableCell>
-                <TableCell>{e.description}</TableCell>
+                <TableCell>
+                  <div>{e.description}</div>
+                  {e.stripe_invoice_id && (
+                    <div className="text-xs text-muted-foreground">
+                      {stripePaymentOrigins[e.stripe_invoice_id] || "Pagamento Stripe"}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>{e.category?.name || "—"}</TableCell>
                 <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
                 <TableCell>
@@ -489,7 +571,7 @@ function BalanceDetail({
   );
 }
 
-export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, commissionFilters, onBack }: FinanceCardDetailProps) {
+export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, searchTerm, commissionFilters, onBack, showBack = true }: FinanceCardDetailProps) {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
 
   const received = useMemo(() => payments.filter((p) => p.status === "paid"), [payments]);
@@ -527,9 +609,9 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+        {showBack && <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
+        </Button>}
         <h2 className="text-lg font-semibold">
           {/* Same override as the card that opened this. */}
           {type === "faturado" && orgIsTelecom ? "Total de Comissão" : TITLES[type]}
@@ -545,20 +627,22 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "expenses" && <AddExpenseModal open={addExpenseOpen} onOpenChange={setAddExpenseOpen} />}
 
       {type === "faturado" && (
-        <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters} />
+        <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters}
+          telecomStatuses={orgIsTelecom ? TELECOM_EARNED_STATUSES : undefined}
+          dateBasis={orgIsTelecom ? 'activation' : 'sale'} />
       )}
       {type === "porInstalar" && (
         <SalesDetailTable
           dateRange={dateRange}
           commissionFilters={commissionFilters}
-          telecomStatuses={["pendente", "em_instalacao"]}
+          scheduledInstallationOnly
         />
       )}
       {type === "instalado" && (
         <SalesDetailTable
           dateRange={dateRange}
           commissionFilters={commissionFilters}
-          telecomStatuses={["ativo"]}
+          telecomStatuses={TELECOM_EARNED_STATUSES}
           dateBasis="activation"
         />
       )}
@@ -566,9 +650,10 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "pending" && <PaymentsDetailTable payments={pending} allowMarkPaid />}
       {type === "overdue" && <PaymentsDetailTable payments={overdue} allowMarkPaid />}
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments} />}
-      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} />}
+      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={searchTerm} />}
+      {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
-      {type === "commissions" && <TeamCommissionsTab />}
+      {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
       {type === "balance" && (
         <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />
       )}

@@ -4,44 +4,118 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import type { Product } from "@/types/proposals";
+import { roundCurrency, splitLineVat } from "@/lib/product-fiscal";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { BillingTarget } from "@/types/clients";
 
 interface ClientFiscalData {
+  name?: string | null;
+  company?: string | null;
   nif?: string | null;
+  company_nif?: string | null;
+  company_address_same_as_client?: boolean | null;
+  billing_target?: BillingTarget | null;
   address_line1?: string | null;
   city?: string | null;
   postal_code?: string | null;
   country?: string | null;
+  company_address_line1?: string | null;
+  company_city?: string | null;
+  company_postal_code?: string | null;
+  company_country?: string | null;
 }
 
 interface SaleFiscalInfoProps {
   client: ClientFiscalData | null | undefined;
   isInvoiceXpressActive: boolean;
+  billingTarget: BillingTarget;
+}
+
+export function BillingRecipientSelector({
+  client,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  client: ClientFiscalData | null | undefined;
+  value: BillingTarget;
+  onChange: (value: BillingTarget) => void;
+  disabled?: boolean;
+}) {
+  if (!client) return null;
+
+  return (
+    <div className="space-y-2">
+      <Label>Faturar a</Label>
+      <Select value={value} onValueChange={(next) => onChange(next as BillingTarget)} disabled={disabled}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="client">Cliente — {client.name || 'Pessoa'}</SelectItem>
+          <SelectItem value="company" disabled={!client.company?.trim()}>
+            Empresa — {client.company?.trim() || 'Adiciona uma empresa à ficha do cliente'}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">A escolha fica nesta venda e será usada na fatura.</p>
+    </div>
+  );
+}
+
+interface BillingOrganization {
+  integrations_enabled?: unknown;
+  billing_provider?: string | null;
+  invoicexpress_account_name?: string | null;
+  tem_invoicexpress_api_key?: boolean | null;
+  tem_keyinvoice_password?: boolean | null;
+  tem_vendus_api_key?: boolean | null;
+  tax_config?: unknown;
 }
 
 /**
  * Mini-card showing client fiscal data (NIF + address) and warning if NIF is missing.
  * Only renders when InvoiceXpress is active.
  */
-export function ClientFiscalCard({ client, isInvoiceXpressActive }: SaleFiscalInfoProps) {
+export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget }: SaleFiscalInfoProps) {
   if (!isInvoiceXpressActive || !client) return null;
 
-  const hasNif = !!client.nif;
-  const hasAddress = !!(client.address_line1 || client.city || client.postal_code);
+  const billCompany = billingTarget === 'company';
+  const recipientName = billCompany ? client.company : client.name;
+  const recipientNif = billCompany ? client.company_nif : client.nif;
+  const hasNif = !!recipientNif?.trim();
+  const useCompanyAddress = billCompany && client.company_address_same_as_client !== true;
+  const address = useCompanyAddress ? client.company_address_line1 : client.address_line1;
+  const city = useCompanyAddress ? client.company_city : client.city;
+  const postalCode = useCompanyAddress ? client.company_postal_code : client.postal_code;
+  const country = useCompanyAddress ? client.company_country : client.country;
+  const hasAddress = !!(address && city && postalCode && country);
 
   return (
     <div className="space-y-2">
       {/* NIF missing warning */}
-      {!hasNif && (
+      {(!hasNif || !recipientName?.trim()) && (
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
-            Este cliente não tem NIF. Não será possível emitir faturas.
+            {billCompany ? 'A empresa' : 'O cliente'} precisa de nome e NIF para emitir faturas.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {billCompany && !hasAddress && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
+            {useCompanyAddress
+              ? 'Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.'
+              : 'Preenche a morada do cliente, escolhida também para a empresa, antes de emitir a fatura.'}
           </AlertDescription>
         </Alert>
       )}
 
       {/* Fiscal data mini-card */}
       <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border text-sm">
+        <span className="font-medium">{recipientName || (billCompany ? 'Empresa sem nome' : 'Cliente sem nome')}</span>
         <div className="flex items-center gap-1.5">
           {hasNif ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
@@ -50,14 +124,14 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive }: SaleFiscalIn
           )}
           <span className="text-muted-foreground">NIF:</span>
           <span className={hasNif ? "font-mono font-medium" : "text-muted-foreground italic"}>
-            {client.nif || "Não definido"}
+            {recipientNif || "Não definido"}
           </span>
         </div>
         {hasAddress && (
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
-              {[client.postal_code, client.city].filter(Boolean).join(" ")}
+              {[postalCode, city].filter(Boolean).join(" ")}
             </span>
           </div>
         )}
@@ -114,31 +188,33 @@ interface VatTotalsProps {
 export function useVatCalculation({ items, products, orgTaxValue, discount, subtotal }: VatTotalsProps) {
   return useMemo(() => {
     const defaultTax = orgTaxValue ?? 23;
-
-    let totalVat = 0;
     const itemTaxRates: Map<string, number> = new Map();
-
-    for (const item of items) {
+    const lines = items.map((item) => {
       const product = item.product_id ? products?.find(p => p.id === item.product_id) : undefined;
-      const taxRate = product?.tax_value ?? defaultTax;
-      const itemTotal = item.quantity * item.unit_price;
-      const itemVat = itemTotal * (taxRate / 100);
-      totalVat += itemVat;
-
-      // Store rate for each item by a composite key
+      const split = splitLineVat(
+        item.quantity * item.unit_price,
+        product,
+        { tax_value: defaultTax },
+      );
       if (item.product_id) {
-        itemTaxRates.set(item.product_id, taxRate);
+        itemTaxRates.set(item.product_id, split.taxRate);
       }
-    }
+      return split;
+    });
 
-    // Apply discount proportionally to VAT
-    const discountRatio = subtotal > 0 ? discount / subtotal : 0;
-    const adjustedVat = totalVat * (1 - discountRatio);
-    const totalWithVat = subtotal - discount + adjustedVat;
+    const subtotalWithoutVat = lines.reduce((sum, line) => sum + line.net, 0);
+    const discountRatio = subtotalWithoutVat > 0
+      ? Math.min(1, Math.max(0, discount / subtotalWithoutVat))
+      : 0;
+    const totalWithoutVat = subtotalWithoutVat * (1 - discountRatio);
+    const totalVat = lines.reduce((sum, line) => sum + line.vat, 0) * (1 - discountRatio);
+    const totalWithVat = lines.reduce((sum, line) => sum + line.gross, 0) * (1 - discountRatio);
 
     return {
-      totalVat: adjustedVat,
-      totalWithVat,
+      subtotalWithoutVat: roundCurrency(subtotalWithoutVat),
+      totalWithoutVat: roundCurrency(totalWithoutVat),
+      totalVat: roundCurrency(totalVat),
+      totalWithVat: roundCurrency(totalWithVat),
       getItemTaxRate: (productId: string | null): number | null => {
         if (!productId) return defaultTax;
         return itemTaxRates.get(productId) ?? defaultTax;
@@ -151,16 +227,19 @@ export function useVatCalculation({ items, products, orgTaxValue, discount, subt
 /**
  * Helper to check if any billing integration is active for the organization.
  */
-export function isInvoiceXpressActive(organization: any): boolean {
+export function isInvoiceXpressActive(organization: BillingOrganization | null | undefined): boolean {
   const enabled = organization?.integrations_enabled as Record<string, boolean> | null;
+  const provider = organization?.billing_provider || 'invoicexpress';
+
+  if (provider === 'vendus') {
+    return enabled?.vendus === true && organization?.tem_vendus_api_key === true;
+  }
+  if (provider === 'keyinvoice') {
+    return enabled?.keyinvoice === true && organization?.tem_keyinvoice_password === true;
+  }
   
   // Check if InvoiceXpress is enabled and has credentials
   if (enabled?.invoicexpress !== false && organization?.invoicexpress_account_name && organization?.tem_invoicexpress_api_key) {
-    return true;
-  }
-  
-  // Check if KeyInvoice is enabled and has API key
-  if (enabled?.keyinvoice === true && organization?.tem_keyinvoice_password) {
     return true;
   }
   
@@ -175,7 +254,7 @@ export const isBillingActive = isInvoiceXpressActive;
 /**
  * Get the org tax value from tax_config.
  */
-export function getOrgTaxValue(organization: any): number | undefined {
+export function getOrgTaxValue(organization: BillingOrganization | null | undefined): number | undefined {
   const taxConfig = organization?.tax_config as { tax_value?: number } | null;
   return taxConfig?.tax_value ?? undefined;
 }

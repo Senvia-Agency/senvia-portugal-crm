@@ -81,7 +81,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
             Sincronizar com Stripe
           </Label>
           <p className="text-xs text-muted-foreground">
-            Cria o produto no Stripe e mantém o preço actualizado.
+            Cria o produto no Stripe e cobra o preço bruto, acrescentando IVA apenas quando o preço base não o inclui.
           </p>
         </div>
         <Switch
@@ -95,10 +95,23 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
       </div>
 
       {mapping.status === 'synced' && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-          Sincronizado
-          {mapping.syncedAt && ` em ${new Date(mapping.syncedAt).toLocaleDateString('pt-PT')}`}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+            Sincronizado
+            {mapping.syncedAt && ` em ${new Date(mapping.syncedAt).toLocaleDateString('pt-PT')}`}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1.5 px-2 text-xs"
+            disabled={isSyncing}
+            onClick={() => sync({ productId, action: 'sync' })}
+          >
+            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Atualizar
+          </Button>
         </div>
       )}
 
@@ -109,6 +122,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
             <span>{mapping.syncError ?? 'A última sincronização falhou.'}</span>
           </div>
           <Button
+            type="button"
             size="sm"
             variant="outline"
             className="gap-2 h-7 text-xs"

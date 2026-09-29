@@ -4,6 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { resolveBillingContext, shouldProcessBillingEvent, type BillingContext } from "../_shared/stripe-billing-context.ts";
 import { handleReferralEvent } from "../_shared/referrals.ts";
 import { rateLimit } from "../_shared/security.ts";
+import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
+import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
 
 const SENVIA_AGENCY_ORG_ID = "06fe9e1d-9670-45b0-8717-c5a6e90be380";
 
@@ -352,10 +354,34 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     // this check just avoids the noisy conflict on the common path.
     const { data: alreadyPaid } = await supabase
       .from("sale_payments")
-      .select("id")
+      .select("id, sale_id")
       .eq("stripe_invoice_id", invoice.id)
       .limit(1);
     if (alreadyPaid && alreadyPaid.length > 0) {
+      // A previous delivery may have recorded the money before recurrence
+      // synchronization completed. Repair the renewal state before treating
+      // this webhook as a harmless duplicate.
+      const existingSaleId = alreadyPaid[0].sale_id as string | null;
+      if (billing.current && existingSaleId) {
+        const sub = billing.subscription as Stripe.Subscription;
+        const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000).toISOString().slice(0, 10) : null;
+        const periodEnd = invoice.period_end ? new Date(invoice.period_end * 1000).toISOString().slice(0, 10) : null;
+        const paidAt = invoice.status_transitions?.paid_at ?? invoice.created;
+        await syncPaidStripeSale(supabase, {
+          saleId: existingSaleId,
+          organizationId: SENVIA_AGENCY_ORG_ID,
+          invoiceId: invoice.id,
+          customerId: typeof invoice.customer === "string" ? invoice.customer : null,
+          subscriptionId: invoiceSubscriptionId(invoice),
+          paymentDate: new Date(paidAt * 1000).toISOString().slice(0, 10),
+          periodStart,
+          periodEnd,
+          nextCycleDate: subPeriodEnd(sub) ? new Date(subPeriodEnd(sub)! * 1000).toISOString().slice(0, 10) : periodEnd,
+          invoiceAmount: (invoice.amount_paid || 0) / 100,
+          recurringAmount: sub.items.data.reduce((sum: number, item: any) => item.price?.recurring && item.price.unit_amount != null
+            ? sum + (item.price.unit_amount / 100) * (item.quantity || 1) : sum, 0),
+        });
+      }
       logStep("invoice.paid: already recorded — skipping", { invoice: invoice.id });
       return;
     }
@@ -438,7 +464,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     // one instead of an arbitrary row that can change between runs.
     const { data: sales, error: salesErr } = await supabase
       .from("sales")
-      .select("id, created_by, total_value, has_recurring, status")
+      .select("id, created_by, seller_id, total_value, has_recurring, status")
       .eq("organization_id", SENVIA_AGENCY_ORG_ID)
       .eq("client_org_id", clientOrgId)
       .in("status", ["pending", "in_progress", "fulfilled", "delivered"])
@@ -500,7 +526,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
             total_value: recurringTotal > 0 ? recurringTotal : amount,
             notes: `Venda criada automaticamente no primeiro pagamento (${invoice.id}).`,
           })
-          .select("id, created_by, total_value, has_recurring, status")
+          .select("id, created_by, seller_id, total_value, has_recurring, status")
           .maybeSingle();
         if (saleErr) throw new Error(`sale insert failed: ${saleErr.message}`);
         sale = createdSale;
@@ -552,32 +578,28 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     } else {
       sale = sales[0];
     }
+    let cycleId: string | null = null;
     if (sale && billing.current) {
-      // Update sale immediately — always, even if no salesperson assigned.
-      // This guarantees recurring_status flips to 'active' and next_renewal_date
-      // is set before any commission/payment logic that could fail.
-      const updatePayload: Record<string, any> = {
-        recurring_status: "active",
-        next_renewal_date: subscriptionRenewalDate || periodEnd,
-        last_renewal_date: paymentDate,
-      };
-      if (recurringTotal > 0) updatePayload.recurring_value = recurringTotal;
-      if (sale.status === "pending") updatePayload.status = "in_progress";
-
-      const { error: saleUpdateErr } = await supabase
-        .from("sales")
-        .update(updatePayload)
-        .eq("id", sale.id);
-
-      if (saleUpdateErr) {
-        logError("invoice.paid: sale update error", { error: saleUpdateErr.message });
-      } else {
-        logStep("invoice.paid: sale updated to active", { saleId: sale.id, recurringTotal, plan });
-      }
+      cycleId = await syncPaidStripeSale(supabase, {
+        saleId: sale.id,
+        organizationId: SENVIA_AGENCY_ORG_ID,
+        invoiceId: invoice.id,
+        customerId: typeof invoice.customer === "string" ? invoice.customer : null,
+        subscriptionId: subId ?? null,
+        paymentDate,
+        periodStart,
+        periodEnd,
+        nextCycleDate: subscriptionRenewalDate || periodEnd,
+        invoiceAmount: amount,
+        recurringAmount: recurringTotal,
+        promotePendingSale: sale.status === "pending",
+      });
+      logStep("invoice.paid: sale recurrence and paid cycle synchronized", { saleId: sale.id, cycleId });
     }
 
-    // --- Commission record (only if sale + salesperson exist) ---
-    if (sale?.created_by) {
+    // An explicit seller owns the commission; the creator is only a fallback.
+    const commissionUserId = sale?.seller_id || sale?.created_by;
+    if (commissionUserId) {
       const stripeInvoiceId = invoice.id;
 
       const { data: existing } = await supabase
@@ -596,7 +618,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
           .from("organization_members")
           .select("commission_rate")
           .eq("organization_id", SENVIA_AGENCY_ORG_ID)
-          .eq("user_id", sale.created_by)
+          .eq("user_id", commissionUserId)
           .eq("is_active", true)
           .maybeSingle();
 
@@ -607,8 +629,9 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
           const { error: insertErr } = await supabase
             .from("stripe_commission_records")
             .insert({
+              organization_id: SENVIA_AGENCY_ORG_ID,
               sale_id: sale.id,
-              user_id: sale.created_by,
+              user_id: commissionUserId,
               client_org_id: clientOrgId,
               amount,
               commission_rate: rate,
@@ -624,15 +647,15 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
             logError("invoice.paid: commission insert error", { error: insertErr.message });
           } else {
             logStep("invoice.paid: commission recorded", {
-              userId: sale.created_by, amount, rate, commissionAmount, plan
+              userId: commissionUserId, amount, rate, commissionAmount, plan
             });
           }
         } else {
-          logStep("invoice.paid: no commission rate, skipping commission record", { userId: sale.created_by });
+          logStep("invoice.paid: no commission rate, skipping commission record", { userId: commissionUserId });
         }
       }
     } else if (sale) {
-      logStep("invoice.paid: sale has no created_by, skipping commission", { saleId: sale.id });
+      logStep("invoice.paid: sale has no seller, skipping commission", { saleId: sale.id });
     }
 
     // --- Payment record (only if sale found) ---
@@ -677,112 +700,13 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       logError("invoice.paid: could not fetch balance_transaction, recording GROSS", { error: (e as Error).message });
     }
 
-    // ── Domínio recorrente: recorrência + ciclo desta competência ────────────
-    // Garante a recorrência da venda e liquida o ciclo deste período. Uma
-    // recorrência migrada como 'manual' é promovida a Stripe na primeira
-    // fatura que chegar — é a subscrição real a reclamar a venda dela.
-    let cycleId: string | null = null;
-    try {
-      const { data: recurrences } = await supabase
-        .from("sale_recurrences")
-        .select("id, billing_provider, stripe_subscription_id")
-        .eq("sale_id", sale.id)
-        .in("service_status", ["pending", "active", "paused"])
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      let recurrence = recurrences?.[0] ?? null;
-      if (!recurrence) {
-        const { data: createdRec } = await supabase
-          .from("sale_recurrences")
-          .insert({
-            sale_id: sale.id,
-            amount: recurringTotal > 0 ? recurringTotal : amount,
-            anchor_date: periodStart || paymentDate,
-            service_status: "active",
-            billing_status: "current",
-            billing_provider: "stripe",
-            next_cycle_date: subscriptionRenewalDate || periodEnd,
-            stripe_customer_id: typeof invoice.customer === "string" ? invoice.customer : null,
-            stripe_subscription_id: subId ?? null,
-          })
-          .select("id, billing_provider, stripe_subscription_id")
-          .maybeSingle();
-        recurrence = createdRec ?? null;
-      } else if (!recurrence.stripe_subscription_id && subId) {
-        await supabase
-          .from("sale_recurrences")
-          .update({
-            billing_provider: "stripe",
-            stripe_subscription_id: subId,
-            stripe_customer_id: typeof invoice.customer === "string" ? invoice.customer : null,
-            billing_status: "current",
-            next_cycle_date: subscriptionRenewalDate || periodEnd,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", recurrence.id);
-      }
-
-      if (recurrence && periodStart && periodEnd) {
-        // O due_date tem de caber dentro do período (constraint da tabela).
-        const due = paymentDate < periodStart ? periodStart : paymentDate > periodEnd ? periodEnd : paymentDate;
-        // Procura por vizinhança, não por igualdade exacta: o ciclo que o cron
-        // cria (30/ago–29/set) e o período da fatura Stripe (30/ago–30/set)
-        // diferem tipicamente um dia, e a igualdade exacta criava um segundo
-        // ciclo para a mesma competência — um pago e um pendente para sempre.
-        const windowStart = new Date(new Date(periodStart).getTime() - 15 * 86_400_000)
-          .toISOString().slice(0, 10);
-        const windowEnd = new Date(new Date(periodStart).getTime() + 15 * 86_400_000)
-          .toISOString().slice(0, 10);
-        const { data: nearCycles } = await supabase
-          .from("sale_recurring_cycles")
-          .select("id")
-          .eq("recurrence_id", recurrence.id)
-          .gte("period_start", windowStart)
-          .lte("period_start", windowEnd)
-          .order("period_start", { ascending: true })
-          .limit(1);
-        const existingCycle = nearCycles?.[0] ?? null;
-
-        if (existingCycle) {
-          cycleId = existingCycle.id;
-        } else {
-          const { data: createdCycle } = await supabase
-            .from("sale_recurring_cycles")
-            .insert({
-              recurrence_id: recurrence.id,
-              sale_id: sale.id,
-              organization_id: SENVIA_AGENCY_ORG_ID,
-              period_start: periodStart,
-              period_end: periodEnd,
-              due_date: due,
-              amount,
-              currency: "EUR",
-              status: "pending",
-              stripe_invoice_id: invoice.id,
-            })
-            .select("id")
-            .maybeSingle();
-          cycleId = createdCycle?.id ?? null;
-        }
-        if (cycleId) {
-          await supabase
-            .from("sale_recurring_cycles")
-            .update({ status: "paid", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-            .eq("id", cycleId);
-        }
-      }
-    } catch (e) {
-      // O registo do pagamento não pode falhar por causa do domínio novo.
-      logError("invoice.paid: recurrence/cycle bookkeeping failed", { error: (e as Error).message });
-    }
-
     const stripeInvoiceId = invoice.id;
     const planLabel = plan ? PLAN_LIST_NAMES[plan] || plan : "subscription";
     const feeNote = stripeFee > 0 ? ` · bruto ${amount.toFixed(2)}€, taxa ${stripeFee.toFixed(2)}€` : "";
     const { error: paymentErr } = await supabase
       .from("sale_payments")
       .insert({
+        organization_id: SENVIA_AGENCY_ORG_ID,
         sale_id: sale.id,
         // O BRUTO é o que o cliente pagou e o que abate à dívida da venda.
         // Registar o líquido (como era) deixava cada venda com o valor da taxa
@@ -813,6 +737,14 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       logError("invoice.paid: payment insert error", { error: paymentErr.message });
       throw new Error(`payment insert failed: ${paymentErr.message}`);
     }
+    await recordStripeFeeExpense(supabase, {
+      organizationId: SENVIA_AGENCY_ORG_ID,
+      invoiceId: stripeInvoiceId,
+      fee: stripeFee,
+      gross: amount,
+      net: netAmount,
+      expenseDate: paymentDate,
+    });
     logStep("invoice.paid: payment recorded in sale_payments", { saleId: sale.id, amount, netAmount });
   }
 }

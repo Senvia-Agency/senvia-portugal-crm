@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Search, FileText, X, Loader2, ArrowUpDown, ArrowUp, ArrowDown, FileDown, Plus } from "lucide-react";
+import { Download, Search, FileText, X, Loader2, ArrowUpDown, ArrowUp, ArrowDown, FileDown, Plus, RefreshCw } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SaleInvoicePicker } from "@/components/finance/SaleInvoicePicker";
 import { CreditNoteInvoicePicker } from "@/components/finance/CreditNoteInvoicePicker";
@@ -13,7 +13,6 @@ import { useCreditNotes, useSyncCreditNotes } from "@/hooks/useCreditNotes";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { usePersistedState } from "@/hooks/usePersistedState";
 import { exportToExcel } from "@/lib/export";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -31,17 +30,20 @@ interface UnifiedDocument {
   reference: string | null;
   document_type: string;
   date: string | null;
+  created_at: string;
   client_name: string | null;
   status: string | null;
   total: number;
   sale_id: string | null;
   payment_id: string | null;
   pdf_path: string | null;
-  invoicexpress_id: number;
+  invoicexpress_id: number | null;
+  invoice_id: string | null;
+  provider: string;
   related_doc_reference: string | null;
 }
 
-type SortField = 'reference' | 'document_type' | 'date' | 'client_name' | 'status' | 'total';
+type SortField = 'recent' | 'reference' | 'document_type' | 'date' | 'client_name' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 
 const SortIcon = ({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) => {
@@ -56,54 +58,41 @@ export function InvoicesContent() {
   const { data: creditNotesData, isLoading: loadingCreditNotes } = useCreditNotes();
   const { organization } = useAuth();
   const { data: orgData } = useOrganization();
-  // Invoicing is active for both InvoiceXpress and KeyInvoice orgs (the old
-  // check only looked at the invoicexpress flag, which is false for KeyInvoice).
-  const isInvoicexpressEnabled = isInvoiceXpressActive(orgData) || isInvoiceXpressActive(organization);
+  const billingOrganization = organization ?? orgData;
+  const isBillingEnabled = isInvoiceXpressActive(billingOrganization);
+  const isInvoiceXpressProvider = billingOrganization?.billing_provider === 'invoicexpress';
+  const isVendusActive = organization?.billing_provider === 'vendus'
+    && (organization.integrations_enabled as Record<string, boolean> | null)?.vendus === true
+    && organization.tem_vendus_api_key === true;
   const syncInvoices = useSyncInvoices();
   const syncCreditNotes = useSyncCreditNotes();
   const hasSynced = useRef(false);
-  const [searchTerm, setSearchTerm] = usePersistedState("invoices-search-v1", "");
-  const [dateRange, setDateRange] = usePersistedState<DateRange | undefined>("invoices-daterange-v1", undefined);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [pickerMode, setPickerMode] = useState<'invoice' | 'credit-note' | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const SORT_KEY = 'finance-invoices-sort-v1';
-  const VALID_FIELDS: SortField[] = ['reference', 'document_type', 'date', 'client_name', 'status', 'total'];
-
-  const [sortField, setSortField] = useState<SortField>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SORT_KEY) || '{}');
-      if (VALID_FIELDS.includes(saved.field)) return saved.field;
-    } catch {}
-    return 'date';
-  });
-  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SORT_KEY) || '{}');
-      if (saved.direction === 'asc' || saved.direction === 'desc') return saved.direction;
-    } catch {}
-    return 'desc';
-  });
+  const [sortField, setSortField] = useState<SortField>('recent');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedInvoice, setSelectedInvoice] = useState<{
-    invoicexpress_id: number;
+    invoicexpress_id: number | null;
+    invoice_id: string | null;
+    provider: string;
     document_type: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
     sale_id?: string;
     payment_id?: string;
   } | null>(null);
 
-  useEffect(() => {
-    try { localStorage.setItem(SORT_KEY, JSON.stringify({ field: sortField, direction: sortDirection })); } catch {}
-  }, [sortField, sortDirection]);
-
   const isLoading = loadingInvoices || loadingCreditNotes;
 
-  // Auto-sync both on mount (only if InvoiceXpress is enabled)
+  // These sync functions import InvoiceXpress documents only. KeyInvoice
+  // documents are already persisted when issued and loaded by useInvoices.
   useEffect(() => {
-    if (!hasSynced.current && isInvoicexpressEnabled && !syncInvoices.isPending && !syncCreditNotes.isPending) {
+    if (!hasSynced.current && isInvoiceXpressProvider && !syncInvoices.isPending && !syncCreditNotes.isPending) {
       hasSynced.current = true;
       syncInvoices.mutate(undefined, { onError: () => {} });
       syncCreditNotes.mutate(undefined, { onError: () => {} });
     }
-  }, [isInvoicexpressEnabled]);
+  }, [isInvoiceXpressProvider]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -116,11 +105,16 @@ export function InvoicesContent() {
 
   // Combine invoices + credit notes into unified list
   const allDocuments = useMemo((): UnifiedDocument[] => {
+    const invoicesById = new Map((invoicesData || []).map(inv => [inv.id, inv]));
+    const creditNoteByInvoiceId = new Map((invoicesData || [])
+      .filter(inv => inv.document_type === 'credit_note' && inv.related_invoice_id && inv.reference)
+      .map(inv => [inv.related_invoice_id!, inv.reference!]));
     const invoices: UnifiedDocument[] = (invoicesData || []).map(inv => ({
       id: inv.id,
       reference: inv.reference,
       document_type: inv.document_type || 'invoice',
       date: inv.date,
+      created_at: inv.created_at,
       client_name: inv.client_name,
       status: inv.status,
       total: inv.total,
@@ -128,7 +122,11 @@ export function InvoicesContent() {
       payment_id: inv.payment_id,
       pdf_path: inv.pdf_path,
       invoicexpress_id: inv.invoicexpress_id,
-      related_doc_reference: inv.credit_note_reference || null,
+      invoice_id: inv.id,
+      provider: inv.provider,
+      related_doc_reference: inv.document_type === 'credit_note'
+        ? (inv.related_invoice_id ? invoicesById.get(inv.related_invoice_id)?.reference || null : null)
+        : inv.credit_note_reference || creditNoteByInvoiceId.get(inv.id) || null,
     }));
 
     const creditNotes: UnifiedDocument[] = (creditNotesData || []).map(cn => ({
@@ -136,6 +134,7 @@ export function InvoicesContent() {
       reference: cn.reference,
       document_type: 'credit_note',
       date: cn.date,
+      created_at: cn.created_at,
       client_name: cn.client_name,
       status: cn.status,
       total: cn.total,
@@ -143,6 +142,8 @@ export function InvoicesContent() {
       payment_id: cn.payment_id,
       pdf_path: cn.pdf_path,
       invoicexpress_id: cn.invoicexpress_id,
+      invoice_id: null,
+      provider: 'invoicexpress',
       related_doc_reference: cn.related_invoice_reference || null,
     }));
 
@@ -168,6 +169,8 @@ export function InvoicesContent() {
     return [...filteredDocuments].sort((a, b) => {
       const dir = sortDirection === 'asc' ? 1 : -1;
       switch (sortField) {
+        case 'recent':
+          return dir * a.created_at.localeCompare(b.created_at);
         case 'reference':
           return dir * (a.reference || '').localeCompare(b.reference || '');
         case 'document_type':
@@ -196,17 +199,28 @@ export function InvoicesContent() {
     setDateRange(undefined);
   };
 
-  const getDocTypeLabel = (type: string) => {
+  const getDocTypeLabel = (type: string, provider?: string) => {
     switch (type) {
       case 'invoice': return 'Fatura';
       case 'invoice_receipt': return 'Fatura-Recibo';
+      case 'receipt': return provider === 'vendus' ? 'Recibo (RG)' : 'Recibo';
       case 'simplified_invoice': return 'Fatura Simplificada';
       case 'credit_note': return 'Nota de Crédito';
       default: return type;
     }
   };
 
-  const getStatusLabel = (status: string | null) => {
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case 'vendus': return 'Vendus';
+      case 'keyinvoice': return 'KeyInvoice';
+      default: return 'InvoiceXpress';
+    }
+  };
+
+  const getStatusLabel = (status: string | null, provider?: string) => {
+    if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Com nota de crédito';
+    if (status === 'final' && provider === 'keyinvoice') return 'Emitida';
     const map: Record<string, string> = {
       settled: 'Liquidada',
       final: 'Finalizada',
@@ -230,10 +244,11 @@ export function InvoicesContent() {
   const handleExport = () => {
     const exportData = sortedDocuments.map(doc => ({
       Referência: doc.reference || '-',
-      Tipo: getDocTypeLabel(doc.document_type),
+      Tipo: getDocTypeLabel(doc.document_type, doc.provider),
+      Origem: getProviderLabel(doc.provider),
       Data: doc.date ? formatDate(doc.date) : '-',
       Cliente: doc.client_name || '-',
-      Estado: getStatusLabel(doc.status),
+      Estado: getStatusLabel(doc.status, doc.provider),
       Valor: doc.total,
     }));
     exportToExcel(exportData, 'documentos-fiscais');
@@ -257,11 +272,27 @@ export function InvoicesContent() {
         <div>
           <h2 className="text-lg font-semibold">Faturas</h2>
           <p className="text-sm text-muted-foreground">
-            Documentos fiscais importados do InvoiceXpress
+            Documentos fiscais da organização
           </p>
         </div>
         <div className="flex gap-2">
-          {isInvoicexpressEnabled && (
+          {isVendusActive && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={syncInvoices.isPending}
+              onClick={() => syncInvoices.mutate(undefined, {
+                onSuccess: (result) => toast.success(result.failed
+                  ? `${result.total} documento(s) sincronizado(s); ${result.failed} requer(em) revisão`
+                  : `${result.total} documento(s) Vendus sincronizado(s)`),
+              })}
+            >
+              <RefreshCw className={`h-4 w-4 ${syncInvoices.isPending ? 'animate-spin' : ''}`} />
+              <span>Sincronizar Vendus</span>
+            </Button>
+          )}
+          {(isBillingEnabled || isVendusActive) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-2">
@@ -271,7 +302,7 @@ export function InvoicesContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setPickerMode('invoice')}>Nova Fatura</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPickerMode('credit-note')}>Nota de Crédito</DropdownMenuItem>
+                {!isVendusActive && <DropdownMenuItem onClick={() => setPickerMode('credit-note')}>Nota de Crédito</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -295,6 +326,13 @@ export function InvoicesContent() {
               />
             </div>
             <div className="flex flex-wrap gap-3 items-center">
+              <Button
+                variant={sortField === 'recent' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => { setSortField('recent'); setSortDirection('desc'); }}
+              >
+                Mais recentes
+              </Button>
               <DateRangePicker
                 value={dateRange}
                 onChange={setDateRange}
@@ -345,6 +383,7 @@ export function InvoicesContent() {
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort('document_type')}>
                       <span className="flex items-center">Tipo <SortIcon field="document_type" sortField={sortField} sortDirection={sortDirection} /></span>
                     </TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
                       <span className="flex items-center">Data <SortIcon field="date" sortField={sortField} sortDirection={sortDirection} /></span>
                     </TableHead>
@@ -368,6 +407,8 @@ export function InvoicesContent() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => setSelectedInvoice({
                         invoicexpress_id: doc.invoicexpress_id,
+                        invoice_id: doc.invoice_id,
+                        provider: doc.provider,
                         document_type: (doc.document_type || 'invoice') as any,
                         sale_id: doc.sale_id || undefined,
                         payment_id: doc.payment_id || undefined,
@@ -378,8 +419,11 @@ export function InvoicesContent() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 whitespace-nowrap">
-                          {getDocTypeLabel(doc.document_type)}
+                          {getDocTypeLabel(doc.document_type, doc.provider)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {getProviderLabel(doc.provider)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {doc.date ? formatDate(doc.date) : '-'}
@@ -389,7 +433,7 @@ export function InvoicesContent() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={getStatusVariant(doc.status)} className="text-xs">
-                          {getStatusLabel(doc.status)}
+                          {getStatusLabel(doc.status, doc.provider)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
@@ -437,10 +481,31 @@ export function InvoicesContent() {
           open={!!selectedInvoice}
           onOpenChange={(open) => !open && setSelectedInvoice(null)}
           documentId={selectedInvoice.invoicexpress_id}
+          invoiceId={selectedInvoice.invoice_id}
+          provider={selectedInvoice.provider}
           documentType={selectedInvoice.document_type}
           organizationId={organization.id}
           saleId={selectedInvoice.sale_id}
           paymentId={selectedInvoice.payment_id}
+          initialDetails={{
+            sequence_number: selectedInvoice.reference || '',
+            status: selectedInvoice.status || 'final',
+            date: selectedInvoice.date || '',
+            sum: Number(selectedInvoice.total || 0),
+            before_taxes: Number(selectedInvoice.total || 0),
+            total: Number(selectedInvoice.total || 0),
+            client: selectedInvoice.client_name ? {
+              id: 0,
+              name: selectedInvoice.client_name,
+              fiscal_id: '',
+              country: 'PT',
+              address: null,
+              postal_code: null,
+              city: null,
+              email: null,
+              phone: null,
+            } : null,
+          }}
         />
       )}
 

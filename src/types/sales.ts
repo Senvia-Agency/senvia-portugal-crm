@@ -2,7 +2,7 @@ import type { ServicosDetails } from './proposals';
 
 export type NegotiationType = 'angariacao' | 'angariacao_indexado' | 'renovacao' | 'sem_volume';
 export type SaleStatus = 'in_progress' | 'fulfilled' | 'delivered' | 'cancelled';
-export type PaymentMethod = 'mbway' | 'transfer' | 'cash' | 'card' | 'check' | 'other';
+export type PaymentMethod = 'mbway' | 'transfer' | 'cash' | 'card' | 'credit_card' | 'debit_card' | 'check' | 'other';
 export type PaymentStatus = 'pending' | 'partial' | 'paid';
 export type ProposalType = 'energia' | 'servicos';
 export type ModeloServico = 'transacional' | 'saas';
@@ -69,19 +69,21 @@ export const SALE_STATUSES: SaleStatus[] = ['in_progress', 'fulfilled', 'deliver
  * money: 'anulado' happens before the install and costs nothing; 'cancelado'
  * happens after it and claws the commission back — see sale_chargebacks.
  */
-export type TelecomStatus = 'pendente' | 'em_instalacao' | 'ativo' | 'anulado' | 'cancelado';
+export type TelecomStatus = 'pendente' | 'em_instalacao' | 'ativo' | 'instalado' | 'anulado' | 'cancelado';
 
 export const TELECOM_STATUS_LABELS: Record<TelecomStatus, string> = {
   pendente: 'Pendente',
   em_instalacao: 'Em instalação',
   ativo: 'Ativo',
+  instalado: 'Instalado',
   anulado: 'Anulado',
   cancelado: 'Cancelado',
 };
 
 /** Shown under the label where the distinction matters for money. */
 export const TELECOM_STATUS_HINTS: Partial<Record<TelecomStatus, string>> = {
-  ativo: 'Instalado',
+  ativo: 'Operacional',
+  instalado: 'Fechada',
   anulado: 'Antes da instalação — não gera CB',
   cancelado: 'Após a instalação — gera CB',
 };
@@ -90,11 +92,12 @@ export const TELECOM_STATUS_COLORS: Record<TelecomStatus, string> = {
   pendente: 'bg-amber-500/20 text-amber-500 border-amber-500/30',
   em_instalacao: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
   ativo: 'bg-green-500/20 text-green-500 border-green-500/30',
+  instalado: 'bg-emerald-600/20 text-emerald-600 border-emerald-600/30',
   anulado: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
   cancelado: 'bg-red-500/20 text-red-500 border-red-500/30',
 };
 
-export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', 'ativo', 'anulado', 'cancelado'];
+export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', 'ativo', 'instalado', 'anulado', 'cancelado'];
 
 /**
  * The generic status each telecom state maps to. In a telecom org the user
@@ -105,7 +108,10 @@ export const TELECOM_STATUSES: TelecomStatus[] = ['pendente', 'em_instalacao', '
 export const TELECOM_TO_SALE_STATUS: Record<TelecomStatus, SaleStatus> = {
   pendente: 'in_progress',
   em_instalacao: 'in_progress',
-  ativo: 'delivered',
+  // An active line is operational, but it is not the terminal state. Only
+  // "instalado" closes the sale.
+  ativo: 'fulfilled',
+  instalado: 'delivered',
   anulado: 'cancelled',
   cancelado: 'cancelled',
 };
@@ -115,11 +121,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'Transferência',
   cash: 'Dinheiro',
   card: 'Cartão',
+  credit_card: 'Cartão de crédito',
+  debit_card: 'Cartão de débito',
   check: 'Cheque',
   other: 'Outro',
 };
 
-export const PAYMENT_METHODS: PaymentMethod[] = ['mbway', 'transfer', 'cash', 'card', 'check', 'other'];
+export const PAYMENT_METHODS: PaymentMethod[] = ['mbway', 'transfer', 'cash', 'card', 'credit_card', 'debit_card', 'check', 'other'];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: 'Pendente',
@@ -190,11 +198,15 @@ export interface Sale {
   id: string;
   organization_id: string;
   code: string;
+  /** Recipient selected for this sale; legacy rows use the client setting. */
+  billing_target?: 'client' | 'company' | null;
   proposal_id: string | null;
   lead_id: string | null;
   client_id: string | null;
   status: SaleStatus;
   total_value: number;
+  /** Customer payment obligation including VAT; null on ambiguous legacy rows. */
+  gross_value?: number | null;
   operational_units?: number | null;
   subtotal: number;
   discount: number;
@@ -231,6 +243,8 @@ export interface Sale {
   // What is left for the organization once the seller took his own rate.
   // Frozen alongside the commission splits.
   org_commission: number | null;
+  commission_payment_month_offset?: number;
+  commission_expected_date?: string | null;
 
   // Tipo de Negociação e Serviços/Produtos
   negotiation_type: NegotiationType | null;
@@ -350,6 +364,8 @@ export interface SaleWithDetails extends Sale {
     phone?: string | null;
     company?: string | null;
     nif?: string | null;
+    company_nif?: string | null;
+    billing_target?: 'client' | 'company' | null;
     address_line1?: string | null;
     address_line2?: string | null;
     city?: string | null;
@@ -367,6 +383,12 @@ export interface SaleItem {
   unit_price: number;
   total: number;
   first_due_date: string | null;
+  discount_percent?: number;
+  tax_value?: number | null;
+  tax_exemption_reason?: string | null;
+  price_includes_vat?: boolean | null;
+  retention_rate?: number | null;
+  stripe_price_id?: string | null;
   created_at: string;
 }
 
@@ -375,5 +397,9 @@ export interface SaleItemWithProduct extends SaleItem {
     name: string;
     price: number | null;
     is_recurring?: boolean;
+    tax_value?: number | null;
+    tax_exemption_reason?: string | null;
+    price_includes_vat?: boolean;
+    retention_rate?: number;
   } | null;
 }

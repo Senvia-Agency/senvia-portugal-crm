@@ -1,216 +1,229 @@
-import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { requestMfaResponse } from '../_shared/user-authorization.ts'
+import { userRateLimit } from '../_shared/user-rate-limit.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { FiscalEmailError, sendFiscalPdfWithBrevo } from '../_shared/fiscal-email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const DOC_TYPE_MAP: Record<string, string> = {
-  invoice: 'invoices',
-  invoice_receipt: 'invoice_receipts',
-  receipt: 'receipts',
+const DOCUMENT_LABELS: Record<string, string> = {
+  invoice: 'Fatura',
+  invoice_receipt: 'Fatura-Recibo',
+  receipt: 'Recibo',
+  credit_note: 'Nota de Crédito',
 }
 
-const DEFAULT_KEYINVOICE_API_URL = 'https://login.keyinvoice.com/API5.php'
-
-// KeyInvoice DocType mapping
-const KI_DOC_TYPE_MAP: Record<string, string> = {
-  invoice: '4',
-  invoice_receipt: '34',
-  receipt: '34',
-  credit_note: '7',
+const EMAIL_TEMPLATE_TRIGGERS: Record<string, string> = {
+  invoice: 'invoice_email',
+  invoice_receipt: 'invoice_receipt_email',
+  receipt: 'receipt_email',
+  credit_note: 'credit_note_email',
 }
 
-// API 5.0: Authenticate with Apikey header, get session Sid, cache it
-async function getKeyInvoiceSid(supabase: any, org: any, orgId: string): Promise<string> {
-  if (!org.keyinvoice_password) {
-    throw new Error('Chave da API KeyInvoice não configurada')
-  }
-
-  const now = new Date()
-  const margin = 5 * 60 * 1000
-  if (org.keyinvoice_sid && org.keyinvoice_sid_expires_at) {
-    const expiresAt = new Date(org.keyinvoice_sid_expires_at)
-    if (expiresAt.getTime() > now.getTime() + margin) {
-      return org.keyinvoice_sid
-    }
-  }
-
-  const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-  const authRes = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Apikey': org.keyinvoice_password },
-    body: JSON.stringify({ method: 'authenticate' }),
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
 
-  if (!authRes.ok) {
-    const errorText = await authRes.text()
-    throw new Error(`Erro ao autenticar no KeyInvoice: ${authRes.status} - ${errorText}`)
-  }
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
 
-  const authData = await authRes.json()
-  if (authData.Status !== 1 || !authData.Sid) {
-    throw new Error(`KeyInvoice auth: ${authData.ErrorMessage || 'Erro de autenticação'}`)
-  }
-
-  const newSid = authData.Sid
-  const expiresAt = new Date(now.getTime() + 3600 * 1000)
-
-  await supabase
-    .from('organizations')
-    .update({ keyinvoice_sid: newSid, keyinvoice_sid_expires_at: expiresAt.toISOString() })
-    .eq('id', orgId)
-
-  return newSid
+function renderTemplate(content: string, variables: Record<string, string>): string {
+  const normalized = new Map(Object.entries(variables).map(([key, value]) => [key.toLowerCase(), escapeHtml(value)]))
+  return content.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, key: string) => normalized.get(key.trim().toLowerCase()) ?? match)
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Not authenticated' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (!authHeader || authHeader.replace(/^Bearer\s+/i, '') === serviceKey) {
+      return json({ error: 'Not authenticated' }, 401)
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabase = createClient(supabaseUrl, serviceKey)
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (userError || !user) return json({ error: 'Invalid token' }, 401)
+
+    const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders)
+    if (mfaResponse) return mfaResponse
+    const rateLimitResponse = await userRateLimit(supabase, user.id, 'send-invoice-email', corsHeaders)
+    if (rateLimitResponse) return rateLimitResponse
+
+    const body = await req.json()
+    const invoiceId = typeof body.invoice_id === 'string' ? body.invoice_id : null
+    const documentId = body.document_id
+    const documentType = typeof body.document_type === 'string' ? body.document_type : ''
+    const organizationId = typeof body.organization_id === 'string' ? body.organization_id : ''
+    const recipient = typeof body.email === 'string' ? body.email.trim() : ''
+    if ((!invoiceId && (documentId === null || documentId === undefined)) || !documentType || !organizationId || !recipient) {
+      return json({ error: 'Faltam dados para enviar o documento fiscal.' }, 400)
     }
-    const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
-    if (mfaResponse) return mfaResponse;
+    if (!DOCUMENT_LABELS[documentType]) return json({ error: 'Tipo de documento fiscal inválido.' }, 400)
 
-    const { document_id, document_type, organization_id, email, subject, body } = await req.json()
-
-    if (!document_id || !document_type || !organization_id || !email) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Verify membership
     const { data: membership } = await supabase
       .from('organization_members')
       .select('id')
       .eq('user_id', user.id)
-      .eq('organization_id', organization_id)
+      .eq('organization_id', organizationId)
       .eq('is_active', true)
       .maybeSingle()
+    if (!membership) return json({ error: 'Não tens acesso a esta organização.' }, 403)
 
-    if (!membership) {
-      return new Response(JSON.stringify({ error: 'Not a member of this organization' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { data: canIssue, error: permissionError } = await supabase.rpc('has_module_permission', {
+      _user_id: user.id,
+      _org_id: organizationId,
+      _module: 'finance',
+      _subarea: 'invoices',
+      _action: 'issue',
+    })
+    if (permissionError || canIssue !== true) {
+      return json({ error: 'Sem permissão para enviar documentos fiscais.' }, 403)
     }
 
-    // Get organization credentials
-    const { data: org } = await supabase
+    const { data: emailTemplate, error: templateError } = await supabase
+      .from('email_templates')
+      .select('id,subject,html_content')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .eq('automation_trigger_type', EMAIL_TEMPLATE_TRIGGERS[documentType])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (templateError) return json({ error: 'Não foi possível verificar o template de email fiscal.' }, 500)
+    if (!emailTemplate) {
+      return json({ error: `Configure um template de email ativo para «${DOCUMENT_LABELS[documentType]}» em Marketing → Templates antes de enviar.` }, 422)
+    }
+
+    const { data: organization, error: organizationError } = await supabase
       .from('organizations')
-      .select('invoicexpress_account_name, invoicexpress_api_key, billing_provider, keyinvoice_password, keyinvoice_api_url, keyinvoice_sid, keyinvoice_sid_expires_at')
-      .eq('id', organization_id)
+      .select('id,name,logo_url,brevo_api_key,brevo_sender_email')
+      .eq('id', organizationId)
       .single()
+    if (organizationError || !organization) return json({ error: 'Não foi possível carregar a organização.' }, 500)
 
-    const billingProvider = (org as any)?.billing_provider || 'invoicexpress'
-
-    if (billingProvider === 'keyinvoice') {
-      // KeyInvoice email flow using API 5.0: method:"sendDocumentPDF2Email"
-      if (!org?.keyinvoice_password) {
-        return new Response(JSON.stringify({ error: 'Chave da API KeyInvoice não configurada' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const sid = await getKeyInvoiceSid(supabase, org, organization_id)
-      const apiUrl = org.keyinvoice_api_url || DEFAULT_KEYINVOICE_API_URL
-      const docType = KI_DOC_TYPE_MAP[document_type] || '4'
-
-      const emailPayload = {
-        method: 'sendDocumentPDF2Email',
-        DocType: docType,
-        DocNum: String(document_id),
-        EmailDestinations: email,
-        EmailSubject: subject || 'Documento',
-        EmailBody: body || '',
-      }
-
-      const emailRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Sid': sid },
-        body: JSON.stringify(emailPayload),
-      })
-
-      if (!emailRes.ok) {
-        const errorText = await emailRes.text()
-        console.error('KeyInvoice email HTTP error:', emailRes.status, errorText)
-        return new Response(JSON.stringify({ error: `KeyInvoice email error: ${emailRes.status}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const emailData = await emailRes.json()
-      if (emailData.Status !== 1) {
-        console.error('KeyInvoice email failed:', emailData.ErrorMessage)
-        return new Response(JSON.stringify({ error: `KeyInvoice: ${emailData.ErrorMessage || 'Erro ao enviar email'}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-    } else {
-      // InvoiceXpress email flow
-      if (!org?.invoicexpress_account_name || !org?.invoicexpress_api_key) {
-        return new Response(JSON.stringify({ error: 'InvoiceXpress not configured' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const apiType = DOC_TYPE_MAP[document_type] || document_type
-      const baseUrl = `https://${org.invoicexpress_account_name}.app.invoicexpress.com`
-      const url = `${baseUrl}/${apiType}/${document_id}/email-document.json?api_key=${org.invoicexpress_api_key}`
-
-      const payload = {
-        message: {
-          client: { email, save: '0' },
-          subject: subject || '',
-          body: body || '',
-          logo: '0',
-        },
-      }
-
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
-        console.error('InvoiceXpress email error:', res.status, errorText)
-        return new Response(JSON.stringify({ error: `InvoiceXpress error: ${res.status}` }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
+    const apiKey = Deno.env.get('BREVO_TRANSACTIONAL_API_KEY')
+      || organization.brevo_api_key
+      || Deno.env.get('BREVO_API_KEY')
+    if (!apiKey) {
+      return json({ error: 'Brevo não está configurado para enviar documentos fiscais.' }, 400)
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  } catch (err) {
-    console.error('send-invoice-email error:', err)
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Erro ao enviar email" }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    let invoiceQuery = supabase
+      .from('invoices')
+      .select('id,organization_id,provider,document_type,status,client_name,reference,date,total,pdf_path,email_attempts')
+      .eq('organization_id', organizationId)
+      .eq('document_type', documentType)
+    if (invoiceId) invoiceQuery = invoiceQuery.eq('id', invoiceId)
+    else invoiceQuery = invoiceQuery.eq('invoicexpress_id', documentId)
+
+    const { data: invoices, error: invoiceError } = await invoiceQuery.limit(2)
+    if (invoiceError) throw new Error('Não foi possível carregar o documento fiscal.')
+    if (!invoices?.length) return json({ error: 'Documento fiscal não encontrado.' }, 404)
+    if (invoices.length > 1) return json({ error: 'Existem vários documentos com esse número. Seleciona o documento pela série.' }, 409)
+    const invoice = invoices[0]
+    if (['cancelled', 'canceled', 'void', 'draft'].includes(String(invoice.status || '').toLowerCase())) {
+      return json({ error: 'Só é possível enviar documentos fiscais finalizados.' }, 409)
+    }
+
+    const pdfPath = typeof invoice.pdf_path === 'string' ? invoice.pdf_path : ''
+    if (!pdfPath.startsWith(`${organizationId}/`)) {
+      return json({ error: 'O PDF deste documento ainda não está disponível no Senvia OS.' }, 409)
+    }
+    const { data: pdfFile, error: pdfError } = await supabase.storage.from('invoices').download(pdfPath)
+    if (pdfError || !pdfFile) return json({ error: 'Não foi possível obter o PDF para anexar ao email.' }, 409)
+    const pdf = new Uint8Array(await pdfFile.arrayBuffer())
+    if (pdf.length < 5 || new TextDecoder().decode(pdf.subarray(0, 5)) !== '%PDF-') {
+      return json({ error: 'O ficheiro guardado não é um PDF válido.' }, 409)
+    }
+
+    const documentLabel = DOCUMENT_LABELS[documentType]
+    const reference = String(invoice.reference || `${documentLabel} ${documentId ?? ''}`).trim()
+    const messageId = crypto.randomUUID()
+    const senderEmail = organization.brevo_sender_email || Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@senvia.pt'
+    const senderName = organization.name || 'SENVIA OS'
+    const issueDate = invoice.date ? new Date(`${invoice.date}T00:00:00`).toLocaleDateString('pt-PT') : ''
+    const formattedTotal = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(invoice.total || 0))
+    const variables = {
+      nome: invoice.client_name || 'Cliente',
+      cliente: invoice.client_name || 'Cliente',
+      email: recipient,
+      empresa: senderName,
+      organizacao: senderName,
+      tipo_documento: documentLabel,
+      documento: documentLabel,
+      numero_documento: reference,
+      numero: reference,
+      referencia: reference,
+      data: issueDate,
+      data_emissao: issueDate,
+      valor: formattedTotal,
+      total: formattedTotal,
+    }
+    const subject = renderTemplate(emailTemplate.subject || `${documentLabel} ${reference}`, variables)
+    const html = renderTemplate(emailTemplate.html_content || '', variables)
+    const pdfName = `${reference}.pdf`
+    const attempts = Number(invoice.email_attempts || 0) + 1
+
+    let sentMessageId: string
+    try {
+      const result = await sendFiscalPdfWithBrevo(apiKey, {
+        to: recipient,
+        toName: invoice.client_name || recipient,
+        senderEmail,
+        senderName,
+        replyTo: senderEmail,
+        subject,
+        html,
+        pdfName,
+        idempotencyKey: messageId,
+      }, pdf)
+      sentMessageId = result.messageId
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao enviar o email fiscal através da Brevo.'
+      const code = error instanceof FiscalEmailError ? 'brevo_email_failed' : 'fiscal_email_failed'
+      await supabase.from('invoices').update({
+        email_status: 'failed',
+        email_attempts: attempts,
+        email_last_error: message.slice(0, 1000),
+        email_next_retry_at: null,
+      }).eq('id', invoice.id).eq('organization_id', organizationId)
+      console.error('[send-invoice-email] brevo_failed', { invoiceId: invoice.id, code })
+      return json({ error: message, code, manual_review: error instanceof FiscalEmailError && error.ambiguous }, 502)
+    }
+
+    const { error: stateError } = await supabase.from('invoices').update({
+      email_status: 'sent',
+      email_attempts: attempts,
+      email_sent_at: new Date().toISOString(),
+      email_message_id: sentMessageId,
+      email_last_error: null,
+      email_next_retry_at: null,
+    }).eq('id', invoice.id).eq('organization_id', organizationId)
+    if (stateError) {
+      return json({
+        error: 'O email foi aceite pela Brevo, mas o estado local não foi atualizado. Confirma o histórico antes de reenviar.',
+        code: 'email_state_persist_failed',
+        manual_review: true,
+      }, 500)
+    }
+
+    return json({ success: true, messageId: sentMessageId, provider: 'brevo' })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Não foi possível enviar o documento fiscal.'
+    console.error('[send-invoice-email] request_failed')
+    return json({ error: message }, 500)
   }
 })

@@ -10,9 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Users, Crown, UserMinus, Euro, Shield, Upload, UserCheck } from "lucide-react";
+import { Plus, Search, Users, Crown, UserMinus, Euro, Shield, Upload } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { useClients, useClientStats, useDeleteClient } from "@/hooks/useClients";
 import { useClientLabels } from "@/hooks/useClientLabels";
 import { useTeamMembers } from "@/hooks/useTeam";
@@ -235,11 +234,13 @@ export default function Clients() {
       />
       
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        <PageHeader
-          icon={UserCheck}
-          title={labels.plural}
-          subtitle={`Gestão de ${labels.plural.toLowerCase()} e relacionamento comercial`}
-          actions={
+        <header className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">{labels.plural}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Gestão de {labels.plural.toLowerCase()} e relacionamento comercial</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <>
               {isTelecom && (
                 <>
@@ -256,20 +257,39 @@ export default function Clients() {
                   </Button>
                 </>
               )}
-              <Button onClick={() => setShowCreateModal(true)}>
+              <Button onClick={() => setShowCreateModal(true)} className="h-10 px-4">
                 <Plus className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">{labels.new}</span>
               </Button>
             </>
-          }
-        />
+          </div>
+        </header>
+
+        {/* Search and filters follow the page header, like Finance. */}
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4">
+          <ClientFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            onClearFilters={handleClearFilters}
+            isTelecom={showEnergy}
+            search={<div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar por nome, email, telefone, empresa ou NIF..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
+            />
+          </div>}
+          />
+        </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-5 gap-4">
-          <Card>
+        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <Card className="rounded-xl border-border/70 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
@@ -280,10 +300,10 @@ export default function Clients() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-xl border-border/70 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
                   <Shield className="h-5 w-5 text-blue-500" />
                 </div>
                 <div>
@@ -294,10 +314,10 @@ export default function Clients() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-xl border-border/70 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10">
                   <Crown className="h-5 w-5 text-warning" />
                 </div>
                 <div>
@@ -308,10 +328,10 @@ export default function Clients() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-xl border-border/70 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
                   <UserMinus className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
@@ -323,10 +343,10 @@ export default function Clients() {
           </Card>
 
           {organization?.niche === 'telecom' ? (
-            <Card className="col-span-2 md:col-span-1">
+            <Card className="col-span-2 rounded-xl border-border/70 shadow-sm md:col-span-1">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
                     <Euro className="h-5 w-5 text-success" />
                   </div>
                   <div>
@@ -342,10 +362,10 @@ export default function Clients() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="col-span-2 md:col-span-1">
+            <Card className="col-span-2 rounded-xl border-border/70 shadow-sm md:col-span-1">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
                     <Euro className="h-5 w-5 text-success" />
                   </div>
                   <div>
@@ -356,26 +376,6 @@ export default function Clients() {
               </CardContent>
             </Card>
           )}
-        </div>
-
-        {/* Search & Filters */}
-        <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={`Pesquisar por nome, email, telefone, empresa ou NIF...`}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          
-          <ClientFilters 
-            filters={filters}
-            onFiltersChange={setFilters}
-            onClearFilters={handleClearFilters}
-            isTelecom={showEnergy}
-          />
         </div>
 
         {/* Bulk Actions Bar */}

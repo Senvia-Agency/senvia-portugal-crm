@@ -6,7 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 export interface InvoiceRow {
   id: string;
   organization_id: string;
-  invoicexpress_id: number;
+  invoicexpress_id: number | null;
+  provider: string;
   reference: string | null;
   document_type: string;
   status: string | null;
@@ -21,6 +22,7 @@ export interface InvoiceRow {
   created_at: string;
   updated_at: string;
   credit_note_reference: string | null;
+  related_invoice_id: string | null;
 }
 
 export function useInvoices() {
@@ -47,6 +49,7 @@ export function useInvoices() {
         id: row.id,
         organization_id: row.organization_id,
         invoicexpress_id: row.invoicexpress_id,
+        provider: row.provider || row.raw_data?.source || 'invoicexpress',
         reference: row.reference,
         document_type: row.document_type || 'invoice',
         status: row.status,
@@ -61,10 +64,14 @@ export function useInvoices() {
         created_at: row.created_at,
         updated_at: row.updated_at,
         credit_note_reference: null as string | null,
+        related_invoice_id: row.related_invoice_id || null,
       }));
 
       // Fetch credit notes that reference these invoices
-      const ixIds = invoices.map((i: InvoiceRow) => i.invoicexpress_id).filter(Boolean);
+      const ixIds = invoices
+        .filter((invoice: InvoiceRow) => invoice.provider === 'invoicexpress')
+        .map((invoice: InvoiceRow) => invoice.invoicexpress_id)
+        .filter((id): id is number => id != null);
       if (ixIds.length > 0) {
         const { data: cnData } = await (supabase as any)
           .from('credit_notes')
@@ -80,7 +87,9 @@ export function useInvoices() {
             }
           }
           for (const inv of invoices) {
-            inv.credit_note_reference = cnMap.get(inv.invoicexpress_id) || null;
+            if (inv.provider === 'invoicexpress' && inv.invoicexpress_id != null) {
+              inv.credit_note_reference = cnMap.get(inv.invoicexpress_id) || null;
+            }
           }
         }
       }
@@ -104,7 +113,7 @@ export function useSyncInvoices() {
 
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      return res.data as { total: number; matched: number; not_matched: number };
+      return res.data as { total: number; matched: number; not_matched: number; failed?: number };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });

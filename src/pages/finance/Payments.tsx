@@ -28,6 +28,9 @@ import { DateRange } from "react-day-picker";
 import { startOfDay, endOfDay, parseISO, format } from "date-fns";
 import type { PaymentWithSale } from "@/types/finance";
 import { InvoiceDraftModal, type DraftSaleItem } from "@/components/sales/InvoiceDraftModal";
+import { isBillingActive } from "@/components/sales/SaleFiscalInfo";
+import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
+import { toast } from "sonner";
 
 type SortField = 'payment_date' | 'sale_code' | 'client_name' | 'amount' | 'payment_method' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -77,7 +80,7 @@ export default function FinancePayments() {
     try { localStorage.setItem(SORT_KEY, JSON.stringify({ field: sortField, direction: sortDirection })); } catch {}
   }, [sortField, sortDirection]);
 
-  const hasInvoiceXpress = !!(organization?.tem_invoicexpress_api_key && organization?.invoicexpress_account_name);
+  const hasFiscalIntegration = isBillingActive(organization);
   const taxConfig = organization?.tax_config as { tax_value?: number; tax_exemption_reason?: string } | null;
 
   // Load sale items when draft modal is open
@@ -227,25 +230,61 @@ export default function FinancePayments() {
   };
 
   const canEmitDocument = (payment: PaymentWithSale) => {
-    if (!hasInvoiceXpress) return false;
+    if (!hasFiscalIntegration) return false;
     if (payment.status !== 'paid') return false;
+    if ((payment.reversal_status ?? 'none') !== 'none' || Number(payment.reversed_amount ?? 0) > 0) return false;
     if (payment.invoice_reference) return false;
-    return true;
+    const mode = getDocumentMode(payment);
+    if (mode === 'invoice_receipt') {
+      // FR belongs to the sale, not to each instalment. Show a single action
+      // on the newest confirmed payment instead of one duplicate per row.
+      const representative = (payments ?? []).find((candidate) =>
+        candidate.sale_id === payment.sale_id
+        && candidate.status === 'paid'
+        && (candidate.reversal_status ?? 'none') === 'none'
+        && Number(candidate.reversed_amount ?? 0) === 0,
+      );
+      return representative?.id === payment.id;
+    }
+    return mode === 'receipt';
   };
 
-  const getDocumentMode = (payment: PaymentWithSale): "receipt" | "invoice_receipt" => {
-    // If the sale already has a FT, emit RC; otherwise emit FR
-    return payment.sale.invoicexpress_id ? "receipt" : "invoice_receipt";
+  const getDocumentMode = (payment: PaymentWithSale): "receipt" | "invoice_receipt" | null => {
+    // A receipt only settles an existing FT. An existing FR is already both
+    // invoice and receipt and must not produce a second receipt.
+    if (payment.sale.invoicexpress_id) {
+      return payment.sale.invoicexpress_type === 'FT' ? 'receipt' : null;
+    }
+
+    // The payments page contains individual instalments. Looking only at this
+    // row (or merely checking that every scheduled row is paid) could issue an
+    // FR for a partial amount. Sum every confirmed payment for this sale.
+    const paymentsForSale = (payments ?? []).filter((candidate) => candidate.sale_id === payment.sale_id);
+    const paymentObligation = payment.sale.gross_value ?? payment.sale.total_value;
+    return isSalePaidInFull(paymentObligation, paymentsForSale)
+      ? 'invoice_receipt'
+      : null;
   };
 
   const handleOpenDraft = (payment: PaymentWithSale) => {
     const mode = getDocumentMode(payment);
+    if (!mode) return;
     setDraftMode(mode);
     setDraftPayment(payment);
   };
 
   const handleConfirmDraft = (obs?: string) => {
     if (!draftPayment || !organization) return;
+
+    if (
+      draftPayment.status !== 'paid'
+      || (draftPayment.reversal_status ?? 'none') !== 'none'
+      || Number(draftPayment.reversed_amount ?? 0) > 0
+      || getDocumentMode(draftPayment) !== draftMode
+    ) {
+      toast.error('O estado do pagamento já não permite emitir este documento. Atualiza a página e tenta novamente.');
+      return;
+    }
 
     if (draftMode === "receipt") {
       generateReceipt.mutate(
@@ -476,6 +515,7 @@ export default function FinancePayments() {
                                 variant="outline"
                                 className="gap-1.5"
                                 onClick={() => handleOpenDraft(payment)}
+                                disabled={generateReceipt.isPending || issueInvoiceReceipt.isPending}
                               >
                                 {getDocumentMode(payment) === "receipt" ? (
                                   <>
@@ -566,7 +606,7 @@ export default function FinancePayments() {
           paymentMethod={draftPayment.payment_method}
           taxConfig={taxConfig}
           saleItems={draftSaleItems}
-          saleTotal={draftPayment.sale.total_value}
+          saleTotal={draftPayment.sale.gross_value ?? draftPayment.sale.total_value}
         />
       )}
 

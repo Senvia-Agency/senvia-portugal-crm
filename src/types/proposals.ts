@@ -18,6 +18,12 @@ export interface Product {
   is_recurring: boolean;
   tax_value?: number | null;
   tax_exemption_reason?: string | null;
+  /** True when `price` is already the final VAT-inclusive customer price. */
+  price_includes_vat?: boolean;
+  /** Withholding percentage preserved in the fiscal snapshot. */
+  retention_rate?: number;
+  /** Exact KeyInvoice product identity, resolved by the fiscal worker. */
+  keyinvoice_product_id?: string | null;
   invoicexpress_id?: number | null;
   /** Commission earned per unit sold (telecom / fixed-commission products). */
   commission_value?: number | null;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +60,16 @@ interface IntegrationsContentProps {
   showInvoiceXpressApiKey: boolean;
   setShowInvoiceXpressApiKey: (value: boolean) => void;
   handleSaveInvoiceXpress: () => void;
+  vendusApiKey: string;
+  setVendusApiKey: (value: string) => void;
+  showVendusApiKey: boolean;
+  setShowVendusApiKey: (value: boolean) => void;
+  vendusOptionsLoaded: boolean;
+  vendusRegisterReady: boolean;
+  vendusReadinessError: string;
+  vendusOptionsLoading: boolean;
+  handleLoadVendusOptions: () => Promise<void>;
+  handleSaveVendus: () => void;
   integrationsEnabled: Record<string, boolean>;
   onToggleIntegration: (key: string, enabled: boolean) => void;
   updateOrganizationIsPending: boolean;
@@ -71,12 +82,12 @@ interface IntegrationsContentProps {
    * ao browser (migracao 20260826140000). Sem isto, um campo vazio parecia
    * "por configurar" quando na verdade estava configurado ha meses.
    */
-  chavesGuardadas?: { whatsapp: boolean; brevo: boolean; invoicexpress: boolean; keyinvoice: boolean };
+  chavesGuardadas?: { whatsapp: boolean; brevo: boolean; invoicexpress: boolean; keyinvoice: boolean; vendus: boolean };
   keyinvoiceApiUrl: string;
   setKeyinvoiceApiUrl: (value: string) => void;
   showKeyinvoiceApiKey: boolean;
   setShowKeyinvoiceApiKey: (value: boolean) => void;
-  handleSaveKeyInvoice: () => void;
+  handleSaveKeyInvoice: () => Promise<void>;
   // Personal email-sending config (per-user), moved here from the profile so all
   // Brevo/email setup lives in one place. Saved via handleSaveProfile.
   profileSenderEmail: string;
@@ -87,7 +98,7 @@ interface IntegrationsContentProps {
   updateProfileIsPending: boolean;
 }
 
-type IntegrationKey = 'webhook' | 'webhook_inbound' | 'inboxes' | 'brevo' | 'invoicexpress' | 'keyinvoice' | 'meta' | 'stripe';
+type IntegrationKey = 'webhook' | 'webhook_inbound' | 'inboxes' | 'brevo' | 'invoicexpress' | 'keyinvoice' | 'vendus' | 'meta' | 'stripe';
 
 interface IntegrationDef {
   key: IntegrationKey;
@@ -109,6 +120,7 @@ const integrations: IntegrationDef[] = [
   { key: 'stripe', icon: CreditCard, title: 'Stripe', description: 'Cobrar subscrições recorrentes na conta da sua empresa', toggleKey: 'stripe', group: 'Pagamentos' },
   { key: 'invoicexpress', icon: Receipt, title: 'InvoiceXpress', description: 'Emissão de faturas automática', toggleKey: 'invoicexpress', group: 'Faturação eletrónica' },
   { key: 'keyinvoice', icon: Receipt, title: 'KeyInvoice', description: 'Faturação via API 5.0', toggleKey: 'keyinvoice', group: 'Faturação eletrónica' },
+  { key: 'vendus', icon: Receipt, title: 'Vendus', description: 'Faturação via API Vendus', toggleKey: 'vendus', group: 'Faturação eletrónica' },
 ];
 
 function IntegrationCard({
@@ -172,7 +184,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     brevoApiKey, brevoSenderEmail,
     invoiceXpressAccountName, invoiceXpressApiKey,
     integrationsEnabled, onToggleIntegration,
-    keyinvoiceApiKey,
+    keyinvoiceApiKey, vendusApiKey, chavesGuardadas,
   } = props;
 
   const visibleIntegrations = integrations;
@@ -184,9 +196,10 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
       case 'webhook': return webhooks.length > 0;
       case 'webhook_inbound': return true; // Always configured (auto-generated token)
       case 'inboxes': return connectedChannels > 0;
-      case 'brevo': return !!(brevoApiKey && brevoSenderEmail);
-      case 'invoicexpress': return !!(invoiceXpressAccountName && invoiceXpressApiKey);
-      case 'keyinvoice': return !!keyinvoiceApiKey;
+      case 'brevo': return !!(brevoSenderEmail && (brevoApiKey || chavesGuardadas?.brevo));
+      case 'invoicexpress': return !!(invoiceXpressAccountName && (invoiceXpressApiKey || chavesGuardadas?.invoicexpress));
+      case 'keyinvoice': return !!(keyinvoiceApiKey || chavesGuardadas?.keyinvoice);
+      case 'vendus': return chavesGuardadas?.vendus === true;
       case 'meta': return !!(org as { tem_meta_conversions_token?: boolean } | null)?.tem_meta_conversions_token;
       case 'stripe': return stripeConnection.connected;
     }
@@ -278,7 +291,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
           {getBadge(active, isConfigured(active))}
           {active !== 'inboxes' && active !== 'meta' && active !== 'stripe' && (
             <Switch
-              checked={active === 'keyinvoice' ? integrationsEnabled.keyinvoice === true : integrationsEnabled[active] !== false}
+              checked={active === 'keyinvoice' || active === 'vendus' ? integrationsEnabled[active] === true : integrationsEnabled[active] !== false}
               onCheckedChange={(checked) => onToggleIntegration(active, checked)}
             />
           )}
@@ -299,6 +312,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
           {active === 'brevo' && <BrevoForm {...props} />}
           {active === 'invoicexpress' && <InvoiceXpressForm {...props} />}
           {active === 'keyinvoice' && <KeyInvoiceForm {...props} />}
+          {active === 'vendus' && <VendusForm {...props} />}
           {active === 'meta' && <><MetaConversionsForm /><OrgPixelsForm /></>}
         </div>
       )}
@@ -1727,30 +1741,85 @@ function InvoiceXpressForm({ chavesGuardadas, invoiceXpressAccountName, setInvoi
   );
 }
 
-function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl, showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, handleSaveKeyInvoice, updateOrganizationIsPending }: IntegrationsContentProps) {
+function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusOptionsLoaded, vendusRegisterReady, vendusReadinessError, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-        <p className="text-sm text-blue-600 dark:text-blue-400">Introduza a Chave da API 5.0 do seu painel KeyInvoice.</p>
+        <p className="text-sm text-blue-600 dark:text-blue-400">Liga a Vendus com a chave API. O Senvia usa automaticamente a caixa existente quando há uma única caixa ativa do tipo API e envia as faturas em modo Normal. Nas faturas-recibo e recibos, o método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ki-api-key">Chave da API</Label>
+        <Label htmlFor="vendus-api-key">Chave de API</Label>
+        <div className="relative">
+          <Input
+            id="vendus-api-key"
+            type={showVendusApiKey ? 'text' : 'password'}
+            autoComplete="off"
+            placeholder={chavesGuardadas?.vendus ? 'Guardada — escreve uma nova para substituir' : 'Chave da API Vendus'}
+            value={vendusApiKey}
+            onChange={(event) => setVendusApiKey(event.target.value)}
+          />
+          <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" aria-label={showVendusApiKey ? 'Ocultar chave Vendus' : 'Mostrar chave Vendus'} onClick={() => setShowVendusApiKey(!showVendusApiKey)}>
+            {showVendusApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Deixa em branco para manter a chave guardada.</p>
+      </div>
+      <Button type="button" variant="outline" onClick={handleLoadVendusOptions}
+        disabled={vendusOptionsLoading || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
+        {vendusOptionsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {vendusOptionsLoading ? 'A validar a chave...' : 'Validar chave'}
+      </Button>
+      {vendusOptionsLoaded && (vendusRegisterReady
+        ? <p className="text-xs text-green-600">Chave validada e caixa API pronta para faturação.</p>
+        : <p className="text-xs text-amber-700">{vendusReadinessError}</p>)}
+      <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
+        {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Guardar
+      </Button>
+    </>
+  );
+}
+
+function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl, showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, handleSaveKeyInvoice, updateOrganizationIsPending }: IntegrationsContentProps) {
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await handleSaveKeyInvoice();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
+        <p className="text-sm text-blue-600 dark:text-blue-400">
+          Introduza a chave <strong>Apikey</strong> da API 5.0. A chave guardada nunca volta a ser mostrada no browser.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="ki-api-key">Apikey</Label>
         <div className="relative">
           <Input id="ki-api-key" type={showKeyinvoiceApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.keyinvoice ? "Guardada — escreve uma nova para substituir" : "Chave da API KeyInvoice"} value={keyinvoiceApiKey} onChange={(e) => setKeyinvoiceApiKey(e.target.value)} />
           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowKeyinvoiceApiKey(!showKeyinvoiceApiKey)}>
             {showKeyinvoiceApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Encontre a sua Chave em KeyInvoice → Painel → API 5.0 REST.</p>
+        <p className="text-xs text-muted-foreground">Encontre a Apikey em KeyInvoice → Configurações → API KEYINVOICE. Se gerar uma nova chave, substitua-a aqui e guarde.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="ki-api-url">URL da API</Label>
         <Input id="ki-api-url" type="url" placeholder="https://login.keyinvoice.com/API5.php" value={keyinvoiceApiUrl} onChange={(e) => setKeyinvoiceApiUrl(e.target.value)} />
         <p className="text-xs text-muted-foreground">Endereço base da API KeyInvoice. Deixe em branco para usar o valor padrão.</p>
       </div>
-      <Button onClick={handleSaveKeyInvoice} disabled={updateOrganizationIsPending}>
-        {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar
+
+      <p className="text-xs text-muted-foreground">
+        A ligação à API é configurada aqui. As séries para emissão automática são definidas em Definições → Financeiro → Fiscal.
+      </p>
+      <Button onClick={save} disabled={updateOrganizationIsPending || saving}>
+        {(updateOrganizationIsPending || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {saving ? 'A validar ligação…' : 'Guardar e validar'}
       </Button>
     </>
   );

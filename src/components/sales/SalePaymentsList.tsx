@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Plus, Pencil, Trash2, CreditCard, Receipt, AlertCircle, Ban, FileText, QrCode, Mail, Eye, RefreshCw, FileDown } from "lucide-react";
@@ -36,8 +37,46 @@ import { openPdfInNewTab } from "@/lib/download";
 
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { InvoiceDetailsModal } from "./InvoiceDetailsModal";
+import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
+import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
 import { CreateCreditNoteModal } from "./CreateCreditNoteModal";
 import { useSyncInvoice } from "@/hooks/useInvoiceDetails";
+import type { InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+
+export interface SaleFiscalDocument {
+  id: string;
+  provider: string;
+  document_type: string;
+  invoicexpress_id: number | null;
+  payment_id: string | null;
+  reference: string | null;
+}
+
+export function useSaleFiscalDocuments(organizationId?: string, saleId?: string) {
+  return useQuery({
+    queryKey: ["invoices", organizationId, "sale", saleId],
+    queryFn: async (): Promise<SaleFiscalDocument[]> => {
+      const { data, error } = await (supabase as any).from("invoices")
+        .select("id,provider,document_type,invoicexpress_id,payment_id,reference")
+        .eq("organization_id", organizationId)
+        .eq("sale_id", saleId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!organizationId && !!saleId,
+  });
+}
+
+function paymentHasNoReversal(payment: SalePayment): boolean {
+  const fiscalPayment = payment as SalePayment & {
+    reversal_status?: string | null;
+    reversed_amount?: number | null;
+  };
+  return (fiscalPayment.reversal_status ?? 'none') === 'none'
+    && Number(fiscalPayment.reversed_amount ?? 0) === 0;
+}
 
 interface SalePaymentsListProps {
   saleId: string;
@@ -77,6 +116,9 @@ export function SalePaymentsList({
   preventPaymentDeletion = false,
 }: SalePaymentsListProps) {
   const { data: payments = [], isLoading } = useSalePayments(saleId);
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: fiscalDocuments = [], isLoading: fiscalDocumentsLoading } = useSaleFiscalDocuments(organizationId, saleId);
   const { data: saleItemsData = [] } = useSaleItems(saleId);
   const deletePayment = useDeleteSalePayment();
 
@@ -105,16 +147,19 @@ export function SalePaymentsList({
   
   // Email modal state
   const [emailModal, setEmailModal] = useState<{
-    documentId: number;
+    invoiceId?: string;
+    documentId?: number | null;
     documentType: "invoice" | "invoice_receipt" | "receipt";
-    reference: string;
   } | null>(null);
 
   // Invoice details modal state
   const [detailsModal, setDetailsModal] = useState<{
     documentId: number;
+    invoiceId?: string;
+    provider?: string;
     documentType: "invoice" | "invoice_receipt" | "receipt";
     paymentId?: string;
+    initialDetails?: Partial<InvoiceDetailsData>;
   } | null>(null);
 
   // Credit note modal state
@@ -129,6 +174,16 @@ export function SalePaymentsList({
   const syncInvoice = useSyncInvoice();
 
   const summary = calculatePaymentSummary(payments, saleTotal);
+
+  const receiptDocument = (payment: SalePayment): SaleFiscalDocument | null => {
+    const candidates = fiscalDocuments.filter((document) =>
+      document.document_type === "receipt" && document.payment_id === payment.id);
+    return candidates.find((document) => document.reference === payment.invoice_reference)
+      || (candidates.length === 1 ? candidates[0] : null);
+  };
+  const supportsInvoiceXpressActions = (payment: SalePayment): boolean =>
+    (organization?.billing_provider ?? "invoicexpress") === "invoicexpress"
+    && receiptDocument(payment)?.provider === "invoicexpress";
 
   // After editing a payment, check if there's a gap and prompt to schedule
   useEffect(() => {
@@ -277,7 +332,7 @@ export function SalePaymentsList({
                     </>
                   )}
                   {/* Generate Receipt (RC) button - only when sale already has FT */}
-                  {hasInvoiceXpress && hasInvoice && invoicexpressType === 'FT' && !payment.invoice_reference && !readonly && (
+                  {hasInvoiceXpress && hasInvoice && invoicexpressType === 'FT' && payment.status === 'paid' && paymentHasNoReversal(payment) && !payment.invoice_reference && !readonly && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -303,7 +358,7 @@ export function SalePaymentsList({
                        <FileDown className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  {!payment.invoice_file_url && payment.invoice_reference && payment.invoicexpress_id && (
+                  {!payment.invoice_file_url && payment.invoice_reference && payment.invoicexpress_id && supportsInvoiceXpressActions(payment) && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -337,34 +392,72 @@ export function SalePaymentsList({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => setDetailsModal({
-                        documentId: payment.invoicexpress_id!,
-                        documentType: 'receipt',
-                        paymentId: payment.id,
-                      })}
+                      disabled={fiscalDocumentsLoading || (organization?.billing_provider === 'vendus' && !receiptDocument(payment))}
+                      onClick={() => {
+                        const document = receiptDocument(payment);
+                        setDetailsModal({
+                          documentId: payment.invoicexpress_id!,
+                          invoiceId: document?.id,
+                          provider: document?.provider,
+                          documentType: 'receipt',
+                          paymentId: payment.id,
+                          initialDetails: {
+                            sequence_number: payment.invoice_reference || document?.reference || '',
+                            status: 'final',
+                            date: payment.payment_date,
+                            sum: Number(payment.amount || 0),
+                            before_taxes: Number(payment.amount || 0),
+                            total: Number(payment.amount || 0),
+                            client: clientName ? {
+                              id: 0,
+                              name: clientName,
+                              fiscal_id: clientNif || '',
+                              country: 'PT',
+                              address: null,
+                              postal_code: null,
+                              city: null,
+                              email: clientEmail || null,
+                              phone: null,
+                            } : null,
+                            items: [{
+                              name: 'Liquidação de pagamento',
+                              description: payment.invoice_reference || '',
+                              unit_price: String(payment.amount || 0),
+                              quantity: '1',
+                              tax: { id: 0, name: 'IVA', value: 0 },
+                              discount: 0,
+                              subtotal: Number(payment.amount || 0),
+                              tax_amount: 0,
+                              total: Number(payment.amount || 0),
+                            }],
+                            tax_summary: [],
+                            source: document?.provider || undefined,
+                          },
+                        });
+                      }}
                       title="Ver detalhes"
                     >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  {payment.invoice_reference && hasInvoiceXpress && !readonly && (
+                  {payment.invoice_reference && (payment.invoicexpress_id || receiptDocument(payment)?.id) && !readonly && (
                     <>
-                      {payment.invoicexpress_id && (
+                      <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.receipt} noticePosition="inline" className="shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => setEmailModal({
-                            documentId: payment.invoicexpress_id!,
+                            invoiceId: receiptDocument(payment)?.id,
+                            documentId: payment.invoicexpress_id,
                             documentType: 'receipt',
-                            reference: payment.invoice_reference!,
                           })}
                           title="Enviar por email"
                         >
                           <Mail className="h-3.5 w-3.5" />
                         </Button>
-                      )}
-                      <Button
+                      </EmailTemplateGate>
+                      {supportsInvoiceXpressActions(payment) && <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
@@ -372,7 +465,7 @@ export function SalePaymentsList({
                         title="Anular recibo"
                       >
                         <Ban className="h-3.5 w-3.5" />
-                      </Button>
+                      </Button>}
                     </>
                   )}
                 </div>
@@ -469,15 +562,22 @@ export function SalePaymentsList({
 
       {/* Invoice Draft Modal - Receipt mode (RC - requires existing FT) */}
       <InvoiceDraftModal
-        open={draftMode === "receipt" && !!draftPayment}
+        open={!readonly && draftMode === "receipt" && !!draftPayment}
         onOpenChange={(open) => { 
           if (!open) { setDraftMode(null); setDraftPayment(null); }
         }}
         onConfirm={(_obs) => {
-          if (!draftPayment) return;
+          // A receipt settles money already received. Keep this guard at the
+          // action boundary as well as in the button visibility so stale UI
+          // state can never submit a pending payment.
+          if (readonly || !draftPayment || draftPayment.status !== 'paid' || !paymentHasNoReversal(draftPayment)) return;
           generateReceipt.mutate(
             { saleId, paymentId: draftPayment.id, organizationId },
-            { onSuccess: () => { setDraftMode(null); setDraftPayment(null); } }
+            { onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: ["invoices", organizationId, "sale", saleId] });
+              setDraftMode(null);
+              setDraftPayment(null);
+            } }
           );
         }}
         isLoading={generateReceipt.isPending}
@@ -497,7 +597,7 @@ export function SalePaymentsList({
         open={!!cancellingPayment}
         onOpenChange={(open) => !open && setCancellingPayment(null)}
         onConfirm={(reason) => {
-          if (!cancellingPayment) return;
+          if (!cancellingPayment || !supportsInvoiceXpressActions(cancellingPayment)) return;
           const isSaleInvoice = cancellingPayment.id === '__sale__';
           const docType = isSaleInvoice ? 'invoice' : 'receipt';
           cancelInvoice.mutate(
@@ -522,10 +622,10 @@ export function SalePaymentsList({
         <SendInvoiceEmailModal
           open={!!emailModal}
           onOpenChange={(open) => !open && setEmailModal(null)}
+          invoiceId={emailModal.invoiceId}
           documentId={emailModal.documentId}
           documentType={emailModal.documentType}
           organizationId={organizationId}
-          reference={emailModal.reference}
           clientEmail={clientEmail}
         />
       )}
@@ -536,10 +636,13 @@ export function SalePaymentsList({
           open={!!detailsModal}
           onOpenChange={(open) => !open && setDetailsModal(null)}
           documentId={detailsModal.documentId}
+          invoiceId={detailsModal.invoiceId}
+          provider={detailsModal.provider}
           documentType={detailsModal.documentType}
           organizationId={organizationId}
           saleId={saleId}
           paymentId={detailsModal.paymentId}
+          initialDetails={detailsModal.initialDetails}
         />
       )}
 

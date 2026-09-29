@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { rateLimit } from "../_shared/security.ts";
+import { brevoFiscalEventAt, fiscalStatusForBrevoEvent, safeFiscalEventData } from "../_shared/brevo-fiscal-event.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,7 +55,7 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    console.log(`Brevo webhook: event=${event}, messageId=${messageId}`);
+    console.log(`Brevo webhook: event=${event}`);
 
     const updateData: Record<string, any> = {};
     let onlyIfNull = false;
@@ -82,7 +83,7 @@ serve(async (req: Request): Promise<Response> => {
         if (sendRecord?.sent_at) {
           const diffSeconds = (Date.now() - new Date(sendRecord.sent_at).getTime()) / 1000;
           if (diffSeconds < 120) {
-            console.log(`Ignoring suspicious open: ${diffSeconds.toFixed(1)}s after send (messageId=${messageId})`);
+            console.log(`Ignoring suspicious open: ${diffSeconds.toFixed(1)}s after send`);
             return new Response(JSON.stringify({ ok: true, skipped: "suspicious_open" }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -132,18 +133,70 @@ serve(async (req: Request): Promise<Response> => {
     const { error } = await query;
 
     if (error) {
-      console.error("Error updating email_sends:", error);
+      console.error("email_sends_update_failed", { code: error.code });
       return new Response(JSON.stringify({ error: "Failed to update" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Fiscal PDF deliveries share the same Brevo webhook but keep their own
+    // immutable document ledger. A message id identifies the exact invoice
+    // delivery; no lookup by recipient or subject is ever attempted.
+    const nextFiscalStatus = fiscalStatusForBrevoEvent(event);
+    if (nextFiscalStatus) {
+      const { error: fiscalUpdateError } = await supabase.rpc("record_fiscal_email_event", {
+        p_message_id: String(messageId),
+        p_event_type: String(event).toLowerCase(),
+        p_event_at: brevoFiscalEventAt(payload),
+        p_event_data: safeFiscalEventData(payload),
+      });
+
+      // P0002 means either a non-fiscal Brevo message or an older/stale event.
+      // Both are valid no-ops and must still acknowledge the webhook.
+      if (fiscalUpdateError && fiscalUpdateError.code !== "P0002") {
+        console.error("fiscal_email_status_update_failed", { event, code: fiscalUpdateError.code });
+        return new Response(JSON.stringify({ error: "Failed to update fiscal delivery" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!fiscalUpdateError && ["bounced", "blocked"].includes(nextFiscalStatus)) {
+        // Fetch document context only for actionable failures. Delivered and
+        // suppressed events never load invoice/customer data into this handler.
+        const { data: fiscalRows, error: fiscalLookupError } = await supabase
+          .from("invoices")
+          .select("id, organization_id, reference")
+          .eq("email_message_id", String(messageId));
+        if (fiscalLookupError) {
+          console.error("fiscal_email_alert_lookup_failed");
+        }
+        const pushes = (fiscalRows ?? []).map((invoice) =>
+          // Best effort: the durable invoice state above is the source of truth;
+          // push is only the immediate alert for the finance team.
+          supabase.functions.invoke("send-push-notification", {
+            body: {
+              organization_id: invoice.organization_id,
+              title: "Falha no envio do documento fiscal",
+              body: `${invoice.reference || "Documento fiscal"}: o email não foi entregue.`,
+              url: "/financeiro/faturas",
+              tag: `fiscal-email-${invoice.id}`,
+            },
+          })
+        );
+        const pushResults = await Promise.allSettled(pushes);
+        if (pushResults.some((result) => result.status === "rejected" || result.value.error)) {
+          console.error("fiscal_email_alert_failed");
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error("Brevo webhook error:", error);
+  } catch {
+    console.error("brevo_webhook_unexpected_error");
     return new Response(JSON.stringify({ error: "Internal error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

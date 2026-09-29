@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Eye, RefreshCw, Mail, Ban, FileText, Loader2, FileDown } from "lucide-react";
+import { MoreHorizontal, Eye, RefreshCw, Mail, Ban, FileText, Loader2, FileDown, MessageCircleMore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,9 +17,14 @@ import { CreateCreditNoteModal } from "@/components/sales/CreateCreditNoteModal"
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmailTemplateRequirement } from "@/hooks/useEmailTemplateRequirement";
+import { EMAIL_TEMPLATE_TRIGGER_LABELS, getFiscalEmailTrigger } from "@/lib/email-template-triggers";
 
 interface InvoiceActionItem {
   id: string;
+  invoiceId?: string | null;
+  provider?: string | null;
   invoicexpressId: number | null;
   invoiceReference: string;
   invoiceFileUrl: string | null;
@@ -36,6 +41,7 @@ interface InvoiceActionsMenuProps {
 }
 
 export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
+  const { organization } = useAuth();
   const [showDetails, setShowDetails] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -45,8 +51,15 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const syncInvoice = useSyncInvoice();
   const cancelInvoice = useCancelInvoice();
 
-  const hasInvoiceXpress = !!invoice.invoicexpressId;
+  const hasDocument = !!(invoice.invoiceId || invoice.invoicexpressId);
+  const canSendFiscalEmail = !!(invoice.invoiceId || invoice.invoicexpressId);
+  const emailTrigger = getFiscalEmailTrigger(invoice.documentType);
+  const emailTemplate = useEmailTemplateRequirement(emailTrigger);
+  const emailTemplateMessage = `Configure um template de email ativo com o gatilho «${EMAIL_TEMPLATE_TRIGGER_LABELS[emailTrigger]}» em Marketing → Templates antes de enviar.`;
+  const supportsProviderActions = organization?.billing_provider !== 'vendus'
+    && invoice.provider !== 'vendus' && !!invoice.invoicexpressId;
   const hasLocalPdf = !!invoice.invoiceFileUrl;
+  const isKeyInvoice = invoice.provider === 'keyinvoice';
 
   const handleView = async () => {
     if (!invoice.invoiceFileUrl) return;
@@ -61,7 +74,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   };
 
   const handleSync = () => {
-    if (!invoice.invoicexpressId) return;
+    if (!supportsProviderActions || !invoice.invoicexpressId) return;
     syncInvoice.mutate({
       documentId: invoice.invoicexpressId,
       documentType: invoice.documentType,
@@ -72,13 +85,14 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   };
 
   const handleCancelConfirm = (reason: string) => {
-    if (!invoice.invoicexpressId) return;
+    if (!supportsProviderActions || !invoice.invoicexpressId) return;
     const isSaleLevel = !invoice.paymentId;
     cancelInvoice.mutate(
       {
         ...(isSaleLevel ? { saleId: invoice.saleId } : { paymentId: invoice.paymentId }),
         organizationId: invoice.organizationId,
         reason,
+        invoiceId: invoice.invoiceId || undefined,
         invoicexpressId: invoice.invoicexpressId,
         documentType: invoice.documentType,
       },
@@ -95,7 +109,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          {hasInvoiceXpress && (
+          {hasDocument && (
             <DropdownMenuItem onClick={() => setShowDetails(true)}>
               <Eye className="h-4 w-4 mr-2" />
               Ver Detalhes
@@ -107,24 +121,39 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
               {viewing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
               Ver PDF
             </DropdownMenuItem>
-          ) : hasInvoiceXpress ? (
+          ) : supportsProviderActions ? (
             <DropdownMenuItem onClick={handleSync} disabled={syncInvoice.isPending}>
               <RefreshCw className={`h-4 w-4 mr-2 ${syncInvoice.isPending ? 'animate-spin' : ''}`} />
               Sincronizar PDF
             </DropdownMenuItem>
           ) : null}
 
-          {hasInvoiceXpress && (
-            <DropdownMenuItem onClick={() => setShowEmail(true)}>
+          {canSendFiscalEmail && (
+            <DropdownMenuItem
+              aria-disabled={emailTemplate.isLoading || !emailTemplate.isConfigured}
+              className={!emailTemplate.isLoading && !emailTemplate.isConfigured ? 'opacity-50' : undefined}
+              onSelect={(event) => {
+                if (emailTemplate.isLoading || !emailTemplate.isConfigured) {
+                  event.preventDefault();
+                  return;
+                }
+                setShowEmail(true);
+              }}
+            >
               <Mail className="h-4 w-4 mr-2" />
               Enviar por Email
+              {!emailTemplate.isLoading && !emailTemplate.isConfigured && (
+                <span className="ml-auto" title={emailTemplateMessage} aria-label={emailTemplateMessage}>
+                  <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
+                </span>
+              )}
             </DropdownMenuItem>
           )}
 
-          {hasInvoiceXpress && (
+          {supportsProviderActions && (!isKeyInvoice || invoice.documentType !== 'receipt') && (
             <>
               <DropdownMenuSeparator />
-              {!invoice.creditNoteId && (
+              {!isKeyInvoice && !invoice.creditNoteId && (
                 <DropdownMenuItem onClick={() => setShowCreditNote(true)}>
                   <FileText className="h-4 w-4 mr-2" />
                   Nota de Crédito
@@ -135,7 +164,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
                 className="text-destructive focus:text-destructive"
               >
                 <Ban className="h-4 w-4 mr-2" />
-                Anular Documento
+                {isKeyInvoice ? 'Nota de Crédito' : 'Anular Documento'}
               </DropdownMenuItem>
             </>
           )}
@@ -143,11 +172,13 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
       </DropdownMenu>
 
       {/* Modals */}
-      {showDetails && invoice.invoicexpressId && (
+      {showDetails && hasDocument && (
         <InvoiceDetailsModal
           open={showDetails}
           onOpenChange={setShowDetails}
           documentId={invoice.invoicexpressId}
+          invoiceId={invoice.invoiceId}
+          provider={invoice.provider}
           documentType={invoice.documentType}
           organizationId={invoice.organizationId}
           saleId={invoice.saleId}
@@ -156,14 +187,15 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
       )}
 
       <CancelInvoiceDialog
-        open={showCancel}
+        open={showCancel && supportsProviderActions}
         onOpenChange={setShowCancel}
         onConfirm={handleCancelConfirm}
         isLoading={cancelInvoice.isPending}
         invoiceReference={invoice.invoiceReference}
+        createsCreditNote={isKeyInvoice}
       />
 
-      {showEmail && invoice.invoicexpressId && (
+      {showEmail && canSendFiscalEmail && (
         <SendInvoiceEmailModal
           open={showEmail}
           onOpenChange={setShowEmail}
@@ -172,10 +204,11 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           organizationId={invoice.organizationId}
           reference={invoice.invoiceReference}
           clientEmail={invoice.clientEmail}
+          invoiceId={invoice.invoiceId}
         />
       )}
 
-      {showCreditNote && invoice.invoicexpressId && (
+      {showCreditNote && supportsProviderActions && invoice.invoicexpressId && (
         <CreateCreditNoteModal
           open={showCreditNote}
           onOpenChange={setShowCreditNote}

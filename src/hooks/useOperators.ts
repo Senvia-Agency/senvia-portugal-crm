@@ -14,6 +14,7 @@ export interface Operator {
   kind: OperatorKind;
   commission_basis: CommissionBasis | null;
   volume_scope: VolumeScope | null;
+  commission_payment_month_offset: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
