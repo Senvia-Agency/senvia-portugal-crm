@@ -29,9 +29,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteEmailTemplate, useDuplicateEmailTemplate, useUpdateEmailTemplate } from "@/hooks/useEmailTemplates";
 import { TEMPLATE_CATEGORIES, type EmailTemplate } from "@/types/marketing";
+import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 interface TemplatesTableProps {
   templates: EmailTemplate[];
@@ -41,6 +42,13 @@ interface TemplatesTableProps {
 }
 
 export function TemplatesTable({ templates, isLoading, onEdit, onSend }: TemplatesTableProps) {
+  // One lookup for the whole table instead of a find() per row.
+  const { data: categories } = useEmailTemplateCategories();
+  const categoryById = useMemo(
+    () => new Map((categories ?? []).map((category) => [category.id, category])),
+    [categories],
+  );
+
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const deleteTemplate = useDeleteEmailTemplate();
   const duplicateTemplate = useDuplicateEmailTemplate();
@@ -103,9 +111,29 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
               <TableRow key={template.id}>
                 <TableCell className="font-medium">{template.name}</TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  <Badge variant="secondary">
-                    {TEMPLATE_CATEGORIES[template.category]}
-                  </Badge>
+                  {/* The organization's own category when there is one. The
+                      legacy text column is the fallback for anything not yet
+                      migrated, and its raw value beats the empty chip that a
+                      missing label used to produce. */}
+                  {(() => {
+                    const own = categoryById.get(template.category_id ?? "");
+                    if (own) {
+                      return (
+                        <Badge
+                          variant="secondary"
+                          style={own.color ? { backgroundColor: own.color + "1f", color: own.color } : undefined}
+                        >
+                          {own.name}
+                        </Badge>
+                      );
+                    }
+                    const legacy = TEMPLATE_CATEGORIES[template.category] ?? template.category;
+                    return (
+                      <Badge variant="secondary" className={legacy ? undefined : "text-muted-foreground"}>
+                        {legacy || "Sem categoria"}
+                      </Badge>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="hidden md:table-cell max-w-[200px] truncate">
                   {template.subject}

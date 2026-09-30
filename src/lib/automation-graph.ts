@@ -230,24 +230,32 @@ export function updateNodePositions(
 
 /**
  * Removes a node and heals the graph: every incoming edge is re-pointed at the
- * node's default (unbranched) successor, so a linear chain stays connected.
- * Branches hanging off the removed node are dropped along with their subtree
- * links — the nodes themselves survive as unreachable roots the user can see.
+ * node's unbranched successors, so a chain stays connected — and a step that
+ * fanned out keeps all of its paths. Branches hanging off the removed node are
+ * dropped along with their subtree links, and those nodes survive as
+ * unreachable roots the user can see and rewire.
  */
 export function removeNode(graph: AutomationGraph, nodeId: string): AutomationGraph {
   const incoming = graph.edges.filter((edge) => edge.target === nodeId);
   const outgoing = graph.edges.filter((edge) => edge.source === nodeId);
-  // Prefer the plain successor; fall back to the first branch target.
-  const successor = outgoing.find((edge) => !edge.branch) ?? outgoing[0];
+  // Prefer the plain successors; fall back to the first branch target.
+  const plain = outgoing.filter((edge) => !edge.branch);
+  const successors = plain.length ? plain : outgoing.slice(0, 1);
 
-  const healed: AutomationGraphEdge[] = successor
-    ? incoming.map((edge) => ({
+  const healed: AutomationGraphEdge[] = [];
+  for (const edge of incoming) {
+    // A branch is one path by definition, so it inherits a single successor.
+    // An unbranched edge inherits them all and the fan-out survives.
+    const targets = edge.branch ? successors.slice(0, 1) : successors;
+    for (const successor of targets) {
+      healed.push({
         id: createId('e'),
         source: edge.source,
         target: successor.target,
         branch: edge.branch,
-      }))
-    : [];
+      });
+    }
+  }
 
   return {
     nodes: graph.nodes.filter((node) => node.id !== nodeId),
@@ -316,6 +324,10 @@ export function getGhostSlots(graph: AutomationGraph): GhostSlot[] {
         }
       }
     } else if (!outgoing.length) {
+      // Only the genuinely open end gets a standing "+". A step that already
+      // has a successor can still fan out, but showing a permanent second "+"
+      // on every step in the chain would bury the flow in placeholders — that
+      // path is drawn from the step's own connection point instead.
       slots.push({
         id: `ghost_${node.id}`,
         sourceId: node.id,
@@ -577,18 +589,18 @@ export function validateGraph(graph: AutomationGraph, entryNodeId: string | null
 
 // ── Manual wiring ───────────────────────────────────────────────────────────
 // The canvas used to be read-only about shape: steps could be moved, never
-// rewired. These helpers back the two affordances that fix that — dropping a
-// "+" where you want the step, and drawing an edge by hand.
+// rewired. These helpers back the one gesture that fixes that — pulling a line
+// out of a step, or out of the "+" standing in for its next step. Released on
+// another step it links the two; released on empty canvas it puts a new step
+// exactly there.
 
 /**
- * Where a node box should land so its circle sits under the point the ghost
- * "+" was dropped on. Without this the step jumps up-left by half a box.
+ * Where a node box goes so its circle sits centred on `point`. A node's stored
+ * position is the top-left of its whole box, label included, so dropping one
+ * without this offset puts the circle down and to the right of the pointer.
  */
-export function ghostDropToNodePosition(point: { x: number; y: number }): { x: number; y: number } {
-  return {
-    x: point.x + GHOST_BOX_WIDTH / 2 - NODE_BOX_WIDTH / 2,
-    y: point.y + GHOST_BOX_HEIGHT / 2 - NODE_CIRCLE_CENTER_Y,
-  };
+export function centreNodeOn(point: { x: number; y: number }): { x: number; y: number } {
+  return { x: point.x - NODE_BOX_WIDTH / 2, y: point.y - NODE_CIRCLE_CENTER_Y };
 }
 
 /** True when `toId` is reachable from `fromId` by following edges. */
@@ -597,7 +609,6 @@ export function isReachable(graph: AutomationGraph, fromId: string, toId: string
   const queue = [fromId];
   while (queue.length) {
     const current = queue.shift() as string;
-    if (current === toId && current !== fromId) return true;
     for (const edge of graph.edges) {
       if (edge.source !== current || seen.has(edge.target)) continue;
       if (edge.target === toId) return true;
@@ -610,9 +621,9 @@ export function isReachable(graph: AutomationGraph, fromId: string, toId: string
 
 /**
  * Why this connection cannot be made, in Portuguese, or null when it can.
- * Every rule here is one the engine would otherwise trip over at run time:
- * a cycle burns through `max_steps_per_run`, a second edge on one branch makes
- * the taken path arbitrary, and a trigger with an inbound edge is meaningless.
+ * Every rule here is one the engine would otherwise trip over at run time: a
+ * cycle burns through `max_steps_per_run`, a second edge on one branch makes the
+ * taken path arbitrary, and a trigger with an inbound edge is meaningless.
  */
 export function describeConnectionRefusal(
   graph: AutomationGraph,
@@ -620,29 +631,37 @@ export function describeConnectionRefusal(
   targetId: string,
   branch: string | null,
 ): string | null {
-  if (sourceId === targetId) return 'Um passo não se pode ligar a si próprio.';
+  if (sourceId === targetId) return "Um passo não se pode ligar a si próprio.";
 
   const source = findNode(graph, sourceId);
   const target = findNode(graph, targetId);
-  if (!source || !target) return 'Passo não encontrado.';
+  if (!source || !target) return "Passo não encontrado.";
 
-  if (getNodeDefinition(target.type)?.isTrigger) return 'Um gatilho não recebe ligações.';
-  if (source.type === 'end') return 'O passo final não tem saída.';
+  if (getNodeDefinition(target.type)?.isTrigger) return "Um gatilho não recebe ligações.";
+  if (source.type === "end") return "O passo final não tem saída.";
 
   const branches = getNodeBranches(source);
   if (branches.length) {
-    if (!branch) return 'Escolhe de que ramo sai esta ligação.';
-    if (!branches.some((item) => item.key === branch)) return 'Esse ramo já não existe neste passo.';
-  } else if (branch) {
-    return 'Este passo não tem ramos.';
+    if (!branch) return "Escolhe de que ramo sai esta ligação.";
+    if (!branches.some((item) => item.key === branch)) return "Esse ramo já não existe neste passo.";
+    // A branch is a decision: exactly one path leaves it, or which one runs
+    // would be arbitrary.
+    const taken = graph.edges.some((edge) => edge.source === sourceId && edge.branch === branch);
+    if (taken) return "Este ramo já está ligado. Apaga a ligação atual primeiro.";
+  } else {
+    if (branch) return "Este passo não tem ramos.";
+    // A step with no branches may fan out: the engine walks every unbranched
+    // edge, so several here means several paths side by side. Only the exact
+    // same pair twice is meaningless.
+    const already = graph.edges.some(
+      (edge) => edge.source === sourceId && edge.target === targetId && !edge.branch,
+    );
+    if (already) return "Estes dois passos já estão ligados.";
   }
 
-  const taken = graph.edges.some((edge) => edge.source === sourceId && (edge.branch ?? null) === branch);
-  if (taken) return 'Esta saída já está ligada. Apaga a ligação atual primeiro.';
-
   // Following the edges forward from the target must never come back here.
-  if (targetId === sourceId || isReachable(graph, targetId, sourceId)) {
-    return 'Isto criaria um ciclo, e o percurso ficaria preso a rodar.';
+  if (isReachable(graph, targetId, sourceId)) {
+    return "Isto criaria um ciclo, e o percurso ficaria preso a rodar.";
   }
 
   return null;

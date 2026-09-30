@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -261,21 +262,23 @@ function NodeConfigForm({ node, config, set }: FormProps) {
     case 'send_email':
       return (
         <>
+          {/* An org can hold dozens of templates, and their names differ by a
+              word ("Trial • Dia 7" vs "Trial · Dia 7 — Diferenciadores"), so a
+              plain list is the wrong tool: typing beats scrolling here. */}
           <Field label="Template">
-            <Select
-              value={config.template_id ?? '__custom__'}
-              onValueChange={(value) =>
-                set(value === '__custom__' ? { template_id: undefined } : { template_id: value })
-              }
-            >
-              <SelectTrigger><SelectValue placeholder="Escolher template" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__custom__">Conteúdo próprio</SelectItem>
-                {(templates ?? []).map((template) => (
-                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableCombobox
+              options={(templates ?? []).map((template) => ({
+                value: template.id,
+                label: template.name,
+              }))}
+              value={config.template_id ?? null}
+              onValueChange={(value) => set({ template_id: value ?? undefined })}
+              placeholder="Escolher template"
+              searchPlaceholder="Pesquisar template..."
+              emptyText="Nenhum template com esse nome."
+              emptyValue="__custom__"
+              emptyLabel="Conteúdo próprio"
+            />
           </Field>
 
           {!config.template_id && (

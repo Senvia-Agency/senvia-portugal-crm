@@ -181,18 +181,85 @@ export const AUTOMATION_RECIPES: AutomationRecipe[] = [
 
   {
     id: 'lembrete-renovacao',
-    name: 'Lembrete de renovação',
-    summary: 'Avisa o cliente antes da renovação, para não haver surpresas na fatura.',
-    editHint: 'Ajusta o texto do aviso às tuas palavras.',
+    name: 'Cobrança vence em 2 dias',
+    summary: 'Avisa o cliente dois dias antes de a mensalidade vencer, para não haver surpresas.',
+    editHint: 'Ajusta o texto às tuas palavras e confirma o assunto.',
     trigger_type: 'sale_renewal_due_in_2_days',
     entry_node_id: 'trigger',
-    outline: ['Renovação em 2 dias', 'WhatsApp'],
+    outline: ['Cobrança em 2 dias', 'Email'],
     graph: {
       nodes: [
         { id: 'trigger', type: 'sale_renewal_due_in_2_days', config: {}, position: { x: 0, y: 0 } },
         {
-          id: 'notice', type: 'send_whatsapp',
-          config: { message: 'Olá {{nome}}, a sua subscrição renova dentro de 2 dias. Qualquer questão, é só dizer.' },
+          id: 'notice', type: 'send_email',
+          config: {
+            subject: '{{nome}}, a sua mensalidade vence em 2 dias',
+            html: [
+              '<p>Olá {{nome}},</p>',
+              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} vence a {{data_vencimento}}.</p>',
+              '<p>Se já tratou do pagamento, ignore este email. Qualquer dúvida, responda-nos.</p>',
+            ].join(''),
+          },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger', target: 'notice', branch: null },
+      ],
+    },
+  },
+
+  {
+    id: 'cobranca-vence-hoje',
+    name: 'Cobrança vence hoje',
+    summary: 'No dia do vencimento, lembra o cliente de que a mensalidade está por pagar.',
+    editHint: 'Ajusta o texto e, se quiseres, junta os dados para pagamento.',
+    trigger_type: 'sale_renewal_due_today',
+    entry_node_id: 'trigger',
+    outline: ['Cobrança vence hoje', 'Email'],
+    graph: {
+      nodes: [
+        { id: 'trigger', type: 'sale_renewal_due_today', config: {}, position: { x: 0, y: 0 } },
+        {
+          id: 'notice', type: 'send_email',
+          config: {
+            subject: '{{nome}}, a sua mensalidade vence hoje',
+            html: [
+              '<p>Olá {{nome}},</p>',
+              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} vence hoje, {{data_vencimento}}.</p>',
+              '<p>Se já pagou, obrigado e ignore este email. Se precisar de ajuda, estamos por aqui.</p>',
+            ].join(''),
+          },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger', target: 'notice', branch: null },
+      ],
+    },
+  },
+
+  {
+    id: 'cobranca-em-atraso',
+    name: 'Cobrança em atraso',
+    summary: 'Quando uma mensalidade passa a data sem pagamento, o cliente é avisado uma vez.',
+    editHint: 'Decide o tom: um lembrete cordial costuma chegar. Junta os dados para pagamento.',
+    trigger_type: 'sale_renewal_overdue',
+    entry_node_id: 'trigger',
+    outline: ['Cobrança em atraso', 'Email'],
+    graph: {
+      nodes: [
+        { id: 'trigger', type: 'sale_renewal_overdue', config: {}, position: { x: 0, y: 0 } },
+        {
+          id: 'notice', type: 'send_email',
+          config: {
+            subject: '{{nome}}, a sua mensalidade está em atraso',
+            html: [
+              '<p>Olá {{nome}},</p>',
+              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} venceu a {{data_vencimento}} e continua por pagar, há {{dias_em_atraso}} dias.</p>',
+              '<p>Pedimos que regularize assim que possível. Se já o fez, ignore este email; se houver algum problema, fale connosco.</p>',
+            ].join(''),
+          },
           position: { x: 0, y: 0 },
         },
       ],

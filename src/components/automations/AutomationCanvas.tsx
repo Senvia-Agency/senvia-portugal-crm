@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background, BackgroundVariant, Controls, ReactFlow, ReactFlowProvider,
-  useReactFlow, type Connection, type Edge, type Node, type NodeChange,
+  useReactFlow, ViewportPortal, type Connection, type Edge, type FinalConnectionState,
+  type Node, type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { AutomationFlowNode, GhostFlowNode, type GhostNodeData } from './AutomationFlowNode';
+import { AutomationFlowNode, GhostFlowNode } from './AutomationFlowNode';
 import { AutomationFlowEdge } from './AutomationFlowEdge';
 import {
-  computeCanvasLayout, computeStepNumbers, findNode, getGhostSlots, ghostDropToNodePosition,
-  validateGraph,
+  centreNodeOn, computeCanvasLayout, computeStepNumbers, findNode, getGhostSlots,
+  NODE_BOX_HEIGHT, NODE_BOX_WIDTH, validateGraph,
 } from '@/lib/automation-graph';
 import { getBranchLabel, getNodeStyle } from '@/lib/automation-nodes';
 import type { AutomationGraph, AutomationNodeStats } from '@/types/automations';
@@ -17,6 +18,12 @@ import type { AutomationGraph, AutomationNodeStats } from '@/types/automations';
 // Defined once — React Flow warns (and re-renders hard) on new object identities.
 const nodeTypes = { automation: AutomationFlowNode, ghost: GhostFlowNode };
 const edgeTypes = { automation: AutomationFlowEdge };
+
+/** Where a step's outbound point sits inside its box (see AutomationFlowNode). */
+const OUTPUT_DX = NODE_BOX_WIDTH / 2 + 33;
+const OUTPUT_DY = 33;
+/** Under this much movement the press on a "+" counts as a click. */
+const PULL_THRESHOLD = 4;
 
 interface AutomationCanvasProps {
   graph: AutomationGraph;
@@ -46,13 +53,76 @@ function CanvasInner({
   graph, entryNodeId, selectedNodeId, onSelectNode, onAddAfter, onInsertOnEdge, onMoveNodes,
   onAddAfterAt, onConnectNodes, onUnlinkEdges, nodeStats,
 }: AutomationCanvasProps) {
-  const { fitView, getNodes } = useReactFlow();
+  const { fitView, getNodes, screenToFlowPosition } = useReactFlow();
 
   // Live positions while a drag is in flight. React Flow is controlled here, so
   // without feeding these back the circles would not follow the pointer.
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
 
-  const { nodes, edges } = useMemo(() => {
+  // A line being pulled out of the "+" that sits on an existing connection.
+  // React Flow draws its own line for handles, but that "+" is drawn over the
+  // edge rather than on a node, so this one is ours to render.
+  const [pull, setPull] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
+
+  /** The step whose box contains this point on the board, if any. */
+  const stepAt = useCallback((point: { x: number; y: number }) => {
+    for (const node of getNodes()) {
+      if (node.type !== 'automation') continue;
+      const width = node.measured?.width ?? NODE_BOX_WIDTH;
+      const height = node.measured?.height ?? NODE_BOX_HEIGHT;
+      const insideX = point.x >= node.position.x && point.x <= node.position.x + width;
+      const insideY = point.y >= node.position.y && point.y <= node.position.y + height;
+      if (insideX && insideY) return node.id;
+    }
+    return null;
+  }, [getNodes]);
+
+  /**
+   * The "+" on a connection, pressed. Released without moving it inserts a step
+   * between the two it joins, which is what it always did. Dragged, it pulls a
+   * new path out of the step the line leaves from — the same gesture as every
+   * other "+" on the canvas, which is the whole point of doing this by hand.
+   */
+  const handleEdgePullStart = useCallback((edgeId: string, event: React.PointerEvent) => {
+    const edge = graph.edges.find((item) => item.id === edgeId);
+    const source = edge ? getNodes().find((node) => node.id === edge.source) : null;
+    if (!edge || !source) return;
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const from = { x: source.position.x + OUTPUT_DX, y: source.position.y + OUTPUT_DY };
+
+    const move = (moveEvent: PointerEvent) => {
+      const at = screenToFlowPosition({ x: moveEvent.clientX, y: moveEvent.clientY });
+      setPull({ from, to: at });
+    };
+
+    const up = (upEvent: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setPull(null);
+
+      const travelled = Math.hypot(upEvent.clientX - startX, upEvent.clientY - startY);
+      if (travelled < PULL_THRESHOLD) {
+        onInsertOnEdge(edgeId);
+        return;
+      }
+
+      const at = screenToFlowPosition({ x: upEvent.clientX, y: upEvent.clientY });
+      const landedOn = stepAt(at);
+      const branch = edge.branch ?? null;
+      if (landedOn) {
+        onConnectNodes(edge.source, landedOn, branch);
+      } else {
+        onAddAfterAt(edge.source, branch, centreNodeOn(at));
+      }
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }, [graph, getNodes, screenToFlowPosition, stepAt, onInsertOnEdge, onConnectNodes, onAddAfterAt]);
+
+  const { nodes, edges, ghostAnchors } = useMemo(() => {
     const ghosts = getGhostSlots(graph);
     const { positions } = computeCanvasLayout(graph, ghosts);
     const steps = computeStepNumbers(graph, entryNodeId);
@@ -63,6 +133,7 @@ function CanvasInner({
         .map((issue) => issue.nodeId)
         .filter(Boolean) as string[],
     );
+
 
     const flowNodes: Node[] = [
       ...graph.nodes.map((node) => ({
@@ -86,9 +157,9 @@ function CanvasInner({
       ...ghosts.map((ghost) => ({
         id: ghost.id,
         type: 'ghost',
-        position: dragPositions[ghost.id] ?? positions[ghost.id] ?? { x: 0, y: 0 },
-        // Dragging a "+" is how you choose where the next step goes.
-        draggable: true,
+        position: positions[ghost.id] ?? { x: 0, y: 0 },
+        // The "+" is not moved; a line is pulled out of it, like from a step.
+        draggable: false,
         selectable: false,
         deletable: false,
         data: {
@@ -118,7 +189,7 @@ function CanvasInner({
             branchLabel: getBranchLabel(findNode(graph, edge.source), edge.branch),
             stroke: getNodeStyle(findNode(graph, edge.source)?.type ?? '').stroke,
             ghost: false,
-            onInsert: onInsertOnEdge,
+            onPullStart: handleEdgePullStart,
             onUnlink: (edgeId: string) => onUnlinkEdges([edgeId]),
           },
         })),
@@ -138,8 +209,12 @@ function CanvasInner({
       })),
     ];
 
-    return { nodes: flowNodes, edges: flowEdges };
-  }, [graph, entryNodeId, selectedNodeId, onAddAfter, onInsertOnEdge, onUnlinkEdges, dragPositions, nodeStats]);
+    // A line pulled out of a "+" really comes from the step behind it. This
+    // says which, so both handlers translate before touching the graph.
+    const ghostAnchors = new Map(ghosts.map((ghost) => [ghost.id, ghost]));
+
+    return { nodes: flowNodes, edges: flowEdges, ghostAnchors };
+  }, [graph, entryNodeId, selectedNodeId, onAddAfter, handleEdgePullStart, onUnlinkEdges, dragPositions, nodeStats]);
 
   // Re-fit when the shape of the graph changes (not on mere config edits or drags).
   const shapeKey = `${graph.nodes.length}:${graph.edges.length}`;
@@ -172,10 +247,7 @@ function CanvasInner({
 
   // On drop, persist EVERY real node's rendered position — the first drag
   // converts a dagre layout into a manual one without anything jumping.
-  // Letting go of a ghost "+" does the same, then asks what step belongs there,
-  // so the new step lands where the pointer stopped instead of wherever the
-  // auto-layout would have put it.
-  const handleNodeDragStop = useCallback((_: React.MouseEvent, dragged: Node) => {
+  const handleNodeDragStop = useCallback(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     for (const node of getNodes()) {
       if (node.type === 'automation') {
@@ -184,21 +256,49 @@ function CanvasInner({
     }
     // Both state updates land in the same render, so nothing flickers.
     onMoveNodes(positions);
-
-    if (dragged.type === 'ghost') {
-      const ghost = dragged.data as unknown as GhostNodeData;
-      onAddAfterAt(ghost.sourceId, ghost.branch, ghostDropToNodePosition(dragged.position));
-    }
-
     setDragPositions({});
-  }, [getNodes, onMoveNodes, onAddAfterAt]);
+  }, [getNodes, onMoveNodes]);
+
+  /**
+   * A line can be pulled from a step's own point or from a "+", and a "+" is
+   * only a placeholder for the step behind it. Resolves either to the real
+   * step and branch, or null when the line started somewhere meaningless.
+   */
+  const resolveSource = useCallback((nodeId: string, handleId: string | null) => {
+    const ghost = ghostAnchors.get(nodeId);
+    if (ghost) return { sourceId: ghost.sourceId, branch: ghost.branch };
+    return { sourceId: nodeId, branch: handleId };
+  }, [ghostAnchors]);
 
   // A connection drawn by hand. Handed upstream even when it will be refused —
   // a line that silently springs back teaches the user nothing.
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
-    onConnectNodes(connection.source, connection.target, connection.sourceHandle ?? null);
-  }, [onConnectNodes]);
+    // A "+" is scenery: nothing connects TO one.
+    if (ghostAnchors.has(connection.target)) return;
+    const { sourceId, branch } = resolveSource(connection.source, connection.sourceHandle ?? null);
+    onConnectNodes(sourceId, connection.target, branch);
+  }, [ghostAnchors, resolveSource, onConnectNodes]);
+
+  // The same line let go on empty canvas: there is nothing to connect to, so
+  // the step is created right there. This is how a second, parallel path
+  // starts, and it is why pressing a "+" and pressing a step's point behave
+  // identically — a press with no movement simply lands back where it began.
+  const handleConnectEnd = useCallback((event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+    if (!state.fromNode || !state.fromHandle) return;
+    if (state.fromHandle.type !== 'source') return;
+    // Landing on a real step is a connection, already handled above. Landing on
+    // a "+" is landing on nothing.
+    if (state.toNode && !ghostAnchors.has(state.toNode.id)) return;
+    if (state.toHandle && !ghostAnchors.has(state.toHandle.nodeId)) return;
+    // From the pointer, not from `state.to`: that one is already in canvas
+    // space, and converting it a second time dropped the step back on top of
+    // the one it came from.
+    const pointer = 'changedTouches' in event ? event.changedTouches[0] : event;
+    const at = screenToFlowPosition({ x: pointer.clientX, y: pointer.clientY });
+    const { sourceId, branch } = resolveSource(state.fromNode.id, state.fromHandle.id ?? null);
+    onAddAfterAt(sourceId, branch, centreNodeOn(at));
+  }, [ghostAnchors, resolveSource, screenToFlowPosition, onAddAfterAt]);
 
   // Ghost lines are scenery and carry no edge in the graph.
   const handleEdgesDelete = useCallback((deleted: Edge[]) => {
@@ -217,6 +317,7 @@ function CanvasInner({
       onNodesChange={handleNodesChange}
       onNodeDragStop={handleNodeDragStop}
       onConnect={handleConnect}
+      onConnectEnd={handleConnectEnd}
       onEdgesDelete={handleEdgesDelete}
       // Steps can be moved and rewired by hand; "Auto-organizar" restores a tidy
       // layout. Delete cuts the selected line only, since steps are not
@@ -240,6 +341,26 @@ function CanvasInner({
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.5} className="!bg-background" color="hsl(var(--muted-foreground) / 0.25)" />
       <Controls showInteractive={false} position="bottom-right" />
+
+      {/* The line trailing the "+" that was pulled off a connection. Drawn in
+          board coordinates, so it stays put while the canvas is panned. */}
+      {pull && (
+        <ViewportPortal>
+          <svg
+            className="pointer-events-none absolute left-0 top-0 overflow-visible"
+            style={{ width: 1, height: 1 }}
+          >
+            <path
+              d={`M ${pull.from.x} ${pull.from.y} C ${pull.from.x + 70} ${pull.from.y}, ${pull.to.x - 70} ${pull.to.y}, ${pull.to.x} ${pull.to.y}`}
+              fill="none"
+              stroke="hsl(var(--primary))"
+              strokeWidth={3}
+              strokeLinecap="round"
+            />
+            <circle cx={pull.to.x} cy={pull.to.y} r={4} fill="hsl(var(--primary))" />
+          </svg>
+        </ViewportPortal>
+      )}
     </ReactFlow>
   );
 }

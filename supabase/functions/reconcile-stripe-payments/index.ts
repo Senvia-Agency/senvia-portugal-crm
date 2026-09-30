@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { handleReferralEvent, prepareAvailableReferralMonths } from "../_shared/referrals.ts";
+import { announceEndingReferralMonths, handleReferralEvent, prepareAvailableReferralMonths } from "../_shared/referrals.ts";
+import { announceUpcomingRenewals } from "../_shared/agency-automations.ts";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
 
@@ -216,6 +217,8 @@ serve(async (req) => {
       /** Invoices this run tried and failed to record. Non-empty means action is needed. */
       failed: [] as Array<Record<string, unknown>>,
       referral_months: { scanned: 0, failed: [] as Array<{ organization_id: string; reason: string }> },
+      referral_months_ending: { announced: 0 },
+      renewals_due: { announced: 0, skipped_referral: 0 },
     };
 
     for (const invoice of invoices) {
@@ -591,6 +594,18 @@ serve(async (req) => {
     summary.referral_months = await prepareAvailableReferralMonths(supabase, stripe);
     for (const failure of summary.referral_months.failed) {
       logError("referral month preparation failed", failure);
+    }
+    // Same daily pass warns referrers whose free month ends in two days.
+    try {
+      summary.referral_months_ending = await announceEndingReferralMonths(supabase);
+    } catch (error) {
+      logError("referral month ending check failed", { error: (error as Error).message });
+    }
+    // And every paying customer whose plan renews in two days.
+    try {
+      summary.renewals_due = await announceUpcomingRenewals(supabase);
+    } catch (error) {
+      logError("renewal reminder check failed", { error: (error as Error).message });
     }
     if (summary.failed.length > 0) {
       logError("run finished WITH FAILURES — these invoices are still unrecorded", { failed: summary.failed });

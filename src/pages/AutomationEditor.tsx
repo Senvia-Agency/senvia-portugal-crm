@@ -91,26 +91,36 @@ export default function AutomationEditor() {
   // it so the step can be placed there once its type is known.
   const handleAddAfterAt = useCallback(
     (sourceId: string, branch: string | null, position: { x: number; y: number }) => {
+      // Pulled from a branch that already has a line. A branch carries exactly
+      // one path, so there is no room for a second step on it.
+      if (branch && graph.edges.some((edge) => edge.source === sourceId && edge.branch === branch)) {
+        toast.error('Ramo já ligado', {
+          description: 'Apaga a ligação atual antes de pôr outro passo neste ramo.',
+        });
+        return;
+      }
       setPickerTarget({ kind: 'append', sourceId, branch, position });
     },
-    [],
+    [graph],
   );
 
   // A connection drawn on the canvas. Refusals are explained rather than
   // swallowed — the line springing back with no reason is the worst outcome.
   const handleConnectNodes = useCallback(
     (sourceId: string, targetId: string, branch: string | null) => {
-      setGraph((current) => {
-        const refusal = describeConnectionRefusal(current, sourceId, targetId, branch);
-        if (refusal) {
-          toast.error('Ligação não permitida', { description: refusal });
-          return current;
-        }
-        setDirty(true);
-        return connectNodes(current, sourceId, targetId, branch);
-      });
+      // Judged on the graph as rendered. A dropped "+" arrives right after a
+      // position update, and only the edges decide whether this is allowed.
+      const refusal = describeConnectionRefusal(graph, sourceId, targetId, branch);
+      if (refusal) {
+        toast.error('Ligação não permitida', { description: refusal });
+        return;
+      }
+      // Functional, so the edge stacks on the positions written by the same
+      // gesture rather than overwriting them.
+      setGraph((current) => connectNodes(current, sourceId, targetId, branch));
+      setDirty(true);
     },
-    [],
+    [graph],
   );
 
   const handleUnlinkEdges = useCallback((edgeIds: string[]) => {

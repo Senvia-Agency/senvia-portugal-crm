@@ -51,6 +51,41 @@ off `automation_enabled` on the matching template.
   it, so `+351 912 345 678`, `00351912345678` and `912345678` are the same
   contact.
 
+### Parallel paths (fan-out)
+
+A step may have **several unbranched outgoing edges**, and the engine walks them
+all. "Send the email *and* create the task" is one step with two successors,
+rather than a chain. Branches are still exclusive: a `condition`, or a step that
+waits for a reply, picks exactly one path, and the canvas refuses a second edge
+on the same branch key.
+
+On the canvas a standing `+` marks only a genuinely open end — a step with no
+successor, or a free branch. A permanent one on every step would have buried the
+flow in placeholders.
+
+There is a single gesture for shape, and the `+` is not an exception to it: a
+line is pulled out of a step's connection point, or out of a `+`, which is only
+a placeholder for the step behind it. Released on another step it links the two;
+released on empty canvas it opens the picker and puts the new step exactly
+there; released without moving — an ordinary click on the `+` — it adds the step
+in place. The `+` therefore carries a source handle over its whole face and no
+click handler of its own, or both would fire and add two steps.
+
+This changed the run's shape. A run used to hold one position in
+`current_node_id`; it can now be parked on several paths at once, so the list
+lives in `context.__cursors` as `[{node, status, wake_at, resume_self?}]`.
+`current_node_id` still names one of them, which is what `handleReply` matches
+on and what keeps a single-path flow behaving exactly as before. The run's
+`wake_at` is the **earliest** of the parked paths, so the existing tick index
+keeps working; `tick` then resumes only the cursors whose time has come and
+re-parks the rest untouched. The run completes when no path can move and none
+is parked — an `end` node closes its own path, not the whole run.
+
+`advance` loads the run's already-executed node ids **before** walking. Two
+paths meeting on the same step (a join) then skip the effect instead of
+repeating it: `uniq_step_per_run_node` only catches a duplicate *after* the send
+has already gone out, which is too late.
+
 ## Engine
 
 `supabase/functions/automation-engine`, four actions:
@@ -100,6 +135,83 @@ flow — it only waits, never sends.
   `lead_created` DB trigger payload doesn't carry.
 - **`whatsapp_keyword`** — has no DB trigger at all; only fires when a message
   arrives that doesn't match any parked run (see `reply` above).
+- **`referral_month_earned`** — the referral programme. Fires for the
+  **agency** (the flow is Senvia's) when a referred organization makes its
+  first paid invoice, i.e. the moment the referrer earns a free month.
+  Dispatched by `announceReferralMonth` in `_shared/referrals.ts`, right after
+  `qualify_referral`, and only when *that* invoice is the qualifying one — so
+  later invoices from the same customer stay silent and rewards that qualified
+  before the trigger existed are never announced retroactively. The contact is
+  the referrer's earliest active admin; `record` carries `empresa` (referrer)
+  and `indicada` (referred) for templates. Runs from both `stripe-webhook`
+  and `reconcile-stripe-payments`, since both call `handleReferralEvent`.
+- **`referral_month_started`** — the same programme, one step later: the
+  referrer's 100%-off invoice is paid and the free month is actually running.
+  Dispatched from `reconcileReservation` the moment `redeemed_at` is set, and
+  only when that update flips the row — a redelivery finds nothing to flip and
+  stays silent. Same contact and `record` shape as `referral_month_earned`,
+  plus `fim_periodo` (the period end, pt-PT long date) for the template.
+- **`referral_month_ending_2d`** — two days before that free month ends and
+  billing resumes. Not an event: `announceEndingReferralMonths` runs inside
+  the daily `reconcile-stripe-payments` pass (04:30) and picks organizations
+  whose `current_period_end` falls in a 24-hour window centred 48h ahead, with
+  a redeemed, unrevoked reward from the last 45 days — the fence that keeps a
+  reward spent months ago from matching a later period. Same `record` shape,
+  with `fim_periodo`.
+
+  All three referral triggers use the **reward id** as the run subject, not
+  the organization: the engine de-duplicates per subject, and keyed on the
+  organization a second referral would never be announced. `record` still
+  carries the organization as `organizacao_id`.
+- **`subscription_renewal_due_2d`** — the SENVIA OS plan itself renews in two
+  days. `announceUpcomingRenewals` in `_shared/agency-automations.ts` runs in
+  the same daily `reconcile-stripe-payments` pass and reads
+  `organization_billing_accounts` (status `active`, not cancelling, not
+  paused), the snapshot Stripe keeps current. It skips organizations the
+  referral programme is about to mail instead — a pending free month (nothing
+  to pay) or a current one (they get "your free month ends"). A renewal has no
+  row of its own, so the subject is a deterministic UUID of
+  `renewal:<org>:<date>`, which is what makes once-per-renewal hold across a
+  re-run. `record` adds `plano` and `data_renovacao`.
+
+  `_shared/agency-automations.ts` is where "email one of this organization's
+  admins" lives (`organizationAdminContact`, `dispatchAgencyAutomation`); the
+  referral triggers go through it too.
+- **`stripe_subscription_past_due`** — not new, but it was hidden from the
+  picker with the legacy set while `stripe-webhook` dispatched it all along
+  (on `customer.subscription.updated` with status `past_due`). Now offered
+  under Subscrição. Its `record` used to be `{email, plan, nome: <org name>}`
+  with no `id`, so `{{primeiro_nome}}` printed the first word of the company
+  and every Stripe retry re-fired it with nothing to de-duplicate on. It now
+  carries a deterministic subject (`past_due:<org>:<failing invoice>` — one
+  overdue episode is one invoice), the admin's name, `empresa`, a readable
+  `plano`, and `dias_carencia` / `bloqueio_em` from `PAYMENT_GRACE_DAYS`,
+  which mirrors `GRACE_DAYS` in `check-subscription` and must move with it.
+  The recipient stays the Stripe customer email: a failed payment goes to
+  whoever pays.
+
+  The engine's entry-node switch now lists every trigger the product
+  dispatches, so none of them falls into the default branch and logs "tipo de
+  nó desconhecido" on each run.
+- **`sale_renewal_due_in_2_days` / `sale_renewal_due_today` /
+  `sale_renewal_overdue`** — a TENANT's recurring sales, manual billing only.
+  The first two existed by name but never reached the engine:
+  `check-renewal-automations` walked only the legacy per-template path, off
+  `sales.next_renewal_date`, which the cycle generator does not maintain (stale
+  on 10 of 15 active recurrences). `announceSaleCycles` in
+  `_shared/sale-cycle-automations.ts` now runs first in that daily job (08:00)
+  and reads the per-period ledger instead: `sale_recurring_cycles.due_date`,
+  unpaid, recurrence active. It enrols the engine **directly**, not through
+  process-automation, so the legacy templates keep their own date source and
+  the two never double up. "Due in 2 days" comes from
+  `sale_recurrences.next_cycle_date` because the cycle row is only created on
+  the day it starts; its subject is a deterministic id of (recurrence, date).
+  The other two use the cycle id. Overdue is fenced to the last 7 days — 34
+  unpaid cycles were already sitting there, and announcing them all on
+  activation is not what anyone wants. The contact is the sale's client;
+  `record` carries `codigo_venda`, `valor`, `data_vencimento`, `periodo`,
+  `dias_para_vencimento` or `dias_em_atraso`, and the salesperson as
+  `vendedor_*`. A client without an email is skipped and counted.
 
 ### Safety rails
 

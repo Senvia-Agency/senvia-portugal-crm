@@ -1,8 +1,13 @@
 // Called only after Stripe signature verification. Never resolve a tenant by email.
+import { dispatchAgencyAutomation, organizationAdminContact } from './agency-automations.ts';
+
 const PLAN_PRODUCTS = new Set(['prod_U0wAc7Tuy8w6gA', 'prod_U0wGoA4odOBHOZ', 'prod_U0wG6doz0zgZFV']);
 const COUPON_ID = 'senvia-referral-month-v2';
 const REWARD_COUPON_PREFIX = 'senvia-referral-month-';
 const EXTRA_SEAT_PRICE = 'price_1TncdBLWnA81DzXTh3crx8iN';
+const REFERRAL_MONTH_TRIGGER = 'referral_month_earned';
+const REFERRAL_MONTH_STARTED_TRIGGER = 'referral_month_started';
+const REFERRAL_MONTH_ENDING_TRIGGER = 'referral_month_ending_2d';
 const objectId = (value: any): string | null => typeof value === 'string' ? value : value?.id ?? null;
 const subscriptionId = (invoice: any) => objectId(invoice.parent?.subscription_details?.subscription) ?? objectId(invoice.subscription);
 const requireSuccess = (result: any) => { if (result.error) throw new Error(result.error.message || 'Referral ledger unavailable'); return result.data; };
@@ -76,7 +81,7 @@ async function releaseUnusedReservation(db: any, invoiceId: string) {
     .eq('redemption_invoice_id', invoiceId).is('redeemed_at', null));
 }
 async function reconcileReservation(db: any, invoice: any, org: any, base: any, sub: any) {
-  const reward = requireSuccess(await db.from('organization_referrals').select('id, redeemed_at')
+  const reward = requireSuccess(await db.from('organization_referrals').select('id, redeemed_at, referred_organization_id')
     .eq('organization_id', org.id).eq('redemption_invoice_id', invoice.id).maybeSingle());
   if (!reward || reward.redeemed_at) return;
   const applied = referralDiscount(invoice);
@@ -87,13 +92,22 @@ async function reconcileReservation(db: any, invoice: any, org: any, base: any, 
   }
   if (invoice.status !== 'paid') return;
   const paidAt = invoice.status_transitions?.paid_at ?? invoice.created;
-  requireSuccess(await db.from('organization_referrals').update({ redeemed_at: new Date(paidAt * 1000).toISOString() })
-    .eq('id', reward.id).is('redeemed_at', null));
+  // Only the first pass flips the row; a redelivery finds nothing to update
+  // and therefore announces nothing below.
+  const redeemed = requireSuccess(await db.from('organization_referrals')
+    .update({ redeemed_at: new Date(paidAt * 1000).toISOString() })
+    .eq('id', reward.id).is('redeemed_at', null).select('id'));
+  const end = base.current_period_end ?? sub.current_period_end;
   if (org.current) {
-    const end = base.current_period_end ?? sub.current_period_end;
     requireSuccess(await db.from('organizations').update({
       payment_failed_at: null, ...(end ? { current_period_end: new Date(end * 1000).toISOString() } : {}),
     }).eq('id', org.id));
+  }
+  // The free month STARTS here: this is the 100%-off invoice it was spent on.
+  if (redeemed?.length) {
+    await announceReferral(db, REFERRAL_MONTH_STARTED_TRIGGER,
+      { id: reward.id, organization_id: org.id, referred_organization_id: reward.referred_organization_id },
+      { fim_periodo: end ? new Date(end * 1000).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }) : '' });
   }
 }
 async function hasDiscountablePlanLine(stripe: any, invoice: any): Promise<boolean> {
@@ -193,6 +207,101 @@ export async function prepareAvailableReferralMonths(db: any, stripe: any) {
   return { scanned: organizations.size, failed };
 }
 
+/**
+ * Tells the automation engine something happened to a referral reward. The
+ * contact is the referrer's earliest active admin; `record` carries what a
+ * template needs — `empresa` (who referred), `indicada` (who was referred) —
+ * plus whatever the caller adds. Nothing here may break the ledger, so it
+ * only logs.
+ */
+async function announceReferral(
+  db: any, trigger: string,
+  reward: { id: string; organization_id: string; referred_organization_id: string },
+  extra: Record<string, string> = {},
+) {
+  try {
+    const [contact, referred] = await Promise.all([
+      organizationAdminContact(db, reward.organization_id),
+      db.from('organizations').select('name').eq('id', reward.referred_organization_id).maybeSingle(),
+    ]);
+    if (!contact) {
+      console.error('[referrals] recompensa sem administrador com email', { trigger, reward: reward.id });
+      return;
+    }
+    await dispatchAgencyAutomation(db, trigger, {
+      // The REWARD is the subject, not the organization: de-duplicated per
+      // subject, a second referral keyed on the organization would never be
+      // announced — and the programme has no cap.
+      id: reward.id,
+      organizacao_id: reward.organization_id,
+      ...contact,
+      indicada: referred.data?.name ?? '',
+      reward_id: reward.id,
+      ...extra,
+    });
+  } catch (error) {
+    console.error('[referrals] despacho falhou', { trigger, error: (error as Error).message });
+  }
+}
+
+/**
+ * The referrer just EARNED a month: the referred customer paid their first
+ * invoice. Fires only when that invoice is the qualifying one, so later
+ * invoices stay silent and rewards that qualified before this existed are
+ * never announced retroactively. A webhook redelivery re-announces; the
+ * engine's once-per-subject policy absorbs it.
+ */
+async function announceReferralMonth(db: any, referredOrgId: string, invoiceId: string) {
+  try {
+    const reward = requireSuccess(await db.from('organization_referrals')
+      .select('id, organization_id, referred_organization_id')
+      .eq('referred_organization_id', referredOrgId).eq('qualifying_invoice_id', invoiceId)
+      .is('revoked_at', null).maybeSingle());
+    if (reward) await announceReferral(db, REFERRAL_MONTH_TRIGGER, reward);
+  } catch (error) {
+    console.error('[referrals] despacho do mês ganho falhou', { error: (error as Error).message });
+  }
+}
+
+/**
+ * Daily: the referrer's free month ends in two days. That month IS the current
+ * billing period whose invoice was 100% off, so its end is the organization's
+ * `current_period_end` while that period runs — hence the 45-day fence on
+ * `redeemed_at`, which stops a reward spent months ago from matching a later
+ * period. A 24-hour window centred 48h ahead means a once-a-day run sees each
+ * period end exactly once; the flow's once-per-reward policy covers a re-run
+ * on the same day.
+ */
+export async function announceEndingReferralMonths(db: any) {
+  const now = Date.now();
+  const windowStart = new Date(now + 36 * 3_600_000).toISOString();
+  const windowEnd = new Date(now + 60 * 3_600_000).toISOString();
+  const redeemedSince = new Date(now - 45 * 86_400_000).toISOString();
+
+  const orgs = requireSuccess(await db.from('organizations')
+    .select('id, current_period_end')
+    .gte('current_period_end', windowStart).lt('current_period_end', windowEnd)
+    .or('billing_exempt.is.null,billing_exempt.eq.false'));
+  if (!orgs?.length) return { announced: 0 };
+  const endById = new Map<string, string>(orgs.map((o: any) => [o.id, o.current_period_end]));
+
+  const rewards = requireSuccess(await db.from('organization_referrals')
+    .select('id, organization_id, referred_organization_id, redeemed_at')
+    .in('organization_id', [...endById.keys()])
+    .not('redeemed_at', 'is', null).gte('redeemed_at', redeemedSince).is('revoked_at', null));
+
+  let announced = 0;
+  for (const reward of rewards || []) {
+    const end = endById.get(reward.organization_id);
+    if (!end || end <= reward.redeemed_at) continue;
+    await announceReferral(db, REFERRAL_MONTH_ENDING_TRIGGER, reward, {
+      fim_periodo: new Date(end).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }),
+    });
+    announced++;
+  }
+  return { announced };
+}
+
 export async function handleReferralEvent(db: any, stripe: any, event: any) {
   const observedAt = new Date().toISOString();
   if (event.type === 'checkout.session.completed') {
@@ -263,6 +372,7 @@ export async function handleReferralEvent(db: any, stripe: any, event: any) {
         _organization_id: org.id, _invoice_id: invoice.id,
         _paid_at: new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000).toISOString(),
       }));
+      await announceReferralMonth(db, org.id, invoice.id);
       const referrer = requireSuccess(await db.from('organization_referrals')
         .select('organization_id').eq('referred_organization_id', org.id).maybeSingle());
       if (referrer?.organization_id) await prepareReferralMonths(db, stripe, referrer.organization_id);

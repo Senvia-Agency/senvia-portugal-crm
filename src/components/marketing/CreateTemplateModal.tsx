@@ -28,13 +28,13 @@ import { Button } from "@/components/ui/button";
 import { TemplateEditor } from "./TemplateEditor";
 import { TemplateAutomationSection } from "./TemplateAutomationSection";
 import { useCreateEmailTemplate } from "@/hooks/useEmailTemplates";
-import { TEMPLATE_CATEGORIES, type EmailTemplateCategory } from "@/types/marketing";
+import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import { isManualEmailTrigger } from "@/lib/email-template-triggers";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   subject: z.string().min(1, "Assunto é obrigatório"),
-  category: z.string().default("general"),
+  category_id: z.string().nullable().default(null),
   html_content: z.string().default(""),
 });
 
@@ -55,12 +55,14 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
   const [toStatus, setToStatus] = useState('');
   const [delayMinutes, setDelayMinutes] = useState(0);
 
+  const { data: categories } = useEmailTemplateCategories();
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       subject: "",
-      category: "general",
+      category_id: null,
       html_content: "",
     },
   });
@@ -75,7 +77,7 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
     await createTemplate.mutateAsync({
       name: data.name,
       subject: data.subject,
-      category: data.category as EmailTemplateCategory,
+      category_id: data.category_id,
       html_content: data.html_content,
       automation_enabled: automationEnabled && !isManualEmailTrigger(triggerType),
       automation_trigger_type: automationEnabled ? triggerType : null,
@@ -117,24 +119,33 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
 
               <FormField
                 control={form.control}
-                name="category"
+                name="category_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Categoria</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                      value={field.value ?? "__none__"}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar categoria" />
+                          <SelectValue placeholder="Sem categoria" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.entries(TEMPLATE_CATEGORIES).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
+                        <SelectItem value="__none__">Sem categoria</SelectItem>
+                        {(categories ?? []).map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {!categories?.length && (
+                      <p className="text-xs text-muted-foreground">
+                        Ainda não há categorias. Crie-as em Definições, Categorias de Templates.
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

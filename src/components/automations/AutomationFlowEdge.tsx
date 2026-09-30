@@ -12,7 +12,13 @@ export interface AutomationEdgeData extends Record<string, unknown> {
   stroke: string;
   /** Ghost edges (leading to a "+" placeholder) are dashed and not insertable. */
   ghost: boolean;
-  onInsert?: (edgeId: string) => void;
+  /**
+   * Pressing the "+" on the line. A press with no movement inserts a step
+   * between the two it joins; dragging pulls a new path out of the step the
+   * line leaves from. The canvas tells the two apart, because only it knows
+   * where the pointer ended up on the board.
+   */
+  onPullStart?: (edgeId: string, event: React.PointerEvent) => void;
   /** Cuts this connection, leaving both steps on the canvas to be rewired. */
   onUnlink?: (edgeId: string) => void;
 }
@@ -61,19 +67,19 @@ export const AutomationFlowEdge = memo(({
             </span>
           )}
 
-          {/* Insert between two existing steps. */}
-          {!ghost && data?.onInsert && (
+          {/* Insert between two steps, or pull a new path out of this one. */}
+          {!ghost && data?.onPullStart && (
             <button
               type="button"
-              onClick={(event) => {
+              onPointerDown={(event) => {
                 event.stopPropagation();
-                data.onInsert?.(id);
+                data.onPullStart?.(id, event);
               }}
-              title="Inserir passo aqui"
+              title="Clica para inserir um passo aqui, ou arrasta para criar outro caminho"
               className={cn(
-                'pointer-events-auto flex h-5 w-5 items-center justify-center rounded-full',
+                'nopan nodrag pointer-events-auto flex h-5 w-5 cursor-grab items-center justify-center rounded-full',
                 'border border-border bg-card text-muted-foreground shadow-sm transition-all',
-                'hover:scale-125 hover:border-primary hover:text-primary',
+                'hover:scale-125 hover:border-primary hover:text-primary active:cursor-grabbing',
               )}
             >
               <Plus className="h-3 w-3" />
@@ -92,7 +98,7 @@ export const AutomationFlowEdge = memo(({
               title="Desligar"
               aria-label="Desligar esta ligação"
               className={cn(
-                'pointer-events-auto flex h-5 w-5 items-center justify-center rounded-full',
+                'nopan nodrag pointer-events-auto flex h-5 w-5 items-center justify-center rounded-full',
                 'border border-border bg-card text-muted-foreground shadow-sm transition-all',
                 'hover:scale-125 hover:border-destructive hover:text-destructive',
               )}

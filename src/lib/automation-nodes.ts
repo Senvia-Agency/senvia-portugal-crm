@@ -9,7 +9,7 @@ import {
   Users, UserCog, FileText, FileCheck, ShoppingCart, Rocket, CalendarDays,
   CalendarRange, Hourglass, AlarmClock, TimerOff, UserX, CreditCard,
   RefreshCw, AlertCircle, XCircle, BellRing, CalendarClock,
-  Flame, Thermometer, Snowflake,
+  Flame, Thermometer, Snowflake, Gift, PartyPopper,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -212,8 +212,8 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   // ── Renewal triggers (offered for new flows) ──
   sale_renewal_due_today: {
     type: 'sale_renewal_due_today',
-    label: 'Renovação é hoje',
-    description: 'Quando uma venda renova hoje',
+    label: 'Cobrança vence hoje',
+    description: 'Quando um ciclo de uma venda recorrente vence hoje e ainda não está pago',
     icon: BellRing,
     category: 'trigger',
     isTrigger: true,
@@ -222,9 +222,59 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   },
   sale_renewal_due_in_2_days: {
     type: 'sale_renewal_due_in_2_days',
-    label: 'Renovação em 2 dias',
-    description: 'Quando faltam 2 dias para uma venda renovar',
+    label: 'Cobrança vence em 2 dias',
+    description: 'Dois dias antes de um ciclo de uma venda recorrente vencer',
     icon: CalendarClock,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  sale_renewal_overdue: {
+    type: 'sale_renewal_overdue',
+    label: 'Cobrança em atraso',
+    description: 'Quando um ciclo de uma venda recorrente passou a data e continua por pagar',
+    icon: AlertCircle,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  referral_month_earned: {
+    type: 'referral_month_earned',
+    label: 'Mês grátis por indicação',
+    description: 'Quando quem indicou ganha um mês grátis, no primeiro pagamento do indicado',
+    icon: Gift,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  referral_month_started: {
+    type: 'referral_month_started',
+    label: 'Mês grátis começou',
+    description: 'Quando o mês grátis por indicação entra em vigor, na fatura com desconto paga',
+    icon: PartyPopper,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  referral_month_ending_2d: {
+    type: 'referral_month_ending_2d',
+    label: 'Mês grátis termina em 2 dias',
+    description: 'Dois dias antes de o mês grátis por indicação acabar e a cobrança recomeçar',
+    icon: AlarmClock,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  subscription_renewal_due_2d: {
+    type: 'subscription_renewal_due_2d',
+    label: 'Plano renova em 2 dias',
+    description: 'Dois dias antes de a subscrição do SENVIA OS renovar e ser cobrada',
+    icon: CreditCard,
     category: 'trigger',
     isTrigger: true,
     branching: false,
@@ -377,7 +427,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   stripe_subscription_past_due: {
     type: 'stripe_subscription_past_due',
     label: 'Pagamento em atraso',
-    description: 'Quando uma subscrição Stripe fica com pagamento em atraso',
+    description: 'Quando a cobrança da subscrição do SENVIA OS falha e o pagamento fica em atraso',
     icon: AlertCircle,
     category: 'trigger',
     isTrigger: true,
@@ -535,7 +585,31 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
   'list_joined',
   'sale_renewal_due_today',
   'sale_renewal_due_in_2_days',
+  'sale_renewal_overdue',
+  'referral_month_earned',
+  'referral_month_started',
+  'referral_month_ending_2d',
+  'subscription_renewal_due_2d',
+  'stripe_subscription_past_due',
 ];
+
+/**
+ * Triggers by the part of the product they belong to. The picker got long
+ * enough that a flat grid stopped being scannable; these are its filter chips.
+ * Every type offered in TRIGGER_TYPES must sit in exactly one group.
+ */
+export const TRIGGER_GROUPS: ReadonlyArray<{ key: string; label: string; types: AutomationTriggerType[] }> = [
+  { key: 'leads', label: 'Leads', types: ['lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined'] },
+  { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue'] },
+  { key: 'whatsapp', label: 'WhatsApp', types: ['whatsapp_keyword'] },
+  { key: 'referrals', label: 'Indicações', types: ['referral_month_earned', 'referral_month_started', 'referral_month_ending_2d'] },
+  { key: 'billing', label: 'Subscrição', types: ['subscription_renewal_due_2d', 'stripe_subscription_past_due'] },
+];
+
+/** The group a trigger belongs to, or null for legacy types the picker no longer offers. */
+export function triggerGroupOf(type: AutomationTriggerType): string | null {
+  return TRIGGER_GROUPS.find((group) => group.types.includes(type))?.key ?? null;
+}
 
 /** Action types offered by the picker, in the order they are shown. */
 // `wait_reply` is deliberately NOT offered here: `send_whatsapp` now covers

@@ -162,15 +162,47 @@ function quietUntil(quiet: { start?: string; end?: string } | null): Date | null
   return new Date(resume.getTime() + offsetMs);
 }
 
-function nextNodeId(graph: Graph, fromId: string, branch?: string | null): string | null {
+/**
+ * Todos os passos que se seguem a este. Com um ramo indicado sai exactamente
+ * um caminho; sem ramo, seguem-se TODAS as arestas sem ramo de uma vez — e e
+ * por isso que um percurso pode ter mais do que um cursor ao mesmo tempo.
+ */
+function nextNodeIds(graph: Graph, fromId: string, branch?: string | null): string[] {
   const edges = graph.edges.filter((e) => e.source === fromId);
   if (branch !== undefined && branch !== null) {
     const match = edges.find((e) => e.branch === branch);
-    if (match) return match.target;
-    return null;
+    return match ? [match.target] : [];
   }
-  const plain = edges.find((e) => !e.branch) ?? edges[0];
-  return plain ? plain.target : null;
+  const plain = edges.filter((e) => !e.branch);
+  if (plain.length) return plain.map((e) => e.target);
+  // Um passo a quem retiraram os ramos ainda tem arestas com chave de ramo.
+  return edges.length ? [edges[0].target] : [];
+}
+
+/** O proximo passo, quando so faz sentido um. */
+function nextNodeId(graph: Graph, fromId: string, branch?: string | null): string | null {
+  return nextNodeIds(graph, fromId, branch)[0] ?? null;
+}
+
+/**
+ * Um caminho onde o percurso ficou parado. Antes da bifurcacao um percurso
+ * tinha uma unica posicao, em current_node_id; com varias arestas de saida
+ * pode ficar parado em mais do que uma, e por isso a lista vive no contexto.
+ * current_node_id continua a apontar para uma delas, para as consultas antigas
+ * e para o caminho da resposta continuarem a funcionar tal e qual.
+ */
+interface Cursor {
+  node: string;
+  status: string;
+  wake_at: string | null;
+  /** Parou ANTES de executar (horario de silencio): tem de re-executar este no. */
+  resume_self?: boolean;
+}
+
+function readCursors(run: Run): Cursor[] {
+  const raw = (run.context as Record<string, unknown> | null)?.__cursors;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((c): c is Cursor => !!c && typeof (c as Cursor).node === "string");
 }
 
 function durationMs(config: Record<string, unknown>): number {
@@ -216,36 +248,74 @@ class Engine {
   }
 
   private async finish(run: Run, status: string, error?: string) {
+    const context = { ...((run.context ?? {}) as Record<string, unknown>) };
+    delete context.__cursors;
     await this.db.from("automation_runs").update({
       status,
       last_error: error ?? null,
       completed_at: new Date().toISOString(),
       current_node_id: null,
       wake_at: null,
+      context,
     }).eq("id", run.id);
   }
 
-  private async park(run: Run, nodeId: string, status: string, wakeAt: Date | null) {
+  /**
+   * Guarda todos os caminhos que ficaram à espera. O percurso acorda à hora do
+   * mais próximo, e o tick retoma só aqueles cuja hora chegou.
+   */
+  private async parkAll(run: Run, cursors: Cursor[], context: Record<string, unknown>) {
+    const times = cursors.map((c) => c.wake_at).filter((t): t is string => !!t).sort();
+    const replying = cursors.find((c) => c.status === "awaiting_reply");
     await this.db.from("automation_runs").update({
-      status,
-      current_node_id: nodeId,
-      wake_at: wakeAt ? wakeAt.toISOString() : null,
+      status: replying ? "awaiting_reply" : "waiting",
+      // Continua a nomear um nó: é por ele que handleReply encontra o percurso,
+      // e um fluxo de caminho único comporta-se exactamente como antes.
+      current_node_id: (replying ?? cursors[0]).node,
+      wake_at: times.length ? times[0] : null,
+      context: { ...context, __cursors: cursors },
     }).eq("id", run.id);
   }
 
-  /** Percorre o grafo a partir do nó atual até parar. */
-  async advance(run: Run, flow: Flow, startNodeId: string | null) {
+  /** Passos que este percurso já executou. */
+  private async executedNodes(run: Run): Promise<Set<string>> {
+    const { data } = await this.db
+      .from("automation_run_steps")
+      .select("node_id")
+      .eq("run_id", run.id)
+      .neq("status", "failed");
+    return new Set((data ?? []).map((row: { node_id: string }) => row.node_id));
+  }
+
+  /**
+   * Percorre o grafo por todos os caminhos abertos até nenhum poder avançar.
+   * Um passo com duas arestas de saída põe as duas na fila, por isso os
+   * caminhos correm lado a lado na mesma passagem; um que pare numa espera
+   * deixa o seu cursor para trás enquanto os outros seguem.
+   */
+  async advance(run: Run, flow: Flow, start: string | string[] | null, parked: Cursor[] = []) {
     const graph = flow.graph ?? { nodes: [], edges: [] };
     const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
-    let cursor: string | null = startNodeId;
+    const queue: string[] = (Array.isArray(start) ? start : start ? [start] : []).filter(Boolean);
+    const stillParked: Cursor[] = [...parked];
     let steps = run.steps_taken;
+    let context = (run.context ?? {}) as Record<string, unknown>;
 
-    while (cursor) {
+    // Lido uma vez. Dois caminhos que se encontrem no mesmo passo não podem
+    // enviar a mesma mensagem duas vezes, e o índice único só apanha isso
+    // DEPOIS de o efeito já ter acontecido.
+    const done = await this.executedNodes(run);
+    for (const cursor of stillParked) done.add(cursor.node);
+
+    while (queue.length) {
       if (steps >= flow.max_steps_per_run) {
         logError("limite de passos atingido — possível ciclo no fluxo", { run: run.id, flow: flow.id });
         await this.finish(run, "failed", `Limite de ${flow.max_steps_per_run} passos atingido`);
         return;
       }
+
+      const cursor = queue.shift() as string;
+      if (done.has(cursor)) continue;
 
       const node = nodeById.get(cursor);
       if (!node) {
@@ -255,47 +325,54 @@ class Engine {
       }
 
       steps++;
-      const outcome = await this.execute(run, flow, node);
+      const outcome = await this.execute({ ...run, context }, flow, node);
 
       if (outcome.kind === "park") {
+        const wakeAt = outcome.wakeAt ? outcome.wakeAt.toISOString() : null;
         if (outcome.resumeSelf) {
-          // Ainda não executou nada — não regista passo (a re-execução vai
-          // registá-lo) e deixa a marca para o tick voltar a ESTE nó.
-          const context = { ...run.context, __resume_node: node.id };
-          await this.db.from("automation_runs").update({ context }).eq("id", run.id);
+          // Ainda não executou nada: sem linha de passo, e o cursor aponta para
+          // ESTE nó para o tick o re-executar fora da janela de silêncio.
+          stillParked.push({ node: node.id, status: outcome.status!, wake_at: wakeAt, resume_self: true });
         } else {
           await this.recordStep(run, node, "waiting", outcome.detail ?? {});
+          done.add(node.id);
+          stillParked.push({ node: node.id, status: outcome.status!, wake_at: wakeAt });
         }
-        await this.park(run, node.id, outcome.status!, outcome.wakeAt ?? null);
-        await this.db.from("automation_runs").update({ steps_taken: steps }).eq("id", run.id);
-        return;
-      }
-
-      const fresh = await this.recordStep(run, node, outcome.kind === "fail" ? "failed" : "ok", outcome.detail ?? {});
-      if (!fresh && outcome.kind !== "fail") {
-        // Já tinha corrido: segue em frente sem repetir o efeito.
-        cursor = nextNodeId(graph, node.id, outcome.branch);
         continue;
       }
 
+      const fresh = await this.recordStep(run, node, outcome.kind === "fail" ? "failed" : "ok", outcome.detail ?? {});
       if (outcome.kind === "fail") {
+        run.context = context;
         await this.finish(run, "failed", outcome.error);
         return;
       }
-      if (outcome.kind === "end") {
-        await this.db.from("automation_runs").update({ steps_taken: steps }).eq("id", run.id);
-        await this.finish(run, "completed");
-        return;
+
+      done.add(node.id);
+      // Outra passagem chegou aqui primeiro e já seguiu deste passo.
+      if (!fresh) continue;
+
+      if (outcome.context) {
+        context = outcome.context;
+        run.context = context;
+        await this.db.from("automation_runs").update({ context }).eq("id", run.id);
       }
 
-      cursor = nextNodeId(graph, node.id, outcome.branch);
-      run.context = outcome.context ?? run.context;
-      if (outcome.context) {
-        await this.db.from("automation_runs").update({ context: outcome.context }).eq("id", run.id);
+      // Um "end" fecha o seu caminho. Os outros continuam.
+      if (outcome.kind === "end") continue;
+
+      for (const nextId of nextNodeIds(graph, node.id, outcome.branch)) {
+        if (!done.has(nextId)) queue.push(nextId);
       }
     }
 
     await this.db.from("automation_runs").update({ steps_taken: steps }).eq("id", run.id);
+    run.context = context;
+
+    if (stillParked.length) {
+      await this.parkAll(run, stillParked, context);
+      return;
+    }
     await this.finish(run, "completed");
   }
 
@@ -328,6 +405,32 @@ class Engine {
       case "whatsapp_keyword":
       case "sale_status_changed":
       case "list_joined":
+      case "referral_month_earned":
+      case "referral_month_started":
+      case "referral_month_ending_2d":
+      case "subscription_renewal_due_2d":
+      case "stripe_subscription_past_due":
+      case "stripe_subscription_created":
+      case "stripe_subscription_renewed":
+      case "stripe_subscription_canceled":
+      case "lead_created_hot":
+      case "lead_created_warm":
+      case "lead_created_cold":
+      case "client_created":
+      case "client_status_changed":
+      case "proposal_created":
+      case "proposal_status_changed":
+      case "sale_created":
+      case "sale_renewal_due_today":
+      case "sale_renewal_due_in_2_days":
+      case "sale_renewal_overdue":
+      case "trial_started":
+      case "trial_day_3":
+      case "trial_day_7":
+      case "trial_expiring_3d":
+      case "trial_expiring_1d":
+      case "trial_expired":
+      case "trial_inactive_48h":
         return { kind: "next", detail: { entrada: node.type } };
 
       case "wait": {
@@ -660,10 +763,38 @@ async function handleTick(db: any) {
     if (!flow) { await db.from("automation_runs").update({ status: "failed", last_error: "Fluxo apagado" }).eq("id", run.id); failed++; continue; }
 
     const wasAwaitingReply = run.status === "awaiting_reply";
-    const node = (flow.graph?.nodes ?? []).find((n) => n.id === run.current_node_id);
+    const nodes = flow.graph?.nodes ?? [];
+    const node = nodes.find((n) => n.id === run.current_node_id);
+    const cursors = readCursors(run);
 
     try {
-      if (wasAwaitingReply && node) {
+      if (cursors.length) {
+        // Um percurso pode estar parado em vários caminhos ao mesmo tempo.
+        // Retoma os que já venceram e volta a guardar os restantes tal como
+        // estavam, para cada espera acordar à sua própria hora.
+        const nowMs = Date.now();
+        const due = cursors.filter((c) => !c.wake_at || Date.parse(c.wake_at) <= nowMs);
+        const rest = cursors.filter((c) => !due.includes(c));
+        const starts: string[] = [];
+
+        for (const cursor of due) {
+          const parkedNode = nodes.find((n) => n.id === cursor.node);
+          if (!parkedNode) continue;
+          if (cursor.resume_self) {
+            // Adiado pelo horário de silêncio: re-executa o próprio nó.
+            starts.push(parkedNode.id);
+          } else if (cursor.status === "awaiting_reply") {
+            await settleWaitingStep(db, run, parkedNode, {
+              ramo: "timeout", motivo: "sem resposta dentro do prazo",
+            });
+            starts.push(...nextNodeIds(flow.graph, parkedNode.id, "timeout"));
+          } else {
+            starts.push(...nextNodeIds(flow.graph, parkedNode.id));
+          }
+        }
+
+        await engine.advance({ ...run, status: "running" }, flow, starts, rest);
+      } else if (wasAwaitingReply && node) {
         // Esgotou o tempo de espera: segue pelo ramo "timeout".
         await settleWaitingStep(db, run, node, {
           ramo: "timeout", motivo: "sem resposta dentro do prazo",
@@ -869,11 +1000,16 @@ async function handleReply(db: any, body: Record<string, unknown>) {
     const context = { ...run.context, ultima_resposta: text };
     await db.from("automation_runs").update({ context }).eq("id", run.id);
 
-    let next = nextNodeId(flow.graph, node.id, branch);
+    let starts = nextNodeIds(flow.graph, node.id, branch);
     // Sem ramo específico para esta resposta, tenta o de fallback.
-    if (!next && branch !== "fallback") next = nextNodeId(flow.graph, node.id, "fallback");
+    if (!starts.length && branch !== "fallback") {
+      starts = nextNodeIds(flow.graph, node.id, "fallback");
+    }
 
-    if (!next) {
+    // Outros caminhos deste percurso podem continuar parados nas suas esperas.
+    const rest = readCursors({ ...run, context }).filter((c) => c.node !== node.id);
+
+    if (!starts.length && !rest.length) {
       await db.from("automation_runs").update({
         status: "completed", completed_at: new Date().toISOString(),
         current_node_id: null, wake_at: null,
@@ -882,7 +1018,7 @@ async function handleReply(db: any, body: Record<string, unknown>) {
       continue;
     }
 
-    await engine.advance({ ...run, status: "running", context }, flow, next);
+    await engine.advance({ ...run, status: "running", context }, flow, starts, rest);
     resumed++;
   }
 

@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { resolveBillingContext, shouldProcessBillingEvent, type BillingContext } from "../_shared/stripe-billing-context.ts";
 import { handleReferralEvent } from "../_shared/referrals.ts";
+import { deterministicUuid, organizationAdminContact, planLabel, PAYMENT_GRACE_DAYS } from "../_shared/agency-automations.ts";
 import { rateLimit } from "../_shared/security.ts";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
@@ -234,7 +235,31 @@ serve(async (req) => {
           const orgName = await getOrgName(supabase, orgId);
 
           if (sub.status === "past_due") {
-            await dispatchAutomation(supabase, "stripe_subscription_past_due", { email, plan: plan || "unknown", nome: orgName });
+            // One overdue episode is one failing invoice. Stripe re-sends this
+            // update on every retry, and the subject id is the only thing that
+            // stops each retry from mailing the customer again.
+            const failingInvoice = typeof sub.latest_invoice === "string"
+              ? sub.latest_invoice
+              : sub.latest_invoice?.id ?? new Date().toISOString().slice(0, 10);
+            const [contact, { data: failed }] = await Promise.all([
+              organizationAdminContact(supabase, orgId),
+              supabase.from("organizations").select("payment_failed_at").eq("id", orgId).maybeSingle(),
+            ]);
+            const failedAt = failed?.payment_failed_at ? new Date(failed.payment_failed_at) : new Date();
+            const blockAt = new Date(failedAt.getTime() + PAYMENT_GRACE_DAYS * 86_400_000);
+            await dispatchAutomation(supabase, "stripe_subscription_past_due", {
+              id: await deterministicUuid(`past_due:${orgId}:${failingInvoice}`),
+              organizacao_id: orgId,
+              // A failed payment goes to whoever pays, so the Stripe customer
+              // email wins; the admin's name still greets them as a person.
+              email,
+              nome: contact?.nome || orgName,
+              empresa: contact?.empresa || orgName,
+              plano: contact?.plano || planLabel(plan),
+              plan: plan || "unknown",
+              dias_carencia: String(PAYMENT_GRACE_DAYS),
+              bloqueio_em: blockAt.toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" }),
+            });
             await syncStripeAutoLists(supabase, email, orgName, "past_due", plan || null);
           }
           if (sub.status === "active") {

@@ -245,17 +245,37 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
       className={GHOST_HANDLE_CLASS}
       style={centreOn(0, GHOST_BUTTON / 2)}
     />
-    <button
-      type="button"
-      onClick={() => data.onAdd(data.sourceId, data.branch)}
+    <div
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        data.onAdd(data.sourceId, data.branch);
+      }}
       title="Clica para adicionar aqui, ou arrasta para escolher o sítio"
       className={cn(
-        'flex h-11 w-11 cursor-grab items-center justify-center rounded-full border-2 border-dashed border-border bg-card active:cursor-grabbing',
+        'nopan nodrag relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-border bg-card',
         'text-muted-foreground transition-all hover:border-primary hover:text-primary hover:shadow-card-hover',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
       )}
     >
       <Plus className="h-5 w-5" />
-    </button>
+      {/*
+        The whole "+" is the grab point. Pressing it starts a line exactly as
+        pressing a step's own connection point does, so the two affordances
+        behave the same instead of one moving a circle and the other drawing.
+        A press with no movement ends back here and adds the step in place,
+        which is the old click. The click handler is gone on purpose: with this
+        handle on top it would fire as well and add two steps.
+      */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!min-h-0 !min-w-0 !rounded-full !border-0 !bg-transparent"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: 'none', left: 0, top: 0, right: 'auto', cursor: 'grab' }}
+      />
+    </div>
   </div>
 ));
 

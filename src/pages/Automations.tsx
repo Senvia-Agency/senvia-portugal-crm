@@ -280,9 +280,12 @@ function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRo
           em curso
         </span>
         {failed > 0 && (
-          <span className="inline-flex items-center gap-1 font-semibold text-destructive tabular-nums">
+          <span
+            className="inline-flex items-center gap-1 font-semibold text-destructive tabular-nums"
+            title="Nos últimos 7 dias. O histórico completo está no separador Atividade do fluxo."
+          >
             <AlertCircle className="h-3.5 w-3.5" />
-            {failed} {failed === 1 ? 'falha' : 'falhas'}
+            {failed} {failed === 1 ? 'falha' : 'falhas'} em 7 dias
           </span>
         )}
       </div>

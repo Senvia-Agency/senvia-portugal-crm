@@ -9,6 +9,8 @@ interface CreateEmailTemplateData {
   subject: string;
   html_content: string;
   category?: EmailTemplateCategory;
+  /** The user-managed category (email_template_categories). null = none. */
+  category_id?: string | null;
   variables?: string[];
   is_active?: boolean;
   automation_enabled?: boolean;
@@ -92,6 +94,7 @@ export function useCreateEmailTemplate() {
           subject: data.subject,
           html_content: data.html_content,
           category: data.category || 'general',
+          category_id: data.category_id ?? null,
           variables: data.variables || [],
           is_active: data.is_active ?? true,
           created_by: user?.id,
@@ -130,6 +133,7 @@ export function useUpdateEmailTemplate() {
       if (data.subject !== undefined) updateData.subject = data.subject;
       if (data.html_content !== undefined) updateData.html_content = data.html_content;
       if (data.category !== undefined) updateData.category = data.category;
+      if (data.category_id !== undefined) updateData.category_id = data.category_id;
       if (data.variables !== undefined) updateData.variables = data.variables;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
       if (data.automation_enabled !== undefined) updateData.automation_enabled = data.automation_enabled;

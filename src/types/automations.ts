@@ -53,9 +53,28 @@ export type AutomationTriggerType =
   | 'stripe_subscription_renewed'
   | 'stripe_subscription_past_due'
   | 'stripe_subscription_canceled'
-  // Renewal triggers — fired daily by the engine, also offered for new flows.
+  // Recurring-sale billing, for manual billing only. Read daily from the
+  // per-period ledger (sale_recurring_cycles) by check-renewal-automations:
+  // two days before a cycle is due, the day it is due, and once it is past due.
   | 'sale_renewal_due_today'
-  | 'sale_renewal_due_in_2_days';
+  | 'sale_renewal_due_in_2_days'
+  | 'sale_renewal_overdue'
+  // Referral programme: the organization that referred a customer earns a
+  // free month the moment that customer makes their first payment. Dispatched
+  // by the Stripe referral ledger, to the agency, with the rewarded admin as
+  // the contact.
+  | 'referral_month_earned'
+  // The same programme, one step later: the 100%-off invoice is paid and the
+  // free month is actually running. Carries `fim_periodo` for templates.
+  | 'referral_month_started'
+  // Two days before that free month ends: billing resumes, so the referrer
+  // is warned to keep the payment method valid. Found by the daily Stripe
+  // reconciliation, not by an event.
+  | 'referral_month_ending_2d'
+  // The SENVIA OS plan itself renews in two days: a payment reminder to the
+  // customer. Found by the daily Stripe reconciliation from the billing
+  // snapshot, which knows about cancellations and paused collection.
+  | 'subscription_renewal_due_2d';
 
 export type AutomationActionType =
   | 'send_whatsapp'
@@ -286,6 +305,7 @@ export interface AutomationRunStep {
 /** Aggregated per-flow run counters shown on the list page. */
 export interface AutomationFlowRunCounts {
   active: number;
+  /** Failed in the last RECENT_FAILURE_DAYS, not all-time — see useAutomationRunCounts. */
   failed: number;
   completed: number;
   total: number;

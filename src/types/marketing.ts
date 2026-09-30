@@ -4,7 +4,10 @@ export interface EmailTemplate {
   name: string;
   subject: string;
   html_content: string;
+  /** Legacy free-text category. Read only to label templates not yet migrated. */
   category: EmailTemplateCategory;
+  /** The organization's own category. Null means uncategorised. */
+  category_id?: string | null;
   variables: string[];
   is_active: boolean;
   created_at: string;
@@ -16,6 +19,25 @@ export interface EmailTemplate {
   automation_delay_minutes?: number;
 }
 
+/**
+ * A category an organization created for itself. This replaced the fixed list
+ * below, which nobody could add to — and which rows had already outgrown, with
+ * a "trial" value written straight into the column.
+ */
+export interface EmailTemplateCategoryRow {
+  id: string;
+  organization_id: string;
+  name: string;
+  color: string | null;
+  is_active: boolean | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * The old fixed list. Still here only to label the legacy `category` text
+ * column on templates that predate the migration; nothing new should use it.
+ */
 export type EmailTemplateCategory = 'general' | 'proposal' | 'welcome' | 'followup' | 'promotion';
 
 export const TEMPLATE_CATEGORIES: Record<EmailTemplateCategory, string> = {

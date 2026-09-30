@@ -2603,6 +2603,7 @@ export type Database = {
           automation_trigger_config: Json
           automation_trigger_type: string | null
           category: string | null
+          category_id: string | null
           created_at: string | null
           created_by: string | null
           html_content: string
@@ -2620,6 +2621,7 @@ export type Database = {
           automation_trigger_config?: Json
           automation_trigger_type?: string | null
           category?: string | null
+          category_id?: string | null
           created_at?: string | null
           created_by?: string | null
           html_content?: string
@@ -2637,6 +2639,7 @@ export type Database = {
           automation_trigger_config?: Json
           automation_trigger_type?: string | null
           category?: string | null
+          category_id?: string | null
           created_at?: string | null
           created_by?: string | null
           html_content?: string

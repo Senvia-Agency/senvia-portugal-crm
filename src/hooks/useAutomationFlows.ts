@@ -398,7 +398,14 @@ export function useTestAutomationFlow() {
 
 const ACTIVE_RUN_STATUSES = ['running', 'waiting', 'awaiting_reply'];
 
-/** Per-flow run counters for the list page. */
+/**
+ * How far back the list's failure badge looks. All-time, a flow that failed
+ * for one bad afternoon months ago kept wearing "6 falhas" while running
+ * perfectly — which reads as broken now. The full history stays in Atividade.
+ */
+export const RECENT_FAILURE_DAYS = 7;
+
+/** Per-flow run counters for the list page. `failed` covers the last 7 days only. */
 export function useAutomationRunCounts() {
   const { organization } = useAuth();
   const organizationId = organization?.id;
@@ -410,18 +417,25 @@ export function useAutomationRunCounts() {
 
       const { data, error } = await supabase
         .from(RUNS)
-        .select('flow_id, status')
+        .select('flow_id, status, started_at, completed_at')
         .eq('organization_id', organizationId);
 
       if (error) throw error;
 
+      const since = Date.now() - RECENT_FAILURE_DAYS * 86_400_000;
       const counts: Record<string, AutomationFlowRunCounts> = {};
-      for (const row of (data || []) as unknown as { flow_id: string; status: string }[]) {
+      for (const row of (data || []) as unknown as {
+        flow_id: string; status: string; started_at: string | null; completed_at: string | null;
+      }[]) {
         const entry = counts[row.flow_id] ?? { active: 0, failed: 0, completed: 0, total: 0 };
         entry.total += 1;
         if (ACTIVE_RUN_STATUSES.includes(row.status)) entry.active += 1;
-        else if (row.status === 'failed') entry.failed += 1;
-        else if (row.status === 'completed') entry.completed += 1;
+        else if (row.status === 'failed') {
+          // When it failed, which is when it finished; a run with no finish
+          // time falls back to when it began.
+          const at = Date.parse(row.completed_at ?? row.started_at ?? '');
+          if (Number.isFinite(at) && at >= since) entry.failed += 1;
+        } else if (row.status === 'completed') entry.completed += 1;
         counts[row.flow_id] = entry;
       }
       return counts;

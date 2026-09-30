@@ -93,6 +93,16 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Flow-engine side: per-cycle billing dates from the ledger. Runs first
+    // and on its own, so the legacy path below can neither block it nor be
+    // broken by it.
+    try {
+      const cycles = await announceSaleCycles(supabase, { supabaseUrl, serviceKey: supabaseServiceKey });
+      console.log("[check-renewal-automations] sale cycles announced", cycles);
+    } catch (error) {
+      console.error("[check-renewal-automations] sale cycle announcement failed", (error as Error).message);
+    }
+
     const today = new Date();
     const todayDate = today.toISOString().split("T")[0];
     const inTwoDaysDate = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -388,3 +398,4 @@ serve(async (req: Request): Promise<Response> => {
   }
 });
 import { internalJobGuard } from "../_shared/internal-auth.ts";
+import { announceSaleCycles } from "../_shared/sale-cycle-automations.ts";
