@@ -84,7 +84,10 @@ function TelecomFinanceFilters({
           value={dateRange}
           onChange={onDateRangeChange}
           placeholder="Todo o histórico"
-          className="w-full"
+          // flex-1, not w-full: the clear (×) button sits beside it, and
+          // w-full + × was wider than the column — the whole card scrolled
+          // sideways and every filter looked cut off.
+          className="min-w-0 flex-1 overflow-hidden"
         />
       }
     />
@@ -93,7 +96,7 @@ function TelecomFinanceFilters({
 
   return (
     <div className="contents">
-      <aside className="hidden rounded-xl border border-border/70 bg-card p-3 2xl:sticky 2xl:top-4 2xl:block 2xl:max-h-[calc(100dvh-2rem)] 2xl:overflow-y-auto">
+      <aside className="hidden min-w-0 overflow-x-hidden rounded-xl border border-border/70 bg-card p-3 2xl:sticky 2xl:top-4 2xl:block 2xl:max-h-[calc(100dvh-2rem)] 2xl:overflow-y-auto">
         <div className="mb-4 space-y-1">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -91,6 +91,14 @@ function inRange(dateStr: string, dateRange?: DateRange) {
 function fmtDate(dateStr?: string | null) {
   if (!dateStr) return '—';
   return format(parseISO(dateStr), "dd MMM yyyy", { locale: pt });
+}
+
+/** Case- and accent-insensitive "contains", for the search box on each list. */
+const foldText = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-PT");
+function matchesSearch(term: string | undefined, values: Array<string | null | undefined>): boolean {
+  const t = foldText((term ?? "").trim());
+  if (!t) return true;
+  return values.some((v) => !!v && foldText(String(v)).includes(t));
 }
 
 function TotalFooter({ count, total }: { count: number; total: number }) {
@@ -284,9 +292,12 @@ function SalesDetailTable({
   telecomStatuses,
   scheduledInstallationOnly = false,
   dateBasis = "sale",
+  searchTerm = "",
 }: {
   dateRange?: DateRange;
   renewals?: RenewalRow[];
+  /** Client, code, product or seller. */
+  searchTerm?: string;
   commissionFilters?: CommissionFilters;
   /** Telecom lifecycle cards: keep only these states. */
   telecomStatuses?: TelecomStatus[];
@@ -316,18 +327,22 @@ function SalesDetailTable({
   const { data: sellerNames = {} } = useProfileNames(
     filtered.map((s) => s.seller_id || s.created_by),
   );
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
   const sellerOf = (s: any) => {
     const id = s.seller_id || s.created_by;
     return id ? (sellerNames[id] ?? "—") : "—";
   };
+  const shown = filtered.filter((s) => matchesSearch(searchTerm, [
+    s.client?.name, s.lead?.name, s.code, sellerOf(s),
+    ...Object.keys((s.servicos_details ?? {}) as Record<string, unknown>),
+  ]));
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
   const valueOf = (s: any) => isTelecom ? Number(s.comissao) || 0 : Number(s.total_value) || 0;
-  const salesTotal = filtered.reduce((sum, v) => sum + valueOf(v), 0);
+  const salesTotal = shown.reduce((sum, v) => sum + valueOf(v), 0);
   // Renewals are client billing — they have no place in a commission total.
-  const shownRenewals = isTelecom ? [] : renewals;
+  const shownRenewals = isTelecom ? [] : renewals.filter((r) => matchesSearch(searchTerm, [r.label]));
   const renewalsTotal = shownRenewals.reduce((s, r) => s + r.amount, 0);
   const total = salesTotal + renewalsTotal;
-  const count = filtered.length + shownRenewals.length;
+  const count = shown.length + shownRenewals.length;
   return (
     <div className="rounded-md border">
       <Table>
@@ -346,7 +361,7 @@ function SalesDetailTable({
             <EmptyRow cols={isTelecom ? 6 : 5} />
           ) : (
             <>
-              {filtered.map((s) => (
+              {shown.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && (s.commission_payment_month_offset ?? 0) > 0 && telecomCommissionDate(s)
                     ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: pt })
@@ -380,12 +395,12 @@ function SalesDetailTable({
           )}
         </TableBody>
       </Table>
-      {count > 0 && <TotalFooter count={isTelecom ? sumOperationalSaleUnits(filtered) : count} total={total} />}
+      {count > 0 && <TotalFooter count={isTelecom ? sumOperationalSaleUnits(shown) : count} total={total} />}
     </div>
   );
 }
 
-function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?: DateRange; commissionFilters?: CommissionFilters }) {
+function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = "" }: { dateRange?: DateRange; commissionFilters?: CommissionFilters; searchTerm?: string }) {
   // Reuse the card's query so rows, permissions, filters and total cannot diverge.
   const { data, isLoading, isError, refetch } = useTeamCommissionTotal(dateRange, commissionFilters);
   const { data: sales = [] } = useSales();
@@ -396,7 +411,12 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
   );
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError) return <div className="rounded-md border p-4">Não foi possível carregar as vendas. <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button></div>;
-  const rows = data?.organizationSales ?? [];
+  const allRows = data?.organizationSales ?? [];
+  const rows = allRows.filter((sale) => matchesSearch(searchTerm, [sale.clientName, sale.code, ...sale.products]));
+  // Searching narrows the rows, so the total has to follow them.
+  const rowsTotal = searchTerm.trim()
+    ? rows.reduce((sum, sale) => sum + sale.amount, 0)
+    : (data?.orgTotal ?? 0);
   return (
     <div className="rounded-md border">
       <Table>
@@ -428,7 +448,7 @@ function OrganizationValueDetail({ dateRange, commissionFilters }: { dateRange?:
           ))}
         </TableBody>
       </Table>
-      {rows.length > 0 && <TotalFooter count={rows.length} total={data?.orgTotal ?? 0} />}
+      {rows.length > 0 && <TotalFooter count={rows.length} total={rowsTotal} />}
       <SaleDetailsModal
         sale={selectedSale}
         open={selectedSale !== null}
@@ -596,6 +616,14 @@ function BalanceDetail({
 
 export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, searchTerm, commissionFilters, onBack, showBack = true }: FinanceCardDetailProps) {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  // A caller that brings its own search box (the generic dashboard, for
+  // expenses) keeps it; otherwise each list gets one here.
+  const [ownSearch, setOwnSearch] = useState("");
+  const search = searchTerm ?? ownSearch;
+  const searchable = searchTerm === undefined
+    && !["myCommissions", "commissions", "balance"].includes(type);
+  const paymentMatches = (p: PaymentWithSale) =>
+    matchesSearch(search, [p.client_name, p.lead_name, p.sale?.code, p.invoice_reference]);
 
   const received = useMemo(() => payments.filter((p) => p.status === "paid"), [payments]);
   // Pending/overdue always show the full history (ignore the period filter) —
@@ -631,7 +659,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
   const orgIsTelecom = orgForTitle?.niche === "telecom";
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {showBack && <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Button>}
@@ -640,8 +668,21 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
           {type === "faturado" && orgIsTelecom ? "Total de Comissão" : TITLES[type]}
         </h2>
 
+        {searchable && (
+          <div className="relative ml-auto w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={ownSearch}
+              onChange={(e) => setOwnSearch(e.target.value)}
+              placeholder="Pesquisar cliente, código ou produto..."
+              className="h-9 pl-8"
+              aria-label="Pesquisar nesta lista"
+            />
+          </div>
+        )}
+
         {type === "expenses" && (
-          <Button size="sm" className="ml-auto gap-1.5" onClick={() => setAddExpenseOpen(true)}>
+          <Button size="sm" className={cn("gap-1.5", !searchable && "ml-auto")} onClick={() => setAddExpenseOpen(true)}>
             <Plus className="h-4 w-4" /> Nova Despesa
           </Button>
         )}
@@ -652,13 +693,14 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "faturado" && (
         <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters}
           telecomStatuses={orgIsTelecom ? TELECOM_EARNED_STATUSES : undefined}
-          dateBasis={orgIsTelecom ? 'activation' : 'sale'} />
+          dateBasis={orgIsTelecom ? 'activation' : 'sale'} searchTerm={search} />
       )}
       {type === "porInstalar" && (
         <SalesDetailTable
           dateRange={dateRange}
           commissionFilters={commissionFilters}
           scheduledInstallationOnly
+          searchTerm={search}
         />
       )}
       {type === "instalado" && (
@@ -667,14 +709,15 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
           commissionFilters={commissionFilters}
           telecomStatuses={TELECOM_EARNED_STATUSES}
           dateBasis="activation"
+          searchTerm={search}
         />
       )}
-      {type === "received" && <PaymentsDetailTable payments={received} />}
-      {type === "pending" && <PaymentsDetailTable payments={pending} allowMarkPaid />}
-      {type === "overdue" && <PaymentsDetailTable payments={overdue} allowMarkPaid />}
-      {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments} />}
-      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={searchTerm} />}
-      {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
+      {type === "received" && <PaymentsDetailTable payments={received.filter(paymentMatches)} />}
+      {type === "pending" && <PaymentsDetailTable payments={pending.filter(paymentMatches)} allowMarkPaid />}
+      {type === "overdue" && <PaymentsDetailTable payments={overdue.filter(paymentMatches)} allowMarkPaid />}
+      {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments.filter(paymentMatches)} />}
+      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={search} />}
+      {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
       {type === "balance" && (

@@ -109,8 +109,19 @@ export function CommissionFiltersBar({
     { key: NO_TYPE, label: 'Sem tipo', tone: NO_OPERATOR_TONE },
   ];
 
+  // The sidebar is a narrow column (Financeiro, Vendas): smaller chips and
+  // labels, so a row of operators wraps inside it instead of widening it.
   const switchClass = (on: boolean, tone: string) =>
-    cn('h-7 rounded-full px-2.5 text-[11px] font-medium transition-all', on ? tone : OFF_TONE);
+    cn(
+      'rounded-full font-medium transition-all',
+      sidebar ? 'h-6 min-w-0 px-2 text-[10.5px]' : 'h-7 px-2.5 text-[11px]',
+      on ? tone : OFF_TONE,
+    );
+  const labelClass = cn(
+    'flex items-center gap-1.5 font-medium text-muted-foreground',
+    sidebar ? 'text-xs' : 'mr-1 text-sm',
+  );
+  const labelIconClass = sidebar ? 'h-3.5 w-3.5' : 'h-4 w-4';
 
   const operatorSwitches = [
     ...operators.map((o, i) => ({ key: o.id, label: o.name, tone: OPERATOR_TONES[i % OPERATOR_TONES.length] })),
@@ -157,8 +168,8 @@ export function CommissionFiltersBar({
           </div>
         )}
         <div className={sidebar ? 'space-y-1' : 'contents'}>
-        <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-          <Radio className="h-4 w-4" />
+        <span className={labelClass}>
+          <Radio className={labelIconClass} />
           Operadoras:
         </span>
         <div className="flex flex-wrap items-center gap-1">
@@ -197,8 +208,8 @@ export function CommissionFiltersBar({
 
       <div className={cn('flex flex-col gap-2 2xl:flex-row 2xl:flex-wrap 2xl:items-center 2xl:gap-x-6', sidebar && '2xl:flex-col 2xl:items-stretch 2xl:gap-3')}>
         <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
-          <span className="mr-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-            <Activity className="h-4 w-4" />Estado:
+          <span className={labelClass}>
+            <Activity className={labelIconClass} />Estado:
           </span>
           <div className="flex flex-wrap items-center gap-1">
           {TELECOM_STATUSES.map((st) => {
@@ -232,8 +243,8 @@ export function CommissionFiltersBar({
         </div>
 
         <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
-          <span className="mr-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-            <Tags className="h-4 w-4" />Tipos:
+          <span className={labelClass}>
+            <Tags className={labelIconClass} />Tipos:
           </span>
           <div className="flex flex-wrap items-center gap-1">
           {typeSwitches.map((s) => {

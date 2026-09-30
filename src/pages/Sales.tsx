@@ -102,7 +102,8 @@ function TelecomSalesFilters({
           value={dateRange}
           onChange={onDateRangeChange}
           placeholder="Todo o histórico"
-          className="w-full"
+          // flex-1, not w-full: the clear (×) button sits beside it (see Finance).
+          className="min-w-0 flex-1 overflow-hidden"
         />
       }
     />
@@ -110,7 +111,7 @@ function TelecomSalesFilters({
 
   return (
     <div className="contents">
-      <aside className="hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+      <aside className="hidden min-w-0 overflow-x-hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
         </h2>

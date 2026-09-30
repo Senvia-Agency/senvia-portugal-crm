@@ -82,7 +82,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // that once took the product catalog down.
       const { data: sales, error: salesErr } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_details, commission_payment_month_offset, commission_expected_date')
+        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesErr) throw salesErr;
