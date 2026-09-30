@@ -21,8 +21,9 @@ import { FlowSettings } from '@/components/automations/FlowSettings';
 import { TestFlowDialog } from '@/components/automations/TestFlowDialog';
 
 import {
-  appendNode, applyAutoLayout, changeTriggerType, findNode, insertNodeOnEdge,
-  pruneOrphanBranches, removeNode, updateNodeConfig, updateNodePositions, validateGraph,
+  appendNode, applyAutoLayout, changeTriggerType, connectNodes, describeConnectionRefusal,
+  disconnectEdges, findNode, insertNodeOnEdge, pruneOrphanBranches, removeNode,
+  updateNodeConfig, updateNodePositions, validateGraph,
 } from '@/lib/automation-graph';
 import {
   useAutomationFlow, useAutomationFlowNodeStats, useSetAutomationFlowStatus,
@@ -33,7 +34,9 @@ import type {
 } from '@/types/automations';
 
 type PickerTarget =
-  | { kind: 'append'; sourceId: string; branch: string | null }
+  // `position` is set when the "+" was dragged: the step lands exactly there
+  // instead of beside its source.
+  | { kind: 'append'; sourceId: string; branch: string | null; position?: { x: number; y: number } }
   | { kind: 'insert'; edgeId: string }
   | null;
 
@@ -84,6 +87,37 @@ export default function AutomationEditor() {
     setPickerTarget({ kind: 'append', sourceId, branch });
   }, []);
 
+  // The "+" was dragged somewhere. Same picker, but the drop point travels with
+  // it so the step can be placed there once its type is known.
+  const handleAddAfterAt = useCallback(
+    (sourceId: string, branch: string | null, position: { x: number; y: number }) => {
+      setPickerTarget({ kind: 'append', sourceId, branch, position });
+    },
+    [],
+  );
+
+  // A connection drawn on the canvas. Refusals are explained rather than
+  // swallowed — the line springing back with no reason is the worst outcome.
+  const handleConnectNodes = useCallback(
+    (sourceId: string, targetId: string, branch: string | null) => {
+      setGraph((current) => {
+        const refusal = describeConnectionRefusal(current, sourceId, targetId, branch);
+        if (refusal) {
+          toast.error('Ligação não permitida', { description: refusal });
+          return current;
+        }
+        setDirty(true);
+        return connectNodes(current, sourceId, targetId, branch);
+      });
+    },
+    [],
+  );
+
+  const handleUnlinkEdges = useCallback((edgeIds: string[]) => {
+    setGraph((current) => disconnectEdges(current, edgeIds));
+    setDirty(true);
+  }, []);
+
   const handleInsertOnEdge = useCallback((edgeId: string) => {
     setPickerTarget({ kind: 'insert', edgeId });
   }, []);
@@ -104,9 +138,15 @@ export default function AutomationEditor() {
   const handlePickNodeType = (type: AutomationNodeType) => {
     if (!pickerTarget) return;
 
-    const result = pickerTarget.kind === 'append'
+    const built = pickerTarget.kind === 'append'
       ? appendNode(graph, pickerTarget.sourceId, pickerTarget.branch, type)
       : insertNodeOnEdge(graph, pickerTarget.edgeId, type);
+
+    // Dropped "+": override the computed spot with where it was let go.
+    const dropped = pickerTarget.kind === 'append' ? pickerTarget.position : undefined;
+    const result = dropped && built.node
+      ? { ...built, graph: updateNodePositions(built.graph, { [built.node.id]: dropped }) }
+      : built;
 
     mutateGraph(result.graph);
     // Open the new node's config straight away — it always needs filling in.
@@ -324,6 +364,9 @@ export default function AutomationEditor() {
               onAddAfter={handleAddAfter}
               onInsertOnEdge={handleInsertOnEdge}
               onMoveNodes={handleMoveNodes}
+              onAddAfterAt={handleAddAfterAt}
+              onConnectNodes={handleConnectNodes}
+              onUnlinkEdges={handleUnlinkEdges}
               nodeStats={hasRunStats ? nodeStats : undefined}
             />
 

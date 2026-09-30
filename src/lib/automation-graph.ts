@@ -103,15 +103,18 @@ export function getEntryNode(
 }
 
 /**
- * True when EVERY real node holds a stored, non-default position — meaning the
- * user (or "Auto-organizar") placed things by hand and the canvas must respect
- * it. Any node still at the (0,0) default sends the whole graph back to dagre.
+ * True once the steps have been placed by hand (a drag, a dropped "+", or
+ * "Auto-organizar") and the canvas must respect that instead of re-running
+ * dagre. A graph where nothing has moved yet still lays itself out.
  */
 export function hasManualLayout(graph: AutomationGraph): boolean {
   if (!graph.nodes.length) return false;
-  return graph.nodes.every(
-    (node) => node.position && (node.position.x !== 0 || node.position.y !== 0),
-  );
+  if (!graph.nodes.every((node) => !!node.position)) return false;
+  // A graph straight out of a recipe has every node at the origin — that is
+  // the "never arranged" signal. One step legitimately dropped on 0,0 is not,
+  // so the test is whether ANY step has moved, not every one. Demanding every
+  // one sent the whole layout back to dagre the moment a node landed there.
+  return graph.nodes.some((node) => (node.position?.x ?? 0) !== 0 || (node.position?.y ?? 0) !== 0);
 }
 
 // ── Mutations ───────────────────────────────────────────────────────────────
@@ -570,4 +573,96 @@ export function validateGraph(graph: AutomationGraph, entryNodeId: string | null
   }
 
   return issues;
+}
+
+// ── Manual wiring ───────────────────────────────────────────────────────────
+// The canvas used to be read-only about shape: steps could be moved, never
+// rewired. These helpers back the two affordances that fix that — dropping a
+// "+" where you want the step, and drawing an edge by hand.
+
+/**
+ * Where a node box should land so its circle sits under the point the ghost
+ * "+" was dropped on. Without this the step jumps up-left by half a box.
+ */
+export function ghostDropToNodePosition(point: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: point.x + GHOST_BOX_WIDTH / 2 - NODE_BOX_WIDTH / 2,
+    y: point.y + GHOST_BOX_HEIGHT / 2 - NODE_CIRCLE_CENTER_Y,
+  };
+}
+
+/** True when `toId` is reachable from `fromId` by following edges. */
+export function isReachable(graph: AutomationGraph, fromId: string, toId: string): boolean {
+  const seen = new Set<string>([fromId]);
+  const queue = [fromId];
+  while (queue.length) {
+    const current = queue.shift() as string;
+    if (current === toId && current !== fromId) return true;
+    for (const edge of graph.edges) {
+      if (edge.source !== current || seen.has(edge.target)) continue;
+      if (edge.target === toId) return true;
+      seen.add(edge.target);
+      queue.push(edge.target);
+    }
+  }
+  return false;
+}
+
+/**
+ * Why this connection cannot be made, in Portuguese, or null when it can.
+ * Every rule here is one the engine would otherwise trip over at run time:
+ * a cycle burns through `max_steps_per_run`, a second edge on one branch makes
+ * the taken path arbitrary, and a trigger with an inbound edge is meaningless.
+ */
+export function describeConnectionRefusal(
+  graph: AutomationGraph,
+  sourceId: string,
+  targetId: string,
+  branch: string | null,
+): string | null {
+  if (sourceId === targetId) return 'Um passo não se pode ligar a si próprio.';
+
+  const source = findNode(graph, sourceId);
+  const target = findNode(graph, targetId);
+  if (!source || !target) return 'Passo não encontrado.';
+
+  if (getNodeDefinition(target.type)?.isTrigger) return 'Um gatilho não recebe ligações.';
+  if (source.type === 'end') return 'O passo final não tem saída.';
+
+  const branches = getNodeBranches(source);
+  if (branches.length) {
+    if (!branch) return 'Escolhe de que ramo sai esta ligação.';
+    if (!branches.some((item) => item.key === branch)) return 'Esse ramo já não existe neste passo.';
+  } else if (branch) {
+    return 'Este passo não tem ramos.';
+  }
+
+  const taken = graph.edges.some((edge) => edge.source === sourceId && (edge.branch ?? null) === branch);
+  if (taken) return 'Esta saída já está ligada. Apaga a ligação atual primeiro.';
+
+  // Following the edges forward from the target must never come back here.
+  if (targetId === sourceId || isReachable(graph, targetId, sourceId)) {
+    return 'Isto criaria um ciclo, e o percurso ficaria preso a rodar.';
+  }
+
+  return null;
+}
+
+/** Adds the edge. Caller is expected to have cleared `describeConnectionRefusal`. */
+export function connectNodes(
+  graph: AutomationGraph,
+  sourceId: string,
+  targetId: string,
+  branch: string | null,
+): AutomationGraph {
+  return {
+    ...graph,
+    edges: [...graph.edges, { id: createId('e'), source: sourceId, target: targetId, branch }],
+  };
+}
+
+/** Removes edges by id. Nodes left unreachable stay on the canvas to be rewired. */
+export function disconnectEdges(graph: AutomationGraph, edgeIds: string[]): AutomationGraph {
+  const drop = new Set(edgeIds);
+  return { ...graph, edges: graph.edges.filter((edge) => !drop.has(edge.id)) };
 }

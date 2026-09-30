@@ -1,9 +1,9 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { memo, useEffect } from 'react';
+import { Handle, Position, useUpdateNodeInternals, type NodeProps, type Node } from '@xyflow/react';
 import { AlertTriangle, HelpCircle, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  getNodeDefinition, getNodeStyle, getNodeSubtitle, humanizeNodeType,
+  getNodeBranches, getNodeDefinition, getNodeStyle, getNodeSubtitle, humanizeNodeType,
   type NodeCategoryStyle,
 } from '@/lib/automation-nodes';
 import { GHOST_BOX_HEIGHT, NODE_BOX_HEIGHT, NODE_BOX_WIDTH } from '@/lib/automation-graph';
@@ -29,7 +29,16 @@ const UNKNOWN_NODE_STYLE: NodeCategoryStyle = {
 const CIRCLE = 66;
 const CIRCLE_LEFT = (NODE_BOX_WIDTH - CIRCLE) / 2;
 const CIRCLE_MID_Y = CIRCLE / 2;
-const HANDLE_CLASS = '!h-2 !w-2 !min-h-0 !min-w-0 !border-0 !bg-transparent';
+/**
+ * Connection points are grabbable now, so they have to be visible. They sit
+ * quiet until the pointer is on the step, then read as something to pull from.
+ */
+const HANDLE_CLASS =
+  '!h-2.5 !w-2.5 !min-h-0 !min-w-0 !rounded-full !border-2 !border-background !bg-muted-foreground/45 !transition-colors group-hover:!bg-primary';
+/** The ghost "+" is dragged as a whole; its inbound point stays out of the way. */
+const GHOST_HANDLE_CLASS = '!h-2 !w-2 !min-h-0 !min-w-0 !border-0 !bg-transparent';
+/** Vertical gap between the outbound points of a branching step. */
+const BRANCH_HANDLE_STEP = 13;
 /** Ghost button size — kept in step with GHOST_BOX_* so dagre centres it truly. */
 const GHOST_BUTTON = GHOST_BOX_HEIGHT;
 const centreOn = (x: number, y: number) => ({
@@ -55,7 +64,7 @@ export type AutomationFlowNodeType = Node<AutomationNodeData, 'automation'>;
  * A Make-style step: a colour-ringed circle with the node icon, a numbered
  * badge, and the title + one-line summary underneath.
  */
-export const AutomationFlowNode = memo(({ data, selected }: NodeProps<AutomationFlowNodeType>) => {
+export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<AutomationFlowNodeType>) => {
   const { graphNode, step, hasIssue, stats, showStats } = data;
   const definition = getNodeDefinition(graphNode.type);
   // Defensive: an unknown type still gets a styled circle, an icon and a
@@ -64,6 +73,17 @@ export const AutomationFlowNode = memo(({ data, selected }: NodeProps<Automation
   const Icon = definition?.icon ?? HelpCircle;
   const subtitle = getNodeSubtitle(graphNode);
   const isTrigger = definition?.isTrigger;
+
+  // One outbound point per branch, so a connection drawn by hand already knows
+  // which path it is. Editing the reply rules changes how many there are, and
+  // React Flow caches handle positions — it has to be told they moved, or the
+  // existing edges keep meeting the circle where the old points used to be.
+  const branches = getNodeBranches(graphNode);
+  const branchKeys = branches.map((branch) => branch.key).join('|');
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, branchKeys, updateNodeInternals]);
 
   return (
     <div
@@ -75,7 +95,6 @@ export const AutomationFlowNode = memo(({ data, selected }: NodeProps<Automation
         <Handle
           type="target"
           position={Position.Left}
-          isConnectable={false}
           className={HANDLE_CLASS}
           style={centreOn(CIRCLE_LEFT, CIRCLE_MID_Y)}
         />
@@ -129,15 +148,29 @@ export const AutomationFlowNode = memo(({ data, selected }: NodeProps<Automation
         </p>
       </div>
 
-      {graphNode.type !== 'end' && (
+      {graphNode.type !== 'end' && (branches.length ? (
+        branches.map((branch, index) => (
+          <Handle
+            key={branch.key}
+            id={branch.key}
+            type="source"
+            position={Position.Right}
+            title={branch.label}
+            className={HANDLE_CLASS}
+            style={centreOn(
+              CIRCLE_LEFT + CIRCLE,
+              CIRCLE_MID_Y + (index - (branches.length - 1) / 2) * BRANCH_HANDLE_STEP,
+            )}
+          />
+        ))
+      ) : (
         <Handle
           type="source"
           position={Position.Right}
-          isConnectable={false}
           className={HANDLE_CLASS}
           style={centreOn(CIRCLE_LEFT + CIRCLE, CIRCLE_MID_Y)}
         />
-      )}
+      ))}
     </div>
   );
 });
@@ -209,15 +242,15 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
       type="target"
       position={Position.Left}
       isConnectable={false}
-      className={HANDLE_CLASS}
+      className={GHOST_HANDLE_CLASS}
       style={centreOn(0, GHOST_BUTTON / 2)}
     />
     <button
       type="button"
       onClick={() => data.onAdd(data.sourceId, data.branch)}
-      title="Adicionar passo"
+      title="Clica para adicionar aqui, ou arrasta para escolher o sítio"
       className={cn(
-        'flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-border bg-card',
+        'flex h-11 w-11 cursor-grab items-center justify-center rounded-full border-2 border-dashed border-border bg-card active:cursor-grabbing',
         'text-muted-foreground transition-all hover:border-primary hover:text-primary hover:shadow-card-hover',
       )}
     >
