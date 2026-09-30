@@ -319,6 +319,11 @@ export interface CommissionSplit {
   // the technology, not to the line. Absent falls back to `type`.
   type_fibra?: CommissionType;
   type_satelite?: CommissionType;
+  // Whether this recipient is paid the extra-card money when he is the
+  // seller. The operator does not pay for extra cards — the org pays them out
+  // of its own margin — so someone already paid the operator's whole amount
+  // (the org keeps nothing on his sales) gets none. Absent means true.
+  extra_cards?: boolean;
 }
 
 /** The €/% mode that applies to a split for a given technology. */
@@ -625,15 +630,24 @@ function sellerRatePerUnit(
   tech?: TelecomTechnology,
   fibraPctBase?: number,
 ): number {
-  if (!splits || splits.length === 0) return 0;
+  const split = sellerSplitFor(splits, sellerUserId, sellerProfileId);
+  return split ? splitEuroValue(split, pctBase, tech, fibraPctBase) : 0;
+}
+
+/** The seller's own line in a commission table: by name first, then by profile. */
+function sellerSplitFor(
+  splits: CommissionSplit[] | undefined,
+  sellerUserId?: string | null,
+  sellerProfileId?: string | null,
+): CommissionSplit | undefined {
+  if (!splits || splits.length === 0) return undefined;
   const named = sellerUserId
     ? splits.find(s => s.kind === 'user' && s.user_id === sellerUserId)
     : undefined;
-  if (named) return splitEuroValue(named, pctBase, tech, fibraPctBase);
-  const byProfile = sellerProfileId
+  if (named) return named;
+  return sellerProfileId
     ? splits.find(s => s.kind === 'profile' && s.profile_id === sellerProfileId)
     : undefined;
-  return byProfile ? splitEuroValue(byProfile, pctBase, tech, fibraPctBase) : 0;
 }
 
 /**
@@ -680,9 +694,14 @@ export interface SaleLineCommission {
  * rate from the product's commission table — one line only, his — and the
  * difference stays with the org.
  *
- * The band's Bónus Geral and the extra-card money are paid by the operator on
- * top, and both go to the seller whole, so they raise `gross` and `seller`
- * equally and leave `org` untouched.
+ * The band's Bónus Geral is paid by the operator on top and goes to the
+ * seller whole, so it raises `gross` and `seller` equally and leaves `org`
+ * untouched.
+ *
+ * The extra-card money is not paid by the operator. The org pays it to the
+ * seller out of its own margin: it raises `seller` and lowers `org`, and
+ * `gross` stays what the operator pays (200 → seller 150 + 10, org 40). A
+ * seller whose line says `extra_cards: false` gets none of it.
  *
  * A product with no `operator_pays` configured yet cannot say what the org
  * keeps, so it reports gross = seller and org = 0 rather than inventing a
@@ -734,21 +753,27 @@ export function getSaleLineCommission(
         ? (sellerBase * tierBonusValue(tier)) / 100
         : tierBonusValue(tier))
     : 0;
-  const extra = getExtraCardCommission(product, extraCards, qty);
+  const extra = sellerSplitFor(splits, sellerUserId, sellerProfileId)?.extra_cards === false
+    ? 0
+    : getExtraCardCommission(product, extraCards, qty);
 
   const grossBase = operatorPerUnit != null ? operatorPerUnit * qty : sellerBase;
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const seller = round(sellerBase + bonus + extra);
-  const gross = tech === 'satelite' ? seller : round(grossBase + bonus + extra);
+  // No operator_pays configured: the org's margin is unknown, so gross follows
+  // the seller (org 0) — the extra included, or org would read -10.
+  const gross = tech === 'satelite' ? seller
+    : operatorPerUnit != null ? round(grossBase + bonus)
+    : seller;
   return { gross, seller, org: round(gross - seller) };
 }
 
 /**
  * The extra-card money that lands with the person looking at the screen.
  *
- * It belongs to the SELLER, whole — it is what the operator pays for the
- * card he sold, not a pot to divide. Sharing it out in proportion to the
+ * It belongs to the SELLER, whole — the org pays it to him for the card he
+ * sold, out of its own margin; it is not a pot to divide. Sharing it out in proportion to the
  * base commission (as this first did) paid a seller on a 530€ product
  * 10 × 170/530 = 3,21€ for a 10€ card. So it is all-or-nothing: the seller
  * gets the lot, everyone else gets zero from it.

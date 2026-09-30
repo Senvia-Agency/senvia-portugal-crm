@@ -159,6 +159,12 @@ export function IncludedCardsField({
   );
 }
 
+/** The product pays extra SIM cards, flat or in one of its bands. */
+function paysExtraCards(product: CatalogProduct): boolean {
+  return (product.extra_card_commission ?? 0) > 0
+    || (product.quantity_tiers ?? []).some((t) => (t.extra_card_commission ?? 0) > 0);
+}
+
 /**
  * Flat commission per extra SIM card added on top of the ones the package
  * already includes — e.g. a Vodafone package with 2 included cards pays
@@ -365,6 +371,7 @@ export function CommissionSection({
           onCommit={(quantity_tiers: QuantityTier[]) => onCommit({ quantity_tiers })}
           technologies={productTechnologies(product)}
           showCards={sellsCards(product)}
+          extraCards={paysExtraCards(product)}
         />
       ) : (
         <CommissionSplitsEditor
@@ -374,6 +381,7 @@ export function CommissionSection({
           onChange={(splits: CommissionSplit[]) => onChange({ splits, ...deriveCommissionFields(splits) })}
           onCommit={(splits: CommissionSplit[]) => onCommit({ splits, ...deriveCommissionFields(splits) })}
           technologies={productTechnologies(product)}
+          extraCards={paysExtraCards(product)}
         />
       )}
 

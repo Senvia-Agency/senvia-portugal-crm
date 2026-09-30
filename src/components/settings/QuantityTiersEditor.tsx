@@ -32,6 +32,8 @@ interface QuantityTiersEditorProps {
   technologies?: TelecomTechnology[];
   /** Product of the Cartões type: each band may include a different number of SIMs. */
   showCards?: boolean;
+  /** The product (or a band) pays extra SIM cards — each line shows whether its person gets them. */
+  extraCards?: boolean;
 }
 
 /**
@@ -52,6 +54,7 @@ export function QuantityTiersEditor({
   onCommit,
   technologies,
   showCards = false,
+  extraCards = false,
 }: QuantityTiersEditorProps) {
   const byTech = productNeedsTechnologyChoice(technologies);
   const addTier = () => {
@@ -274,6 +277,7 @@ export function QuantityTiersEditor({
                       members={members}
                       profiles={profiles}
                       technologies={technologies}
+                      extraCards={extraCards}
                       onChange={(updates, commit) => updateSplit(tier.id, index, updates, commit)}
                       onCommit={() => onCommit(tiers)}
                       onRemove={() => removeSplit(tier.id, index)}

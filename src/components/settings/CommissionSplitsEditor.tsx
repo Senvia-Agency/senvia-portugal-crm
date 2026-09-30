@@ -23,6 +23,8 @@ interface CommissionSplitsEditorProps {
   onCommit: (splits: CommissionSplit[]) => void;
   /** Passed down so each line shows one value box per technology when there are two. */
   technologies?: TelecomTechnology[];
+  /** The product pays extra SIM cards — each line shows whether its person gets them. */
+  extraCards?: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export function CommissionSplitsEditor({
   onChange,
   onCommit,
   technologies,
+  extraCards,
 }: CommissionSplitsEditorProps) {
   const addLine = () => {
     onCommit([...splits, { kind: 'user', type: 'fixed', value: 0 }]);
@@ -77,6 +80,7 @@ export function CommissionSplitsEditor({
               onCommit={() => onCommit(splits)}
               onRemove={() => removeLine(index)}
               technologies={technologies}
+              extraCards={extraCards}
             />
           ))}
 

@@ -1,4 +1,5 @@
-import { Trash2, User, Shield, Wallet } from 'lucide-react';
+import { Trash2, User, Shield, Wallet, CreditCard } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { TonedField, tonedInputClass } from './FieldTone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,8 @@ interface CommissionSplitRowProps {
   trailing?: React.ReactNode;
   /** Which technologies the product is sold as. Two of them split the value into one box each. */
   technologies?: TelecomTechnology[];
+  /** The product pays extra SIM cards: show whether this recipient gets them. */
+  extraCards?: boolean;
 }
 
 /** One "who gets paid, how much" line — Tipo / Quem recebe / Valor / remove. Shared
@@ -50,6 +53,7 @@ export function CommissionSplitRow({
   onRemove,
   trailing,
   technologies,
+  extraCards,
 }: CommissionSplitRowProps) {
   const byTech = productNeedsTechnologyChoice(technologies);
   return (
@@ -221,6 +225,21 @@ export function CommissionSplitRow({
           </div>
         </div>
       </TonedField>
+      )}
+
+      {/* The org pays extra cards out of its own margin, so someone already
+          paid the operator's whole amount must not get them. On by default:
+          absent means the seller gets the extra, as before. */}
+      {extraCards && (
+        <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label="Cartões extra">
+          <div className="flex h-8 items-center">
+            <Switch
+              checked={split.extra_cards !== false}
+              onCheckedChange={(on) => onChange({ extra_cards: on ? undefined : false }, true)}
+              aria-label="Recebe a comissão dos cartões extra"
+            />
+          </div>
+        </TonedField>
       )}
 
       {trailing}
