@@ -97,6 +97,47 @@ Deno.serve(async (req) => {
     const anexo = anexos.find((a) => a?.media_id && String(a.media_id) === String(media_id));
     if (!anexo) return json({ error: "Esse ficheiro não pertence a esta mensagem." }, 400);
 
+    // Número ligado por QR code: o ficheiro está no Evolution, não na Meta. O
+    // `media_id` é o id da mensagem do WhatsApp, que é o que ele pede para
+    // devolver os bytes.
+    const { data: canal } = await admin
+      .from("messaging_channels")
+      .select("provider, evolution_instance, metadata")
+      .eq("id", conv.channel_id)
+      .maybeSingle();
+    if (canal?.provider === "evolution"
+      && (canal.metadata as { native_inbox?: boolean } | null)?.native_inbox === true) {
+      const base = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/$/, "");
+      const apikey = Deno.env.get("EVOLUTION_API_KEY") || "";
+      if (!base || !apikey || !canal.evolution_instance) {
+        return json({ error: "A caixa já não tem ligação ao WhatsApp." }, 409);
+      }
+      const evoRes = await fetch(`${base}/chat/getBase64FromMediaMessage/${canal.evolution_instance}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey },
+        body: JSON.stringify({ message: { key: { id: String(media_id) } }, convertToMp4: false }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      const evo = await evoRes.json().catch(() => ({}));
+      if (!evoRes.ok || !evo?.base64) {
+        logError("o Evolution não devolveu o ficheiro", { estado: evoRes.status });
+        return json({
+          error: "O ficheiro já não está disponível no WhatsApp desta caixa.",
+        }, 404);
+      }
+      const bytes = Uint8Array.from(atob(String(evo.base64)), (c) => c.charCodeAt(0));
+      const tipo = String(evo.mimetype ?? anexo.mime ?? "application/octet-stream");
+      log("ficheiro servido (QR)", { media_id, tipo, bytes: bytes.length });
+      return new Response(bytes, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": tipo,
+          "Cache-Control": "private, max-age=3600",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
     const { data: seg } = await admin
       .from("messaging_channel_secrets")
       .select("page_access_token")

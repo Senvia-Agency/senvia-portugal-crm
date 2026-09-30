@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Webhook, Send, Loader2, Eye, EyeOff, MessageCircle, Mail, Receipt, ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Link2, Copy, Check, Users, RefreshCw, Pencil, CheckCircle2, ShieldCheck, Inbox, Megaphone, PowerOff, Settings2, Zap, UsersRound, Target, CreditCard, Stethoscope, GraduationCap } from "lucide-react";
+import { Webhook, Send, Loader2, Eye, EyeOff, MessageCircle, Mail, Receipt, ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Link2, Copy, Check, Users, RefreshCw, Pencil, CheckCircle2, ShieldCheck, Inbox, Megaphone, PowerOff, Settings2, Zap, UsersRound, Target, CreditCard, Stethoscope, GraduationCap, QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StripeIntegrationCard } from "@/components/settings/StripeIntegrationCard";
 import { useStripeConnection } from "@/hooks/useStripeConnection";
@@ -22,7 +22,8 @@ import { useTeamMembers } from "@/hooks/useTeam";
 import { useTestWebhook, useOrganization } from "@/hooks/useOrganization";
 import { MetaConversionsForm } from "./MetaConversionsForm";
 import { OrgPixelsForm } from "./OrgPixelsForm";
-import { useMessagingChannels, useUpdateChannelAssignment, useUpdateChannelGroups, useConnectMetaChannel, useArchiveChannel, useFinishMetaChoice, ehPagina, type OpcaoConta } from "@/hooks/useMessagingChannels";
+import { useMessagingChannels, useUpdateChannelAssignment, useUpdateChannelGroups, useConnectMetaChannel, useArchiveChannel, useFinishMetaChoice, useLogoutChannel, isNativeEvolution, usesInboxTables, ehPagina, type OpcaoConta } from "@/hooks/useMessagingChannels";
+import { ConnectWhatsAppModal } from "./ConnectWhatsAppModal";
 import { useWhatsAppPairing } from "@/hooks/useWhatsAppPairing";
 import { useWhatsAppDiagnostico } from "@/hooks/useWhatsAppDiagnostico";
 import { WhatsAppDiagnosticoDialog } from "./WhatsAppDiagnosticoDialog";
@@ -962,8 +963,9 @@ function EditCaixaModal({
             </div>
           </div>
 
-          {/* Ligação */}
-          {ch.channel_type === 'whatsapp' && (
+          {/* Ligação — só nas caixas ligadas por QR code. As da Meta ligam-se
+              e desligam-se pela conta da Meta, não por uma sessão. */}
+          {ch.channel_type === 'whatsapp' && isNativeEvolution(ch) && (
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ligação</Label>
               {connected ? (
@@ -1014,7 +1016,10 @@ function EditCaixaModal({
                 onCheckedChange={(v) => updateAssign.mutate({ channelId: ch.id, rotate_enabled: v })}
               />
             </div>
-            {ch.channel_type === 'whatsapp' && (
+            {/* Grupos: o interruptor falava com o chatwoot-inbox, que já não
+                existe, e a Caixa de Entrada só mostra conversas a dois. Fica
+                apenas para as caixas antigas, que nem sequer são listadas. */}
+            {ch.channel_type === 'whatsapp' && !usesInboxTables(ch) && (
               <div className="flex items-center justify-between gap-4 px-4 py-3">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
@@ -1062,7 +1067,8 @@ function InboxesManager() {
   const [editCh, setEditCh] = useState<typeof channels[0] | null>(null);
   const [editEmailCh, setEditEmailCh] = useState<EmailChannel | null>(null);
   const [toDisconnect, setToDisconnect] = useState<string | null>(null);
-  const [toDelete, setToDelete] = useState<{ id: string; type: string } | null>(null);
+  const [toDelete, setToDelete] = useState<{ id: string; type: string; provider: string; metadata: Record<string, unknown> | null } | null>(null);
+  const logoutChannel = useLogoutChannel();
   // WhatsApp connect modal
   const [connectModal, setConnectModal] = useState<{ open: boolean; channelId?: string; label?: string }>({ open: false });
   // New caixa dialog
@@ -1338,7 +1344,18 @@ function InboxesManager() {
                       faz a segunda — e sem ela a Meta não entrega mensagem
                       nenhuma. Daí um botão próprio, em vez de o esconder
                       dentro da ligação. */}
-                  {ch.channel_type === 'whatsapp' && (
+                  {/* Por QR code, desligada: ler um código novo é o caminho de volta. */}
+                  {isNativeEvolution(ch) && !connected && !ch.archived_at && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5 h-8"
+                      onClick={() => setConnectModal({ open: true, channelId: ch.id })}
+                    >
+                      <QrCode className="h-3.5 w-3.5" /> Ler QR code
+                    </Button>
+                  )}
+                  {ch.channel_type === 'whatsapp' && ch.provider === 'meta' && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1363,7 +1380,7 @@ function InboxesManager() {
                   {/* O diagnóstico só lê — não altera nada — e é o que
                       distingue "a Meta não nos deixa" de "o CRM tem um bug".
                       Fica como ícone para não empurrar os outros dois botões. */}
-                  {ch.channel_type === 'whatsapp' && !ch.archived_at && (
+                  {ch.channel_type === 'whatsapp' && ch.provider === 'meta' && !ch.archived_at && (
                     <button
                       type="button"
                       onClick={correrDiagnostico}
@@ -1382,7 +1399,7 @@ function InboxesManager() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setToDelete({ id: ch.id, type: ch.channel_type })}
+                      onClick={() => setToDelete({ id: ch.id, type: ch.channel_type, provider: ch.provider, metadata: ch.metadata })}
                       className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
                       title="Arquivar caixa"
                     >
@@ -1417,6 +1434,13 @@ function InboxesManager() {
           onDisconnect={() => { setToDisconnect(editCh.id); setEditCh(null); }}
         />
       )}
+      {/* WhatsApp por QR code: caixa nova (sem channelId) ou voltar a ligar uma. */}
+      <ConnectWhatsAppModal
+        open={connectModal.open}
+        onOpenChange={(o) => { if (!o) setConnectModal({ open: false }); }}
+        channelId={connectModal.channelId}
+        label={connectModal.label}
+      />
       {/* Edit modal — email channels */}
       {editEmailCh && (
         <EditEmailModal
@@ -1546,8 +1570,14 @@ function InboxesManager() {
                     if (c.type === 'email') { setAddEmailOpen(true); setNewOpen(false); return; }
                     if (c.type === 'instagram') { startMetaConnect('instagram'); return; }
                     if (c.type === 'facebook') { startMetaConnect('messenger'); return; }
-                    // Cloud API oficial da Meta — nao o Evolution, que saiu.
-                    if (c.type === 'whatsapp') { startMetaConnect('whatsapp'); return; }
+                    // Por QR code (Evolution). A Cloud API oficial da Meta ficou
+                    // parada (2026-09-30); as caixas que já tinha continuam.
+                    if (c.type === 'whatsapp') {
+                      setConnectModal({ open: true, label: newLabel.trim() || undefined });
+                      setNewLabel('');
+                      setNewOpen(false);
+                      return;
+                    }
                   }}
                   className={cn(
                     'flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all',
@@ -1616,7 +1646,7 @@ function InboxesManager() {
                 // Meta arquivam-se pela meta-connect, que também avisa a Meta
                 // para parar de enviar e apaga o token.
                 if (toDelete.type === 'email') deleteEmailChannel.mutate(toDelete.id);
-                else archiveChannel.mutate(toDelete.id);
+                else archiveChannel.mutate(toDelete);
                 setToDelete(null);
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1638,7 +1668,10 @@ function InboxesManager() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => setToDisconnect(null)}
+              onClick={() => {
+                if (toDisconnect) logoutChannel.mutate(toDisconnect);
+                setToDisconnect(null);
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Desconectar

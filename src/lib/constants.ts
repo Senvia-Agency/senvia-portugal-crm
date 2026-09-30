@@ -56,15 +56,18 @@ export const INBOX_CONFIG = {
  * ser listados. Reabrir é mudar aqui, e reaparecem.
  */
 // Isto governa a INTERFACE. Cada canal notifica pelo seu próprio caminho no
-// servidor (meta-webhook para os três, gatilho na base de dados para o email),
+// servidor (meta-webhook para os três, evolution-webhook para o WhatsApp por
+// QR code, gatilho na base de dados para o email),
 // por isso desligar um aqui já não deixa nada a apitar no telemóvel — o
 // chatwoot-webhook, que era a exceção, deixou de existir.
 export const MESSAGING_CHANNELS = {
-  // Cloud API oficial da Meta. As caixas antigas do Evolution NÃO voltam com
-  // isto: são excluídas pelo `provider` em useMessagingChannels.
-  // Pausados a pedido (2026-09-01): só o email fica ativo por agora. As
-  // caixas já ligadas continuam na base de dados — voltar a "true" reabre-as.
-  whatsapp: false,
+  // WhatsApp reaberto (2026-09-30) por QR code, pelo Evolution: a Cloud API
+  // oficial da Meta ficou parada. As caixas antigas do Evolution continuam
+  // escondidas — só aparecem as marcadas `native_inbox` (useMessagingChannels).
+  // Instagram e Messenger continuam pausados (2026-09-01): sem a Meta não há
+  // outra forma de os ligar, nem pelo Chatwoot. As caixas já ligadas continuam
+  // na base de dados — voltar a "true" reabre-as.
+  whatsapp: true,
   instagram: false,
   facebook: false,
 } as const;

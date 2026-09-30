@@ -89,6 +89,24 @@ All functions live in `supabase/functions/{name}/index.ts` (Deno runtime). Deplo
 | `notify-finance-request` | Notifies admins of new finance requests. |
 | `notify-request-status` | Notifies requester of status change. |
 
+## Inbox & Messaging
+
+Every messaging caixa is a `messaging_channels` row. Conversations of the Meta channels and of WhatsApp linked by QR code live in `meta_conversations` / `meta_messages`, which the inbox (`MetaInbox`) reads directly. Email has its own gateway (`email-inbox`).
+
+| Function | Purpose |
+|----------|---------|
+| `meta-connect` | Facebook Login for Business: connects Instagram, Messenger and WhatsApp Cloud API caixas; `action: 'disconnect'` archives a Meta caixa. |
+| `meta-webhook` | Receives Instagram, Messenger and WhatsApp Cloud API events (HMAC `X-Hub-Signature-256`). |
+| `meta-send` | Sends a reply from the inbox. Routes by caixa: Graph API for Meta, Evolution for WhatsApp linked by QR code (`metadata.native_inbox`). User session + `is_org_member`. |
+| `meta-media` | Serves a received file: Graph API download for Meta, `/chat/getBase64FromMediaMessage` for Evolution. Access via `pode_aceder_caixa`. |
+| `whatsapp-connect` | WhatsApp by QR code (Evolution, WhatsApp Web — not the official API). Creates the caixa (`provider: 'evolution'`, `metadata.native_inbox: true`) and its instance with the webhook pointed at `evolution-webhook`, returns the QR. Org admin. |
+| `whatsapp-status` | Connection state for the QR modal (polled every 4s). On first connect re-applies the webhook and wires the Chatwoot mirror (`/chatwoot/set`). Org admin. |
+| `whatsapp-disconnect` | `logout: true` ends the session and keeps the caixa; otherwise archives it (logout, delete instance, `archived_at`). History is never deleted. Org admin. |
+| `evolution-webhook` | Receives Evolution events (`MESSAGES_UPSERT`, `SEND_MESSAGE`, `MESSAGES_UPDATE`, `MESSAGES_DELETE`, `CONNECTION_UPDATE`) and stores them like `meta-webhook` stores WhatsApp. Auth: `?instance=&token=`, token = HMAC of the instance name with the service key (`_shared/evolution-inbox.ts`). Rows without `native_inbox` (the first Evolution integration) are ignored. |
+| `chatwoot-export` | One-off export of the first integration's Chatwoot history into `chatwoot_archive_*`. |
+
+Secrets: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY` (Evolution at evo.senvia.pt), `CHATWOOT_URL`, `CHATWOOT_PLATFORM_TOKEN` (Chatwoot at chat.senvia.pt, mirror only).
+
 ## Other
 
 | Function | Purpose |

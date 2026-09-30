@@ -221,6 +221,189 @@ async function enviarWhatsApp(p: any): Promise<Response> {
   return json({ success: true, stored: !insErr, message_id: wamid });
 }
 
+/**
+ * Envio por um número de WhatsApp ligado por QR code (Evolution).
+ *
+ * O que muda em relação à Cloud API:
+ *
+ *  - Não há janela de 24h nem modelos: é o WhatsApp do próprio telemóvel,
+ *    responde quando quiser. `send_template` é recusado com uma frase clara.
+ *  - O destinatário é o número em dígitos, ou o `…@lid` quando o WhatsApp não
+ *    revelou o número. O Evolution aceita os dois.
+ *  - Reações, respostas citadas e "visto" precisam da CHAVE da mensagem
+ *    (conversa + quem a escreveu + id), não só do id. A conversa é sempre
+ *    esta, e quem a escreveu vem da direção guardada.
+ *  - O "a escrever" existe (a Cloud API não o tem).
+ *
+ * A mensagem enviada também volta pelo evolution-webhook. O índice único
+ * (conversa, external_id) faz da segunda gravação uma repetição inofensiva —
+ * chegue ela antes ou depois desta.
+ */
+// deno-lint-ignore no-explicit-any
+async function enviarEvolution(p: any): Promise<Response> {
+  const {
+    admin, conv, channel, text, temTexto, attachment_url, attachment_type, action,
+    message_external_id, reaction, reply_to_mid, userId,
+  } = p;
+
+  const base = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/$/, "");
+  const apikey = Deno.env.get("EVOLUTION_API_KEY") || "";
+  const instancia = channel?.evolution_instance as string | null;
+  if (!base || !apikey || !instancia) {
+    return json({ error: "Esta caixa não tem ligação ao WhatsApp — volta a ligá-la por QR code." }, 400);
+  }
+
+  const numero = String(conv.contact_ref);
+  const jid = numero.includes("@") ? numero : `${numero}@s.whatsapp.net`;
+  const evo = (caminho: string, corpo: unknown) =>
+    fetch(`${base}${caminho}/${instancia}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+  // A chave de uma mensagem desta conversa, para reagir ou citar.
+  const chaveDe = async (externalId: string) => {
+    const { data } = await admin.from("meta_messages")
+      .select("direction, content")
+      .eq("conversation_id", conv.id)
+      .eq("external_id", externalId)
+      .maybeSingle();
+    return {
+      key: { remoteJid: jid, fromMe: data?.direction === "outgoing", id: externalId },
+      content: (data?.content as string | null) ?? "",
+    };
+  };
+
+  // Sinais. Falhar aqui não é erro de ninguém — não se mostra.
+  if (action === "typing_on" || action === "typing_off") {
+    await evo("/chat/sendPresence", {
+      number: numero, presence: action === "typing_on" ? "composing" : "paused", delay: 3000,
+    }).catch(() => {});
+    return json({ success: true });
+  }
+  if (action === "mark_seen") {
+    const { data: recebidas } = await admin.from("meta_messages")
+      .select("external_id")
+      .eq("conversation_id", conv.id)
+      .eq("direction", "incoming")
+      .not("external_id", "is", null)
+      .order("sent_at", { ascending: false })
+      .limit(20);
+    const ids = (recebidas ?? []).map((r: { external_id: string }) => r.external_id);
+    if (ids.length) {
+      await evo("/chat/markMessageAsRead", {
+        readMessages: ids.map((id: string) => ({ remoteJid: jid, fromMe: false, id })),
+      }).catch(() => {});
+    }
+    return json({ success: true });
+  }
+  if (action === "send_template") {
+    return json({
+      error: "Os modelos da Meta não se aplicam a números ligados por QR code. Escreve a mensagem normalmente.",
+    }, 400);
+  }
+
+  const falhou = async (res: Response) => {
+    const corpo = await res.json().catch(() => ({}));
+    logError("o Evolution recusou o envio", { status: res.status, corpo });
+    const detalhe = corpo?.response?.message;
+    // Número que não tem WhatsApp: o Evolution devolve [{ exists: false }].
+    if (Array.isArray(detalhe) && detalhe.some((d: { exists?: boolean }) => d?.exists === false)) {
+      return json({ error: "Este número não tem WhatsApp." }, 502);
+    }
+    if (channel?.status !== "connected" || /connection closed|not connected/i.test(JSON.stringify(corpo))) {
+      return json({
+        error: "O WhatsApp desta caixa está desligado. Volta a ligá-lo em Definições → Integrações.",
+        code: "channel_disconnected",
+      }, 409);
+    }
+    const msg = typeof detalhe === "string" ? detalhe
+      : Array.isArray(detalhe) && typeof detalhe[0] === "string" ? detalhe[0]
+      : `O WhatsApp recusou o envio (${res.status})`;
+    return json({ error: msg }, 502);
+  };
+
+  if (action === "react" || action === "unreact") {
+    if (!message_external_id) return json({ error: "message_external_id em falta" }, 400);
+    const { key } = await chaveDe(String(message_external_id));
+    const emoji = action === "react" ? (reaction || "❤️") : "";
+    const res = await evo("/message/sendReaction", { key, reaction: emoji });
+    if (!res.ok) return await falhou(res);
+    await admin.from("meta_messages").update({
+      reaction: emoji || null,
+      reaction_by: emoji ? "agent" : null,
+    })
+      .eq("conversation_id", conv.id)
+      .eq("external_id", message_external_id);
+    return json({ success: true });
+  }
+
+  const citada = reply_to_mid ? await chaveDe(String(reply_to_mid)) : null;
+  const quoted = citada ? { quoted: { key: citada.key, message: { conversation: citada.content } } } : {};
+
+  const tipo = attachment_url
+    ? (["image", "video", "audio"].includes(String(attachment_type)) ? String(attachment_type) : "document")
+    : null;
+
+  let res: Response;
+  if (attachment_url && tipo === "audio") {
+    res = await evo("/message/sendWhatsAppAudio", { number: numero, audio: attachment_url, ...quoted });
+  } else if (attachment_url) {
+    // O nome do ficheiro é o que a pessoa vê num documento. Vem do caminho,
+    // sem o carimbo de tempo que o upload lhe acrescenta.
+    const nome = decodeURIComponent(String(attachment_url).split("?")[0].split("/").pop() ?? "ficheiro")
+      .replace(/^\d{10,}-/, "");
+    res = await evo("/message/sendMedia", {
+      number: numero,
+      mediatype: tipo,
+      media: attachment_url,
+      fileName: nome,
+      ...(temTexto ? { caption: String(text) } : {}),
+      ...quoted,
+    });
+  } else {
+    res = await evo("/message/sendText", { number: numero, text: String(text), linkPreview: true, ...quoted });
+  }
+  if (!res.ok) return await falhou(res);
+
+  const resposta = await res.json().catch(() => ({}));
+  const messageId = resposta?.key?.id ?? null;
+  const resumo = temTexto ? String(text) : `[${tipo ?? "anexo"}]`;
+
+  const { error: insErr } = await admin.from("meta_messages").insert({
+    organization_id: conv.organization_id,
+    conversation_id: conv.id,
+    external_id: messageId,
+    direction: "outgoing",
+    content: temTexto ? String(text) : null,
+    reply_to_external_id: reply_to_mid ?? null,
+    attachments: attachment_url ? [{ type: tipo, url: attachment_url }] : [],
+    sent_by: userId,
+    sent_at: new Date().toISOString(),
+    delivery_status: "sent",
+  });
+  // 23505: o webhook foi mais rápido e já a gravou. Falta-lhe só quem enviou.
+  let guardada = !insErr;
+  if (insErr && (insErr as { code?: string }).code === "23505") {
+    await admin.from("meta_messages").update({ sent_by: userId })
+      .eq("conversation_id", conv.id).eq("external_id", messageId);
+    guardada = true;
+  } else if (insErr) {
+    logError("ENTREGUE MAS NÃO GUARDADA", { conversa: conv.id, messageId, error: insErr.message });
+  }
+
+  await admin.from("meta_conversations").update({
+    last_message: resumo,
+    last_message_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", conv.id);
+
+  log("WhatsApp (QR) enviado", { conversa: conv.id, canal: channel?.label });
+  return json({ success: true, stored: guardada, message_id: messageId });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
@@ -309,7 +492,7 @@ Deno.serve(async (req) => {
     // organization_id) e passar a enviar pela Página de outra organização.
     const { data: channel } = await admin
       .from("messaging_channels")
-      .select("metadata, channel_type, provider, archived_at, label")
+      .select("metadata, channel_type, provider, archived_at, label, evolution_instance, status")
       .eq("id", conv.channel_id)
       .eq("organization_id", conv.organization_id)
       .maybeSingle();
@@ -325,7 +508,24 @@ Deno.serve(async (req) => {
         code: "channel_archived",
       }, 409);
     }
-    const meta = (channel?.metadata ?? {}) as { page_id?: string; phone_number_id?: string; managed_by?: string };
+    const meta = (channel?.metadata ?? {}) as {
+      page_id?: string; phone_number_id?: string; managed_by?: string; native_inbox?: boolean;
+    };
+
+    // Número ligado por QR code: não passa pela Meta, não tem token de Página
+    // nem janela de 24h. Vai pelo Evolution — ver enviarEvolution.
+    if (channel?.channel_type === "whatsapp" && channel.provider === "evolution" && meta.native_inbox === true) {
+      if (temTexto && [...String(text)].length > 4096) {
+        return json({
+          error: "A mensagem excede o limite de 4096 caracteres do WhatsApp. Divide-a em duas.",
+        }, 400);
+      }
+      return await enviarEvolution({
+        admin, conv, channel, text, temTexto, attachment_url, attachment_type, action,
+        message_external_id, reaction, reply_to_mid, userId: user.id,
+      });
+    }
+
     if (channel?.channel_type === "whatsapp" && channel.provider === "evolution" && meta.managed_by === "senvia_v2") {
       return json({
         error: "Este canal é gerido pela fila segura de mensagens.",

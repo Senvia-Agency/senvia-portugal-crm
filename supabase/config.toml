@@ -178,6 +178,22 @@ verify_jwt = false
 [functions.meta-webhook]
 verify_jwt = false
 
+# WhatsApp por QR code (Evolution). As três primeiras são chamadas pelo CRM com
+# sessão do utilizador e exigem is_org_admin por dentro (authOrgAdmin).
+[functions.whatsapp-connect]
+verify_jwt = false
+
+[functions.whatsapp-status]
+verify_jwt = false
+
+[functions.whatsapp-disconnect]
+verify_jwt = false
+
+# Chamada pelo Evolution a cada mensagem. Autentica-se pelo token HMAC da
+# instância que vai no endereço, verificado dentro da função.
+[functions.evolution-webhook]
+verify_jwt = false
+
 # Chamada pela Meta, não por um utilizador nosso — não há JWT nenhum para
 # validar. A autenticação é feita dentro da função, verificando a assinatura
 # HMAC do signed_request com o App Secret.

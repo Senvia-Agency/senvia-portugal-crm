@@ -37,11 +37,28 @@ export interface MessagingChannel {
   updated_at: string | null;
 }
 
-// NOTA: este ficheiro já teve os hooks de ligação de WhatsApp e Instagram
-// (ligar, estado, QR, logout, limpeza de órfãos, reparação de ligações e o
-// OAuth do Instagram). Foram removidos com as edge functions respetivas — o
-// produto deixou de ligar canais de mensagens. Sobra o que serve as caixas de
-// EMAIL: listá-las e gerir quem as atende.
+// O WhatsApp por QR code (Evolution) voltou a 2026-09-30, com as funções
+// whatsapp-connect / whatsapp-status / whatsapp-disconnect. Desta vez as
+// mensagens vão para a Caixa de Entrada do CRM (as mesmas tabelas do Instagram
+// e do Messenger), e o Chatwoot fica só como espelho. O OAuth do Instagram, a
+// reparação de ligações e a limpeza de órfãos continuam fora.
+
+/**
+ * Caixa de WhatsApp ligada por QR code nesta versão da integração.
+ *
+ * A marca `native_inbox` é o que a separa das caixas da primeira integração
+ * do Evolution, que continuam na base de dados a apontar para instâncias que
+ * ninguém lê — essas ficam escondidas.
+ */
+export function isNativeEvolution(ch: Pick<MessagingChannel, 'provider' | 'metadata'>): boolean {
+  return ch.provider === 'evolution'
+    && (ch.metadata as { native_inbox?: unknown } | null)?.native_inbox === true;
+}
+
+/** As conversas desta caixa vivem nas tabelas do CRM (meta_conversations)? */
+export function usesInboxTables(ch: Pick<MessagingChannel, 'provider' | 'metadata'>): boolean {
+  return ch.provider === 'meta' || isNativeEvolution(ch);
+}
 
 /**
  * As caixas da organização — só as dos canais que o produto tem abertos.
@@ -91,17 +108,122 @@ export function useMessagingChannels() {
           metadata: metadata_public ?? null,
         }) as MessagingChannel)
         .filter((c) => isChannelEnabled(c.channel_type))
-        // O WhatsApp voltou pela Cloud API oficial, mas as 12 caixas antigas do
-        // Evolution continuam na base de dados. Sem isto reapareciam todas ao
-        // abrir o canal — presas em "connecting", a contar para o total e a
-        // ressuscitar a confusão que se acabou de arrumar.
-        .filter((c) => !(c.channel_type === 'whatsapp' && c.provider !== 'meta'));
+        // As 12 caixas antigas do Evolution continuam na base de dados. Sem
+        // isto reapareciam todas ao abrir o canal — presas em "connecting", a
+        // contar para o total e a ressuscitar a confusão que se arrumou. As
+        // ligadas por QR code agora têm a marca `native_inbox` e passam.
+        .filter((c) => !(c.channel_type === 'whatsapp' && c.provider !== 'meta' && !isNativeEvolution(c)));
     },
     enabled: !!organization?.id,
   });
 }
 
-// Convenience accessor for the WhatsApp channel only.
+interface WhatsappConnectResponse {
+  success?: boolean;
+  channel_id?: string;
+  qr?: string | null;
+  pairing_code?: string | null;
+  already_connected?: boolean;
+  error?: string;
+}
+
+interface WhatsappStatusResponse {
+  status: ChannelStatus;
+  phone_number: string | null;
+  qr?: string | null;
+}
+
+/** O erro de uma edge function, com a frase que ela devolveu no corpo. */
+async function invokeError(error: unknown): Promise<Error> {
+  let detalhe = '';
+  try {
+    const b = await (error as { context?: Response }).context?.json();
+    detalhe = b?.error ?? '';
+  } catch { /* corpo não era JSON */ }
+  return new Error(detalhe || (error as Error).message);
+}
+
+/**
+ * Pede o QR code de uma caixa de WhatsApp. Sem `channelId` cria uma caixa
+ * nova; com ele, volta a ligar essa. Idempotente — a janela do QR chama isto
+ * ao abrir e sempre que o código está prestes a expirar.
+ */
+export function useWhatsappConnect() {
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (vars?: { channelId?: string; label?: string }): Promise<WhatsappConnectResponse> => {
+      if (!organization?.id) throw new Error('Organização não encontrada');
+      const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
+        body: { organization_id: organization.id, channel_id: vars?.channelId, label: vars?.label },
+      });
+      if (error) throw await invokeError(error);
+      if ((data as WhatsappConnectResponse)?.error) throw new Error((data as WhatsappConnectResponse).error);
+      return data as WhatsappConnectResponse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
+    },
+  });
+}
+
+/** Estado da ligação, consultado de 4 em 4 segundos enquanto a janela do QR está aberta. */
+export function useWhatsappStatus(enabled: boolean, channelId?: string) {
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+  const prevStatusRef = useRef<ChannelStatus | null>(null);
+
+  const query = useQuery({
+    queryKey: ['whatsapp-status', organization?.id, channelId ?? null],
+    queryFn: async (): Promise<WhatsappStatusResponse> => {
+      if (!organization?.id || !channelId) return { status: 'disconnected', phone_number: null };
+      const { data, error } = await supabase.functions.invoke('whatsapp-status', {
+        body: { organization_id: organization.id, channel_id: channelId },
+      });
+      if (error) throw await invokeError(error);
+      return data as WhatsappStatusResponse;
+    },
+    enabled: enabled && !!organization?.id && !!channelId,
+    refetchInterval: enabled ? 4000 : false,
+  });
+
+  // A lista de caixas só se refresca quando o estado MUDA — invalidá-la a cada
+  // consulta de 4 segundos fazia os cartões piscar.
+  const status = query.data?.status;
+  useEffect(() => {
+    if (!status) return;
+    if (prevStatusRef.current !== null && prevStatusRef.current !== status) {
+      queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
+    }
+    prevStatusRef.current = status;
+  }, [status, organization?.id, queryClient]);
+
+  return query;
+}
+
+/** Termina a sessão de WhatsApp de uma caixa sem a arquivar: fica pronta a ler outro QR. */
+export function useLogoutChannel() {
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (channelId: string) => {
+      if (!organization?.id) throw new Error('Organização não encontrada');
+      const { data, error } = await supabase.functions.invoke('whatsapp-disconnect', {
+        body: { organization_id: organization.id, channel_id: channelId, logout: true },
+      });
+      if (error) throw await invokeError(error);
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+    },
+    onSuccess: () => {
+      toast.success('WhatsApp desligado', { description: 'Para voltar a ligar, lê um QR code novo nesta caixa.' });
+      queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
+    },
+    onError: (e) => {
+      toast.error('Não foi possível desligar', { description: (e as Error).message });
+    },
+  });
+}
 
 // Update which collaborators attend a caixa (+ optional round-robin). Admin-gated
 // by RLS. Empty list = everyone can see it.
@@ -436,18 +558,24 @@ export function useConnectMetaChannel() {
  *
  * Quem arquiva é a edge function: é lá que está o token que ainda é preciso
  * para avisar a Meta, e o arquivo e o cancelamento têm de acontecer juntos.
+ * Uma caixa ligada por QR code arquiva-se pela whatsapp-disconnect, que
+ * termina a sessão e apaga a instância no Evolution.
  */
 export function useArchiveChannel() {
   const { organization } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (channelId: string) => {
+    mutationFn: async (channel: Pick<MessagingChannel, 'id' | 'provider' | 'metadata'>) => {
       if (!organization?.id) throw new Error('Organização não encontrada');
 
-      const { data, error } = await supabase.functions.invoke('meta-connect', {
-        body: { action: 'disconnect', organization_id: organization.id, channel_id: channelId },
-      });
+      const { data, error } = isNativeEvolution(channel)
+        ? await supabase.functions.invoke('whatsapp-disconnect', {
+          body: { organization_id: organization.id, channel_id: channel.id },
+        })
+        : await supabase.functions.invoke('meta-connect', {
+          body: { action: 'disconnect', organization_id: organization.id, channel_id: channel.id },
+        });
       if (error) {
         let detalhe = '';
         try {
