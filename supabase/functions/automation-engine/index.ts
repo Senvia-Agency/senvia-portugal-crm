@@ -308,11 +308,46 @@ class Engine {
    * como se um agente a tivesse escrito. O evolution-webhook recebe o eco do
    * envio; o índice único (conversa, external_id) faz dele uma repetição.
    */
+  /**
+   * Procura um telefone ou um email nos clientes e/ou nas leads da organização.
+   * Telefone pelos últimos 9 dígitos (gravados com e sem indicativo, com
+   * espaços: o padrão apanha os dígitos por ordem e a chave confirma); email
+   * sem distinguir maiúsculas. Clientes primeiro, quando procura nos dois.
+   */
+  private async findInCrm(orgId: string, value: string, where: "clients" | "leads" | "any") {
+    const key = phoneKey(value);
+    const email = !key && value.includes("@") ? value.trim() : null;
+    const by = key ? "telefone" : email ? "email" : null;
+
+    const lookup = async (table: "crm_clients" | "leads") => {
+      if (!by) return null;
+      const columns = table === "crm_clients" ? "id, name, phone, email, code" : "id, name, phone, email";
+      if (key) {
+        const { data } = await this.db.from(table).select(columns)
+          .eq("organization_id", orgId)
+          .ilike("phone", `%${key.split("").join("%")}%`)
+          .limit(25);
+        return ((data ?? []) as Array<Record<string, unknown>>)
+          .find((row) => phoneKey(String(row.phone ?? "")) === key) ?? null;
+      }
+      // ilike sem coringas: "_" e "%" num email são letras, não padrões.
+      const { data } = await this.db.from(table).select(columns)
+        .eq("organization_id", orgId)
+        .ilike("email", email!.replace(/[\\%_]/g, (ch) => `\\${ch}`))
+        .limit(1);
+      return ((data ?? []) as Array<Record<string, unknown>>)[0] ?? null;
+    };
+
+    const client = where === "leads" ? null : await lookup("crm_clients");
+    const lead = client || where === "clients" ? null : await lookup("leads");
+    return { client, lead, by };
+  }
+
   private async sendWhatsapp(
     run: Run,
     channel: { id: string; instance: string },
     text: string,
-    media?: { url: string; mimetype?: string; filename?: string; kind?: string } | null,
+    media?: { url: string; mimetype?: string; filename?: string; kind?: string; size?: number } | null,
   ): Promise<{ error: string } | { messageId: string | null }> {
     const base = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/$/, "");
     const apikey = Deno.env.get("EVOLUTION_API_KEY") || "";
@@ -401,7 +436,17 @@ class Engine {
         external_id: messageId,
         direction: "outgoing",
         content: text.trim() || null,
-        attachments: media?.url ? [{ type: media.kind ?? "document", url: media.url }] : [],
+        // Name, type and size too: the Caixa de Entrada draws a document the way
+        // WhatsApp does (icon, name, "PDF · 1,1 MB"), not as a bare "Anexo".
+        attachments: media?.url
+          ? [{
+            type: media.kind ?? "document",
+            url: media.url,
+            filename: media.filename ?? null,
+            mime: media.mimetype ?? null,
+            size: typeof media.size === "number" ? media.size : null,
+          }]
+          : [],
         sent_at: now,
         delivery_status: "sent",
       });
@@ -683,7 +728,7 @@ class Engine {
 
         const text = render(String((asksOnly ? cfg.question : cfg.message) ?? ""), vars);
         const media = asksOnly ? null : (cfg.media ?? null) as
-          | { url?: string; mimetype?: string; filename?: string; kind?: string }
+          | { url?: string; mimetype?: string; filename?: string; kind?: string; size?: number }
           | null;
         const mediaUrl = media?.url ?? (!asksOnly && cfg.media_url ? String(cfg.media_url) : null);
         // O «Esperar resposta» sozinho pode não perguntar nada: a pergunta já
@@ -712,14 +757,27 @@ class Engine {
             };
           }
 
-          const options = waitsForReply && rules.length
-            ? "\n\n" + rules.map((r, i) => `${i + 1}️⃣ ${r.label ?? r.keywords?.[0] ?? ""}`).join("\n")
+          // The reply options at the end of the message, in the style the step
+          // asks for — "1️⃣ Sim" (default, what older flows send), "1. Sim", or
+          // nothing when the text already explains them. Same output as
+          // formatReplyOptions in src/lib/automation-nodes.ts (the preview).
+          const optionsStyle = cfg.options_style === "number" || cfg.options_style === "none"
+            ? cfg.options_style
+            : "emoji";
+          const listed = waitsForReply && rules.length && optionsStyle !== "none"
+            ? rules.map((r, i) => {
+              const n = String(i + 1);
+              const marker = optionsStyle === "number" ? `${n}.` : [...n].map((d) => `${d}️⃣`).join("");
+              return `${marker} ${r.label ?? r.keywords?.[0] ?? ""}`;
+            }).join("\n")
             : "";
+          const options = listed ? `\n\n${listed}` : "";
           const sent = await this.sendWhatsapp(run, channel, `${text}${options}`, mediaUrl ? {
             url: mediaUrl,
             mimetype: media?.mimetype,
             filename: media?.filename,
             kind: media?.kind,
+            size: media?.size,
           } : null);
           if ("error" in sent) return { kind: "fail", error: sent.error };
 
@@ -783,6 +841,31 @@ class Engine {
         const expected = cfg.value;
         const actual = (vars as Record<string, unknown>)[field];
 
+        // «Existe nos clientes / nas leads / em qualquer um»: o valor do campo
+        // (um telefone ou um email) procura-se na base de dados da organização.
+        // Sim = existe, Não = não existe; o que encontrou fica no percurso.
+        if (op === "in_clients" || op === "in_leads" || op === "in_crm") {
+          const where = op === "in_clients" ? "clients" : op === "in_leads" ? "leads" : "any";
+          const { client, lead, by } = await this.findInCrm(run.organization_id, String(actual ?? ""), where);
+          const found = !!(client || lead);
+          const context = { ...(run.context ?? {}), encontrado_em: client ? "cliente" : lead ? "lead" : "" } as Record<string, unknown>;
+          if (client) Object.assign(context, { cliente_id: client.id, cliente_nome: client.name ?? "", cliente_codigo: client.code ?? "" });
+          if (lead) Object.assign(context, { lead_id: lead.id, lead_nome: lead.name ?? "" });
+          return {
+            kind: "next",
+            branch: found ? "yes" : "no",
+            context,
+            detail: {
+              campo: field,
+              operador: op,
+              procurou_por: by ?? "nada (o campo não tem telefone nem email)",
+              resultado: found,
+              ...(client ? { cliente: client.name ?? client.id } : {}),
+              ...(lead ? { lead: lead.name ?? lead.id } : {}),
+            },
+          };
+        }
+
         // Telefones comparam-se pelos últimos 9 dígitos: "+351 912 345 678",
         // "912345678" e "351 912 345 678" são o mesmo número. Comparar o texto
         // tal e qual dava "diferente" a quem escrevesse o indicativo.
@@ -794,13 +877,20 @@ class Engine {
 
         let yes = false;
         switch (op) {
+          case "is_not_empty": // nome antigo, gravado por editores anteriores
           case "exists":       yes = actual !== undefined && actual !== null && actual !== ""; break;
+          case "is_empty":     // nome antigo
           case "not_exists":   yes = actual === undefined || actual === null || actual === ""; break;
           case "contains":     yes = String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase()); break;
           case "not_equals":   yes = !same; break;
           case "greater_than": yes = Number(actual) > Number(expected); break;
           case "less_than":    yes = Number(actual) < Number(expected); break;
-          default:             yes = same;
+          case "equals":       yes = same; break;
+          // Um operador que este motor não conhece falha à vista. Tratá-lo como
+          // «é igual a» mandava o percurso pelo «Não» em silêncio — foi o que
+          // aconteceu com «Existe nos clientes» antes de este motor o ter.
+          default:
+            return { kind: "fail", error: `Condição desconhecida neste motor: «${op}». Atualiza o motor ou escolhe outra condição.` };
         }
         return { kind: "next", branch: yes ? "yes" : "no", detail: { campo: field, operador: op, resultado: yes } };
       }

@@ -1,13 +1,13 @@
 import { memo, useEffect } from 'react';
 import { Handle, Position, useUpdateNodeInternals, type NodeProps, type Node } from '@xyflow/react';
-import { AlertTriangle, HelpCircle, Plus } from 'lucide-react';
+import { AlertTriangle, Check, Clock, HelpCircle, Plus, SkipForward, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   getNodeBranches, getNodeDefinition, getNodeStyle, getNodeSubtitle, humanizeNodeType,
   type NodeCategoryStyle,
 } from '@/lib/automation-nodes';
 import { GHOST_BOX_HEIGHT, NODE_BOX_HEIGHT, NODE_BOX_WIDTH } from '@/lib/automation-graph';
-import type { AutomationGraphNode, AutomationNodeStats } from '@/types/automations';
+import type { AutomationGraphNode, AutomationNodeStats, AutomationRunStepStatus } from '@/types/automations';
 
 /**
  * Unknown node types (e.g. written by a newer engine) must still render as a
@@ -56,7 +56,21 @@ export interface AutomationNodeData extends Record<string, unknown> {
   stats?: AutomationNodeStats;
   /** False for a flow that has never run — the canvas stays clean. */
   showStats?: boolean;
+  /**
+   * An execution is being shown on the canvas (as in n8n). The step then shows
+   * how it ended in that execution — or, faded, that it did not run at all.
+   */
+  inExecution?: boolean;
+  runStatus?: AutomationRunStepStatus | null;
 }
+
+/** How a step ended in the execution on screen: ring colour, badge and wording. */
+const RUN_STATUS_LOOK: Record<AutomationRunStepStatus, { ring: string; badge: string; icon: typeof Check; label: string }> = {
+  ok: { ring: '!ring-success', badge: 'bg-success text-success-foreground', icon: Check, label: 'Correu' },
+  failed: { ring: '!ring-destructive', badge: 'bg-destructive text-destructive-foreground', icon: X, label: 'Falhou' },
+  waiting: { ring: '!ring-warning', badge: 'bg-warning text-warning-foreground', icon: Clock, label: 'À espera' },
+  skipped: { ring: '!ring-muted-foreground/60', badge: 'bg-muted-foreground text-background', icon: SkipForward, label: 'Ignorado' },
+};
 
 export type AutomationFlowNodeType = Node<AutomationNodeData, 'automation'>;
 
@@ -65,7 +79,10 @@ export type AutomationFlowNodeType = Node<AutomationNodeData, 'automation'>;
  * badge, and the title + one-line summary underneath.
  */
 export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<AutomationFlowNodeType>) => {
-  const { graphNode, step, hasIssue, stats, showStats } = data;
+  const { graphNode, step, hasIssue, stats, showStats, inExecution, runStatus } = data;
+  const runLook = inExecution && runStatus ? RUN_STATUS_LOOK[runStatus] : null;
+  // In an execution, a step that did not run fades back, so the path taken reads at a glance.
+  const notRun = inExecution && !runStatus;
   const definition = getNodeDefinition(graphNode.type);
   // Defensive: an unknown type still gets a styled circle, an icon and a
   // readable label — never an empty grey disc labelled "trial_expired".
@@ -87,8 +104,9 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
 
   return (
     <div
-      className="group relative flex cursor-pointer flex-col items-center"
+      className={cn('group relative flex cursor-pointer flex-col items-center transition-opacity', notRun && 'opacity-40')}
       style={{ width: NODE_BOX_WIDTH, height: NODE_BOX_HEIGHT }}
+      title={runLook ? `${runLook.label} nesta execução` : notRun ? 'Não correu nesta execução' : undefined}
     >
       {/* Triggers have no inbound edge. */}
       {!isTrigger && (
@@ -106,6 +124,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
           className={cn(
             'flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-card ring-[2.5px] transition-all duration-150',
             style.ring,
+            runLook && cn(runLook.ring, 'ring-[3.5px]'),
             selected
               ? 'shadow-card-hover ring-offset-2 ring-offset-background'
               : 'shadow-card group-hover:ring-offset-2 group-hover:ring-offset-background',
@@ -136,7 +155,19 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
           </span>
         )}
 
-        {showStats && stats && <NodeStatsBadges stats={stats} />}
+        {runLook ? (
+          <span
+            className={cn(
+              'absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background shadow-sm',
+              runLook.badge,
+            )}
+            aria-label={`${runLook.label} nesta execução`}
+          >
+            <runLook.icon className="h-3.5 w-3.5" strokeWidth={3} />
+          </span>
+        ) : (
+          !inExecution && showStats && stats && <NodeStatsBadges stats={stats} />
+        )}
       </div>
 
       <div className="mt-2 w-full px-2 text-center">
@@ -259,28 +290,19 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
       // opened. The click bubbles up from the handle below; after a real drag
       // the pointer is released elsewhere and no click fires here.
       onClick={() => data.onAdd(data.sourceId, data.branch)}
-      title="Clica para adicionar aqui, ou arrasta para escolher o sítio"
+      title="Clica para adicionar um passo aqui, ou arrasta para o mudar de sítio"
       className={cn(
-        'nopan nodrag relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-border bg-card',
+        'nopan relative flex h-11 w-11 cursor-grab items-center justify-center rounded-full border-2 border-dashed border-border bg-card active:cursor-grabbing',
         'text-muted-foreground transition-all hover:border-primary hover:text-primary hover:shadow-card-hover',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
       )}
     >
       <Plus className="h-5 w-5" />
       {/*
-        The whole "+" is the grab point. Pressing it starts a line exactly as
-        pressing a step's own connection point does, so the two affordances
-        behave the same instead of one moving a circle and the other drawing.
-        A press with no movement is a click, handled above: it opens the step
-        picker, which is harmless to reach twice — the step is only added once
-        a type is chosen.
+        Dragging the "+" moves it (as an empty branch left wherever it reads
+        best); a line is pulled from the step's own connection point. It used
+        to be the other way round, and an empty branch could not be moved.
       */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!min-h-0 !min-w-0 !rounded-full !border-0 !bg-transparent"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: 'none', left: 0, top: 0, right: 'auto', cursor: 'grab' }}
-      />
     </div>
   </div>
 ));

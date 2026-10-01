@@ -444,7 +444,8 @@ export function useAutomationRunCounts() {
   });
 }
 
-export function useAutomationRuns(flowId: string | null, limit = 100) {
+/** `refetchMs`: how often to look for new runs — the canvas asks for seconds, to show a run as it happens. */
+export function useAutomationRuns(flowId: string | null, limit = 100, refetchMs = 30000) {
   const { organization } = useAuth();
   const organizationId = organization?.id;
 
@@ -466,11 +467,12 @@ export function useAutomationRuns(flowId: string | null, limit = 100) {
     },
     enabled: !!flowId && !!organizationId,
     // Runs advance server-side; keep the observability view reasonably fresh.
-    refetchInterval: 30000,
+    refetchInterval: refetchMs,
   });
 }
 
-export function useAutomationRunSteps(runId: string | null) {
+/** `live`: the run is still going — keep reading its steps as they are written. */
+export function useAutomationRunSteps(runId: string | null, live = false) {
   const { organization } = useAuth();
   const organizationId = organization?.id;
 
@@ -490,6 +492,7 @@ export function useAutomationRunSteps(runId: string | null) {
       return (data || []) as unknown as AutomationRunStep[];
     },
     enabled: !!runId && !!organizationId,
+    refetchInterval: live ? 3000 : false,
   });
 }
 

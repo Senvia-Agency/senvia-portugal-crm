@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw } from 'lucide-react';
+import { Loader2, MessageCircle, Send, PanelLeft, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +17,8 @@ import {
 } from '@/hooks/useMetaInbox';
 import { ListStatusTicks } from './StatusTicks';
 import { MediaViewer, type MediaItem } from './MediaViewer';
+import { MessageText } from './MessageText';
+import { FileTypeIcon } from './FileTypeIcon';
 
 /**
  * Caixa de Instagram / Messenger.
@@ -573,7 +575,7 @@ function MetaThread({
                   <p className="italic opacity-70">Mensagem apagada</p>
                 ) : (
                   <>
-                    {m.content && <p className="whitespace-pre-wrap break-words">{m.content}</p>}
+                    {/* Como no WhatsApp: o ficheiro em cima, a legenda por baixo. */}
                     {m.attachments?.map((a, i) => (
                       <Attachment
                         key={i}
@@ -585,8 +587,18 @@ function MetaThread({
                         mediaId={a.media_id ?? null}
                         messageId={m.id}
                         viewerKey={`${m.id}:${i}`}
+                        filename={a.filename ?? null}
+                        size={a.size ?? null}
+                        outgoing={m.direction === 'outgoing'}
                       />
                     ))}
+                    {m.content && (
+                      <MessageText
+                        text={m.content}
+                        outgoing={m.direction === 'outgoing'}
+                        className={m.attachments?.length ? 'mt-1.5' : undefined}
+                      />
+                    )}
                   </>
                 )}
                 <span className={cn(
@@ -645,7 +657,7 @@ function MetaThread({
               'max-w-[75%] rounded-2xl bg-primary px-3 py-2 text-sm text-primary-foreground',
               !p.erro && 'opacity-60',
             )}>
-              {p.texto && <p className="whitespace-pre-wrap break-words">{p.texto}</p>}
+              {p.texto && <MessageText text={p.texto} outgoing />}
               {p.previewUrl && p.tipo === 'image' && (
                 <img src={p.previewUrl} alt="" className="mt-1 max-h-64 max-w-full rounded-lg" />
               )}
@@ -888,7 +900,62 @@ function instagramCode(url: string): { seg: string; code: string } | null {
  * EXPIRAM. Enquanto a conversa é recente mostram-se; mais tarde deixam de
  * abrir, e por isso o link fica sempre disponível como alternativa.
  */
-function Attachment({ type, url, mediaId, messageId, viewerKey }: {
+/** O nome de um ficheiro tirado do endereço, sem o prefixo único que o upload lhe pôs. */
+function nomeDoLink(url: string): string | null {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+    const sem = last
+      .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
+      .replace(/^\d{10,}-/, '');
+    // O upload troca espaços e acentos por "_"; para ler, voltam a ser espaços.
+    return sem ? sem.replace(/_/g, ' ') : null;
+  } catch {
+    return null;
+  }
+}
+
+function tamanhoLegivel(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toLocaleString('pt-PT', { maximumFractionDigits: 1 })} MB`;
+}
+
+/**
+ * Um documento como no WhatsApp: ícone com a cor do tipo, nome, tipo e
+ * tamanho. Clicar abre-o (o PDF no leitor do browser) ou transfere-o.
+ */
+function CartaoDocumento({ url, filename, size, outgoing }: {
+  url: string;
+  filename?: string | null;
+  size?: number | null;
+  outgoing?: boolean;
+}) {
+  const nome = filename || nomeDoLink(url) || 'Documento';
+  const ext = nome.includes('.') ? nome.split('.').pop()!.toLowerCase() : '';
+  const detalhe = [ext ? ext.toUpperCase() : null, size ? tamanhoLegivel(size) : null].filter(Boolean).join(' · ');
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      download={nome}
+      title={`Abrir ${nome}`}
+      className={cn(
+        'mt-1 flex w-72 max-w-full items-center gap-3 rounded-xl p-2.5 transition-colors',
+        outgoing ? 'bg-primary-foreground/15 hover:bg-primary-foreground/25' : 'bg-background/80 hover:bg-background',
+      )}
+    >
+      <FileTypeIcon extension={ext} />
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 break-words text-sm font-medium leading-snug">{nome}</span>
+        {detalhe && <span className="mt-0.5 block text-[11px] opacity-70">{detalhe}</span>}
+      </span>
+      <Download className="h-4 w-4 shrink-0 opacity-70" />
+    </a>
+  );
+}
+
+function Attachment({ type, url, mediaId, messageId, viewerKey, filename, size, outgoing }: {
   type: string;
   url: string | null;
   /** WhatsApp: o id do ficheiro na Meta, quando não há endereço. */
@@ -896,6 +963,10 @@ function Attachment({ type, url, mediaId, messageId, viewerKey }: {
   messageId?: string;
   /** Mensagem e posição do anexo — o que o visualizador usa para o encontrar. */
   viewerKey?: string;
+  filename?: string | null;
+  size?: number | null;
+  /** Dentro de uma bolha enviada (azul): o cartão do documento acompanha a cor. */
+  outgoing?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
   const visualizador = useContext(VisualizadorContext);
@@ -910,7 +981,17 @@ function Attachment({ type, url, mediaId, messageId, viewerKey }: {
   // da conta, do lado do servidor. Sem este ramo, tudo o que um cliente
   // enviasse por WhatsApp aparecia como o nome do tipo entre parênteses.
   if (!url && mediaId && messageId) {
-    return <AnexoWhatsApp type={type} mediaId={mediaId} messageId={messageId} viewerKey={viewerKey} />;
+    return (
+      <AnexoWhatsApp
+        type={type}
+        mediaId={mediaId}
+        messageId={messageId}
+        viewerKey={viewerKey}
+        filename={filename}
+        size={size}
+        outgoing={outgoing}
+      />
+    );
   }
 
   if (!url) return <span className="text-xs opacity-70">[{type}]</span>;
@@ -948,6 +1029,25 @@ function Attachment({ type, url, mediaId, messageId, viewerKey }: {
         />
       </button>
     );
+  }
+
+  // Um autocolante é uma imagem pequena, sem visualizador.
+  if (type === 'sticker' && !broken) {
+    return <img src={url} alt="Autocolante" onError={() => setBroken(true)} className="mt-1 h-32 w-32 object-contain" loading="lazy" />;
+  }
+
+  if (type === 'image' && broken) {
+    // O ficheiro saiu do armazenamento (ou o link da Meta caducou): dizê-lo em
+    // vez de oferecer um link que não abre.
+    return (
+      <span className="mt-1 flex items-center gap-1.5 rounded-lg bg-black/5 px-2.5 py-2 text-xs opacity-80">
+        <ImageOff className="h-3.5 w-3.5 shrink-0" /> A imagem já não está disponível
+      </span>
+    );
+  }
+
+  if ((type === 'document' || type === 'file') && !broken) {
+    return <CartaoDocumento url={url} filename={filename} size={size} outgoing={outgoing} />;
   }
 
   if ((type === 'video' || type === 'audio') && !broken) {
@@ -990,11 +1090,14 @@ function Attachment({ type, url, mediaId, messageId, viewerKey }: {
  * cache de uma hora — mas é o sítio óbvio para pôr um observador de
  * visibilidade se algum dia se notar.
  */
-function AnexoWhatsApp({ type, mediaId, messageId, viewerKey }: {
+function AnexoWhatsApp({ type, mediaId, messageId, viewerKey, filename, size, outgoing }: {
   type: string;
   mediaId: string;
   messageId: string;
   viewerKey?: string;
+  filename?: string | null;
+  size?: number | null;
+  outgoing?: boolean;
 }) {
   const { url, erro, aCarregar } = useMetaMedia(messageId, mediaId);
 
@@ -1016,7 +1119,9 @@ function AnexoWhatsApp({ type, mediaId, messageId, viewerKey }: {
     );
   }
 
-  return <Attachment type={type} url={url} viewerKey={viewerKey} />;
+  return (
+    <Attachment type={type} url={url} viewerKey={viewerKey} filename={filename} size={size} outgoing={outgoing} />
+  );
 }
 
 /**

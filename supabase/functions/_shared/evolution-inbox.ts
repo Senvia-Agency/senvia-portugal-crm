@@ -172,12 +172,15 @@ export function parseContent(messageId: string, message: AnyMsg): ParsedContent 
   let texto = '';
 
   const media = (type: string, node: AnyMsg) => {
+    // Baileys may hand the size over as a Long ({ low, high }) rather than a number.
+    const length = Number(typeof node?.fileLength === 'object' ? node.fileLength?.low : node?.fileLength);
     anexos.push({
       type,
       media_id: messageId,
       url: null,
       mime: node?.mimetype ?? null,
       ...(node?.fileName ? { filename: node.fileName } : {}),
+      ...(Number.isFinite(length) && length > 0 ? { size: length } : {}),
     });
     texto = node?.caption ?? '';
   };

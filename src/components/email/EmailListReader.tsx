@@ -18,6 +18,7 @@ import {
 } from '@/hooks/useEmail';
 import { useEmailChannels } from '@/hooks/useEmailChannels';
 import { useEmailActions } from '@/hooks/useEmailActions';
+import { useEmailImageSenders } from '@/hooks/useEmailImageSenders';
 import { EmailComposer, type ComposeMode } from './EmailComposer';
 import { initials, fmtListDate, fmtFullDate, fmtSize, addrText, folderLabel, ROLE_META } from './emailShared';
 
@@ -46,17 +47,23 @@ function hasRemoteImage(html: string): boolean {
 // resolves `cid:` embedded images (logos, signatures) from the message's own
 // inline attachments, which the browser can never fetch directly.
 function EmailBody({
-  html, text, inlineAttachments, resolveAttachment,
+  html, text, inlineAttachments, resolveAttachment, sender,
 }: {
   html: string | null;
   text: string | null;
   inlineAttachments: EmailAttachment[];
   resolveAttachment: (id: string) => Promise<{ data_b64: string; content_type: string | null } | null>;
+  /** From address — senders the user trusts get their images shown straight away. */
+  sender?: string | null;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   // Blocked by default per message view (EmailListReader remounts this with a
-  // `key` per message id, so a freshly opened email always starts blocked).
-  const [imagesBlocked, setImagesBlocked] = useState(true);
+  // `key` per message id, so a freshly opened email always starts blocked),
+  // unless the user chose "Mostrar sempre" for this sender before.
+  const remetentes = useEmailImageSenders();
+  const [showOnce, setShowOnce] = useState(false);
+  const trusted = remetentes.trusts(sender);
+  const imagesBlocked = !(showOnce || trusted);
   const [cidUrls, setCidUrls] = useState<Record<string, string>>({});
   const hadRemoteImages = useMemo(() => (html ? hasRemoteImage(html) : false), [html]);
 
@@ -127,16 +134,40 @@ function EmailBody({
   return (
     <div>
       {hadRemoteImages && imagesBlocked && (
-        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
           <span>Imagens externas bloqueadas (proteção contra rastreio).</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowOnce(true)}
+              className="shrink-0 rounded-md bg-amber-200/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200"
+            >
+              Mostrar imagens
+            </button>
+            {sender && (
+              <button
+                type="button"
+                onClick={() => remetentes.trust(sender)}
+                title={`As imagens dos emails de ${sender} passam a abrir sozinhas`}
+                className="shrink-0 rounded-md border border-amber-300/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-500/30 dark:text-amber-200 dark:hover:bg-amber-500/10"
+              >
+                Mostrar sempre de {sender}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {hadRemoteImages && trusted && sender && (
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          As imagens de {sender} abrem sempre.{' '}
           <button
             type="button"
-            onClick={() => setImagesBlocked(false)}
-            className="shrink-0 rounded-md bg-amber-200/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200"
+            onClick={() => { remetentes.untrust(sender); setShowOnce(false); }}
+            className="underline underline-offset-2 hover:text-foreground"
           >
-            Mostrar imagens
+            Deixar de mostrar
           </button>
-        </div>
+        </p>
       )}
       <iframe
         ref={ref}
@@ -968,6 +999,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                       text={opened.message.text_body}
                       inlineAttachments={opened.attachments.filter((a) => a.inline)}
                       resolveAttachment={resolveAttachment}
+                      sender={opened.message.from_address}
                     />
                   )
                   : failedBodyCommand || bodyRequestError

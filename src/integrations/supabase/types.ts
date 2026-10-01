@@ -5744,6 +5744,7 @@ export type Database = {
           brevo_sender_email: string | null
           created_at: string | null
           email: string | null
+          email_image_senders: string[]
           email_signature: string | null
           full_name: string
           id: string
@@ -5755,6 +5756,7 @@ export type Database = {
           brevo_sender_email?: string | null
           created_at?: string | null
           email?: string | null
+          email_image_senders?: string[]
           email_signature?: string | null
           full_name: string
           id: string
@@ -5766,6 +5768,7 @@ export type Database = {
           brevo_sender_email?: string | null
           created_at?: string | null
           email?: string | null
+          email_image_senders?: string[]
           email_signature?: string | null
           full_name?: string
           id?: string

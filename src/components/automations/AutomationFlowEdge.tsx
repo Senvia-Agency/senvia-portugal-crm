@@ -21,6 +21,9 @@ export interface AutomationEdgeData extends Record<string, unknown> {
   onPullStart?: (edgeId: string, event: React.PointerEvent) => void;
   /** Cuts this connection, leaving both steps on the canvas to be rewired. */
   onUnlink?: (edgeId: string) => void;
+  /** An execution is on screen: lines it travelled are lit, the rest fade. */
+  inExecution?: boolean;
+  taken?: boolean;
 }
 
 export type AutomationFlowEdgeType = Edge<AutomationEdgeData, 'automation'>;
@@ -32,8 +35,10 @@ export const AutomationFlowEdge = memo(({
     sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
   });
 
-  const stroke = data?.stroke ?? 'hsl(var(--muted-foreground) / 0.5)';
   const ghost = data?.ghost;
+  const lit = !!data?.inExecution && !!data?.taken;
+  const faded = !!data?.inExecution && !data?.taken;
+  const stroke = lit ? 'hsl(var(--success))' : (data?.stroke ?? 'hsl(var(--muted-foreground) / 0.5)');
 
   return (
     <>
@@ -45,7 +50,7 @@ export const AutomationFlowEdge = memo(({
           strokeWidth: 3.5,
           strokeLinecap: 'round',
           strokeDasharray: ghost ? '2 7' : undefined,
-          opacity: ghost ? 0.55 : 1,
+          opacity: faded ? 0.25 : ghost && !lit ? 0.55 : 1,
         }}
       />
 
@@ -59,7 +64,10 @@ export const AutomationFlowEdge = memo(({
               className={cn(
                 'pointer-events-auto max-w-[130px] truncate rounded-full border px-2 py-0.5',
                 'text-[10px] font-semibold leading-tight shadow-sm',
-                'border-border bg-card text-foreground',
+                lit
+                  ? 'border-success/50 bg-success/10 text-success'
+                  : 'border-border bg-card text-foreground',
+                faded && 'opacity-50',
               )}
               title={data.branchLabel}
             >

@@ -27,9 +27,59 @@ export const GHOST_BOX_HEIGHT = 44;
 const NODE_CIRCLE_CENTER_Y = 33;
 /** Manual-layout ghost placement relative to its anchor node. */
 const MANUAL_GHOST_GAP_X = 96;
-const MANUAL_GHOST_STEP_Y = GHOST_BOX_HEIGHT + 16;
 /** Horizontal gap used when appending a node in manual-layout mode. */
 const MANUAL_APPEND_GAP_X = 110;
+/**
+ * Manual layout gives each branch its own lane: the first on the step's own
+ * row, the next one a whole step lower, and so on. A step added on a branch
+ * and the "+" of a branch still free use the same lane, so they never share a
+ * spot — "Sim" and "Não" used to land on the same row, one over the other.
+ */
+const BRANCH_LANE_Y = NODE_BOX_HEIGHT + 22;
+
+/** Lane of `branch` among the step's branches (0 for a step that does not branch). */
+function branchLane(source: AutomationGraphNode | undefined, branch: string | null): number {
+  if (!source || !branch) return 0;
+  const index = getNodeBranches(source).findIndex((item) => item.key === branch);
+  return index < 0 ? 0 : index;
+}
+
+interface Box { x: number; y: number; w: number; h: number }
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * Moves `box` a lane at a time — down, or up for `direction` -1 — until it
+ * covers none of `taken`.
+ */
+function clearOf(box: Box, taken: Box[], direction: 1 | -1 = 1): { x: number; y: number } {
+  let y = box.y;
+  for (let tries = 0; tries < 30 && taken.some((other) => overlaps({ ...box, y }, other)); tries++) {
+    y += direction * BRANCH_LANE_Y;
+  }
+  return { x: box.x, y };
+}
+
+/** Key a branch's "+" offset is stored under ("" for a step without branches). */
+const ghostKey = (branch: string | null) => branch ?? '';
+
+/** Remembers where the "+" of `branch` was dragged to, relative to its step. */
+export function setGhostOffset(
+  graph: AutomationGraph,
+  sourceId: string,
+  branch: string | null,
+  offset: { dx: number; dy: number },
+): AutomationGraph {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => (node.id === sourceId
+      ? { ...node, ghostOffsets: { ...(node.ghostOffsets ?? {}), [ghostKey(branch)]: offset } }
+      : node)),
+  };
+}
+
+const nodeBox = (position: { x: number; y: number }): Box =>
+  ({ x: position.x, y: position.y, w: NODE_BOX_WIDTH, h: NODE_BOX_HEIGHT });
 
 export function createId(prefix: string): string {
   const random = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -143,15 +193,33 @@ export function appendNode(
 ): { graph: AutomationGraph; node: AutomationGraphNode } {
   const node = createNode(type);
 
-  if (hasManualLayout(graph)) {
-    const source = findNode(graph, sourceId);
+  let nodes = graph.nodes;
+  const source = findNode(graph, sourceId);
+  const dragged = source?.ghostOffsets?.[ghostKey(branch)];
+  if (hasManualLayout(graph) && source?.position && dragged) {
+    // The "+" was dragged somewhere: the step is born right there (its circle
+    // where the "+" was), and the branch no longer needs a remembered spot.
+    node.position = {
+      x: source.position.x + dragged.dx + GHOST_BOX_WIDTH / 2 - NODE_BOX_WIDTH / 2,
+      y: source.position.y + dragged.dy + GHOST_BOX_HEIGHT / 2 - NODE_CIRCLE_CENTER_Y,
+    };
+    const rest = { ...(source.ghostOffsets ?? {}) };
+    delete rest[ghostKey(branch)];
+    nodes = graph.nodes.map((item) => (item.id === sourceId ? { ...item, ghostOffsets: rest } : item));
+  } else if (hasManualLayout(graph)) {
     if (source?.position) {
-      // Branches from the same source stack downwards so they don't overlap.
-      const siblingCount = graph.edges.filter((edge) => edge.source === sourceId).length;
-      node.position = {
+      // A branching step: that branch's lane. A plain step fanning out: one
+      // lane below the paths it already has.
+      const lane = getNodeBranches(source).length
+        ? branchLane(source, branch)
+        : graph.edges.filter((edge) => edge.source === sourceId).length;
+      const taken = graph.nodes.filter((other) => other.position).map((other) => nodeBox(other.position!));
+      node.position = clearOf({
         x: source.position.x + NODE_BOX_WIDTH + MANUAL_APPEND_GAP_X,
-        y: source.position.y + siblingCount * NODE_BOX_HEIGHT,
-      };
+        y: source.position.y + lane * BRANCH_LANE_Y,
+        w: NODE_BOX_WIDTH,
+        h: NODE_BOX_HEIGHT,
+      }, taken);
     }
   }
 
@@ -162,7 +230,7 @@ export function appendNode(
     branch,
   };
   return {
-    graph: { nodes: [...graph.nodes, node], edges: [...graph.edges, edge] },
+    graph: { nodes: [...nodes, node], edges: [...graph.edges, edge] },
     node,
   };
 }
@@ -170,7 +238,9 @@ export function appendNode(
 /**
  * Splices a node into an existing edge: A→B becomes A→N→B. The original
  * edge's branch stays on the upstream half, so branch semantics are preserved.
- * In manual-layout mode the new node lands midway between the two.
+ * In manual-layout mode the new node takes B's place and everything from B on
+ * moves one step to the right, as n8n does. Dropped midway, it sat on top of
+ * both neighbours.
  */
 export function insertNodeOnEdge(
   graph: AutomationGraph,
@@ -181,12 +251,26 @@ export function insertNodeOnEdge(
   if (!target) return { graph, node: null as unknown as AutomationGraphNode };
 
   const node = createNode(type);
+  let nodes = graph.nodes;
 
   if (hasManualLayout(graph)) {
-    const from = findNode(graph, target.source)?.position;
     const to = findNode(graph, target.target)?.position;
-    if (from && to) {
-      node.position = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    if (to) {
+      node.position = { ...to };
+      // B and every step after it, never the step the line comes from (a loop
+      // back to it would otherwise drag it along too).
+      const shift = NODE_BOX_WIDTH + MANUAL_APPEND_GAP_X;
+      const moved = new Set<string>();
+      const queue = [target.target];
+      while (queue.length) {
+        const id = queue.shift() as string;
+        if (moved.has(id) || id === target.source) continue;
+        moved.add(id);
+        for (const edge of graph.edges) if (edge.source === id) queue.push(edge.target);
+      }
+      nodes = graph.nodes.map((item) => (moved.has(item.id) && item.position
+        ? { ...item, position: { x: item.position.x + shift, y: item.position.y } }
+        : item));
     }
   }
 
@@ -209,7 +293,7 @@ export function insertNodeOnEdge(
 
   return {
     graph: {
-      nodes: [...graph.nodes, node],
+      nodes: [...nodes, node],
       edges: [...graph.edges.filter((edge) => edge.id !== edgeId), upstream, downstream],
     },
     node,
@@ -461,21 +545,32 @@ export function computeCanvasLayout(graph: AutomationGraph, ghosts: GhostSlot[])
     positions[node.id] = { x: node.position?.x ?? 0, y: node.position?.y ?? 0 };
   }
 
-  // Ghosts sit to the right of their anchor, stacked when a branching node has
-  // several free branches.
-  const byAnchor = new Map<string, GhostSlot[]>();
+  // A ghost sits to the right of its anchor, in its branch's lane — the lane a
+  // step added there would take — and steps down past anything already there.
+  const taken: Box[] = graph.nodes.map((node) => nodeBox(positions[node.id]));
   for (const ghost of ghosts) {
-    byAnchor.set(ghost.sourceId, [...(byAnchor.get(ghost.sourceId) ?? []), ghost]);
-  }
-  for (const [sourceId, slots] of byAnchor) {
-    const anchor = positions[sourceId];
+    const anchor = positions[ghost.sourceId];
     if (!anchor) continue;
-    slots.forEach((slot, index) => {
-      positions[slot.id] = {
-        x: anchor.x + NODE_BOX_WIDTH + MANUAL_GHOST_GAP_X,
-        y: anchor.y + NODE_CIRCLE_CENTER_Y - GHOST_BOX_HEIGHT / 2 + index * MANUAL_GHOST_STEP_Y,
-      };
-    });
+    const source = findNode(graph, ghost.sourceId);
+    // Dragged by hand: exactly there, whatever is around.
+    const dragged = source?.ghostOffsets?.[ghostKey(ghost.branch)];
+    if (dragged) {
+      positions[ghost.id] = { x: anchor.x + dragged.dx, y: anchor.y + dragged.dy };
+      taken.push({ ...positions[ghost.id], w: GHOST_BOX_WIDTH, h: GHOST_BOX_HEIGHT });
+      continue;
+    }
+    const lane = branchLane(source, ghost.branch);
+    // The first branch of a step that has several is its top output: when its
+    // spot is taken it moves up, so it stays above the others.
+    const upward = lane === 0 && getNodeBranches(source).length > 1;
+    const spot = clearOf({
+      x: anchor.x + NODE_BOX_WIDTH + MANUAL_GHOST_GAP_X,
+      y: anchor.y + NODE_CIRCLE_CENTER_Y - GHOST_BOX_HEIGHT / 2 + lane * BRANCH_LANE_Y,
+      w: GHOST_BOX_WIDTH,
+      h: GHOST_BOX_HEIGHT,
+    }, taken, upward ? -1 : 1);
+    positions[ghost.id] = spot;
+    taken.push({ ...spot, w: GHOST_BOX_WIDTH, h: GHOST_BOX_HEIGHT });
   }
 
   return { positions };
@@ -488,7 +583,16 @@ export function computeCanvasLayout(graph: AutomationGraph, ghosts: GhostSlot[])
  */
 export function applyAutoLayout(graph: AutomationGraph): AutomationGraph {
   const { positions } = layoutGraph(graph, getGhostSlots(graph));
-  return updateNodePositions(graph, positions);
+  // A tidy layout puts every "+" back where it belongs too.
+  const tidy = {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      if (!node.ghostOffsets) return node;
+      const { ghostOffsets: _dropped, ...rest } = node;
+      return rest;
+    }),
+  };
+  return updateNodePositions(tidy, positions);
 }
 
 /** Step numbers shown in the badge — BFS from the entry node. */

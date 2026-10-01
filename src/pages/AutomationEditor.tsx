@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ArrowLeft, FlaskConical, LayoutGrid, Loader2, Pause, Play, Save,
+  Activity, AlertTriangle, ArrowLeft, Check, FlaskConical, LayoutGrid, Loader2, Pause, Play, Save,
   SlidersHorizontal, Workflow,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,15 +19,18 @@ import { FlowActivity } from '@/components/automations/FlowActivity';
 import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
 import { FlowSettings } from '@/components/automations/FlowSettings';
 import { TestFlowDialog } from '@/components/automations/TestFlowDialog';
+import { ExecutionBar } from '@/components/automations/ExecutionBar';
+import { buildExecutionView } from '@/lib/automation-execution';
 
 import {
   appendNode, applyAutoLayout, changeTriggerType, connectNodes, describeConnectionRefusal,
   disconnectEdges, findNode, insertNodeOnEdge, pruneOrphanBranches, removeNode,
-  updateNodeConfig, updateNodePositions, validateGraph,
+  setGhostOffset, updateNodeConfig, updateNodePositions, validateGraph,
 } from '@/lib/automation-graph';
 import { MESSAGE_BUFFER_DEFAULT_SECONDS } from '@/lib/automation-nodes';
 import {
-  useAutomationFlow, useAutomationFlowNodeStats, useSetAutomationFlowStatus,
+  useAutomationFlow, useAutomationFlowNodeStats, useAutomationRuns, useAutomationRunSteps,
+  useSetAutomationFlowStatus,
   useUpdateAutomationFlow,
 } from '@/hooks/useAutomationFlows';
 import type {
@@ -64,6 +67,18 @@ export default function AutomationEditor() {
   const { data: nodeStats } = useAutomationFlowNodeStats(tab === 'canvas' ? id ?? null : null);
   // A flow that never ran gets no badges at all, so a new canvas stays clean.
   const hasRunStats = !!nodeStats && Object.keys(nodeStats).length > 0;
+
+  // The execution drawn on the canvas, as in n8n. null follows the newest run,
+  // so a run that starts while the flow is open lights the steps up as it goes.
+  const [execRunId, setExecRunId] = useState<string | null>(null);
+  const [showExecution, setShowExecution] = useState(true);
+  const { data: recentRuns = [] } = useAutomationRuns(tab === 'canvas' ? id ?? null : null, 20, 4000);
+  const viewedRun = (execRunId && recentRuns.find((run) => run.id === execRunId)) || recentRuns[0] || null;
+  const viewedRunLive = !!viewedRun && ['running', 'waiting', 'awaiting_reply'].includes(viewedRun.status);
+  const { data: viewedSteps } = useAutomationRunSteps(
+    showExecution && tab === 'canvas' ? viewedRun?.id ?? null : null,
+    viewedRunLive || !execRunId,
+  );
 
   // Hydrate local editing state once per flow. The ref guard means a background
   // refetch can never clobber edits the user has not saved yet.
@@ -262,6 +277,38 @@ export default function AutomationEditor() {
     setStatus.mutate({ id: flow.id, status: nextStatus, version: flow.version });
   };
 
+  // Ctrl+S / Cmd+S saves, as in n8n. Through a ref so the listener, added
+  // once, always calls the current handleSave.
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (dirtyRef.current) void saveRef.current();
+      }
+    };
+    // Closing or reloading the tab with edits that real runs would never see.
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, []);
+
+  const executionView = useMemo(
+    () => (showExecution && viewedRun && viewedSteps ? buildExecutionView(graph, viewedRun, viewedSteps) : null),
+    [showExecution, viewedRun, viewedSteps, graph],
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-4 p-4 md:p-6">
@@ -313,7 +360,10 @@ export default function AutomationEditor() {
         <FlowStatusPill status={flow.status} />
 
         {dirty && (
-          <span className="text-xs font-medium text-muted-foreground">Alterações por guardar</span>
+          <span className="flex items-center gap-1 text-xs font-medium text-warning">
+            <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+            Alterações por guardar
+          </span>
         )}
 
         {issues.length > 0 && (
@@ -350,11 +400,22 @@ export default function AutomationEditor() {
             <span className="hidden sm:inline">Testar</span>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={handleSave} disabled={!dirty || isBusy}>
+          {/* As in n8n: "Guardado" when the canvas is what runs, a highlighted
+              "Guardar" the moment it is not. */}
+          <Button
+            variant={dirty ? 'default' : 'ghost'}
+            size="sm"
+            onClick={handleSave}
+            disabled={!dirty || isBusy}
+            title={dirty ? 'Guardar (Ctrl+S)' : 'Tudo guardado'}
+            className={cn(!dirty && 'text-muted-foreground disabled:opacity-100')}
+          >
             {updateFlow.isPending
               ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              : <Save className="mr-1.5 h-3.5 w-3.5" />}
-            Guardar
+              : dirty
+                ? <Save className="mr-1.5 h-3.5 w-3.5" />
+                : <Check className="mr-1.5 h-3.5 w-3.5" />}
+            {dirty ? 'Guardar' : 'Guardado'}
           </Button>
 
           <Button
@@ -402,6 +463,19 @@ export default function AutomationEditor() {
               onConnectNodes={handleConnectNodes}
               onUnlinkEdges={handleUnlinkEdges}
               nodeStats={hasRunStats ? nodeStats : undefined}
+              execution={executionView}
+              onMoveGhost={(sourceId, branch, offset, positions) => {
+                mutateGraph(setGhostOffset(updateNodePositions(graph, positions), sourceId, branch, offset));
+              }}
+            />
+
+            <ExecutionBar
+              runs={recentRuns}
+              selectedRunId={execRunId}
+              onSelect={(runId) => { setExecRunId(runId); setShowExecution(true); }}
+              visible={showExecution}
+              onToggle={() => setShowExecution((v) => !v)}
+              dirty={dirty}
             />
 
             {/* The step catalogue slides in over the canvas, which stays visible. */}
@@ -422,6 +496,8 @@ export default function AutomationEditor() {
               graph={graph}
               triggerType={findNode(graph, flow.entry_node_id)?.type ?? flow.trigger_type}
               stats={selectedNode ? nodeStats?.[selectedNode.id] : undefined}
+              // The execution on the canvas: its data is what the details show.
+              runId={executionView?.runId ?? null}
               onChange={handleConfigChange}
               onChangeTrigger={handleChangeTrigger}
               reentryPolicy={reentry}

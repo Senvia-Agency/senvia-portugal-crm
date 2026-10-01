@@ -13,6 +13,7 @@ import {
   NODE_BOX_HEIGHT, NODE_BOX_WIDTH, validateGraph,
 } from '@/lib/automation-graph';
 import { getBranchLabel, getNodeStyle } from '@/lib/automation-nodes';
+import { ghostTaken, type ExecutionView } from '@/lib/automation-execution';
 import type { AutomationGraph, AutomationNodeStats } from '@/types/automations';
 
 // Defined once — React Flow warns (and re-renders hard) on new object identities.
@@ -43,17 +44,37 @@ interface AutomationCanvasProps {
   /** Cut connections — the button on the line, or the Delete key. */
   onUnlinkEdges: (edgeIds: string[]) => void;
   /**
+   * A "+" was dragged to a new spot. Comes with every step's rendered
+   * position, so a layout dagre drew becomes a manual one as it does on a drag.
+   */
+  onMoveGhost: (
+    sourceId: string,
+    branch: string | null,
+    offset: { dx: number; dy: number },
+    positions: Record<string, { x: number; y: number }>,
+  ) => void;
+  /**
    * Per-node run counters. Omitted for a flow that has never run, which keeps a
    * brand-new canvas free of zero badges.
    */
   nodeStats?: Record<string, AutomationNodeStats>;
+  /** One execution drawn over the flow, as in n8n: what ran, how it ended, the path taken. */
+  execution?: ExecutionView | null;
 }
 
 function CanvasInner({
   graph, entryNodeId, selectedNodeId, onSelectNode, onAddAfter, onInsertOnEdge, onMoveNodes,
-  onAddAfterAt, onConnectNodes, onUnlinkEdges, nodeStats,
+  onAddAfterAt, onConnectNodes, onUnlinkEdges, nodeStats, execution, onMoveGhost,
 }: AutomationCanvasProps) {
   const { fitView, getNodes, screenToFlowPosition } = useReactFlow();
+
+  // Letting go of a dragged "+" must not also count as a click on it (which
+  // would open the step picker).
+  const lastGhostDragAt = useRef(0);
+  const handleGhostAdd = useCallback((sourceId: string, branch: string | null) => {
+    if (Date.now() - lastGhostDragAt.current < 400) return;
+    onAddAfter(sourceId, branch);
+  }, [onAddAfter]);
 
   // Live positions while a drag is in flight. React Flow is controlled here, so
   // without feeding these back the circles would not follow the pointer.
@@ -152,21 +173,23 @@ function CanvasInner({
           // A node nobody reached still shows a zero — that is the signal.
           stats: nodeStats?.[node.id] ?? { passed: 0, failed: 0, waiting: 0 },
           showStats: !!nodeStats,
+          inExecution: !!execution,
+          runStatus: execution?.nodes[node.id] ?? null,
         },
       })),
       ...ghosts.map((ghost) => ({
         id: ghost.id,
         type: 'ghost',
-        position: positions[ghost.id] ?? { x: 0, y: 0 },
-        // The "+" is not moved; a line is pulled out of it, like from a step.
-        draggable: false,
+        position: dragPositions[ghost.id] ?? positions[ghost.id] ?? { x: 0, y: 0 },
+        // An empty branch can be left wherever it reads best.
+        draggable: true,
         selectable: false,
         deletable: false,
         data: {
           sourceId: ghost.sourceId,
           branch: ghost.branch,
           branchLabel: ghost.branchLabel,
-          onAdd: onAddAfter,
+          onAdd: handleGhostAdd,
         },
       })),
     ];
@@ -191,6 +214,8 @@ function CanvasInner({
             ghost: false,
             onPullStart: handleEdgePullStart,
             onUnlink: (edgeId: string) => onUnlinkEdges([edgeId]),
+            inExecution: !!execution,
+            taken: !!execution?.edges.has(edge.id),
           },
         })),
       ...ghosts.map((ghost) => ({
@@ -205,6 +230,9 @@ function CanvasInner({
           branchLabel: ghost.branchLabel,
           stroke: getNodeStyle(findNode(graph, ghost.sourceId)?.type ?? '').stroke,
           ghost: true,
+          inExecution: !!execution,
+          // The branch a condition took is lit even when it leads to a "+".
+          taken: ghostTaken(execution, ghost.sourceId, ghost.branch),
         },
       })),
     ];
@@ -214,7 +242,7 @@ function CanvasInner({
     const ghostAnchors = new Map(ghosts.map((ghost) => [ghost.id, ghost]));
 
     return { nodes: flowNodes, edges: flowEdges, ghostAnchors };
-  }, [graph, entryNodeId, selectedNodeId, onAddAfter, handleEdgePullStart, onUnlinkEdges, dragPositions, nodeStats]);
+  }, [graph, entryNodeId, selectedNodeId, handleGhostAdd, handleEdgePullStart, onUnlinkEdges, dragPositions, nodeStats, execution]);
 
   // Re-fit when the shape of the graph changes (not on mere config edits or drags).
   const shapeKey = `${graph.nodes.length}:${graph.edges.length}`;
@@ -247,17 +275,27 @@ function CanvasInner({
 
   // On drop, persist EVERY real node's rendered position — the first drag
   // converts a dagre layout into a manual one without anything jumping.
-  const handleNodeDragStop = useCallback(() => {
+  const handleNodeDragStop = useCallback((_event: MouseEvent, dragged: Node) => {
     const positions: Record<string, { x: number; y: number }> = {};
     for (const node of getNodes()) {
       if (node.type === 'automation') {
         positions[node.id] = { x: node.position.x, y: node.position.y };
       }
     }
-    // Both state updates land in the same render, so nothing flickers.
-    onMoveNodes(positions);
+    const ghost = dragged.type === 'ghost' ? ghostAnchors.get(dragged.id) : undefined;
+    const anchor = ghost ? positions[ghost.sourceId] : undefined;
+    if (ghost && anchor) {
+      lastGhostDragAt.current = Date.now();
+      onMoveGhost(ghost.sourceId, ghost.branch, {
+        dx: dragged.position.x - anchor.x,
+        dy: dragged.position.y - anchor.y,
+      }, positions);
+    } else {
+      // Both state updates land in the same render, so nothing flickers.
+      onMoveNodes(positions);
+    }
     setDragPositions({});
-  }, [getNodes, onMoveNodes]);
+  }, [getNodes, onMoveNodes, onMoveGhost, ghostAnchors]);
 
   /**
    * A line can be pulled from a step's own point or from a "+", and a "+" is

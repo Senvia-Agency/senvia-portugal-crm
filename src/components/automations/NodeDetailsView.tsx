@@ -38,6 +38,8 @@ interface NodeDetailsViewProps {
   /** The flow's reentry policy — message triggers edit it as «Só uma vez por número». */
   reentryPolicy: AutomationReentryPolicy;
   onReentryChange: (policy: AutomationReentryPolicy) => void;
+  /** The execution shown on the canvas — its data is what Entrada and Saída show first. */
+  runId?: string | null;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -62,7 +64,7 @@ const isEngineKey = (key: string) => key.startsWith('__');
  */
 export function NodeDetailsView({
   node, isEntry, flowId, graph, triggerType, stats, onChange, onChangeTrigger,
-  reentryPolicy, onReentryChange, onDelete, onClose,
+  reentryPolicy, onReentryChange, onDelete, onClose, runId,
 }: NodeDetailsViewProps) {
   const [pane, setPane] = useState<Pane>('params');
 
@@ -88,10 +90,22 @@ export function NodeDetailsView({
 
   // The sample for the input column: the run of the most recent step through
   // this node, else the flow's most recent run at all.
+  // With an execution on the canvas, that one — like opening a node of an
+  // execution in n8n.
   const sampleRun: AutomationRun | null = useMemo(() => {
+    const viewed = runId ? runs?.find((r) => r.id === runId) : undefined;
+    if (viewed) return viewed;
     const latestStepRunId = nodeSteps?.[0]?.run?.id;
     return (latestStepRunId && runs?.find((r) => r.id === latestStepRunId)) ?? runs?.[0] ?? null;
-  }, [nodeSteps, runs]);
+  }, [nodeSteps, runs, runId]);
+
+  // The viewed execution's step first; the earlier ones after it.
+  const orderedSteps = useMemo(() => {
+    if (!nodeSteps || !runId) return nodeSteps ?? [];
+    const own = nodeSteps.filter((item) => item.run?.id === runId);
+    return [...own, ...nodeSteps.filter((item) => item.run?.id !== runId)];
+  }, [nodeSteps, runId]);
+  const ranInViewedRun = !!runId && orderedSteps.some((item) => item.run?.id === runId);
 
   // For the trigger node the input is its OWN record (so it changes as the
   // trigger is changed); for any other step, whatever the flow's trigger sends.
@@ -321,14 +335,24 @@ export function NodeDetailsView({
                   Este passo ainda não correu. Testa a automação, ou ativa-a, e o resultado aparece aqui.
                 </p>
               ) : (
+                <>
+                {runId && !ranInViewedRun && (
+                  <p className="mb-2 rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
+                    Na execução que está no fluxo, este passo não correu. Em baixo, as vezes anteriores.
+                  </p>
+                )}
                 <ol className="space-y-2">
-                  {nodeSteps.map(({ step, run }) => {
+                  {orderedSteps.map(({ step, run }) => {
+                    const isViewed = !!runId && run?.id === runId;
                     const meta = STEP_STATUS_META[step.status] ?? STEP_STATUS_META.ok;
                     const StepIcon = meta.icon;
                     const rows = describeStepDetail(step.detail, lookups);
                     return (
-                      <li key={step.id} className={cn('rounded-xl border bg-background p-3', step.status === 'failed' ? 'border-destructive/40' : 'border-border')}>
+                      <li key={step.id} className={cn('rounded-xl border bg-background p-3', step.status === 'failed' ? 'border-destructive/40' : 'border-border', isViewed && 'ring-2 ring-primary/40')}>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          {isViewed && (
+                            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-semibold text-primary">Nesta execução</span>
+                          )}
                           <StepIcon className={cn('h-3.5 w-3.5 shrink-0', meta.className)} />
                           <span className="text-xs font-semibold text-foreground">
                             {run?.contact_name || run?.contact_phone || run?.contact_email || 'Contacto'}
@@ -362,6 +386,7 @@ export function NodeDetailsView({
                     );
                   })}
                 </ol>
+                </>
               )}
             </div>
             </div>

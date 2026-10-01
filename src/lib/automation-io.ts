@@ -10,7 +10,7 @@
 import type {
   AutomationGraph, AutomationGraphNode, AutomationNodeType, AutomationRun, AutomationTriggerType,
 } from '@/types/automations';
-import { getNodeDefinition } from '@/lib/automation-nodes';
+import { LOOKUP_OPERATORS, getNodeDefinition } from '@/lib/automation-nodes';
 
 export interface IoField {
   /** The variable name: `{{key}}` in a message. */
@@ -225,6 +225,20 @@ function upstreamNodes(graph: AutomationGraph, nodeId: string): AutomationGraphN
   return [...seen].map((id) => byId.get(id)).filter((n): n is AutomationGraphNode => !!n);
 }
 
+/** What a Condição that looks the contact up adds to the run when it finds it. */
+const CONTACT_LOOKUP_FIELDS: IoField[] = [
+  { key: 'encontrado_em', label: 'Encontrado em', hint: '«cliente», «lead», ou vazio quando não existe' },
+  { key: 'cliente_id', label: 'Cliente (id)', hint: 'quando é cliente' },
+  { key: 'cliente_nome', label: 'Nome do cliente', hint: 'como está na ficha do cliente' },
+  { key: 'cliente_codigo', label: 'Código do cliente' },
+  { key: 'lead_id', label: 'Lead (id)', hint: 'quando é lead' },
+  { key: 'lead_nome', label: 'Nome da lead', hint: 'como está na ficha da lead' },
+];
+
+function looksUpContact(node: AutomationGraphNode): boolean {
+  return node.type === 'condition' && LOOKUP_OPERATORS.includes(String(node.config?.operator ?? ''));
+}
+
 function waitsForReply(node: AutomationGraphNode): boolean {
   return node.type === 'wait_reply'
     || (node.type === 'send_whatsapp' && node.config?.wait_reply === true && (node.config?.rules?.length ?? 0) > 0);
@@ -237,7 +251,9 @@ function waitsForReply(node: AutomationGraphNode): boolean {
 export function inputFieldsFor(graph: AutomationGraph, node: AutomationGraphNode, triggerType: string | null): IoField[] {
   const trigger = triggerInput(triggerType);
   const fields: IoField[] = [...CONTACT_FIELDS, ...(trigger?.fields ?? [])];
-  if (upstreamNodes(graph, node.id).some(waitsForReply)) fields.push(REPLY_FIELD);
+  const upstream = upstreamNodes(graph, node.id);
+  if (upstream.some(waitsForReply)) fields.push(REPLY_FIELD);
+  if (upstream.some(looksUpContact)) fields.push(...CONTACT_LOOKUP_FIELDS);
   // One entry per key, first definition wins.
   const seen = new Set<string>();
   return fields.filter((f) => (seen.has(f.key) ? false : (seen.add(f.key), true)));
@@ -292,6 +308,16 @@ export function nodeOutput(node: AutomationGraphNode, triggerType: string | null
     case 'wait':
       return { summary: 'Pára o percurso durante o tempo indicado (respeita o horário de silêncio) e segue.', fields: [] };
     case 'condition':
+      if (LOOKUP_OPERATORS.includes(String(cfg.operator ?? ''))) {
+        const where = cfg.operator === 'in_leads' ? 'nas leads'
+          : cfg.operator === 'in_crm' ? 'nos clientes e nas leads'
+          : 'nos clientes';
+        return {
+          summary: `Procura «${String(cfg.field ?? 'campo')}» ${where} e segue por «sim» (existe) ou «não» (não existe).`,
+          fields: CONTACT_LOOKUP_FIELDS,
+          branches: ['sim', 'não'],
+        };
+      }
       return {
         summary: `Compara «${String(cfg.field ?? 'campo')}» com o valor indicado e segue pelo caminho «sim» ou «não».`,
         fields: [],

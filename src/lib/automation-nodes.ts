@@ -693,6 +693,27 @@ export function isWaitingWhatsapp(node: AutomationGraphNode | undefined): boolea
     && !!node.config?.rules?.length;
 }
 
+/**
+ * The list of reply options added at the end of a WhatsApp message that waits
+ * for an answer — exactly what the engine appends (automation-engine,
+ * `replyOptionsText`), so the inspector can preview it. Empty for "none".
+ */
+export function formatReplyOptions(
+  rules: Array<{ label?: string; keywords?: string[] }>,
+  style: 'emoji' | 'number' | 'none' = 'emoji',
+): string {
+  if (style === 'none' || !rules.length) return '';
+  return rules
+    .map((rule, i) => {
+      const label = rule.label ?? rule.keywords?.[0] ?? '';
+      // Keycap emoji exist for single digits only: 10 becomes 1️⃣0️⃣.
+      const n = String(i + 1);
+      const marker = style === 'number' ? `${n}.` : [...n].map((d) => `${d}️⃣`).join('');
+      return `${marker} ${label}`;
+    })
+    .join('\n');
+}
+
 export function getNodeBranches(node: AutomationGraphNode | undefined): NodeBranch[] {
   if (!node) return [];
 
@@ -756,10 +777,19 @@ export const CONDITION_OPERATOR_OPTIONS = [
   { value: 'not_exists', label: 'Está vazio' },
   { value: 'greater_than', label: 'É maior que' },
   { value: 'less_than', label: 'É menor que' },
+  { value: 'in_clients', label: 'Existe nos clientes' },
+  { value: 'in_leads', label: 'Existe nas leads' },
+  { value: 'in_crm', label: 'Existe nos clientes ou leads' },
 ];
 
+/**
+ * Operators that look the field's value up in the organization's records
+ * (clients, leads, or either) instead of comparing it with a value.
+ */
+export const LOOKUP_OPERATORS = ['in_clients', 'in_leads', 'in_crm'];
+
 /** Operators that take no value input. */
-export const VALUELESS_OPERATORS = ['exists', 'not_exists'];
+export const VALUELESS_OPERATORS = ['exists', 'not_exists', ...LOOKUP_OPERATORS];
 
 /** Operators whose value is a number. */
 export const NUMERIC_OPERATORS = ['greater_than', 'less_than'];

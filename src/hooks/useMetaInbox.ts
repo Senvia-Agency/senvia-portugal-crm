@@ -49,6 +49,10 @@ export interface MetaMessage {
     url: string | null;
     media_id?: string | null;
     mime?: string | null;
+    /** Document name, when the sender gave one (WhatsApp documents, automation files). */
+    filename?: string | null;
+    /** Bytes, when known. */
+    size?: number | null;
   }>;
   /** Só o WhatsApp dá isto: sent | delivered | read | failed. */
   delivery_status: string | null;

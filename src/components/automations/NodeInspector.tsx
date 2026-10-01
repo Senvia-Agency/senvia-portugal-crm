@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  CONDITION_FIELD_OPTIONS, CONDITION_OPERATOR_OPTIONS, MESSAGE_BUFFER_DEFAULT_SECONDS,
+  CONDITION_FIELD_OPTIONS, CONDITION_OPERATOR_OPTIONS, LOOKUP_OPERATORS, MESSAGE_BUFFER_DEFAULT_SECONDS,
   MESSAGE_BUFFER_MAX_SECONDS, NUMERIC_OPERATORS, SALE_STATUS_OPTIONS, TRIGGER_TYPES,
-  VALUELESS_OPERATORS, WAIT_UNIT_OPTIONS, getNodeLabel, normalizeConditionOperator,
+  VALUELESS_OPERATORS, WAIT_UNIT_OPTIONS, formatReplyOptions, getNodeLabel, normalizeConditionOperator,
 } from '@/lib/automation-nodes';
 import { TriggerPicker } from '@/components/automations/TriggerPicker';
 import { useFlowVariables } from '@/components/automations/FlowIoContext';
@@ -791,11 +791,9 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
   };
 
   const handleRemove = () => {
-    // Best-effort cleanup — the message config no longer references the file
-    // either way, and RLS lets org members delete their own uploads.
-    if (media?.path) {
-      void supabase.storage.from('automation-media').remove([media.path]);
-    }
+    // The file stays in storage. Messages this step already sent point at it —
+    // the conversation in the Caixa de Entrada shows them from there — and
+    // deleting it turned those into "a imagem já não está disponível".
     set({ media: undefined, media_url: undefined });
   };
 
@@ -951,12 +949,34 @@ function ReplyRulesEditor({
         como enviado e a mensagem nunca chegava a ninguém. As opções vão
         numeradas no texto e responder «1»/«2» escolhe o caminho na mesma.
       */}
-      <div className="rounded-lg border border-border bg-muted/40 p-3">
+      <Field label="Opções no fim da mensagem">
+        <Select
+          value={config.options_style ?? 'emoji'}
+          onValueChange={(value) => set({ options_style: value as AutomationNodeConfig['options_style'] })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="emoji">Numeradas com emoji (1️⃣ Sim)</SelectItem>
+            <SelectItem value="number">Numeradas (1. Sim)</SelectItem>
+            <SelectItem value="none">Não mostrar — a mensagem já explica</SelectItem>
+          </SelectContent>
+        </Select>
+        {(() => {
+          const preview = formatReplyOptions(rules, config.options_style ?? 'emoji');
+          return preview ? (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <p className="text-[11px] font-medium text-muted-foreground">Acrescentado no fim da mensagem:</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{preview}</p>
+            </div>
+          ) : (
+            <Helper>Nada é acrescentado: só sai o texto que escreveste.</Helper>
+          );
+        })()}
         <Helper>
-          As opções aparecem numeradas na mensagem e o contacto responde «1», «2»… — também
-          reconhecemos as palavras-chave de cada opção.
+          Em qualquer caso, o contacto pode responder com o número («1», «2»…), com o nome da
+          opção ou com uma das palavras-chave dela.
         </Helper>
-      </div>
+      </Field>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -1111,6 +1131,17 @@ function ConditionForm({
             ))}
           </SelectContent>
         </Select>
+        {LOOKUP_OPERATORS.includes(operator) && (
+          isPhoneField || /email/i.test(field) ? (
+            <Helper>
+              Procura este {isPhoneField ? 'telefone (os últimos 9 dígitos, por isso «+351», espaços e traços não contam)' : 'email'}
+              {' '}na base de dados da organização. Quando existe, os passos seguintes podem usar
+              {' '}{'{{cliente_nome}}'}, {'{{lead_nome}}'} e {'{{encontrado_em}}'}.
+            </Helper>
+          ) : (
+            <FieldError>Escolhe o campo Telefone ou Email: é por eles que o contacto é procurado.</FieldError>
+          )
+        )}
       </Field>
 
       {!isValueless && (

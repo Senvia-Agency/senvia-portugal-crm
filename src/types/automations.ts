@@ -133,7 +133,12 @@ export type ConditionOperator =
   | 'exists'
   | 'not_exists'
   | 'greater_than'
-  | 'less_than';
+  | 'less_than'
+  // Look the field's value (a phone or an email) up in the organization's
+  // records: Sim when it is there, Não when it is not.
+  | 'in_clients'
+  | 'in_leads'
+  | 'in_crm';
 
 export type AutomationMediaKind = 'image' | 'video' | 'document';
 
@@ -186,6 +191,12 @@ export interface AutomationNodeConfig {
   /** Legacy shape kept for graphs saved by older editors. */
   timeout?: AutomationDuration;
   rules?: WaitReplyRule[];
+  /**
+   * How the reply options are listed at the end of the message: "1️⃣ Sim"
+   * (default, what older flows send), "1. Sim", or not at all when the text
+   * already explains them. Replies are matched the same way in every case.
+   */
+  options_style?: 'emoji' | 'number' | 'none';
   // condition
   field?: string;
   operator?: ConditionOperator;
@@ -230,6 +241,12 @@ export interface AutomationGraphNode {
    * recomputed with dagre.
    */
   position?: { x: number; y: number };
+  /**
+   * Where the "+" of each free branch was dragged to, relative to this step
+   * (key = branch key, "" for a step without branches). Moves with the step;
+   * a step added on that branch is born there. "Auto-organizar" clears it.
+   */
+  ghostOffsets?: Record<string, { dx: number; dy: number }>;
 }
 
 export interface AutomationGraphEdge {
