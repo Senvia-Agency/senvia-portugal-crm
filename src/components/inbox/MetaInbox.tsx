@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, MessageCircle, Send, PanelLeft, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   type MetaConversation, type MetaMessage, type WhatsAppTemplate,
 } from '@/hooks/useMetaInbox';
 import { ListStatusTicks } from './StatusTicks';
+import { MediaViewer, type MediaItem } from './MediaViewer';
 
 /**
  * Caixa de Instagram / Messenger.
@@ -210,6 +211,45 @@ interface Pendente {
   erro?: string | null;
 }
 
+/** Um ficheiro colado na caixa de escrita, ainda por enviar. */
+interface Colado {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+/**
+ * As imagens de uma conversa abrem num visualizador em ecrã inteiro, como no
+ * WhatsApp Web: quem enviou, quando, a legenda, setas para as outras imagens.
+ * As do WhatsApp por QR só têm endereço depois de carregadas (um ficheiro
+ * local do browser), por isso cada imagem regista-se aqui quando aparece.
+ */
+const VisualizadorContext = createContext<{
+  registar: (chave: string, url: string) => void;
+  abrir: (chave: string, url: string) => void;
+} | null>(null);
+
+/** Guarda a imagem no computador; se o servidor dela não deixar lê-la, abre-a num separador. */
+async function descarregarImagem(url: string) {
+  try {
+    const blob = await (await fetch(url)).blob();
+    const ext = blob.type === 'image/png' ? 'png'
+      : blob.type === 'image/webp' ? 'webp'
+      : blob.type === 'image/gif' ? 'gif'
+      : 'jpg';
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = `imagem-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  } catch {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
 function MetaThread({
   conversation,
   channelType,
@@ -239,6 +279,50 @@ function MetaThread({
   // veria a lista vazia do primeiro render.
   const pendentesRef = useRef<Pendente[]>([]);
   pendentesRef.current = pendentes;
+  // Imagens coladas com Ctrl+V (um print, por exemplo), à espera de Enviar —
+  // como no WhatsApp Web. Um colar sem querer não pode chegar ao cliente.
+  const [colados, setColados] = useState<Colado[]>([]);
+  const coladosRef = useRef<Colado[]>([]);
+  coladosRef.current = colados;
+
+  // Visualizador de imagens. As mensagens vão por ref para o contexto ficar
+  // estável: mudar a cada mensagem nova fazia todas as imagens registarem-se
+  // outra vez.
+  const [visualizador, setVisualizador] = useState<{ itens: MediaItem[]; indice: number } | null>(null);
+  const urlsCarregadas = useRef(new Map<string, string>());
+  const mensagensRef = useRef<MetaMessage[]>([]);
+  mensagensRef.current = messages;
+  const contactoRef = useRef(conversation.contact_name || conversation.contact_ref);
+  contactoRef.current = conversation.contact_name || conversation.contact_ref;
+  const contextoVisualizador = useMemo(() => ({
+    registar: (chave: string, url: string) => { urlsCarregadas.current.set(chave, url); },
+    abrir: (chave: string, url: string) => {
+      const itens: Array<MediaItem & { chave: string }> = [];
+      for (const m of mensagensRef.current) {
+        if (m.is_deleted) continue;
+        (m.attachments ?? []).forEach((a, i) => {
+          if (a.type !== 'image') return;
+          const k = `${m.id}:${i}`;
+          const u = a.url || urlsCarregadas.current.get(k);
+          if (!u) return; // do WhatsApp e ainda por carregar
+          itens.push({
+            chave: k,
+            url: u,
+            type: 'image',
+            title: m.direction === 'outgoing' ? 'Tu' : contactoRef.current,
+            subtitle: formatDateTime(m.sent_at ?? m.created_at),
+            caption: m.content?.trim() || undefined,
+          });
+        });
+      }
+      let indice = itens.findIndex((it) => it.chave === chave);
+      if (indice < 0) {
+        itens.splice(0, itens.length, { chave, url, type: 'image' });
+        indice = 0;
+      }
+      setVisualizador({ itens, indice });
+    },
+  }), []);
   const queryClient = useQueryClient();
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -255,6 +339,7 @@ function MetaThread({
   // browser até serem largados à mão.
   useEffect(() => () => {
     pendentesRef.current.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
+    coladosRef.current.forEach((c) => URL.revokeObjectURL(c.previewUrl));
   }, []);
 
   // A Meta só deixa responder até 24h depois da última mensagem DA PESSOA.
@@ -338,38 +423,84 @@ function MetaThread({
 
   const handleSend = () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text && colados.length === 0) return;
     // Limpa-se já a caixa de texto: a bolha passa a ser o sítio onde a mensagem
-    // vive, e é lá que se vê se foi ou não.
-    const item: Pendente = {
-      id: crypto.randomUUID(),
-      texto: text,
-      replyToMid: replyTo?.external_id ?? null,
-    };
-    setPendentes((ps) => [...ps, item]);
+    // vive, e é lá que se vê se foi ou não. As imagens coladas vão primeiro e o
+    // texto a seguir, como uma legenda.
+    const itens = colados.map((c) => pendenteDeFicheiro(c.file, c.previewUrl));
+    if (text) {
+      itens.push({
+        id: crypto.randomUUID(),
+        texto: text,
+        replyToMid: replyTo?.external_id ?? null,
+      });
+    }
+    setPendentes((ps) => [...ps, ...itens]);
+    setColados([]);
     setDraft('');
-    setReplyTo(null);
-    void enviarPendente(item);
+    // A citação só segue com texto; sem ele, fica para a próxima mensagem.
+    if (text) setReplyTo(null);
+    // Uma de cada vez: em paralelo o texto, mais leve, chegava antes da imagem.
+    void (async () => { for (const item of itens) await enviarPendente(item); })();
   };
+
+  /** Pré-visualização sem esperar pela Meta: o ficheiro já está aqui. */
+  const pendenteDeFicheiro = (file: File, previewUrl?: string): Pendente => ({
+    id: crypto.randomUUID(),
+    ficheiro: file,
+    previewUrl: previewUrl ?? URL.createObjectURL(file),
+    tipo: file.type.startsWith('image/') ? 'image'
+      : file.type.startsWith('video/') ? 'video'
+      : file.type.startsWith('audio/') ? 'audio'
+      : 'file',
+  });
 
   /** Anexo ou nota de voz: mostra-se logo, a partir do ficheiro local. */
   const enviarFicheiro = (file: File) => {
-    const tipo = file.type.startsWith('image/') ? 'image'
-      : file.type.startsWith('video/') ? 'video'
-      : file.type.startsWith('audio/') ? 'audio'
-      : 'file';
-    const item: Pendente = {
-      id: crypto.randomUUID(),
-      ficheiro: file,
-      // Pré-visualização sem esperar pela Meta: o ficheiro já está aqui.
-      previewUrl: URL.createObjectURL(file),
-      tipo,
-    };
+    const item = pendenteDeFicheiro(file);
     setPendentes((ps) => [...ps, item]);
     void enviarPendente(item);
   };
 
+  /** Os mesmos formatos que o clipe deixa escolher (ver `accept` abaixo). */
+  const aceitaFicheiro = (file: File) =>
+    file.type === 'image/png' || file.type === 'image/jpeg'
+    || file.type.startsWith('video/') || file.type.startsWith('audio/')
+    || (channelType === 'facebook' && file.type === 'application/pdf');
+
+  /**
+   * Ctrl+V com ficheiros na área de transferência (um print, uma imagem
+   * copiada): ficam na pré-visualização em vez de se perderem. Devolve true
+   * quando tratou o colar; texto cola como sempre.
+   */
+  const colar = (dados: DataTransfer | null): boolean => {
+    const ficheiros = Array.from(dados?.files ?? []);
+    if (ficheiros.length === 0) return false;
+    const aceites = ficheiros.filter(aceitaFicheiro);
+    if (aceites.length < ficheiros.length) {
+      toast.error('Formato não suportado', {
+        description: channelType === 'facebook'
+          ? 'Só imagens PNG ou JPEG, vídeo, áudio ou PDF.'
+          : 'Só imagens PNG ou JPEG, vídeo ou áudio.',
+      });
+    }
+    if (aceites.length > 0) {
+      setColados((cs) => [
+        ...cs,
+        ...aceites.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) })),
+      ]);
+    }
+    return true;
+  };
+
+  const tirarColado = (id: string) => {
+    const colado = colados.find((c) => c.id === id);
+    if (colado) URL.revokeObjectURL(colado.previewUrl);
+    setColados((cs) => cs.filter((c) => c.id !== id));
+  };
+
   return (
+    <VisualizadorContext.Provider value={contextoVisualizador}>
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center gap-2 border-b p-3">
         <Button variant="ghost" size="sm" className="lg:hidden" onClick={onBack}>Voltar</Button>
@@ -453,6 +584,7 @@ function MetaThread({
                         // como a palavra "[image]".
                         mediaId={a.media_id ?? null}
                         messageId={m.id}
+                        viewerKey={`${m.id}:${i}`}
                       />
                     ))}
                   </>
@@ -597,6 +729,33 @@ function MetaThread({
               </button>
             </div>
           )}
+          {colados.length > 0 && (
+            <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/40 p-2">
+              {colados.map((c) => (
+                <div key={c.id} className="relative">
+                  {c.file.type.startsWith('image/') ? (
+                    <img src={c.previewUrl} alt="" className="h-16 w-16 rounded-md object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-md bg-background px-1 text-[10px] text-muted-foreground">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="w-full truncate text-center">{c.file.name}</span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => tirarColado(c.id)}
+                    title="Tirar"
+                    className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <p className="pb-0.5 text-[11px] text-muted-foreground">
+                Enter para enviar{colados.length > 1 ? ` as ${colados.length}` : ''}
+              </p>
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <input
               ref={fileRef}
@@ -629,7 +788,8 @@ function MetaThread({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
-              placeholder="Escreve a resposta…"
+              onPaste={(e) => { if (colar(e.clipboardData)) e.preventDefault(); }}
+              placeholder="Escreve a resposta… ou cola uma imagem"
               rows={1}
               className="max-h-32 min-h-[40px] resize-none"
             />
@@ -639,7 +799,7 @@ function MetaThread({
             {/* `&& !aGravar`: escrever uma letra a meio de uma gravação trocava
                 o gravador pelo botão de enviar, e a gravação era interrompida a
                 meio — enviando o pedaço já gravado. */}
-            {draft.trim() && !aGravar ? (
+            {(draft.trim() || colados.length > 0) && !aGravar ? (
               <Button onClick={handleSend} size="icon" className="h-10 w-10 shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
@@ -653,7 +813,18 @@ function MetaThread({
           </div>
         )}
       </footer>
+
+      {visualizador && (
+        <MediaViewer
+          items={visualizador.itens}
+          index={visualizador.indice}
+          onClose={() => setVisualizador(null)}
+          onNavigate={(indice) => setVisualizador((v) => (v ? { ...v, indice } : v))}
+          onDownload={(item) => { void descarregarImagem(item.url); }}
+        />
+      )}
     </section>
+    </VisualizadorContext.Provider>
   );
 }
 
@@ -717,20 +888,29 @@ function instagramCode(url: string): { seg: string; code: string } | null {
  * EXPIRAM. Enquanto a conversa é recente mostram-se; mais tarde deixam de
  * abrir, e por isso o link fica sempre disponível como alternativa.
  */
-function Attachment({ type, url, mediaId, messageId }: {
+function Attachment({ type, url, mediaId, messageId, viewerKey }: {
   type: string;
   url: string | null;
   /** WhatsApp: o id do ficheiro na Meta, quando não há endereço. */
   mediaId?: string | null;
   messageId?: string;
+  /** Mensagem e posição do anexo — o que o visualizador usa para o encontrar. */
+  viewerKey?: string;
 }) {
   const [broken, setBroken] = useState(false);
+  const visualizador = useContext(VisualizadorContext);
+
+  // A imagem já carregada fica conhecida do visualizador, para as setas
+  // passarem por ela mesmo sem nunca ter sido clicada.
+  useEffect(() => {
+    if (type === 'image' && url && viewerKey) visualizador?.registar(viewerKey, url);
+  }, [type, url, viewerKey, visualizador]);
 
   // O WhatsApp não manda o ficheiro — manda um id que só se resolve com o token
   // da conta, do lado do servidor. Sem este ramo, tudo o que um cliente
   // enviasse por WhatsApp aparecia como o nome do tipo entre parênteses.
   if (!url && mediaId && messageId) {
-    return <AnexoWhatsApp type={type} mediaId={mediaId} messageId={messageId} />;
+    return <AnexoWhatsApp type={type} mediaId={mediaId} messageId={messageId} viewerKey={viewerKey} />;
   }
 
   if (!url) return <span className="text-xs opacity-70">[{type}]</span>;
@@ -746,8 +926,19 @@ function Attachment({ type, url, mediaId, messageId }: {
   }
 
   if (type === 'image' && !broken) {
+    // Abre no visualizador em ecrã inteiro, como no WhatsApp Web. Antes era um
+    // link para o ficheiro num separador novo — e a imagem do WhatsApp, que é
+    // um ficheiro local do browser, abria numa aba sem nada à volta.
     return (
-      <a href={url} target="_blank" rel="noreferrer" className="mt-1 block">
+      <button
+        type="button"
+        title="Abrir imagem"
+        onClick={() => {
+          if (visualizador && viewerKey) visualizador.abrir(viewerKey, url);
+          else window.open(url, '_blank', 'noopener');
+        }}
+        className="mt-1 block cursor-zoom-in"
+      >
         <img
           src={url}
           alt="Imagem recebida"
@@ -755,7 +946,7 @@ function Attachment({ type, url, mediaId, messageId }: {
           className="max-h-64 max-w-full rounded-lg object-cover"
           loading="lazy"
         />
-      </a>
+      </button>
     );
   }
 
@@ -799,10 +990,11 @@ function Attachment({ type, url, mediaId, messageId }: {
  * cache de uma hora — mas é o sítio óbvio para pôr um observador de
  * visibilidade se algum dia se notar.
  */
-function AnexoWhatsApp({ type, mediaId, messageId }: {
+function AnexoWhatsApp({ type, mediaId, messageId, viewerKey }: {
   type: string;
   mediaId: string;
   messageId: string;
+  viewerKey?: string;
 }) {
   const { url, erro, aCarregar } = useMetaMedia(messageId, mediaId);
 
@@ -824,7 +1016,7 @@ function AnexoWhatsApp({ type, mediaId, messageId }: {
     );
   }
 
-  return <Attachment type={type} url={url} />;
+  return <Attachment type={type} url={url} viewerKey={viewerKey} />;
 }
 
 /**

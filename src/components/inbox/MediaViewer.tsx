@@ -13,6 +13,12 @@ export interface MediaItem {
   url: string;
   type: 'image' | 'video';
   filename?: string;
+  /** Who sent it — shown top-left, like WhatsApp ("Você", the contact's name). */
+  title?: string;
+  /** When it was sent. */
+  subtitle?: string;
+  /** The text sent with it. Stays on screen; the controls auto-hide. */
+  caption?: string;
 }
 
 export const MediaViewer = memo(function MediaViewer({
@@ -171,10 +177,13 @@ export const MediaViewer = memo(function MediaViewer({
       )}>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-white/90">
-            {item?.filename || (item?.type === 'video' ? 'Vídeo' : 'Imagem')}
+            {item?.title || item?.filename || (item?.type === 'video' ? 'Vídeo' : 'Imagem')}
           </p>
-          {items.length > 1 && (
-            <p className="text-xs text-white/50">{index + 1} de {items.length}</p>
+          {(item?.subtitle || items.length > 1) && (
+            <p className="text-xs text-white/50">
+              {[item?.subtitle, items.length > 1 ? `${index + 1} de ${items.length}` : null]
+                .filter(Boolean).join(' · ')}
+            </p>
           )}
         </div>
         {onDownload && item && (
@@ -260,7 +269,8 @@ export const MediaViewer = memo(function MediaViewer({
             draggable={false}
             onLoad={() => setImgLoaded(true)}
             className={cn(
-              'max-h-[90dvh] max-w-[95vw] select-none rounded-xl object-contain transition-opacity duration-200',
+              // Room above for the sender bar and below for the caption and zoom.
+              'max-h-[calc(100dvh-10rem)] max-w-[92vw] select-none rounded-xl object-contain transition-opacity duration-200',
               imgLoaded ? 'opacity-100' : 'opacity-0',
             )}
             style={{
@@ -271,11 +281,49 @@ export const MediaViewer = memo(function MediaViewer({
         </div>
       ) : null}
 
-      {/* Bottom zoom controls (images only) */}
+      {/* Bottom: thumbnails, caption, zoom — stacked so they never overlap.
+          The caption stays put; the controls fade with the rest. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 px-4 pb-4">
+      {items.length > 1 && (
+        <div className={cn(
+          'hidden gap-1 transition-opacity duration-300 md:flex',
+          showControls ? 'pointer-events-auto opacity-100' : 'opacity-0',
+        )}>
+          {items.slice(Math.max(0, index - 3), index + 4).map((it, i) => {
+            const realIdx = Math.max(0, index - 3) + i;
+            return (
+              <button
+                key={realIdx}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onNavigate(realIdx); }}
+                className={cn(
+                  'h-12 w-12 overflow-hidden rounded-md border-2 transition-all',
+                  realIdx === index ? 'border-primary opacity-100' : 'border-transparent opacity-50 hover:opacity-80',
+                )}
+              >
+                {it.type === 'image' ? (
+                  <img src={it.url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-white/10">
+                    <video src={it.url} className="h-full w-full object-cover" muted />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {item?.caption && (
+        <p className="pointer-events-auto max-h-28 max-w-3xl overflow-y-auto whitespace-pre-wrap break-words text-center text-sm text-white/90">
+          {item.caption}
+        </p>
+      )}
+
       {item?.type === 'image' && (
         <div className={cn(
-          'absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/60 px-2 py-1.5 backdrop-blur transition-opacity duration-300',
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none',
+          'flex items-center gap-1 rounded-full bg-black/60 px-2 py-1.5 backdrop-blur transition-opacity duration-300',
+          showControls ? 'pointer-events-auto opacity-100' : 'opacity-0',
         )}>
           <button
             type="button"
@@ -307,34 +355,7 @@ export const MediaViewer = memo(function MediaViewer({
           </button>
         </div>
       )}
-
-      {/* Touch thumbnail strip (if more than 1 item) */}
-      {items.length > 1 && showControls && (
-        <div className="absolute bottom-16 left-1/2 z-10 hidden -translate-x-1/2 gap-1 md:flex">
-          {items.slice(Math.max(0, index - 3), index + 4).map((it, i) => {
-            const realIdx = Math.max(0, index - 3) + i;
-            return (
-              <button
-                key={realIdx}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onNavigate(realIdx); }}
-                className={cn(
-                  'h-12 w-12 overflow-hidden rounded-md border-2 transition-all',
-                  realIdx === index ? 'border-primary opacity-100' : 'border-transparent opacity-50 hover:opacity-80',
-                )}
-              >
-                {it.type === 'image' ? (
-                  <img src={it.url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-white/10">
-                    <video src={it.url} className="h-full w-full object-cover" muted />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      </div>
     </div>
   );
 });

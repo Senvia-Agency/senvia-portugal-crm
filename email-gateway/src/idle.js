@@ -57,6 +57,14 @@ async function isCrmContact(orgId, email) {
 // it doesn't select/open the mailbox, just asks the server for counters.
 const FOLDER_POLL_MS = 3 * 60 * 1000;
 
+// A sync that never settles — an IMAP fetch or a DB write on a connection that
+// died without closing — used to leave `syncing` on for good. New mail and the
+// folder poll both skip while it is on, so the caixa went silent for days with
+// the process up (2026-09-29 → 10-01). Past this long, a sync is presumed hung:
+// the IMAP connection is rebuilt, and connect() resyncs everything.
+const SYNC_HANG_MS = 5 * 60 * 1000;
+const WATCHDOG_MS = 60 * 1000;
+
 class CaixaManager {
   constructor(caixa) {
     this.caixa = caixa;
@@ -64,24 +72,66 @@ class CaixaManager {
     this.inboxFolder = null;
     this.stopped = false;
     this.syncing = false;
+    this.syncStartedAt = 0;
+    // Bumped on every sync: a hung one that settles after the watchdog gave up
+    // on it must not switch off the flag of the sync running now.
+    this.syncSeq = 0;
     this.reconnectMs = 5000;
+    this.reconnectTimer = null;
     this.lastError = null;
     this.folderPollTimer = null;
+    this.watchdogTimer = null;
   }
 
   async start() {
     this.stopped = false;
+    if (!this.watchdogTimer) {
+      this.watchdogTimer = setInterval(() => this.watchdog(), WATCHDOG_MS);
+    }
     await this.connect();
+  }
+
+  /** Marks a sync as running; returns the function that marks it finished. */
+  beginSync() {
+    const seq = ++this.syncSeq;
+    this.syncing = true;
+    this.syncStartedAt = Date.now();
+    return () => { if (this.syncSeq === seq) this.syncing = false; };
+  }
+
+  watchdog() {
+    if (this.stopped || !this.syncing) return;
+    const stuckMs = Date.now() - this.syncStartedAt;
+    if (stuckMs < SYNC_HANG_MS) return;
+    log(`[${this.caixa.label}] sincronização presa há ${Math.round(stuckMs / 60000)} min — a refazer a ligação`);
+    this.lastError = 'sincronização presa; ligação refeita';
+    this.syncSeq++;
+    this.syncing = false;
+    this.forceReconnect();
+  }
+
+  /** Drops the current IMAP connection and opens a fresh one (with a full resync). */
+  forceReconnect() {
+    const old = this.client;
+    this.client = null;
+    this.clearFolderPoll();
+    try { old?.close(); } catch { /* already gone */ }
+    this.scheduleReconnect();
   }
 
   async connect() {
     if (this.stopped) return;
     this.clearFolderPoll(); // guard against connect() being called again mid-poll-cycle (reconnects)
+    const endSync = this.beginSync();
     try {
       const client = new ImapFlow(await imapConfig(this.caixa));
       this.client = client;
       client.on('error', (err) => { this.lastError = err.message; });
-      client.on('close', () => { if (!this.stopped) this.scheduleReconnect(); });
+      // Only the current connection reconnects: one the watchdog already
+      // replaced closing late must not open a second, parallel one.
+      client.on('close', () => {
+        if (!this.stopped && (this.client === client || this.client === null)) this.scheduleReconnect();
+      });
       await client.connect();
       log(`[${this.caixa.label}] IMAP ligado`);
       this.reconnectMs = 5000;
@@ -112,6 +162,8 @@ class CaixaManager {
       this.lastError = err.message;
       log(`[${this.caixa.label}] falha de ligação: ${err.message}`);
       this.scheduleReconnect();
+    } finally {
+      endSync();
     }
   }
 
@@ -156,6 +208,16 @@ class CaixaManager {
       }
     }
     await this.reselectInbox(touchedOtherMailbox);
+    // Heartbeat: every folder was just checked against IMAP. Without it,
+    // last_synced_at only moved on a full sync, so a caixa that had stopped
+    // syncing looked exactly like one with no new mail.
+    if (!this.stopped && this.client?.usable) {
+      try {
+        await q(`UPDATE email_folders SET last_synced_at=now() WHERE channel_id=$1`, [this.caixa.id]);
+      } catch (e) {
+        log(`[${this.caixa.label}] aviso ao marcar a sincronização: ${e.message}`);
+      }
+    }
   }
 
   // `syncFolderMessages` SELECTs the target folder on our one shared client via
@@ -178,7 +240,7 @@ class CaixaManager {
 
   async onNewMail() {
     if (!this.client || !this.inboxFolder || this.syncing) return;
-    this.syncing = true;
+    const endSync = this.beginSync();
     try {
       await syncFolderMessages(this.client, this.caixa, this.inboxFolder, 15);
       await backfillBodies(this.client, this.caixa, 15);
@@ -197,7 +259,7 @@ class CaixaManager {
     } catch (err) {
       log(`[${this.caixa.label}] erro ao sincronizar novo email: ${err.message}`);
     } finally {
-      this.syncing = false;
+      endSync();
     }
     // Vacation auto-reply runs after sync, outside the sync guard.
     try { await this.maybeVacationReply(); }
@@ -270,29 +332,39 @@ class CaixaManager {
   async resync() {
     if (!this.client?.usable) throw new Error('caixa desligada');
     if (this.syncing) return;
-    this.syncing = true;
+    const endSync = this.beginSync();
     try {
       await syncCaixaFull(this.client, this.caixa, { perFolder: 50, bodyCap: 200 });
     } finally {
-      this.syncing = false;
+      endSync();
     }
   }
 
   scheduleReconnect() {
-    if (this.stopped) return;
+    // One pending reconnect at a time: a failed connect() reports it twice (its
+    // catch and the client's close), and two would leave two live connections.
+    if (this.stopped || this.reconnectTimer) return;
     const ms = this.reconnectMs;
     this.reconnectMs = Math.min(this.reconnectMs * 2, 60_000);
     log(`[${this.caixa.label}] a reconectar em ${Math.round(ms / 1000)}s`);
-    setTimeout(() => this.connect(), ms);
+    this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.connect(); }, ms);
   }
 
   status() {
-    return { id: this.caixa.id, label: this.caixa.label, connected: !!this.client?.usable, lastError: this.lastError };
+    return {
+      id: this.caixa.id,
+      label: this.caixa.label,
+      connected: !!this.client?.usable,
+      lastError: this.lastError,
+      syncingForMs: this.syncing ? Date.now() - this.syncStartedAt : 0,
+    };
   }
 
   async stop() {
     this.stopped = true;
     this.clearFolderPoll();
+    if (this.watchdogTimer) { clearInterval(this.watchdogTimer); this.watchdogTimer = null; }
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     try { await this.client?.logout(); } catch { /* ignore */ }
   }
 }
