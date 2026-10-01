@@ -103,7 +103,7 @@ function TelecomSalesFilters({
           onChange={onDateRangeChange}
           placeholder="Todo o histórico"
           // flex-1, not w-full: the clear (×) button sits beside it (see Finance).
-          className="min-w-0 flex-1 overflow-hidden"
+          className="h-9 min-w-0 flex-1 overflow-hidden px-3 text-xs"
         />
       }
     />

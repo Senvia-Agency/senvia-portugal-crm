@@ -87,7 +87,7 @@ function TelecomFinanceFilters({
           // flex-1, not w-full: the clear (×) button sits beside it, and
           // w-full + × was wider than the column — the whole card scrolled
           // sideways and every filter looked cut off.
-          className="min-w-0 flex-1 overflow-hidden"
+          className="h-9 min-w-0 flex-1 overflow-hidden px-3 text-xs"
         />
       }
     />

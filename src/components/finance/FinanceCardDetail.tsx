@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -668,25 +668,37 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
           {type === "faturado" && orgIsTelecom ? "Total de Comissão" : TITLES[type]}
         </h2>
 
-        {searchable && (
-          <div className="relative ml-auto w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={ownSearch}
-              onChange={(e) => setOwnSearch(e.target.value)}
-              placeholder="Pesquisar cliente, código ou produto..."
-              className="h-9 pl-8"
-              aria-label="Pesquisar nesta lista"
-            />
-          </div>
-        )}
-
         {type === "expenses" && (
-          <Button size="sm" className={cn("gap-1.5", !searchable && "ml-auto")} onClick={() => setAddExpenseOpen(true)}>
+          <Button size="sm" className="ml-auto gap-1.5" onClick={() => setAddExpenseOpen(true)}>
             <Plus className="h-4 w-4" /> Nova Despesa
           </Button>
         )}
       </div>
+
+      {/* Its own row, under the title: the list it filters starts right below. */}
+      {searchable && (
+        // Same look as the search on Vendas, so it reads as the place to type.
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
+          <Input
+            value={ownSearch}
+            onChange={(e) => setOwnSearch(e.target.value)}
+            placeholder="Pesquisar cliente, código ou produto..."
+            className="h-11 border-primary/40 bg-primary/[0.05] pl-10 pr-10 text-sm shadow-sm placeholder:text-muted-foreground/80 focus-visible:ring-2 focus-visible:ring-primary/25"
+            aria-label="Pesquisar nesta lista"
+          />
+          {ownSearch && (
+            <button
+              type="button"
+              onClick={() => setOwnSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              aria-label="Limpar pesquisa"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {type === "expenses" && <AddExpenseModal open={addExpenseOpen} onOpenChange={setAddExpenseOpen} />}
 

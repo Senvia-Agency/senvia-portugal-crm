@@ -154,7 +154,11 @@ export function CommissionFiltersBar({
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <div className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center', sidebar && 'sm:flex-col sm:items-stretch sm:gap-3')}>
+      {/* In the sidebar these are COLUMNS, and a column must not wrap: in a
+          wrapping column Chrome sizes the line to its widest child's natural
+          width (the period field with its ×), and every filter stretched past
+          the card's edge and got cut. nowrap keeps them at the card's width. */}
+      <div className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center', sidebar && 'sm:flex-col sm:flex-nowrap sm:items-stretch sm:gap-3')}>
         {sidebar && periodFilter && (
           <div className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">Período</span>
@@ -206,8 +210,8 @@ export function CommissionFiltersBar({
         {!sidebar && periodFilter}
       </div>
 
-      <div className={cn('flex flex-col gap-2 2xl:flex-row 2xl:flex-wrap 2xl:items-center 2xl:gap-x-6', sidebar && '2xl:flex-col 2xl:items-stretch 2xl:gap-3')}>
-        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
+      <div className={cn('flex flex-col gap-2 2xl:flex-row 2xl:flex-wrap 2xl:items-center 2xl:gap-x-6', sidebar && '2xl:flex-col 2xl:flex-nowrap 2xl:items-stretch 2xl:gap-3')}>
+        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col flex-nowrap items-stretch')}>
           <span className={labelClass}>
             <Activity className={labelIconClass} />Estado:
           </span>
@@ -242,7 +246,7 @@ export function CommissionFiltersBar({
           </div>
         </div>
 
-        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col items-start')}>
+        <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col flex-nowrap items-stretch')}>
           <span className={labelClass}>
             <Tags className={labelIconClass} />Tipos:
           </span>
