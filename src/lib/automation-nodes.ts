@@ -5,7 +5,7 @@
 import {
   UserPlus, Move, FileInput, MessageSquareText, ShoppingBag, ListChecks,
   MessageCircle, Mail, Clock, MessagesSquare, GitBranch, Columns3,
-  UserCheck, ListPlus, CheckSquare, Webhook, CircleStop,
+  UserCheck, ListPlus, CheckSquare, Webhook, CircleStop, Inbox,
   Users, UserCog, FileText, FileCheck, ShoppingCart, Rocket, CalendarDays,
   CalendarRange, Hourglass, AlarmClock, TimerOff, UserX, CreditCard,
   RefreshCw, AlertCircle, XCircle, BellRing, CalendarClock,
@@ -173,6 +173,16 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     label: 'Formulário submetido',
     description: 'Quando um formulário público é preenchido',
     icon: FileInput,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  message_received: {
+    type: 'message_received',
+    label: 'Mensagem recebida',
+    description: 'Quando chega uma mensagem a uma caixa de WhatsApp',
+    icon: Inbox,
     category: 'trigger',
     isTrigger: true,
     branching: false,
@@ -449,7 +459,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   send_whatsapp: {
     type: 'send_whatsapp',
     label: 'Enviar WhatsApp',
-    description: 'Envia uma mensagem e, se quiser, espera a resposta com botões',
+    description: 'Envia uma mensagem e, se quiser, espera a resposta e segue pelo caminho da opção escolhida',
     icon: MessageCircle,
     category: 'whatsapp',
     isTrigger: false,
@@ -570,6 +580,14 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
 };
 
 /**
+ * «Mensagem recebida» waits this long for the contact to stop writing, then
+ * starts once with everything they sent. Mirrors the engine's
+ * MESSAGE_BUFFER_* constants (automation-engine/index.ts).
+ */
+export const MESSAGE_BUFFER_DEFAULT_SECONDS = 15;
+export const MESSAGE_BUFFER_MAX_SECONDS = 60;
+
+/**
  * Curated triggers offered when creating a NEW flow. Legacy trigger types
  * render fine on the canvas but are deliberately not offered here.
  */
@@ -580,6 +598,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
   'lead_created_cold',
   'lead_status_changed',
   'form_submitted',
+  'message_received',
   'whatsapp_keyword',
   'sale_status_changed',
   'list_joined',
@@ -601,7 +620,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
 export const TRIGGER_GROUPS: ReadonlyArray<{ key: string; label: string; types: AutomationTriggerType[] }> = [
   { key: 'leads', label: 'Leads', types: ['lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined'] },
   { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue'] },
-  { key: 'whatsapp', label: 'WhatsApp', types: ['whatsapp_keyword'] },
+  { key: 'whatsapp', label: 'WhatsApp', types: ['message_received', 'whatsapp_keyword'] },
   { key: 'referrals', label: 'Indicações', types: ['referral_month_earned', 'referral_month_started', 'referral_month_ending_2d'] },
   { key: 'billing', label: 'Subscrição', types: ['subscription_renewal_due_2d', 'stripe_subscription_past_due'] },
 ];
@@ -822,6 +841,9 @@ export function getNodeSubtitle(node: AutomationGraphNode): string {
       return keywords.length ? truncate(keywords.join(', ')) : 'Sem palavras-chave';
     }
 
+    case 'message_received':
+      return config.channel_id ? 'Na caixa escolhida' : 'Em qualquer caixa de WhatsApp';
+
     case 'form_submitted':
       return config.form_slug ? truncate(String(config.form_slug)) : 'Qualquer formulário';
 
@@ -860,7 +882,7 @@ export function getTriggerFamily(triggerType: string | null | undefined): string
   if (t.startsWith('sale_')) return 'sale';
   if (t.startsWith('client_')) return 'client';
   if (t.startsWith('proposal_')) return 'proposal';
-  if (t.startsWith('whatsapp_')) return 'whatsapp';
+  if (t.startsWith('whatsapp_') || t === 'message_received') return 'whatsapp';
   if (t.startsWith('list_')) return 'list';
   return 'other';
 }

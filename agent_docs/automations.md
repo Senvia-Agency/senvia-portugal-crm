@@ -93,8 +93,8 @@ has already gone out, which is too late.
 | Action | Called by | Does |
 |---|---|---|
 | `enroll` | `notify_automation_trigger` (DB trigger) for CRUD events; `submit-lead` directly for `form_submitted` and the temperature triggers; `automation-engine`'s own `handleKeywordStart` for `whatsapp_keyword` | Finds active flows for `(org, trigger_type)`, applies any trigger-level filter (`trigger_config.form_id`, `.to_stage`, `.keywords`), creates a run, walks the graph until it parks. |
-| `tick` | cron `automation-engine-tick`, every minute | Wakes runs whose `wake_at` passed. For `awaiting_reply` that means the reply never came → takes the `timeout` branch. |
-| `reply` | `chatwoot-webhook` on every inbound message | Resumes the run parked on this phone number and branches by keyword; if none is parked, tries to **start** a `whatsapp_keyword` flow. |
+| `tick` | cron `automation-engine-tick`, every minute; `evolution-webhook` when a message buffer ends | Wakes runs whose `wake_at` passed. For `awaiting_reply` that means the reply never came → takes the `timeout` branch. |
+| `reply` | `evolution-webhook` on every inbound WhatsApp (QR) message | Resumes the run parked on this phone number and branches by keyword; if none is parked, tries to **start** a `whatsapp_keyword` flow, then a `message_received` one. Returns `buffered_until` when a run is waiting for more messages. |
 | `test` | the editor's "Testar" button | Runs a flow against a chosen contact, ignoring `status`/reentry — for trying a flow before activating it. Authorised per-request (admin of the flow's org), not by the shared secret. |
 
 Both `tick` and `reply` claim a run with a conditional `UPDATE … WHERE status = …`
@@ -134,7 +134,42 @@ flow — it only waits, never sends.
   reason `form_submitted` needs the form's identity, which the generic
   `lead_created` DB trigger payload doesn't carry.
 - **`whatsapp_keyword`** — has no DB trigger at all; only fires when a message
-  arrives that doesn't match any parked run (see `reply` above).
+  arrives that doesn't match any parked run (see `reply` above). The
+  conversation is the subject (when the message came through `evolution-webhook`),
+  so a contact who sends the keyword twice in a row gets one run, and
+  `reentry_policy` decides whether they can get it again later.
+- **`message_received`** — any message to a QR-code caixa (`trigger_config.channel_id`,
+  or any caixa when empty), started by `handleMessageStart` only when no keyword
+  flow claimed the message. Protection against one contact firing it many times,
+  modelled on how n8n WhatsApp flows do it (dedupe by message id + a per-number
+  message buffer + a per-number lock):
+  1. **Dedupe by message id** — `meta_messages` is unique on
+     `(conversation_id, external_id)`; `evolution-webhook` only notifies the engine
+     for a message it actually stored, so Evolution re-sending an event is a no-op.
+     Messages older than 10 minutes (history replayed on reconnect) are stored
+     but never notify.
+  2. **Buffer** — `trigger_config.buffer_seconds` (default 15, max 60, 0 = off).
+     The first message inserts the run as `waiting` with `wake_at = now + buffer`,
+     `context.__resume_node = entry` and `context.__collect_from = message time − 1s`.
+     Each further message from the same conversation pushes `wake_at` back while
+     the run is still parked on the trigger. When it wakes, the tick re-runs the
+     trigger node, which joins every incoming message since `__collect_from` into
+     `mensagem_inicial` (one per line) and sets `mensagens_agrupadas`. The webhook
+     sleeps until `buffered_until` and calls `tick` itself, so the answer does not
+     wait for the next cron minute.
+  3. **Lock** — the conversation is the subject (`subject_type = 'contact'`,
+     `subject_id = meta_conversations.id`; the `subject_type` check has no
+     `'conversation'`), so `uniq_active_run_per_subject`
+     allows one active run per conversation and flow; a concurrent insert gets
+     23505 and joins the winner's buffer instead. Messages that arrive once the
+     run has started stay in the Caixa de Entrada only.
+  After the run ends, `reentry_policy` decides whether the number can enter
+  again. The editor shows it on both message triggers as the switch **«Só uma
+  vez por número»**: on = `once` (checked by `contact_phone_key` across caixas,
+  test runs excluded since their `subject_id` is null), off = `after_completion`
+  (fires on every message; a Condição after the trigger filters who carries
+  on). The same value is the «Quem pode voltar a entrar» select in Definições;
+  the editor keeps one state for both and saves it with the flow.
 - **`referral_month_earned`** — the referral programme. Fires for the
   **agency** (the flow is Senvia's) when a referred organization makes its
   first paid invoice, i.e. the moment the referrer earns a free month.
@@ -268,3 +303,13 @@ internal/trial-signup contact") is **not checked anywhere** —
 this means a trial signup can receive the agency's ordinary "novo lead"
 automations (e.g. a client-facing welcome email) despite the flag saying it
 shouldn't.
+
+## Editor UX (n8n model, 2026-10-01)
+
+The editor follows n8n's structure; no small dialogs anywhere in the module.
+
+- **Create**: "Nova automação" inserts the flow at once (`Automação sem nome`, trigger `lead_created`) and navigates to `/automacoes/:id?novo=1`; the editor opens the trigger node's details view so choosing the trigger is the first step. Ready-made flows live in `RecipeGalleryDialog` (full screen, searchable), opened by "Usar modelo".
+- **Add step**: `NodesPanel` — a full-height drawer over the right of the canvas (canvas stays visible), search + category chips, Enter picks the first match, Esc closes. Replaces `NodePickerDialog`.
+- **Configure step**: `NodeDetailsView` — full-screen dialog with three columns: Entrada (variables with sample values from the latest run, trigger record), Parâmetros (`NodeInspector`, now form-only; the trigger node shows `TriggerPicker`), Saída (node stats + last 10 steps of this node across runs, via `useAutomationNodeSteps`). Edits apply to the in-memory graph; "Guardar" in the editor persists.
+- **Test**: `TestFlowDialog` is full screen, with the ordered step list and which contact field the flow needs.
+- The engine and the graph document are unchanged: data still flows through `run.context` and `{{variavel}}` rendering, not n8n's item/`$json` model.

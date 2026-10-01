@@ -89,7 +89,19 @@ export function useSales() {
         : { data: [], error: null };
       if (productResponse.error) throw productResponse.error;
 
-      const recurrencesBySaleId = new Map(recurrenceRows.map((recurrence) => [recurrence.sale_id, recurrence]));
+      // A sale can have more than one recurrence: cancelling the service and
+      // starting it again later creates a new one and keeps the old in the
+      // history. The current one is the most recent — the same rule as the
+      // sale detail (useSaleRecurrence). A plain Map kept whichever row the
+      // database happened to return last, so a sale already running again
+      // showed "Serviço: Cancelado" on its card.
+      const recurrencesBySaleId = new Map<string, (typeof recurrenceRows)[number]>();
+      for (const recurrence of recurrenceRows) {
+        const current = recurrencesBySaleId.get(recurrence.sale_id);
+        if (!current || recurrence.created_at > current.created_at) {
+          recurrencesBySaleId.set(recurrence.sale_id, recurrence);
+        }
+      }
       const cyclesByRecurrenceId = new Map<string, Tables<"sale_recurring_cycles">["Row"][]>();
       for (const cycle of cycleResponse.data ?? []) {
         const cycles = cyclesByRecurrenceId.get(cycle.recurrence_id) ?? [];

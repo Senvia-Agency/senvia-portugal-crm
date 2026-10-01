@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  AlertCircle, Copy, MoreVertical, Pause, Play, Plus, Search, Trash2, Workflow, X, Zap,
+  AlertCircle, Copy, MoreVertical, Pause, Play, Plus, Search, Sparkles, Trash2, Workflow, X, Zap,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -27,10 +27,10 @@ import {
   NODE_CATEGORY_STYLES, TRIGGER_FAMILIES, getNodeDefinition, getNodeLabel, getTriggerFamily,
 } from '@/lib/automation-nodes';
 import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
-import { CreateFlowDialog } from '@/components/automations/CreateFlowDialog';
+import { RecipeGalleryDialog } from '@/components/automations/RecipeGalleryDialog';
 import { SystemFiscalAutomationCard } from '@/components/automations/SystemFiscalAutomationCard';
 import {
-  useAutomationFlows, useAutomationRunCounts, useDeleteAutomationFlow,
+  useAutomationFlows, useAutomationRunCounts, useCreateAutomationFlow, useDeleteAutomationFlow,
   useDuplicateAutomationFlow, useSetAutomationFlowStatus,
 } from '@/hooks/useAutomationFlows';
 import type { AutomationFlow } from '@/types/automations';
@@ -42,7 +42,16 @@ export default function Automations() {
   const deleteFlow = useDeleteAutomationFlow();
   const setStatus = useSetAutomationFlowStatus();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const navigate = useNavigate();
+  const createFlow = useCreateAutomationFlow();
+
+  // As n8n does: no wizard. The flow exists the moment the button is pressed
+  // and opens in the editor, where the trigger is the first thing to choose.
+  const handleCreate = async () => {
+    const flow = await createFlow.mutateAsync({ name: 'Automação sem nome', trigger_type: 'lead_created' });
+    if (flow?.id) navigate(`/automacoes/${flow.id}?novo=1`);
+  };
   const [flowToDelete, setFlowToDelete] = useState<AutomationFlow | null>(null);
 
   // A pesquisa não persiste (é sempre pontual); os filtros sim, como no resto
@@ -90,10 +99,16 @@ export default function Automations() {
         title="Automações"
         subtitle="Fluxos automáticos de WhatsApp, email e ações no CRM"
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova automação
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setGalleryOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Usar modelo
+            </Button>
+            <Button onClick={handleCreate} disabled={createFlow.isPending}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova automação
+            </Button>
+          </div>
         }
       />
 
@@ -111,10 +126,16 @@ export default function Automations() {
           title="Ainda não tem automações"
           description="Crie um fluxo para responder a leads no WhatsApp, enviar emails de seguimento ou mover etapas sem intervenção manual."
         >
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Criar primeira automação
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" onClick={() => setGalleryOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Usar modelo
+            </Button>
+            <Button onClick={handleCreate} disabled={createFlow.isPending}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar primeira automação
+            </Button>
+          </div>
         </EmptyState>
       ) : (
         <>
@@ -190,7 +211,7 @@ export default function Automations() {
         </>
       )}
 
-      <CreateFlowDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <RecipeGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
 
       <AlertDialog open={!!flowToDelete} onOpenChange={(open) => !open && setFlowToDelete(null)}>
         <AlertDialogContent>

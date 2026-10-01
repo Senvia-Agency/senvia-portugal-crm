@@ -2053,6 +2053,20 @@ Deno.serve(async (req) => {
       const channelId = String(body.channel_id ?? "");
       if (!channelId) return jsonRes({ error: "channel_id em falta" }, 400);
 
+      // `delete: true` EXCLUI a caixa, com as conversas — sem volta. Arquivar
+      // continua a bastar ser membro; excluir é só para administradores.
+      const excluir = body.delete === true;
+      if (excluir) {
+        const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+        const { data: { user } } = await admin.auth.getUser(bearer);
+        const { data: eAdmin } = user
+          ? await admin.rpc("is_org_admin", { _user_id: user.id, _org_id: orgId })
+          : { data: false };
+        if (eAdmin !== true) {
+          return jsonRes({ error: "Só os administradores podem excluir caixas." }, 403);
+        }
+      }
+
       const { data: ch } = await admin.from("messaging_channels")
         .select("metadata, channel_type").eq("id", channelId).eq("organization_id", orgId).maybeSingle();
       const meta = (ch?.metadata ?? {}) as { page_id?: string; waba_id?: string };
@@ -2093,6 +2107,19 @@ Deno.serve(async (req) => {
         }
       } else if (outrasCaixas > 0) {
         log("subscrição mantida — a conta ainda serve outra caixa", { [campo]: alvoId, outrasCaixas });
+      }
+
+      if (excluir) {
+        // A subscrição já foi tratada acima; o token sai em cascata com a linha.
+        const { data: apagadas, error: delErr } = await admin.rpc("delete_messaging_channel", {
+          p_channel_id: channelId, p_organization_id: orgId,
+        });
+        if (delErr) {
+          logError("falha a excluir a caixa", { error: delErr.message });
+          return jsonRes({ error: "Não foi possível excluir a caixa." }, 500);
+        }
+        log("caixa excluída", { canal: channelId, orgId, conversas: apagadas });
+        return jsonRes({ ok: true, deleted: true, conversations_deleted: apagadas ?? 0 });
       }
 
       // ARQUIVAR, não apagar.

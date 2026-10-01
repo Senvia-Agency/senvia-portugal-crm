@@ -78,6 +78,20 @@ interface Flow {
 // Utilitários
 // ---------------------------------------------------------------------------
 
+/**
+ * «Mensagem recebida»: segundos de silêncio à espera de mais mensagens antes
+ * de arrancar, juntando-as numa só (o buffer que um fluxo do n8n monta com o
+ * Redis). Quem escreve «Olá» / «tudo bem?» / «queria saber o preço» em três
+ * linhas recebe uma resposta, não três.
+ */
+const MESSAGE_BUFFER_DEFAULT_SECONDS = 15;
+const MESSAGE_BUFFER_MAX_SECONDS = 60;
+
+/** WhatsApp por QR code: no máximo isto de mensagens automáticas por caixa e por dia. */
+const WHATSAPP_DAILY_CAP = 200;
+/** ...e pelo menos este intervalo entre duas mensagens da mesma caixa. */
+const WHATSAPP_MIN_GAP_MS = 6_000;
+
 /** Últimos 9 dígitos — tem de coincidir com public.automation_phone_key. */
 function phoneKey(raw?: string | null): string | null {
   if (!raw) return null;
@@ -221,8 +235,182 @@ class Engine {
   // deno-lint-ignore no-explicit-any
   constructor(private db: any) {}
 
-  // Aqui viviam whatsappInstance() e sendWhatsappText(), os únicos pontos deste
-  // motor que falavam com a Evolution. Saíram com a integração.
+  /**
+   * A caixa de WhatsApp que envia: a escolhida no passo, se estiver ligada, ou
+   * a primeira caixa por QR code ligada da organização. Só as caixas desta
+   * integração (`native_inbox`): as do primeiro Evolution apontam para
+   * instâncias que ninguém lê.
+   */
+  private async whatsappChannel(orgId: string, channelId?: string | null): Promise<
+    { id: string; instance: string } | { error: string }
+  > {
+    let query = this.db
+      .from("messaging_channels")
+      .select("id, evolution_instance, status, metadata")
+      .eq("organization_id", orgId)
+      .eq("channel_type", "whatsapp")
+      .eq("provider", "evolution")
+      .is("archived_at", null)
+      .not("evolution_instance", "is", null);
+    if (channelId) query = query.eq("id", channelId);
+    const { data } = await query.order("created_at", { ascending: true });
+    const rows = ((data ?? []) as Array<{ id: string; evolution_instance: string; status: string; metadata: Record<string, unknown> | null }>)
+      .filter((c) => c.metadata?.native_inbox === true);
+    if (channelId && !rows.length) return { error: "A caixa de WhatsApp escolhida neste passo já não existe" };
+    const live = rows.find((c) => c.status === "connected");
+    if (!live) {
+      return { error: channelId
+        ? "A caixa de WhatsApp deste passo está desligada — volte a ler o QR code"
+        : "Nenhuma caixa de WhatsApp ligada nesta organização" };
+    }
+    return { id: live.id, instance: live.evolution_instance };
+  }
+
+  /**
+   * Travão de envio. O WhatsApp por QR code é o WhatsApp Web: rajadas de
+   * mensagens automáticas são o que mais leva a suspender o número. Dois
+   * limites, por caixa — um intervalo mínimo entre mensagens e um teto diário.
+   * São uma proteção, não uma garantia de que o número não é bloqueado.
+   */
+  private async throttle(channelId: string): Promise<{ wait: Date } | null> {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const { count } = await this.db
+      .from("automation_run_steps")
+      .select("id", { count: "exact", head: true })
+      .in("node_type", ["send_whatsapp", "wait_reply"])
+      .eq("status", "ok")
+      .eq("detail->>canal_id", channelId)
+      .gte("created_at", startOfDay.toISOString());
+    if ((count ?? 0) >= WHATSAPP_DAILY_CAP) {
+      // Amanhã de manhã (09:00 em Portugal continental no inverno = 09:00 UTC).
+      const tomorrow = new Date(startOfDay.getTime() + 24 * 3600_000 + 9 * 3600_000);
+      return { wait: tomorrow };
+    }
+
+    const { data: last } = await this.db
+      .from("meta_messages")
+      .select("sent_at, meta_conversations!inner(channel_id)")
+      .eq("meta_conversations.channel_id", channelId)
+      .eq("direction", "outgoing")
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const since = last?.sent_at ? Date.now() - Date.parse(last.sent_at) : Infinity;
+    if (since < WHATSAPP_MIN_GAP_MS) {
+      await new Promise((r) => setTimeout(r, WHATSAPP_MIN_GAP_MS - since));
+    }
+    return null;
+  }
+
+  /**
+   * Envia pelo Evolution e deixa a mensagem na conversa da Caixa de Entrada,
+   * como se um agente a tivesse escrito. O evolution-webhook recebe o eco do
+   * envio; o índice único (conversa, external_id) faz dele uma repetição.
+   */
+  private async sendWhatsapp(
+    run: Run,
+    channel: { id: string; instance: string },
+    text: string,
+    media?: { url: string; mimetype?: string; filename?: string; kind?: string } | null,
+  ): Promise<{ error: string } | { messageId: string | null }> {
+    const base = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/$/, "");
+    const apikey = Deno.env.get("EVOLUTION_API_KEY") || "";
+    if (!base || !apikey) return { error: "Integração de WhatsApp não configurada (secrets em falta)" };
+
+    const number = normalizePhone(run.contact_phone!).replace(/^\+/, "");
+    const post = (path: string, body: unknown) =>
+      fetch(`${base}${path}/${channel.instance}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+    let res: Response;
+    try {
+      if (media?.url) {
+        const kind = media.kind
+          ?? (media.mimetype?.startsWith("image/") ? "image"
+            : media.mimetype?.startsWith("video/") ? "video" : "document");
+        res = kind === "audio"
+          ? await post("/message/sendWhatsAppAudio", { number, audio: media.url })
+          : await post("/message/sendMedia", {
+            number,
+            mediatype: kind,
+            mimetype: media.mimetype || "application/octet-stream",
+            media: media.url,
+            fileName: media.filename || "anexo",
+            ...(text.trim() ? { caption: text } : {}),
+          });
+      } else {
+        res = await post("/message/sendText", { number, text });
+      }
+    } catch (e) {
+      return { error: `Envio falhou: ${(e as Error).message}` };
+    }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail = body?.response?.message;
+      if (Array.isArray(detail) && detail.some((d: { exists?: boolean }) => d?.exists === false)) {
+        return { error: "Este número não tem WhatsApp" };
+      }
+      return { error: `Evolution ${res.status}: ${JSON.stringify(body).slice(0, 200)}` };
+    }
+
+    const messageId: string | null = body?.key?.id ?? null;
+    const now = new Date().toISOString();
+    const summary = text.trim() || `[${media?.kind ?? "anexo"}]`;
+    // Mesmo identificador que o evolution-webhook usa: só dígitos.
+    const contactRef = number.replace(/\D/g, "");
+
+    const { data: existing } = await this.db
+      .from("meta_conversations")
+      .select("id")
+      .eq("channel_id", channel.id)
+      .eq("contact_ref", contactRef)
+      .maybeSingle();
+    let convId = existing?.id as string | undefined;
+    if (!convId) {
+      const { data: created } = await this.db.from("meta_conversations").insert({
+        organization_id: run.organization_id,
+        channel_id: channel.id,
+        contact_ref: contactRef,
+        contact_name: run.contact_name,
+        last_message: summary,
+        last_message_at: now,
+        window_expires_at: null,
+        status: "open",
+      }).select("id").maybeSingle();
+      convId = created?.id;
+      if (!convId) {
+        // Corrida com o webhook a criar a mesma conversa.
+        const { data: again } = await this.db.from("meta_conversations").select("id")
+          .eq("channel_id", channel.id).eq("contact_ref", contactRef).maybeSingle();
+        convId = again?.id;
+      }
+    } else {
+      await this.db.from("meta_conversations")
+        .update({ last_message: summary, last_message_at: now, updated_at: now })
+        .eq("id", convId);
+    }
+    if (convId) {
+      const { error } = await this.db.from("meta_messages").insert({
+        organization_id: run.organization_id,
+        conversation_id: convId,
+        external_id: messageId,
+        direction: "outgoing",
+        content: text.trim() || null,
+        attachments: media?.url ? [{ type: media.kind ?? "document", url: media.url }] : [],
+        sent_at: now,
+        delivery_status: "sent",
+      });
+      if (error && (error as { code?: string }).code !== "23505") {
+        logError("WhatsApp enviado mas não guardado na conversa", { run: run.id, error: error.message });
+      }
+    }
+    return { messageId };
+  }
 
   private async recordStep(
     run: Run, node: FlowNode, status: string, detail: Record<string, unknown>
@@ -433,6 +621,40 @@ class Engine {
       case "trial_inactive_48h":
         return { kind: "next", detail: { entrada: node.type } };
 
+      // «Mensagem recebida» com o buffer ligado: o percurso esperou uns
+      // segundos de silêncio antes de chegar aqui. Junta tudo o que a pessoa
+      // escreveu entretanto numa mensagem só — o que um fluxo do n8n faz com
+      // o Redis — e é com isso que o resto do fluxo trabalha.
+      case "message_received": {
+        const ctx = (run.context ?? {}) as Record<string, unknown>;
+        const from = typeof ctx.__collect_from === "string" ? ctx.__collect_from : null;
+        const conversationId = typeof ctx.conversa_id === "string" ? ctx.conversa_id : null;
+        if (!from || !conversationId) return { kind: "next", detail: { entrada: node.type } };
+
+        const { data: incoming } = await this.db
+          .from("meta_messages")
+          .select("content, attachments, sent_at")
+          .eq("conversation_id", conversationId)
+          .eq("direction", "incoming")
+          .gte("sent_at", from)
+          .order("sent_at", { ascending: true })
+          .limit(50);
+        const lines = ((incoming ?? []) as Array<{ content: string | null; attachments: Array<{ type?: string }> | null }>)
+          .map((m) => (m.content?.trim() || (m.attachments?.[0]?.type ? `[${m.attachments[0].type}]` : "")))
+          .filter(Boolean);
+        const context = { ...ctx };
+        delete context.__collect_from;
+        if (lines.length) {
+          context.mensagem_inicial = lines.join("\n");
+          context.mensagens_agrupadas = lines.length;
+        }
+        return {
+          kind: "next",
+          context,
+          detail: { entrada: node.type, mensagens_agrupadas: lines.length },
+        };
+      }
+
       case "wait": {
         const quiet = quietUntil(flow.quiet_hours);
         const base = Date.now() + durationMs(cfg);
@@ -443,17 +665,88 @@ class Engine {
         };
       }
 
-      // Os nós de WhatsApp deixaram de poder enviar: a integração da Evolution
-      // foi removida do produto (violava os Termos da Meta e arriscava o ban do
-      // número). Falham de forma explícita em vez de fingirem que enviaram — um
-      // percurso que diz "ok" sem entregar nada é pior do que um que falha e diz
-      // porquê; foi exatamente esse o problema dos botões.
+      // WhatsApp por QR code (Evolution), de volta a 2026-10-01 — ver
+      // _shared/evolution-inbox.ts. Não há botões: o WhatsApp Web deixou de os
+      // entregar (a Evolution responde 2xx e a mensagem não chega a ninguém).
+      // As opções vão numeradas no texto e responder "1"/"2" escolhe o ramo
+      // no handleReply, tal como as palavras-chave.
       case "wait_reply":
-      case "send_whatsapp":
+      case "send_whatsapp": {
+        const asksOnly = node.type === "wait_reply";
+        if (!run.contact_phone) return { kind: "fail", error: "Contacto sem telefone" };
+
+        const rules = (cfg.rules ?? []) as Array<{ id: string; keywords?: string[]; label?: string }>;
+        const waitsForReply = asksOnly || (!!cfg.wait_reply && rules.length > 0);
+        if (waitsForReply && !run.contact_phone_key) {
+          return { kind: "fail", error: "Contacto sem telefone válido — não é possível esperar resposta" };
+        }
+
+        const text = render(String((asksOnly ? cfg.question : cfg.message) ?? ""), vars);
+        const media = asksOnly ? null : (cfg.media ?? null) as
+          | { url?: string; mimetype?: string; filename?: string; kind?: string }
+          | null;
+        const mediaUrl = media?.url ?? (!asksOnly && cfg.media_url ? String(cfg.media_url) : null);
+        // O «Esperar resposta» sozinho pode não perguntar nada: a pergunta já
+        // foi feita antes, e o nó só espera.
+        const sends = !!text.trim() || !!mediaUrl;
+        if (!asksOnly && !sends) return { kind: "fail", error: "Mensagem vazia" };
+
+        let sentDetail: Record<string, unknown> = {};
+        if (sends) {
+          const quiet = quietUntil(flow.quiet_hours);
+          if (quiet) {
+            return {
+              kind: "park", status: "waiting", wakeAt: quiet, resumeSelf: true,
+              detail: { adiado_por_horario_de_silencio_ate: quiet.toISOString() },
+            };
+          }
+
+          const channel = await this.whatsappChannel(run.organization_id, cfg.channel_id ? String(cfg.channel_id) : null);
+          if ("error" in channel) return { kind: "fail", error: channel.error };
+
+          const held = await this.throttle(channel.id);
+          if (held) {
+            return {
+              kind: "park", status: "waiting", wakeAt: held.wait, resumeSelf: true,
+              detail: { adiado_por_limite_diario_ate: held.wait.toISOString(), limite: WHATSAPP_DAILY_CAP },
+            };
+          }
+
+          const options = waitsForReply && rules.length
+            ? "\n\n" + rules.map((r, i) => `${i + 1}️⃣ ${r.label ?? r.keywords?.[0] ?? ""}`).join("\n")
+            : "";
+          const sent = await this.sendWhatsapp(run, channel, `${text}${options}`, mediaUrl ? {
+            url: mediaUrl,
+            mimetype: media?.mimetype,
+            filename: media?.filename,
+            kind: media?.kind,
+          } : null);
+          if ("error" in sent) return { kind: "fail", error: sent.error };
+
+          sentDetail = {
+            canal: "whatsapp",
+            canal_id: channel.id,
+            para: run.contact_phone,
+            texto: text.slice(0, 300),
+            mensagem_id: sent.messageId,
+            ...(mediaUrl ? { anexo: media?.filename ?? mediaUrl } : {}),
+            ...(waitsForReply ? { opcoes: rules.length } : {}),
+          };
+        }
+
+        if (!waitsForReply) return { kind: "next", detail: sentDetail };
+
+        const replyWake = new Date(
+          Date.now() + durationMs({
+            amount: cfg.timeout_amount ?? (cfg.timeout as { value?: number } | undefined)?.value ?? 24,
+            unit: cfg.timeout_unit ?? (cfg.timeout as { unit?: string } | undefined)?.unit ?? "hours",
+          }),
+        );
         return {
-          kind: "fail",
-          error: "O envio por WhatsApp foi desativado neste CRM. Substitui este passo por um envio de email.",
+          kind: "park", status: "awaiting_reply", wakeAt: replyWake,
+          detail: { ...sentDetail, espera_resposta_ate: replyWake.toISOString(), regras: rules.length },
         };
+      }
 
       case "send_email": {
         if (!run.contact_email) return { kind: "fail", error: "Contacto sem email" };
@@ -490,15 +783,24 @@ class Engine {
         const expected = cfg.value;
         const actual = (vars as Record<string, unknown>)[field];
 
+        // Telefones comparam-se pelos últimos 9 dígitos: "+351 912 345 678",
+        // "912345678" e "351 912 345 678" são o mesmo número. Comparar o texto
+        // tal e qual dava "diferente" a quem escrevesse o indicativo.
+        const isPhone = /telefone|phone|whatsapp/i.test(field);
+        const same = isPhone
+          ? phoneKey(String(actual ?? "")) !== null
+            && phoneKey(String(actual ?? "")) === phoneKey(String(expected ?? ""))
+          : String(actual ?? "").trim().toLowerCase() === String(expected ?? "").trim().toLowerCase();
+
         let yes = false;
         switch (op) {
           case "exists":       yes = actual !== undefined && actual !== null && actual !== ""; break;
           case "not_exists":   yes = actual === undefined || actual === null || actual === ""; break;
           case "contains":     yes = String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase()); break;
-          case "not_equals":   yes = String(actual ?? "") !== String(expected ?? ""); break;
+          case "not_equals":   yes = !same; break;
           case "greater_than": yes = Number(actual) > Number(expected); break;
           case "less_than":    yes = Number(actual) < Number(expected); break;
-          default:             yes = String(actual ?? "").toLowerCase() === String(expected ?? "").toLowerCase();
+          default:             yes = same;
         }
         return { kind: "next", branch: yes ? "yes" : "no", detail: { campo: field, operador: op, resultado: yes } };
       }
@@ -517,6 +819,12 @@ class Engine {
 
       case "assign_user": {
         if (!run.subject_id) return { kind: "next", detail: { ignorado: "sem sujeito" } };
+        // Só leads e clientes têm responsável. Antes, qualquer outro sujeito
+        // (uma venda, uma conversa) ia procurar o seu id à tabela de leads e
+        // «atribuía» a nada sem dar erro.
+        if (run.subject_type !== "lead" && run.subject_type !== "client") {
+          return { kind: "next", detail: { ignorado: "só se aplica a leads e clientes" } };
+        }
         const table = run.subject_type === "client" ? "crm_clients" : "leads";
         const { error } = await this.db.from(table)
           .update({ assigned_to: cfg.user_id })
@@ -882,59 +1190,283 @@ async function handleTest(db: any, body: Record<string, unknown>) {
 }
 
 /**
- * Nenhum percurso à espera desta pessoa — mas a mensagem pode ser a palavra-
- * chave que inicia um fluxo. Procura fluxos com gatilho `whatsapp_keyword`
- * cujas palavras apareçam no texto.
+ * Repete uma execução terminada — o "retry" do n8n.
+ *
+ *   from: "failed_step" → retoma o MESMO percurso no passo que falhou. Tudo o
+ *                         que correu antes fica como está; só esse passo volta
+ *                         a executar (a linha falhada é apagada para o poder).
+ *   from: "start"       → percurso NOVO para o mesmo contacto e o mesmo
+ *                         registo, desde o gatilho.
+ *
+ * Uma execução cancelada ou concluída não tem passo falhado: repete do início.
  */
 // deno-lint-ignore no-explicit-any
-async function handleKeywordStart(
+async function handleRetry(db: any, body: Record<string, unknown>) {
+  const runId = String(body.run_id ?? "");
+  const from = body.from === "start" ? "start" : "failed_step";
+  if (!runId) return { error: "run_id é obrigatório" };
+
+  const { data: run } = await db.from("automation_runs").select("*").eq("id", runId).maybeSingle();
+  if (!run) return { error: "Execução não encontrada" };
+  if (!["failed", "cancelled", "completed"].includes(run.status)) {
+    return { error: "Esta execução ainda está a correr. Pára-a primeiro, ou espera que termine." };
+  }
+  const flow = await loadFlow(db, run.flow_id);
+  if (!flow) return { error: "Fluxo apagado" };
+
+  const engine = new Engine(db);
+  const context = { ...((run.context ?? {}) as Record<string, unknown>) };
+  delete context.__cursors;
+  delete context.__resume_node;
+
+  if (from === "failed_step" && run.status === "failed") {
+    const { data: failedSteps } = await db.from("automation_run_steps")
+      .select("id, node_id")
+      .eq("run_id", run.id)
+      .eq("status", "failed")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const failedNodeId = failedSteps?.[0]?.node_id as string | undefined;
+    const node = failedNodeId ? flow.graph?.nodes?.find((n) => n.id === failedNodeId) : undefined;
+
+    if (node) {
+      // Um passo corre uma vez por percurso: a linha falhada tem de sair para
+      // o motor o deixar executar outra vez.
+      await db.from("automation_run_steps").delete()
+        .eq("run_id", run.id).eq("node_id", node.id).eq("status", "failed");
+      const { data: claimed } = await db.from("automation_runs").update({
+        status: "running",
+        last_error: null,
+        completed_at: null,
+        wake_at: null,
+        current_node_id: node.id,
+        context: { ...context, __retried_at: new Date().toISOString() },
+      }).eq("id", run.id).eq("status", "failed").select("*").maybeSingle();
+      if (!claimed) return { error: "A execução mudou entretanto. Tenta outra vez." };
+
+      await engine.advance(claimed as Run, flow, node.id);
+      const { data: fresh } = await db.from("automation_runs")
+        .select("status, last_error").eq("id", run.id).maybeSingle();
+      return { run_id: run.id, resumed_at: node.id, status: fresh?.status ?? "running", error: fresh?.last_error ?? null };
+    }
+    // Falhou antes de qualquer passo ficar registado (fluxo apagado, nó em
+    // falta): não há onde retomar — começa de novo.
+  }
+
+  const { data: created, error } = await db.from("automation_runs").insert({
+    organization_id: run.organization_id,
+    flow_id: flow.id,
+    flow_version: flow.version,
+    subject_type: run.subject_type,
+    subject_id: run.subject_id,
+    contact_name: run.contact_name,
+    contact_email: run.contact_email,
+    contact_phone: run.contact_phone,
+    contact_phone_key: run.contact_phone_key,
+    context: { ...context, __retry_of: run.id },
+    current_node_id: flow.entry_node_id,
+  }).select("*").single();
+  if (error) {
+    if ((error as { code?: string }).code === "23505") {
+      return { error: "Este contacto já tem um percurso ativo neste fluxo. Pára-o primeiro." };
+    }
+    return { error: error.message };
+  }
+
+  await engine.advance(created as Run, flow, flow.entry_node_id);
+  const { data: fresh } = await db.from("automation_runs")
+    .select("status, last_error").eq("id", created.id).maybeSingle();
+  return { run_id: created.id, status: fresh?.status ?? "running", error: fresh?.last_error ?? null };
+}
+
+/**
+ * Nenhum percurso à espera desta pessoa — mas a mensagem pode arrancar um
+ * fluxo. Dois gatilhos:
+ *
+ *   whatsapp_keyword  — o texto contém uma das palavras configuradas.
+ *   message_received  — qualquer mensagem, na caixa escolhida (ou em qualquer
+ *                       caixa de WhatsApp, sem caixa escolhida).
+ *
+ * O específico ganha: se uma palavra-chave arrancou um fluxo, os de
+ * «Mensagem recebida» ficam quietos — senão quem escrevesse a palavra da
+ * campanha recebia a oferta e a mensagem genérica ao mesmo tempo.
+ */
+// deno-lint-ignore no-explicit-any
+async function handleMessageStart(
   db: any, orgId: string, key: string, text: string, body: Record<string, unknown>,
 ) {
   const { data: flows } = await db
     .from("automation_flows")
     .select("*")
     .eq("organization_id", orgId)
-    .eq("trigger_type", "whatsapp_keyword")
+    .in("trigger_type", ["whatsapp_keyword", "message_received"])
     .eq("status", "active");
 
   if (!flows?.length) return { resumed: 0, started: 0 };
 
   const lower = text.toLowerCase();
   const engine = new Engine(db);
+  const phone = String(body.phone ?? "");
+  const channelId = body.channel_id ? String(body.channel_id) : null;
+  const conversationId = body.conversation_id ? String(body.conversation_id) : null;
+  // Quando a mensagem foi escrita (no WhatsApp), para o buffer a apanhar.
+  const sentMs = Date.parse(String(body.message_at ?? ""));
+  const messageAtMs = Number.isFinite(sentMs) ? Math.min(sentMs, Date.now()) : Date.now();
   let started = 0;
+  // Até quando os percursos postos em buffer por esta mensagem esperam.
+  const buffered: string[] = [];
+  const later = (iso: string) => { buffered.push(iso); };
+  const bufferedUntil = () => buffered.sort().at(-1) ?? null;
 
-  for (const flow of flows as Flow[]) {
-    const keywords = ((flow as unknown as { trigger_config?: { keywords?: string[] } })
-      .trigger_config?.keywords ?? []) as string[];
-    // Sem palavras configuradas o fluxo responderia a QUALQUER mensagem — o que
-    // seria um disparo em massa acidental. Exige configuração explícita.
-    if (!keywords.length) continue;
-    if (!keywords.some((k) => lower.includes(String(k).toLowerCase()))) continue;
+  /**
+   * O trinco por número: o percurso ativo deste fluxo para esta conversa, se
+   * houver. O índice único uniq_active_run_per_subject garante que nunca há
+   * dois — mesmo com duas mensagens a chegar no mesmo milissegundo, uma das
+   * inserções recebe 23505.
+   */
+  const activeRun = async (flowId: string, subjectId: string) => {
+    const { data } = await db.from("automation_runs")
+      .select("id, status, context, current_node_id")
+      .eq("flow_id", flowId)
+      .eq("subject_id", subjectId)
+      .in("status", ["running", "waiting", "awaiting_reply"])
+      .limit(1)
+      .maybeSingle();
+    return data as { id: string; status: string; context: Record<string, unknown> | null; current_node_id: string | null } | null;
+  };
 
-    const phone = String(body.phone ?? "");
+  /**
+   * «Só uma vez por número» (reentry_policy "once"). Pelo número e não pela
+   * conversa: quem escreve para duas caixas continua a ser a mesma pessoa.
+   * Os testes não contam (subject_id nulo) — testar o fluxo com o próprio
+   * número não o pode gastar. Desligado ("after_completion"/"always"), arranca
+   * sempre; o trinco acima continua a impedir dois ao mesmo tempo.
+   */
+  const alreadyRan = async (flow: Flow) => {
+    if (flow.reentry_policy !== "once") return false;
+    const { data: prior } = await db.from("automation_runs")
+      .select("id")
+      .eq("flow_id", flow.id)
+      .eq("contact_phone_key", key)
+      .not("subject_id", "is", null)
+      .limit(1);
+    return !!prior?.length;
+  };
+
+  /**
+   * Uma mensagem a meio do buffer: a hora de arrancar passa para daqui a
+   * `seconds`. Só enquanto o percurso ainda não arrancou (status waiting e
+   * parado no próprio gatilho); depois disso o atendimento está em curso e a
+   * mensagem fica na Caixa de Entrada, sem novo percurso.
+   */
+  const extendBuffer = async (flow: Flow, run: { id: string; status: string; context: Record<string, unknown> | null }, seconds: number) => {
+    if (run.status !== "waiting" || run.context?.__resume_node !== flow.entry_node_id) return false;
+    const until = new Date(Date.now() + seconds * 1000).toISOString();
+    const { data } = await db.from("automation_runs")
+      .update({ wake_at: until })
+      .eq("id", run.id)
+      .eq("status", "waiting")
+      .select("id");
+    if (!data?.length) return false;
+    later(until);
+    return true;
+  };
+
+  const insertRun = async (flow: Flow, bufferSeconds: number) => {
+    const buffering = bufferSeconds > 0;
+    const until = new Date(Date.now() + bufferSeconds * 1000).toISOString();
     const { data: run, error } = await db.from("automation_runs").insert({
       organization_id: orgId,
       flow_id: flow.id,
       flow_version: flow.version,
+      // Um contacto sem ficha: o sujeito é a conversa dele na Caixa de Entrada
+      // (meta_conversations.id). O check de subject_type não tem
+      // "conversation", e "contact" já é o tipo de quem só tem telefone.
       subject_type: "contact",
-      subject_id: null,
+      subject_id: conversationId,
       contact_name: (body.name ?? null) as string | null,
       contact_phone: phone,
       contact_phone_key: key,
-      context: { telefone: phone, mensagem_inicial: text },
+      context: {
+        telefone: phone,
+        nome: body.name ?? null,
+        mensagem_inicial: text,
+        canal_id: channelId,
+        conversa_id: conversationId,
+        // Com buffer, o percurso fica parado NO gatilho até ao silêncio: o
+        // tick re-executa o gatilho (ver __resume_node em handleTick), que
+        // junta as mensagens desde __collect_from.
+        ...(buffering ? { __resume_node: flow.entry_node_id, __collect_from: new Date(messageAtMs - 1000).toISOString() } : {}),
+      },
       current_node_id: flow.entry_node_id,
+      ...(buffering ? { status: "waiting", wake_at: until } : {}),
     }).select("*").single();
 
     if (error) {
-      logError("falha a iniciar fluxo por palavra-chave", { flow: flow.id, error: error.message });
+      if ((error as { code?: string }).code === "23505") return "taken" as const;
+      logError("falha a iniciar fluxo por mensagem", { flow: flow.id, error: error.message });
+      return "error" as const;
+    }
+    await db.from("automation_flows").update({ last_enrolled_at: new Date().toISOString() }).eq("id", flow.id);
+    if (buffering) {
+      later(until);
+    } else {
+      await engine.advance(run as Run, flow, flow.entry_node_id);
+    }
+    started++;
+    return "started" as const;
+  };
+
+  const ofType = (type: string) =>
+    (flows as Flow[]).filter((f) => (f as unknown as { trigger_type: string }).trigger_type === type);
+
+  for (const flow of ofType("whatsapp_keyword")) {
+    const keywords = ((flow.trigger_config ?? {}) as { keywords?: string[] }).keywords ?? [];
+    // Sem palavras configuradas o fluxo responderia a QUALQUER mensagem — o que
+    // seria um disparo em massa acidental. Exige configuração explícita (para
+    // isso existe o «Mensagem recebida»).
+    if (!keywords.length) continue;
+    if (!keywords.some((k) => lower.includes(String(k).toLowerCase()))) continue;
+    // A conversa é o sujeito também aqui: quem manda a palavra duas vezes
+    // seguidas não recebe a oferta duas vezes, e «Só uma vez por número»
+    // decide se a pode receber de novo mais tarde.
+    if (conversationId && await activeRun(flow.id, conversationId)) continue;
+    if (await alreadyRan(flow)) continue;
+    await insertRun(flow, 0);
+  }
+  if (started > 0) return { resumed: 0, started, buffered_until: null };
+
+  for (const flow of ofType("message_received")) {
+    const tcfg = (flow.trigger_config ?? {}) as { channel_id?: string | null; buffer_seconds?: number };
+    if (tcfg.channel_id && tcfg.channel_id !== channelId) continue;
+    // A conversa é o sujeito. Sem sujeito, cada mensagem arrancava um percurso
+    // novo — um contacto que escrevesse cinco linhas seguidas recebia cinco
+    // respostas.
+    if (!conversationId) continue;
+    const configured = typeof tcfg.buffer_seconds === "number" && Number.isFinite(tcfg.buffer_seconds)
+      ? tcfg.buffer_seconds
+      : MESSAGE_BUFFER_DEFAULT_SECONDS;
+    const bufferSeconds = Math.min(MESSAGE_BUFFER_MAX_SECONDS, Math.max(0, Math.round(configured)));
+
+    const current = await activeRun(flow.id, conversationId);
+    if (current) {
+      // Trinco: já há um percurso desta conversa. Se ainda está a juntar
+      // mensagens, esta junta-se; se já arrancou, fica só na Caixa de Entrada.
+      await extendBuffer(flow, current, bufferSeconds);
       continue;
     }
+    if (await alreadyRan(flow)) continue;
 
-    await engine.advance(run as Run, flow, flow.entry_node_id);
-    started++;
+    const outcome = await insertRun(flow, bufferSeconds);
+    if (outcome === "taken") {
+      // Outra mensagem da mesma pessoa ganhou a corrida neste instante: junta-se
+      // ao buffer dela em vez de abrir um segundo percurso.
+      const winner = await activeRun(flow.id, conversationId);
+      if (winner) await extendBuffer(flow, winner, bufferSeconds);
+    }
   }
 
-  return { resumed: 0, started };
+  return { resumed: 0, started, buffered_until: bufferedUntil() };
 }
 
 /** Chegou uma mensagem do contacto: retoma quem estava à espera dela. */
@@ -956,7 +1488,7 @@ async function handleReply(db: any, body: Record<string, unknown>) {
   // Ninguém estava à espera desta pessoa: a mensagem pode, ainda assim, ser a
   // palavra-chave que ARRANCA um fluxo ("escreva PROMO para receber…"). É o
   // outro metade do modelo conversacional.
-  if (!runs?.length) return await handleKeywordStart(db, orgId, key, text, body);
+  if (!runs?.length) return await handleMessageStart(db, orgId, key, text, body);
 
   const engine = new Engine(db);
   let resumed = 0;
@@ -1055,17 +1587,20 @@ serve(async (req) => {
   const action = String(body.action ?? "tick");
 
   // Exceção estreita: um administrador autenticado pode disparar um TESTE do
-  // seu próprio fluxo a partir do browser. Só esta ação, só o fluxo da sua
-  // organização — enroll/tick/reply continuam a exigir credencial interna,
-  // senão qualquer utilizador podia inscrever contactos à sua escolha.
-  if (!authorized && action === "test" && bearer) {
+  // seu próprio fluxo, ou REPETIR uma execução dele, a partir do browser. Só
+  // estas ações, só na sua organização — enroll/tick/reply continuam a exigir
+  // credencial interna, senão qualquer utilizador podia inscrever contactos à
+  // sua escolha.
+  if (!authorized && (action === "test" || action === "retry") && bearer) {
     const { data: userData } = await db.auth.getUser(bearer);
     const userId = userData?.user?.id;
-    if (userId && body.flow_id) {
+    if (userId && (body.flow_id || body.run_id)) {
       const mfaDenied = await requestMfaResponse(req, userId, corsHeaders);
       if (mfaDenied) return mfaDenied;
-      const { data: flowRow } = await db
-        .from("automation_flows").select("organization_id").eq("id", String(body.flow_id)).maybeSingle();
+      // A organização em causa: a do fluxo (teste) ou a da execução (repetir).
+      const { data: flowRow } = body.flow_id
+        ? await db.from("automation_flows").select("organization_id").eq("id", String(body.flow_id)).maybeSingle()
+        : await db.from("automation_runs").select("organization_id").eq("id", String(body.run_id)).maybeSingle();
       if (flowRow?.organization_id) {
         const { data: isMember } = await db.rpc("is_org_member", {
           _user_id: userId, _org_id: flowRow.organization_id,
@@ -1090,6 +1625,7 @@ serve(async (req) => {
     else if (action === "reply")  result = await handleReply(db, body);
     else if (action === "tick")   result = await handleTick(db);
     else if (action === "test")   result = await handleTest(db, body);
+    else if (action === "retry")  result = await handleRetry(db, body);
     else result = { error: `Ação desconhecida: ${action}` };
 
     log("concluído", { action, result });

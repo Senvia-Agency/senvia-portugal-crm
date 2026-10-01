@@ -126,8 +126,15 @@
       document.cookie = key + '=' + encodeURIComponent(value) + '; path=/; domain=.senvia.pt; max-age=31536000; SameSite=Lax; Secure';
       return value;
     }
-    fbq('init', '2027821837745963', { external_id: senviaMetaExternalId() });
-    fbq('track', 'PageView');
+    // Senvia's own pixel stays off the pages that belong to a client: the
+    // public lead forms (/f, /c) load that organization's pixels instead, and
+    // an unsubscribe link is followed by the client's contacts. Firing it there
+    // sent their visitors to Senvia's ad account and showed up as "the wrong
+    // pixel" next to the one configured in the form.
+    if (!/^\/(f|c|unsubscribe)(\/|$)/.test(window.location.pathname)) {
+      fbq('init', '2027821837745963', { external_id: senviaMetaExternalId() });
+      fbq('track', 'PageView');
+    }
     </script>
   </head>
   <body>

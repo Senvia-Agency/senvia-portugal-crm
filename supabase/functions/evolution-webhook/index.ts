@@ -22,6 +22,14 @@ const log = (s: string, d?: unknown) =>
 const logError = (s: string, d?: unknown) =>
   console.error(`[EVOLUTION-WEBHOOK] ERROR ${s}${d ? ` - ${JSON.stringify(d)}` : ''}`);
 
+/** Keep work running after the response (Supabase's EdgeRuntime.waitUntil). */
+function background(task: Promise<unknown>) {
+  // deno-lint-ignore no-explicit-any
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(task);
+  else task.catch(() => {});
+}
+
 const ok = (body: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...body }), { headers: { 'Content-Type': 'application/json' } });
 
@@ -67,6 +75,72 @@ async function notify(channel: Channel, title: string, body: string, convId: str
     });
   } catch (e) {
     logError('push failed', { error: (e as Error).message });
+  }
+}
+
+/**
+ * Older than this, an incoming message is history arriving late — the phone
+ * was offline, or the instance reconnected and Evolution replayed what it had
+ * missed. It is stored, but it does not start a flow: otherwise every
+ * reconnect would answer messages the team already dealt with.
+ */
+const STALE_FOR_AUTOMATION_MS = 10 * 60_000;
+
+async function callEngine(payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/automation-engine`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) {
+    logError('automation engine refused', { action: payload.action, status: res.status });
+    return null;
+  }
+  return await res.json().catch(() => null);
+}
+
+/**
+ * A contact wrote: tell the automation engine. It resumes a run parked on
+ * "aguardar resposta" for this phone (branching on what was said), or starts a
+ * flow whose keyword is in the text. Only real phone numbers: an anonymous
+ * `@lid` contact cannot be matched to a run, which is keyed by phone.
+ */
+async function notifyAutomations(
+  channel: Channel, contactRef: string, text: string, name: string | null, conversationId: string, sentAt: Date,
+) {
+  if (!/^\d{9,15}$/.test(contactRef) || !text.trim()) return;
+  if (Date.now() - sentAt.getTime() > STALE_FOR_AUTOMATION_MS) return;
+  try {
+    const result = await callEngine({
+      action: 'reply',
+      organization_id: channel.organization_id,
+      phone: contactRef,
+      text,
+      name,
+      // For the «Mensagem recebida» trigger: which caixa, the conversation it
+      // counts as (one run per conversation), and when the message was written
+      // (where its buffer starts collecting).
+      channel_id: channel.id,
+      conversation_id: conversationId,
+      message_at: sentAt.toISOString(),
+    });
+
+    // «Mensagem recebida» waits for the contact to stop writing before it
+    // starts. The cron tick only comes once a minute, so wake the engine right
+    // as the silence ends: the answer then follows the last message by
+    // seconds. If another message arrived meanwhile and pushed the start back,
+    // this tick finds nothing due and that message's own wake-up takes over.
+    const until = Date.parse(String(result?.buffered_until ?? ''));
+    if (Number.isFinite(until)) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, until - Date.now()) + 1_500));
+      await callEngine({ action: 'tick' });
+    }
+  } catch (e) {
+    logError('automation reply failed', { error: (e as Error).message });
   }
 }
 
@@ -197,6 +271,9 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
   if (!outgoing) {
     await db.rpc('increment_meta_unread', { _conversation_id: convId }).then(() => {}, () => {});
     await notify(channel, `💬 WhatsApp: ${name || existing?.contact_name || contactRef}`, summary, convId);
+    // After the response: a resumed flow may send messages and wait between
+    // them, and Evolution must not be held for that.
+    background(notifyAutomations(channel, contactRef, texto, name || existing?.contact_name || null, convId, at));
   }
   return 'stored';
 }

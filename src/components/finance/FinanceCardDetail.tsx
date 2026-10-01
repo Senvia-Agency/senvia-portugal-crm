@@ -120,7 +120,24 @@ function EmptyRow({ cols }: { cols: number }) {
   );
 }
 
-function PaymentsDetailTable({ payments, allowMarkPaid = false }: { payments: PaymentWithSale[]; allowMarkPaid?: boolean }) {
+/**
+ * "em 3 dias" / "hoje" / "há 5 dias" for a pending payment. sale_payments has
+ * no separate due date: for a pending parcel, payment_date IS when it falls
+ * due (an overdue one is a pending one whose date has passed).
+ */
+function dueLabel(dateStr: string): { text: string; late: boolean } {
+  const days = Math.round((startOfDay(parseISO(dateStr)).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  if (days === 0) return { text: "vence hoje", late: false };
+  if (days > 0) return { text: `em ${days} dia${days === 1 ? "" : "s"}`, late: false };
+  return { text: `há ${-days} dia${days === -1 ? "" : "s"}`, late: true };
+}
+
+function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
+  payments: PaymentWithSale[];
+  allowMarkPaid?: boolean;
+  /** Pending lists: the date is the due date, with how far it is. */
+  due?: boolean;
+}) {
   const queryClient = useQueryClient();
   const updatePayment = useUpdateSalePayment();
   const createPayment = useCreateSalePayment();
@@ -193,7 +210,7 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false }: { payments: Pa
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
+            <TableHead>{due ? "Vencimento" : "Recebido em"}</TableHead>
             <TableHead>Venda</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead className="hidden sm:table-cell">Método</TableHead>
@@ -208,7 +225,17 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false }: { payments: Pa
           ) : (
             payments.map((p) => (
               <TableRow key={p.id}>
-                <TableCell className="whitespace-nowrap">{fmtDate(p.payment_date)}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {fmtDate(p.payment_date)}
+                  {due && p.status === "pending" && (() => {
+                    const d = dueLabel(p.payment_date);
+                    return (
+                      <span className={cn("block text-[11px]", d.late ? "font-medium text-destructive" : "text-muted-foreground")}>
+                        {d.text}
+                      </span>
+                    );
+                  })()}
+                </TableCell>
                 <TableCell>{p.sale?.code || "—"}</TableCell>
                 <TableCell>{p.client_name || p.lead_name || "—"}</TableCell>
                 <TableCell className="hidden sm:table-cell">
@@ -725,9 +752,9 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
         />
       )}
       {type === "received" && <PaymentsDetailTable payments={received.filter(paymentMatches)} />}
-      {type === "pending" && <PaymentsDetailTable payments={pending.filter(paymentMatches)} allowMarkPaid />}
-      {type === "overdue" && <PaymentsDetailTable payments={overdue.filter(paymentMatches)} allowMarkPaid />}
-      {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments.filter(paymentMatches)} />}
+      {type === "pending" && <PaymentsDetailTable payments={pending.filter(paymentMatches)} allowMarkPaid due />}
+      {type === "overdue" && <PaymentsDetailTable payments={overdue.filter(paymentMatches)} allowMarkPaid due />}
+      {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments.filter(paymentMatches)} due />}
       {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={search} />}
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}

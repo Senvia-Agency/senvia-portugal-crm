@@ -7,7 +7,7 @@ import { createInitialGraph, normalizeGraph } from '@/lib/automation-graph';
 import type {
   AutomationFlow, AutomationFlowRunCounts, AutomationFlowStatus, AutomationGraph,
   AutomationNodeConfig, AutomationNodeStats, AutomationReentryPolicy, AutomationRun,
-  AutomationRunStep, AutomationTriggerType, QuietHours,
+  AutomationRunStatus, AutomationRunStep, AutomationTriggerType, QuietHours,
 } from '@/types/automations';
 
 // The automation tables post-date the generated Supabase types, so table names
@@ -493,6 +493,60 @@ export function useAutomationRunSteps(runId: string | null) {
   });
 }
 
+/** The run a step belongs to — enough of it to say whose step it was. */
+export interface NodeStepRun {
+  id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  status: AutomationRunStatus;
+  started_at: string | null;
+}
+
+/**
+ * The last few times ONE node ran, across this flow's runs — the "output"
+ * column of the node details view. Steps carry no flow id, so the flow's
+ * recent runs are fetched first and the steps filtered to them.
+ */
+export function useAutomationNodeSteps(flowId: string | null, nodeId: string | null, limit = 10) {
+  const { organization } = useAuth();
+  const organizationId = organization?.id;
+
+  return useQuery({
+    queryKey: ['automation-node-steps', flowId, nodeId, limit],
+    queryFn: async (): Promise<Array<{ step: AutomationRunStep; run: NodeStepRun | null }>> => {
+      if (!flowId || !nodeId || !organizationId) return [];
+
+      const { data: runs, error: runsError } = await supabase
+        .from(RUNS)
+        .select('id, contact_name, contact_phone, contact_email, status, started_at')
+        .eq('flow_id', flowId)
+        .eq('organization_id', organizationId)
+        .order('started_at', { ascending: false })
+        .limit(200);
+      if (runsError) throw runsError;
+      const runRows = (runs ?? []) as unknown as NodeStepRun[];
+      if (!runRows.length) return [];
+
+      const { data, error } = await supabase
+        .from(RUN_STEPS)
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('node_id', nodeId)
+        .in('run_id', runRows.map((run) => run.id))
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+
+      const byId = new Map(runRows.map((run) => [run.id, run]));
+      return ((data ?? []) as unknown as AutomationRunStep[])
+        .map((step) => ({ step, run: byId.get(step.run_id) ?? null }));
+    },
+    enabled: !!flowId && !!nodeId && !!organizationId,
+    refetchInterval: 30000,
+  });
+}
+
 /** Runs parked on a node, i.e. contacts sitting there right now. */
 const PARKED_RUN_STATUSES = ['waiting', 'awaiting_reply'];
 /** `.in()` list size — keeps the request URL well under any gateway limit. */
@@ -569,6 +623,44 @@ export function useAutomationFlowNodeStats(flowId: string | null) {
  * The one write the client is allowed on `automation_runs`: an admin stopping a
  * run in flight. Everything else on that table belongs to the engine.
  */
+export type RetryFrom = 'failed_step' | 'start';
+
+/**
+ * Runs a finished run again — n8n's retry. From the failed step keeps
+ * everything that already happened; from the start is a fresh run for the
+ * same contact. The engine checks the caller is an admin of the run's org.
+ */
+export function useRetryAutomationRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ runId, from }: { runId: string; from: RetryFrom }) => {
+      const { data, error } = await supabase.functions.invoke('automation-engine', {
+        body: { action: 'retry', run_id: runId, from },
+      });
+      if (error) throw new Error((await readFunctionError(error)) ?? error.message);
+      const result = (data ?? {}) as { run_id?: string; status?: string; error?: string | null };
+      // A refusal has no run; a run that failed again has both.
+      if (result.error && !result.run_id) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: (result) => {
+      for (const key of ['automation-runs', 'automation-run-steps', 'automation-node-steps', 'automation-run-counts', 'automation-flow-node-stats']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      if (result.status === 'failed') {
+        toast.error('Voltou a falhar', { description: result.error ?? undefined });
+      } else {
+        toast.success('Execução repetida', { description: 'Acompanha o resultado na lista.' });
+      }
+    },
+    onError: (error) => {
+      console.error('Error retrying automation run:', error);
+      toast.error('Não foi possível repetir', { description: error instanceof Error ? error.message : undefined });
+    },
+  });
+}
+
 export function useCancelAutomationRun() {
   const { organization } = useAuth();
   const queryClient = useQueryClient();

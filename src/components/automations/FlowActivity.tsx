@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   AlertCircle, Ban, CheckCircle2, ChevronDown, ChevronRight, Clock,
-  Loader2, MessagesSquare, Activity as ActivityIcon, SkipForward,
+  Loader2, MessagesSquare, Activity as ActivityIcon, RotateCcw, SkipForward,
 } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -13,7 +13,10 @@ import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import { getNodeLabel, describeStepDetail, type StepDetailLookups } from '@/lib/automation-nodes';
 import { findNode } from '@/lib/automation-graph';
-import { useAutomationRunSteps, useCancelAutomationRun, useAutomationRuns } from '@/hooks/useAutomationFlows';
+import {
+  useAutomationRunSteps, useAutomationRuns, useCancelAutomationRun, useRetryAutomationRun,
+} from '@/hooks/useAutomationFlows';
+import { GroupChip } from '@/components/automations/TriggerPicker';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useContactLists } from '@/hooks/useContactLists';
@@ -35,7 +38,7 @@ const RUN_STATUS_META: Record<AutomationRunStatus, { label: string; className: s
   cancelled: { label: 'Cancelada', className: 'bg-muted text-muted-foreground', icon: Ban },
 };
 
-const STEP_STATUS_META: Record<AutomationRunStepStatus, { label: string; className: string; dot: string; icon: typeof Clock }> = {
+export const STEP_STATUS_META: Record<AutomationRunStepStatus, { label: string; className: string; dot: string; icon: typeof Clock }> = {
   ok: { label: 'OK', className: 'text-success', dot: 'bg-success', icon: CheckCircle2 },
   skipped: { label: 'Ignorado', className: 'text-muted-foreground', dot: 'bg-muted-foreground', icon: SkipForward },
   failed: { label: 'Falhou', className: 'text-destructive', dot: 'bg-destructive', icon: AlertCircle },
@@ -43,6 +46,20 @@ const STEP_STATUS_META: Record<AutomationRunStepStatus, { label: string; classNa
 };
 
 const ACTIVE_STATUSES: AutomationRunStatus[] = ['running', 'waiting', 'awaiting_reply'];
+
+type RunFilter = 'all' | 'active' | 'failed' | 'completed' | 'cancelled';
+const RUN_FILTERS: Array<{ key: RunFilter; label: string }> = [
+  { key: 'all', label: 'Todas' },
+  { key: 'active', label: 'Em curso' },
+  { key: 'failed', label: 'Falhadas' },
+  { key: 'completed', label: 'Concluídas' },
+  { key: 'cancelled', label: 'Paradas' },
+];
+function matchesFilter(run: AutomationRun, filter: RunFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'active') return ACTIVE_STATUSES.includes(run.status);
+  return run.status === filter;
+}
 
 export function RunStatusPill({ status }: { status: AutomationRunStatus }) {
   const meta = RUN_STATUS_META[status] ?? RUN_STATUS_META.running;
@@ -69,6 +86,8 @@ interface FlowActivityProps {
 export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   const { data: runs, isLoading } = useAutomationRuns(flowId);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  // Like n8n's executions list: one click shows only the failed ones.
+  const [filter, setFilter] = useState<RunFilter>('all');
 
   // Run steps only ever store ids (template, user, list, stage) — resolve them
   // to names once here so the timeline reads like a sentence, not a database dump.
@@ -104,18 +123,32 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   const failedCount = runs.filter((run) => run.status === 'failed').length;
   const activeCount = runs.filter((run) => ACTIVE_STATUSES.includes(run.status)).length;
   const completedCount = runs.filter((run) => run.status === 'completed').length;
+  const visibleRuns = runs.filter((run) => matchesFilter(run, filter));
+  const countFor = (key: RunFilter) => runs.filter((run) => matchesFilter(run, key)).length;
 
   return (
     <div className="space-y-4 p-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Em curso" value={activeCount} className="text-primary" />
-        <StatCard label="Concluídas" value={completedCount} className="text-success" />
+        <StatCard label="Em curso" value={activeCount} className="text-primary" onClick={() => setFilter('active')} />
+        <StatCard label="Concluídas" value={completedCount} className="text-success" onClick={() => setFilter('completed')} />
         <StatCard
           label="Falhadas"
           value={failedCount}
           className={failedCount > 0 ? 'text-destructive' : 'text-muted-foreground'}
           highlight={failedCount > 0}
+          onClick={() => setFilter('failed')}
         />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {RUN_FILTERS.map((item) => (
+          <GroupChip key={item.key} active={filter === item.key} onClick={() => setFilter(item.key)}>
+            {item.label} <span className="tabular-nums opacity-60">{countFor(item.key)}</span>
+          </GroupChip>
+        ))}
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          Uma execução em curso pára-se com «Parar»; uma parada ou falhada repete-se.
+        </span>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -132,7 +165,14 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {runs.map((run) => (
+              {visibleRuns.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhuma execução neste filtro.
+                  </TableCell>
+                </TableRow>
+              )}
+              {visibleRuns.map((run) => (
                 <RunRow
                   key={run.id}
                   run={run}
@@ -151,23 +191,26 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
 }
 
 function StatCard({
-  label, value, className, highlight,
+  label, value, className, highlight, onClick,
 }: {
   label: string;
   value: number;
   className?: string;
   highlight?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'rounded-xl border bg-card p-3',
+        'rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/40',
         highlight ? 'border-destructive/40 bg-destructive/5' : 'border-border',
       )}
     >
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className={cn('mt-0.5 text-2xl font-bold tabular-nums', className)}>{value}</p>
-    </div>
+    </button>
   );
 }
 
@@ -181,9 +224,12 @@ function RunRow({
   onToggle: () => void;
 }) {
   const cancelRun = useCancelAutomationRun();
+  const retryRun = useRetryAutomationRun();
   const failed = run.status === 'failed';
   const currentNode = findNode(graph, run.current_node_id);
   const canCancel = ACTIVE_STATUSES.includes(run.status);
+  const isRetry = !!(run.context as Record<string, unknown> | null)?.__retry_of;
+  const busy = cancelRun.isPending || retryRun.isPending;
 
   return (
     <>
@@ -202,8 +248,13 @@ function RunRow({
         </TableCell>
 
         <TableCell>
-          <p className="text-sm font-medium text-foreground">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
             {run.contact_name || run.contact_phone || run.contact_email || 'Contacto sem nome'}
+            {isRetry && (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title="Repetição de uma execução anterior">
+                Repetição
+              </span>
+            )}
           </p>
           {(run.contact_phone || run.contact_email) && run.contact_name && (
             <p className="text-xs text-muted-foreground">{run.contact_phone || run.contact_email}</p>
@@ -233,20 +284,51 @@ function RunRow({
         </TableCell>
 
         <TableCell className="text-right">
-          {canCancel && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-destructive"
-              disabled={cancelRun.isPending}
-              onClick={(event) => {
-                event.stopPropagation();
-                cancelRun.mutate(run.id);
-              }}
-            >
-              Cancelar
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {canCancel && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                disabled={busy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  cancelRun.mutate(run.id);
+                }}
+              >
+                <Ban className="mr-1 h-3.5 w-3.5" /> Parar
+              </Button>
+            )}
+            {/* n8n's retry: pick up where it broke, or start over. */}
+            {failed && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={busy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  retryRun.mutate({ runId: run.id, from: 'failed_step' });
+                }}
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repetir do passo
+              </Button>
+            )}
+            {!canCancel && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                disabled={busy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  retryRun.mutate({ runId: run.id, from: 'start' });
+                }}
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> {failed ? 'Do início' : 'Repetir do início'}
+              </Button>
+            )}
+          </div>
         </TableCell>
       </TableRow>
 

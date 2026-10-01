@@ -22,7 +22,7 @@ import { useTeamMembers } from "@/hooks/useTeam";
 import { useTestWebhook, useOrganization } from "@/hooks/useOrganization";
 import { MetaConversionsForm } from "./MetaConversionsForm";
 import { OrgPixelsForm } from "./OrgPixelsForm";
-import { useMessagingChannels, useUpdateChannelAssignment, useUpdateChannelGroups, useConnectMetaChannel, useArchiveChannel, useFinishMetaChoice, useLogoutChannel, isNativeEvolution, usesInboxTables, ehPagina, type OpcaoConta } from "@/hooks/useMessagingChannels";
+import { useMessagingChannels, useUpdateChannelAssignment, useUpdateChannelGroups, useConnectMetaChannel, useDeleteChannel, useChannelConversationCount, useFinishMetaChoice, useLogoutChannel, isNativeEvolution, usesInboxTables, ehPagina, type OpcaoConta } from "@/hooks/useMessagingChannels";
 import { ConnectWhatsAppModal } from "./ConnectWhatsAppModal";
 import { useWhatsAppPairing } from "@/hooks/useWhatsAppPairing";
 import { useWhatsAppDiagnostico } from "@/hooks/useWhatsAppDiagnostico";
@@ -1060,7 +1060,7 @@ function InboxesManager() {
   const { organization } = useAuth();
   const { toast } = useToast();
   const deleteEmailChannel = useDeleteEmailChannel();
-  const archiveChannel = useArchiveChannel();
+  const deleteChannel = useDeleteChannel();
   const updateAssign = useUpdateChannelAssignment();
   const updateGroups = useUpdateChannelGroups();
 
@@ -1068,6 +1068,11 @@ function InboxesManager() {
   const [editEmailCh, setEditEmailCh] = useState<EmailChannel | null>(null);
   const [toDisconnect, setToDisconnect] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<{ id: string; type: string; provider: string; metadata: Record<string, unknown> | null } | null>(null);
+  // What goes with the caixa if it is deleted — asked only while the
+  // confirmation is open.
+  const { data: conversasAApagar, isLoading: aContarConversas } = useChannelConversationCount(
+    toDelete && toDelete.type !== 'email' ? toDelete.id : null,
+  );
   const logoutChannel = useLogoutChannel();
   // WhatsApp connect modal
   const [connectModal, setConnectModal] = useState<{ open: boolean; channelId?: string; label?: string }>({ open: false });
@@ -1390,22 +1395,20 @@ function InboxesManager() {
                       <Stethoscope className="h-4 w-4" />
                     </button>
                   )}
-                  {/* Já arquivada não se arquiva outra vez. E não se apaga:
-                      as conversas dela continuam na Caixa de Entrada. */}
-                  {ch.archived_at ? (
+                  {/* Uma caixa arquivada também se pode excluir de vez. */}
+                  {ch.archived_at && (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                       Arquivada
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setToDelete({ id: ch.id, type: ch.channel_type, provider: ch.provider, metadata: ch.metadata })}
-                      className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-                      title="Arquivar caixa"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setToDelete({ id: ch.id, type: ch.channel_type, provider: ch.provider, metadata: ch.metadata })}
+                    className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
+                    title="Excluir caixa"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -1612,8 +1615,9 @@ function InboxesManager() {
             </p>
           ) : (
             <p className="border-t pt-4 text-xs text-muted-foreground">
-              Vais autorizar a ligação numa janela da Meta. Escolhe lá a conta que queres
-              ligar — se tiveres mais do que uma, perguntamos qual a seguir.
+              O WhatsApp liga-se lendo um QR code com o telemóvel. Instagram e Messenger
+              abrem uma janela da Meta: escolhe lá a Página que queres ligar — se tiveres
+              mais do que uma, perguntamos qual a seguir.
             </p>
           )}
         </DialogContent>
@@ -1623,17 +1627,19 @@ function InboxesManager() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {toDelete?.type === 'email' ? 'Remover esta caixa?' : 'Arquivar esta caixa?'}
+              {toDelete?.type === 'email' ? 'Remover esta caixa?' : 'Excluir esta caixa?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {toDelete?.type === 'email'
                 ? 'A caixa deixa de aparecer no CRM e as mensagens desse canal deixam de ser geridas aqui. Esta ação não pode ser anulada.'
-                // Isto dizia "não pode ser anulada" e era literalmente verdade:
-                // apagava a caixa E, por cascata, todas as conversas dela. Já
-                // não é o que acontece, e a frase tinha de deixar de o dizer.
-                : 'A caixa deixa de receber e de enviar mensagens, e liberta o lugar no plano. '
-                  + 'As conversas e o histórico ficam na Caixa de Entrada para consulta. '
-                  + 'Podes voltar a ligar a conta quando quiseres.'}
+                // Excluir apaga a caixa E, por cascata, as conversas dela. Quem
+                // confirma tem de saber quantas, antes — não depois.
+                : aContarConversas
+                  ? 'A verificar quantas conversas tem esta caixa…'
+                  : conversasAApagar
+                    ? `A caixa é desligada e apagada, com as ${conversasAApagar} conversa${conversasAApagar === 1 ? '' : 's'} dela. `
+                      + 'Esta ação não pode ser anulada: o histórico desaparece da Caixa de Entrada.'
+                    : 'A caixa é desligada e apagada. Não tem conversas guardadas. Esta ação não pode ser anulada.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1643,15 +1649,16 @@ function InboxesManager() {
                 if (!toDelete) return;
                 // Cada tipo tem o seu caminho: o email passa pela função
                 // email-inbox (mexe em credenciais IMAP/SMTP); os canais da
-                // Meta arquivam-se pela meta-connect, que também avisa a Meta
-                // para parar de enviar e apaga o token.
+                // Meta e do WhatsApp por QR excluem-se no servidor, que primeiro
+                // desliga a Meta ou o Evolution.
                 if (toDelete.type === 'email') deleteEmailChannel.mutate(toDelete.id);
-                else archiveChannel.mutate(toDelete);
+                else deleteChannel.mutate(toDelete);
                 setToDelete(null);
               }}
+              disabled={toDelete?.type !== 'email' && aContarConversas}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {toDelete?.type === 'email' ? 'Remover' : 'Arquivar'}
+              {toDelete?.type === 'email' ? 'Remover' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

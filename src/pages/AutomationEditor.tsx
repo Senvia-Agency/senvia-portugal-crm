@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, FlaskConical, LayoutGrid, Loader2, Pause, Play, Save,
   SlidersHorizontal, Workflow,
@@ -13,8 +13,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 
 import { AutomationCanvas } from '@/components/automations/AutomationCanvas';
-import { NodeInspector } from '@/components/automations/NodeInspector';
-import { NodePickerDialog } from '@/components/automations/NodePickerDialog';
+import { NodeDetailsView } from '@/components/automations/NodeDetailsView';
+import { NodesPanel } from '@/components/automations/NodesPanel';
 import { FlowActivity } from '@/components/automations/FlowActivity';
 import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
 import { FlowSettings } from '@/components/automations/FlowSettings';
@@ -25,12 +25,14 @@ import {
   disconnectEdges, findNode, insertNodeOnEdge, pruneOrphanBranches, removeNode,
   updateNodeConfig, updateNodePositions, validateGraph,
 } from '@/lib/automation-graph';
+import { MESSAGE_BUFFER_DEFAULT_SECONDS } from '@/lib/automation-nodes';
 import {
   useAutomationFlow, useAutomationFlowNodeStats, useSetAutomationFlowStatus,
   useUpdateAutomationFlow,
 } from '@/hooks/useAutomationFlows';
 import type {
-  AutomationGraph, AutomationNodeConfig, AutomationNodeType, AutomationTriggerType,
+  AutomationGraph, AutomationNodeConfig, AutomationNodeType, AutomationReentryPolicy,
+  AutomationTriggerType,
 } from '@/types/automations';
 
 type PickerTarget =
@@ -48,11 +50,15 @@ export default function AutomationEditor() {
 
   const [graph, setGraph] = useState<AutomationGraph>({ nodes: [], edges: [] });
   const [name, setName] = useState('');
+  // Edited from two places — the message triggers' «Só uma vez por número» and
+  // Definições — so it lives here, saved with the rest of the flow.
+  const [reentry, setReentry] = useState<AutomationReentryPolicy>('once');
   const [dirty, setDirty] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [tab, setTab] = useState<'canvas' | 'activity' | 'settings'>('canvas');
   const [testOpen, setTestOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Only polled while the canvas is on screen — the badges live on the circles.
   const { data: nodeStats } = useAutomationFlowNodeStats(tab === 'canvas' ? id ?? null : null);
@@ -67,8 +73,19 @@ export default function AutomationEditor() {
     hydratedFlowId.current = flow.id;
     setGraph(flow.graph);
     setName(flow.name);
+    setReentry(flow.reentry_policy ?? 'once');
     setDirty(false);
-    setSelectedNodeId(null);
+    // A flow just created lands here with ?novo=1: the trigger opens at once,
+    // so choosing it is the first thing that happens — n8n's "first step".
+    if (searchParams.get('novo')) {
+      setSelectedNodeId(flow.entry_node_id);
+      const next = new URLSearchParams(searchParams);
+      next.delete('novo');
+      setSearchParams(next, { replace: true });
+    } else {
+      setSelectedNodeId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow]);
 
   const issues = useMemo(
@@ -194,14 +211,20 @@ export default function AutomationEditor() {
     const entryNode = findNode(graph, flow.entry_node_id);
     const triggerType = (entryNode?.type as AutomationTriggerType | undefined) ?? flow.trigger_type;
 
-    // trigger_config is the OTHER column the engine reads (keyword matching for
-    // whatsapp_keyword, in handleKeywordStart) — separate from the entry node's
-    // own `config`, which only drives what the inspector shows. Editing
-    // keywords in the inspector silently did nothing at the engine level before
-    // this, because nothing ever copied node.config into this column.
+    // trigger_config is the OTHER column the engine reads (keywords for
+    // whatsapp_keyword, the caixa for message_received — handleMessageStart) —
+    // separate from the entry node's own `config`, which only drives what the
+    // inspector shows. Editing keywords in the inspector silently did nothing at
+    // the engine level before this, because nothing ever copied node.config
+    // into this column.
     const triggerConfig = triggerType === 'whatsapp_keyword'
       ? { keywords: entryNode?.config?.keywords ?? [] }
-      : {};
+      : triggerType === 'message_received'
+        ? {
+          channel_id: entryNode?.config?.channel_id ?? null,
+          buffer_seconds: entryNode?.config?.buffer_seconds ?? MESSAGE_BUFFER_DEFAULT_SECONDS,
+        }
+        : {};
 
     await updateFlow.mutateAsync({
       id: flow.id,
@@ -210,6 +233,7 @@ export default function AutomationEditor() {
       entry_node_id: flow.entry_node_id,
       trigger_type: triggerType,
       trigger_config: triggerConfig,
+      reentry_policy: reentry,
     });
     setDirty(false);
     toast.success('Automação guardada');
@@ -380,19 +404,31 @@ export default function AutomationEditor() {
               nodeStats={hasRunStats ? nodeStats : undefined}
             />
 
-            {selectedNode && (
-              <NodeInspector
-                // Keyed so per-node form state (tag drafts, custom-field mode)
-                // never leaks between different nodes.
-                key={selectedNode.id}
-                node={selectedNode}
-                isEntry={selectedNode.id === flow.entry_node_id}
-                onChange={handleConfigChange}
-                onChangeTrigger={handleChangeTrigger}
-                onDelete={handleDeleteNode}
-                onClose={() => setSelectedNodeId(null)}
+            {/* The step catalogue slides in over the canvas, which stays visible. */}
+            {pickerTarget && (
+              <NodesPanel
+                onClose={() => setPickerTarget(null)}
+                onSelect={handlePickNodeType}
               />
             )}
+
+            <NodeDetailsView
+              // Keyed so per-node form state (tag drafts, custom-field mode)
+              // never leaks between different nodes.
+              key={selectedNode?.id ?? 'none'}
+              node={selectedNode ?? null}
+              isEntry={!!selectedNode && selectedNode.id === flow.entry_node_id}
+              flowId={flow.id}
+              graph={graph}
+              triggerType={findNode(graph, flow.entry_node_id)?.type ?? flow.trigger_type}
+              stats={selectedNode ? nodeStats?.[selectedNode.id] : undefined}
+              onChange={handleConfigChange}
+              onChangeTrigger={handleChangeTrigger}
+              reentryPolicy={reentry}
+              onReentryChange={(policy) => { setReentry(policy); setDirty(true); }}
+              onDelete={handleDeleteNode}
+              onClose={() => setSelectedNodeId(null)}
+            />
           </>
         ) : tab === 'activity' ? (
           <div className="h-full overflow-y-auto">
@@ -401,24 +437,24 @@ export default function AutomationEditor() {
         ) : (
           <div className="h-full overflow-y-auto">
             <FlowSettings
-              flow={flow}
+              // The switch on the trigger may hold a choice not saved yet.
+              flow={{ ...flow, reentry_policy: reentry }}
               isSaving={isBusy}
-              onSave={(patch) => updateFlow.mutate({ id: flow.id, ...patch })}
+              onSave={(patch) => {
+                setReentry(patch.reentry_policy);
+                updateFlow.mutate({ id: flow.id, ...patch });
+              }}
             />
           </div>
         )}
       </div>
 
-      <NodePickerDialog
-        open={!!pickerTarget}
-        onOpenChange={(open) => !open && setPickerTarget(null)}
-        onSelect={handlePickNodeType}
-      />
-
       <TestFlowDialog
         open={testOpen}
         onOpenChange={setTestOpen}
         flowId={flow.id}
+        graph={graph}
+        entryNodeId={flow.entry_node_id}
         // Land straight on the run the user just started.
         onStarted={() => setTab('activity')}
       />

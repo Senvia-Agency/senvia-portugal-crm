@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { cn } from '@/lib/utils';
+import { useFlowVariables } from '@/components/automations/FlowIoContext';
 
 /**
  * Contact variables the engine resolves when rendering message templates
@@ -9,7 +10,7 @@ import { cn } from '@/lib/utils';
 // mensagem copiada de lá funciona aqui tal e qual. Antes faltava
 // {{primeiro_nome}}, que é o mais usado de todos — ficava por substituir e o
 // contacto recebia "Olá, {{primeiro_nome}}!".
-const VARIABLES = [
+export const VARIABLES = [
   { token: '{{primeiro_nome}}', label: 'Primeiro nome' },
   { token: '{{nome}}', label: 'Nome completo' },
   { token: '{{email}}', label: 'Email' },
@@ -34,6 +35,12 @@ interface VariableChipsProps {
  * the associated field (replacing any selection), not just at the end.
  */
 export function VariableChips({ targetRef, value, onChange, className }: VariableChipsProps) {
+  // Inside a step's details view the flow says which variables exist (the
+  // trigger's record, the last reply…); elsewhere, the contact basics.
+  const flowFields = useFlowVariables();
+  const variables = flowFields
+    ? flowFields.map((field) => ({ token: `{{${field.key}}}`, label: field.label }))
+    : VARIABLES;
   const insert = (token: string) => {
     const el = targetRef.current;
     const start = el?.selectionStart ?? value.length;
@@ -57,7 +64,7 @@ export function VariableChips({ targetRef, value, onChange, className }: Variabl
   return (
     <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
       <span className="text-[11px] text-muted-foreground">Inserir variável:</span>
-      {VARIABLES.map((variable) => (
+      {variables.map((variable) => (
         <button
           key={variable.token}
           type="button"

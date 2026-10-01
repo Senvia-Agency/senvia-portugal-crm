@@ -597,3 +597,69 @@ export function useArchiveChannel() {
     },
   });
 }
+
+/**
+ * Quantas conversas uma caixa tem guardadas — o que vai com ela se for
+ * excluída. Só corre com a janela de confirmação aberta.
+ */
+export function useChannelConversationCount(channelId: string | null) {
+  return useQuery({
+    queryKey: ['channel-conversation-count', channelId],
+    enabled: !!channelId,
+    queryFn: async (): Promise<number> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count, error } = await (supabase as any)
+        .from('meta_conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('channel_id', channelId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
+
+/**
+ * EXCLUI uma caixa de WhatsApp, Instagram ou Messenger — a caixa e todas as
+ * conversas dela, sem volta. Arquivar era a única opção; os administradores
+ * pediram para poder apagar de vez.
+ *
+ * Quem apaga é o servidor, nunca o browser: primeiro desliga o fornecedor (a
+ * subscrição na Meta, a sessão e a instância no Evolution) e só depois chama
+ * delete_messaging_channel, que é a única porta que o gatilho de proteção do
+ * histórico deixa passar. As caixas de email têm o seu próprio caminho
+ * (useDeleteEmailChannel).
+ */
+export function useDeleteChannel() {
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (channel: Pick<MessagingChannel, 'id' | 'provider'>): Promise<number> => {
+      if (!organization?.id) throw new Error('Organização não encontrada');
+
+      const { data, error } = channel.provider === 'evolution'
+        ? await supabase.functions.invoke('whatsapp-disconnect', {
+          body: { organization_id: organization.id, channel_id: channel.id, delete: true },
+        })
+        : await supabase.functions.invoke('meta-connect', {
+          body: { action: 'disconnect', delete: true, organization_id: organization.id, channel_id: channel.id },
+        });
+      if (error) throw await invokeError(error);
+      const res = data as { error?: string; conversations_deleted?: number } | null;
+      if (res?.error) throw new Error(res.error);
+      return res?.conversations_deleted ?? 0;
+    },
+    onSuccess: (apagadas) => {
+      toast.success('Caixa excluída', {
+        description: apagadas > 0
+          ? `Foram apagadas ${apagadas} conversa${apagadas === 1 ? '' : 's'}.`
+          : 'Não tinha conversas guardadas.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['meta-unread-totals', organization?.id] });
+    },
+    onError: (e) => {
+      toast.error('Não foi possível excluir', { description: (e as Error).message });
+    },
+  });
+}

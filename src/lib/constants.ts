@@ -1,5 +1,5 @@
 // Versão actual do Senvia OS
-export const APP_VERSION = '26.6.1';
+export const APP_VERSION = '26.7.0';
 
 // URL canónica usada APENAS como fallback (links externos/edge functions
 // quando não há `window`). Em runtime, preferimos sempre o host actual
@@ -64,12 +64,13 @@ export const MESSAGING_CHANNELS = {
   // WhatsApp reaberto (2026-09-30) por QR code, pelo Evolution: a Cloud API
   // oficial da Meta ficou parada. As caixas antigas do Evolution continuam
   // escondidas — só aparecem as marcadas `native_inbox` (useMessagingChannels).
-  // Instagram e Messenger continuam pausados (2026-09-01): sem a Meta não há
-  // outra forma de os ligar, nem pelo Chatwoot. As caixas já ligadas continuam
-  // na base de dados — voltar a "true" reabre-as.
+  // Instagram e Messenger reabertos (2026-10-01), pela Meta oficial — é a
+  // única forma de os ligar, nem o Evolution nem o Chatwoot o fazem sem ela.
+  // Com a app da Meta em acesso básico só ligam contas de quem tem um papel na
+  // app; contas de clientes precisam da revisão da app pela Meta.
   whatsapp: true,
-  instagram: false,
-  facebook: false,
+  instagram: true,
+  facebook: true,
 } as const;
 
 /** True se ALGUM canal de mensagens está aberto (o email é sempre à parte). */

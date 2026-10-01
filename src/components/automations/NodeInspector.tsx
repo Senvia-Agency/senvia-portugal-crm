@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import {
-  FileText, Film, HelpCircle, Image as ImageIcon, Loader2, Plus, Trash2, Upload, X,
+  FileText, Film, Image as ImageIcon, Loader2, Plus, Trash2, Upload, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -8,17 +8,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  CONDITION_FIELD_OPTIONS, CONDITION_OPERATOR_OPTIONS, NUMERIC_OPERATORS,
-  SALE_STATUS_OPTIONS, TRIGGER_TYPES, VALUELESS_OPERATORS, WAIT_UNIT_OPTIONS,
-  getNodeDefinition, getNodeStyle, humanizeNodeType, normalizeConditionOperator,
+  CONDITION_FIELD_OPTIONS, CONDITION_OPERATOR_OPTIONS, MESSAGE_BUFFER_DEFAULT_SECONDS,
+  MESSAGE_BUFFER_MAX_SECONDS, NUMERIC_OPERATORS, SALE_STATUS_OPTIONS, TRIGGER_TYPES,
+  VALUELESS_OPERATORS, WAIT_UNIT_OPTIONS, getNodeLabel, normalizeConditionOperator,
 } from '@/lib/automation-nodes';
+import { TriggerPicker } from '@/components/automations/TriggerPicker';
+import { useFlowVariables } from '@/components/automations/FlowIoContext';
 import { createId, isJsonConfigValid, isWebhookUrlValid } from '@/lib/automation-graph';
 import { VariableChips } from '@/components/automations/VariableChips';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,9 +28,10 @@ import { usePipelineStages, type PipelineStage } from '@/hooks/usePipelineStages
 import { useContactLists } from '@/hooks/useContactLists';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useTeamMembers } from '@/hooks/useTeam';
+import { isNativeEvolution, useMessagingChannels } from '@/hooks/useMessagingChannels';
 import type {
-  AutomationGraphNode, AutomationMediaAttachment, AutomationNodeConfig,
-  AutomationTriggerType, AutomationWaitUnit, ConditionOperator, WaitReplyRule,
+  AutomationGraphNode, AutomationMediaAttachment, AutomationNodeConfig, AutomationNodeType,
+  AutomationReentryPolicy, AutomationTriggerType, AutomationWaitUnit, ConditionOperator, WaitReplyRule,
 } from '@/types/automations';
 
 interface NodeInspectorProps {
@@ -37,92 +39,94 @@ interface NodeInspectorProps {
   isEntry: boolean;
   onChange: (config: AutomationNodeConfig) => void;
   onChangeTrigger?: (type: AutomationTriggerType) => void;
-  onDelete: () => void;
-  onClose: () => void;
+  /** The flow's reentry policy, shown on message triggers as «Só uma vez por número». */
+  reentry?: { policy: AutomationReentryPolicy; onChange: (policy: AutomationReentryPolicy) => void };
 }
 
-/** Right-hand configuration panel for the selected node. */
-export function NodeInspector({
-  node, isEntry, onChange, onChangeTrigger, onDelete, onClose,
-}: NodeInspectorProps) {
-  const definition = getNodeDefinition(node.type);
-  const style = getNodeStyle(node.type);
-  const Icon = definition?.icon ?? HelpCircle;
-  const config = node.config ?? {};
+/** Triggers fired by a contact writing — where "once" means once per phone number. */
+const MESSAGE_TRIGGERS: AutomationNodeType[] = ['message_received', 'whatsapp_keyword'];
 
+/**
+ * The step's settings — the middle column of NodeDetailsView. Used to be a
+ * 360px panel over the canvas with its own header and delete button; those
+ * now belong to the full-screen view around it.
+ */
+export function NodeInspector({ node, isEntry, onChange, onChangeTrigger, reentry }: NodeInspectorProps) {
+  const config = node.config ?? {};
   const set = (patch: Partial<AutomationNodeConfig>) => onChange({ ...config, ...patch });
 
-  // The entry node's own type IS the flow's trigger — offer the same curated
-  // list CreateFlowDialog uses. A legacy/system trigger (trial_*, stripe_*…)
-  // outside that list is kept as the current selection instead of vanishing.
-  const triggerOptions = TRIGGER_TYPES.includes(node.type as AutomationTriggerType)
-    ? TRIGGER_TYPES
-    : [node.type as AutomationTriggerType, ...TRIGGER_TYPES];
+  // A legacy/system trigger (trial_*, stripe_*…) is not in the catalogue the
+  // picker offers; say which one it is instead of showing nothing selected.
+  const legacyTrigger = isEntry && !TRIGGER_TYPES.includes(node.type as AutomationTriggerType);
 
   return (
-    <aside
-      className={cn(
-        'absolute inset-y-0 right-0 z-10 flex w-full flex-col border-l border-border bg-card',
-        'shadow-lg sm:w-[360px]',
-      )}
-    >
-      <div className="flex items-start gap-3 border-b border-border p-4">
-        <span
-          className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-[2.5px]',
-            style.bg,
-            style.ring,
+    <div className="space-y-5">
+      {isEntry && onChangeTrigger && (
+        <Field label="Gatilho">
+          {legacyTrigger && (
+            <Helper>
+              Gatilho atual: <strong>{getNodeLabel(node.type)}</strong> (gatilho do sistema). Escolher
+              outro abaixo substitui-o.
+            </Helper>
           )}
-        >
-          <Icon className={cn('h-5 w-5', style.icon)} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">
-            {definition?.label ?? humanizeNodeType(node.type)}
-          </p>
-          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{definition?.description}</p>
-        </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+          <TriggerPicker
+            value={node.type as AutomationTriggerType}
+            onChange={onChangeTrigger}
+            gridClassName="sm:grid-cols-2"
+          />
+          <Helper>
+            Trocar o gatilho substitui a ligação com o resto do sistema — o fluxo deixa de
+            responder ao anterior assim que guardar.
+          </Helper>
+        </Field>
+      )}
+      <NodeConfigForm node={node} config={config} set={set} />
+      {isEntry && reentry && MESSAGE_TRIGGERS.includes(node.type) && (
+        <OncePerNumberField node={node} policy={reentry.policy} onChange={reentry.onChange} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The flow's reentry policy, in the trigger where n8n would put it. On means
+ * "once" (never again for this number); off means the trigger fires every
+ * time and the steps after it decide who carries on. Off is
+ * `after_completion`, not `always`: the engine never runs two at once for the
+ * same conversation whichever is chosen, and «Depois de terminar» is what
+ * Definições calls exactly that.
+ */
+function OncePerNumberField({ node, policy, onChange }: {
+  node: AutomationGraphNode;
+  policy: AutomationReentryPolicy;
+  onChange: (policy: AutomationReentryPolicy) => void;
+}) {
+  const once = policy === 'once';
+  return (
+    <div className="space-y-1.5 rounded-lg border border-border bg-background p-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="trigger-once-per-number" className="text-sm font-medium">
+          Só uma vez por número
+        </Label>
+        <Switch
+          id="trigger-once-per-number"
+          checked={once}
+          onCheckedChange={(checked) => onChange(checked ? 'once' : 'after_completion')}
+        />
       </div>
-
-      <ScrollArea className="flex-1">
-        <div className="space-y-4 p-4">
-          {isEntry && onChangeTrigger && (
-            <Field label="Gatilho">
-              <Select
-                value={node.type}
-                onValueChange={(value) => onChangeTrigger(value as AutomationTriggerType)}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {triggerOptions.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {getNodeDefinition(type)?.label ?? humanizeNodeType(type)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Helper>
-                Trocar o gatilho substitui a ligação com o resto do sistema — o fluxo deixa de
-                responder ao anterior assim que guardar.
-              </Helper>
-            </Field>
-          )}
-          <NodeConfigForm node={node} config={config} set={set} />
-        </div>
-      </ScrollArea>
-
-      {!isEntry && (
-        <div className="border-t border-border p-4">
-          <Button variant="outline" className="w-full text-destructive hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            Eliminar passo
-          </Button>
-        </div>
-      )}
-    </aside>
+      <Helper>
+        {once
+          ? 'Cada número entra nesta automação uma vez e nunca mais, mesmo que volte a escrever daqui a um mês.'
+          : node.type === 'whatsapp_keyword'
+            ? 'Arranca sempre que a mensagem tiver uma das palavras-chave. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho.'
+            : 'Arranca sempre que a pessoa escrever. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho: o ramo «Não» sem ligação termina ali.'}
+      </Helper>
+      <Helper>
+        Ligado ou desligado, nunca correm duas ao mesmo tempo para o mesmo número: enquanto uma
+        decorre, o que a pessoa escrever fica só na Caixa de Entrada. É a mesma opção que
+        «Quem pode voltar a entrar», em Definições.
+      </Helper>
+    </div>
   );
 }
 
@@ -208,6 +212,47 @@ function NodeConfigForm({ node, config, set }: FormProps) {
           />
           <Helper>Deixe vazio para reagir a qualquer formulário público.</Helper>
         </Field>
+      );
+
+    case 'message_received':
+      return (
+        <>
+          <WhatsappChannelField
+            config={config}
+            set={set}
+            label="Caixa"
+            autoLabel="Qualquer caixa de WhatsApp"
+            helper="Arranca quando um contacto escreve para esta caixa e não está a meio de outra automação à espera da resposta dele."
+          />
+          <Field label="Juntar mensagens seguidas">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={MESSAGE_BUFFER_MAX_SECONDS}
+                className="w-24"
+                value={config.buffer_seconds ?? MESSAGE_BUFFER_DEFAULT_SECONDS}
+                onChange={(e) => {
+                  const seconds = Number(e.target.value);
+                  set({
+                    buffer_seconds: Number.isFinite(seconds)
+                      ? Math.min(MESSAGE_BUFFER_MAX_SECONDS, Math.max(0, Math.round(seconds)))
+                      : MESSAGE_BUFFER_DEFAULT_SECONDS,
+                  });
+                }}
+              />
+              <span className="text-sm text-muted-foreground">segundos sem mensagens novas</span>
+            </div>
+            <Helper>
+              Quem escreve «Olá» · «tudo bem?» · «queria saber o preço» recebe uma resposta, não três: a
+              automação espera este silêncio e arranca uma vez, com as mensagens todas em
+              {' '}<code>{'{{mensagem_inicial}}'}</code>. Com 0 arranca logo na primeira. Máximo {MESSAGE_BUFFER_MAX_SECONDS}.
+            </Helper>
+          </Field>
+          <Hint>
+            Se a mensagem tiver a palavra-chave de outra automação, ganha essa e esta não arranca.
+          </Hint>
+        </>
       );
 
     case 'whatsapp_keyword':
@@ -566,6 +611,8 @@ function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: Form
 
   return (
     <>
+      <WhatsappChannelField config={config} set={set} />
+
       <Field label="Mensagem">
         <Textarea
           ref={messageRef}
@@ -603,6 +650,64 @@ function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: Form
 
       {waitsForReply && <ReplyRulesEditor config={config} set={set} />}
     </>
+  );
+}
+
+// ── send_whatsapp: which number sends ───────────────────────────────────────
+
+const AUTO_CHANNEL = '__auto__';
+
+/**
+ * Which WhatsApp caixa: the one a message goes out from, or — on the
+ * «Mensagem recebida» trigger — the one listened to. Only caixas linked by QR
+ * code: the engine sends through Evolution and only those report incoming
+ * messages to it. Left on the first option, any/the first connected one.
+ */
+function WhatsappChannelField({
+  config, set,
+  label = 'Enviar pelo número',
+  autoLabel = 'Automático (primeira caixa ligada)',
+  helper = 'Envios automáticos têm um travão por número: 6 s entre mensagens e no máximo 200 por dia.',
+}: {
+  config: AutomationNodeConfig;
+  set: FormProps['set'];
+  label?: string;
+  autoLabel?: string;
+  helper?: string;
+}) {
+  const { data: channels = [] } = useMessagingChannels();
+  const whatsapp = channels.filter((c) => c.channel_type === 'whatsapp' && isNativeEvolution(c) && !c.archived_at);
+  const chosen = typeof config.channel_id === 'string' ? config.channel_id : '';
+  const chosenGone = !!chosen && !whatsapp.some((c) => c.id === chosen);
+  const noneConnected = !whatsapp.some((c) => c.status === 'connected');
+
+  return (
+    <Field label={label}>
+      <Select
+        value={chosen || AUTO_CHANNEL}
+        onValueChange={(v) => set({ channel_id: v === AUTO_CHANNEL ? undefined : v })}
+      >
+        <SelectTrigger className="h-9">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO_CHANNEL}>{autoLabel}</SelectItem>
+          {whatsapp.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {(c.label || 'WhatsApp') + (c.phone_number ? ` · +${c.phone_number}` : '')}
+              {c.status !== 'connected' ? ' (desligada)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {noneConnected ? (
+        <FieldError>Não há nenhuma caixa de WhatsApp ligada. Liga um número por QR code em Definições → Integrações.</FieldError>
+      ) : chosenGone ? (
+        <FieldError>A caixa escolhida já não existe. Escolhe outra.</FieldError>
+      ) : (
+        <Helper>{helper}</Helper>
+      )}
+    </Field>
   );
 }
 
@@ -945,7 +1050,15 @@ function ConditionForm({
   stages: PipelineStage[] | undefined;
 }) {
   const field = config.field ?? '';
-  const isKnownField = CONDITION_FIELD_OPTIONS.some((option) => option.value === field);
+  // The fields on offer are what THIS flow carries — the trigger's record and
+  // what earlier steps added (see NodeDetailsView) — not a fixed list.
+  const flowFields = useFlowVariables();
+  const fieldOptions = flowFields
+    ? flowFields.map((item) => ({ value: item.key, label: item.label }))
+    : CONDITION_FIELD_OPTIONS;
+  const isKnownField = fieldOptions.some((option) => option.value === field);
+  // Telefones comparam-se pelos últimos 9 dígitos, com ou sem indicativo.
+  const isPhoneField = /telefone|phone|whatsapp/i.test(field);
   // "Outro campo…" stays revealed while the free-text input is empty.
   const [customFieldMode, setCustomFieldMode] = useState(() => !!field && !isKnownField);
   const showCustomInput = customFieldMode || (!!field && !isKnownField);
@@ -971,7 +1084,7 @@ function ConditionForm({
         >
           <SelectTrigger><SelectValue placeholder="Escolher campo" /></SelectTrigger>
           <SelectContent>
-            {CONDITION_FIELD_OPTIONS.map((option) => (
+            {fieldOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
             ))}
             <SelectItem value={CUSTOM_FIELD_SENTINEL}>Outro campo…</SelectItem>
@@ -1015,8 +1128,14 @@ function ConditionForm({
               type={isNumeric ? 'number' : 'text'}
               value={config.value ?? ''}
               onChange={(e) => set({ value: e.target.value })}
-              placeholder={isNumeric ? '0' : 'Valor a comparar'}
+              placeholder={isNumeric ? '0' : isPhoneField ? '912 345 678' : 'Valor a comparar'}
             />
+          )}
+          {isPhoneField && !isValueless && (
+            <Helper>
+              Compara os últimos 9 dígitos: «+351 912 345 678», «912345678» e «351912345678» contam
+              como o mesmo número.
+            </Helper>
           )}
         </Field>
       )}

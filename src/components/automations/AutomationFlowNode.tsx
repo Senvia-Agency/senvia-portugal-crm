@@ -253,6 +253,12 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
         event.preventDefault();
         data.onAdd(data.sourceId, data.branch);
       }}
+      // A plain click: the library only reports a connection (and so a release
+      // back on this "+") once the pointer has moved past its drag threshold,
+      // so a press with no movement never reached onConnectEnd and nothing
+      // opened. The click bubbles up from the handle below; after a real drag
+      // the pointer is released elsewhere and no click fires here.
+      onClick={() => data.onAdd(data.sourceId, data.branch)}
       title="Clica para adicionar aqui, ou arrasta para escolher o sítio"
       className={cn(
         'nopan nodrag relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-border bg-card',
@@ -265,9 +271,9 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
         The whole "+" is the grab point. Pressing it starts a line exactly as
         pressing a step's own connection point does, so the two affordances
         behave the same instead of one moving a circle and the other drawing.
-        A press with no movement ends back here and adds the step in place,
-        which is the old click. The click handler is gone on purpose: with this
-        handle on top it would fire as well and add two steps.
+        A press with no movement is a click, handled above: it opens the step
+        picker, which is harmless to reach twice — the step is only added once
+        a type is chosen.
       */}
       <Handle
         type="source"

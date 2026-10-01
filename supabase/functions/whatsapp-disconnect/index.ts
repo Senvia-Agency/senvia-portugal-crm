@@ -5,6 +5,9 @@
 //                                   on the same caixa brings it back.
 //   { channel_id }               → archives: logs out, deletes the Evolution
 //                                   instance, marks the row archived.
+//   { channel_id, delete: true } → the same teardown, then deletes the caixa
+//                                   and its conversations for good
+//                                   (delete_messaging_channel).
 //
 // The first version of this function DELETED the row, and with it (ON DELETE
 // CASCADE) every conversation of the caixa. Archiving keeps the history
@@ -22,7 +25,7 @@ Deno.serve(async (req) => {
 
   try {
     const cfg = getConfig();
-    const { organization_id, channel_id, logout } = await req.json().catch(() => ({}));
+    const { organization_id, channel_id, logout, delete: excluir } = await req.json().catch(() => ({}));
     const auth = await authOrgAdmin(req, cfg, organization_id);
     if ('error' in auth) return auth.error;
     const { admin } = auth;
@@ -35,7 +38,11 @@ Deno.serve(async (req) => {
       .eq('organization_id', organization_id)
       .maybeSingle();
     if (!row) return json({ error: 'Caixa não encontrada' }, 404);
-    if (!isNativeEvolution(row)) return json({ error: 'Esta caixa não foi ligada por QR code.' }, 409);
+    // Deleting also clears out caixas of the first Evolution integration;
+    // logging out and archiving stay limited to the current one.
+    if (!isNativeEvolution(row) && !(excluir === true && row.provider === 'evolution')) {
+      return json({ error: 'Esta caixa não foi ligada por QR code.' }, 409);
+    }
     const instance = row.evolution_instance as string | null;
 
     if (logout) {
@@ -48,7 +55,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, disconnected: true });
     }
 
-    if (row.archived_at) return json({ ok: true, archived: true });
+    if (row.archived_at && excluir !== true) return json({ ok: true, archived: true });
 
     if (instance) {
       try {
@@ -59,6 +66,19 @@ Deno.serve(async (req) => {
         const res = await evolutionFetch(cfg, `/instance/delete/${instance}`, 'DELETE');
         if (!res.ok) console.error(`delete ${instance}: ${res.status} ${await res.text()}`);
       } catch (e) { console.error(`delete ${instance} error:`, e); }
+    }
+
+    if (excluir === true) {
+      // The caixa and its conversations, for good. The admin was told how many
+      // before confirming (see delete_messaging_channel).
+      const { data: apagadas, error: delErr } = await admin.rpc('delete_messaging_channel', {
+        p_channel_id: row.id, p_organization_id: organization_id,
+      });
+      if (delErr) {
+        console.error('delete_messaging_channel failed:', delErr);
+        return json({ error: 'Não foi possível excluir a caixa.' }, 500);
+      }
+      return json({ ok: true, deleted: true, conversations_deleted: apagadas ?? 0 });
     }
 
     const { error } = await admin.from('messaging_channels')

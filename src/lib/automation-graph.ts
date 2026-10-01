@@ -196,11 +196,15 @@ export function insertNodeOnEdge(
     target: node.id,
     branch: target.branch,
   };
+  // A step that branches (a condition, a reply wait) has no plain exit: the
+  // engine only follows the branch it took, so a plain line out of it never
+  // runs. Inserting a condition used to leave exactly that — a line to the old
+  // next step that "Sim" did not follow. It goes on the first branch instead.
   const downstream: AutomationGraphEdge = {
     id: createId('e'),
     source: node.id,
     target: target.target,
-    branch: null,
+    branch: getNodeBranches(node)[0]?.key ?? null,
   };
 
   return {
@@ -257,13 +261,14 @@ export function removeNode(graph: AutomationGraph, nodeId: string): AutomationGr
     }
   }
 
-  return {
+  // Healing can join two steps that were already joined (A→X→B next to A→B).
+  return tidyEdges({
     nodes: graph.nodes.filter((node) => node.id !== nodeId),
     edges: [
       ...graph.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       ...healed,
     ],
-  };
+  });
 }
 
 /**
@@ -274,7 +279,7 @@ export function removeNode(graph: AutomationGraph, nodeId: string): AutomationGr
  * downstream survive as unreachable roots the user can see and reconnect.
  */
 export function pruneOrphanBranches(graph: AutomationGraph): AutomationGraph {
-  return {
+  return tidyEdges({
     ...graph,
     edges: graph.edges.filter((edge) => {
       if (!edge.branch) return true;
@@ -285,7 +290,58 @@ export function pruneOrphanBranches(graph: AutomationGraph): AutomationGraph {
       if (!branches.length) return false;
       return branches.some((branch) => branch.key === edge.branch);
     }),
-  };
+  });
+}
+
+/**
+ * The two rules every graph keeps:
+ *
+ *  1. One line between any two steps. Two branches into the same step say the
+ *     same thing twice, and on the canvas the second line lay on top of the
+ *     first with its buttons doubled.
+ *  2. No plain line out of a step that branches — the engine never follows
+ *     it. One left there (turning "Aguardar resposta" on with the next step
+ *     already wired) moves to the first free branch, or goes if none is free.
+ *
+ * Branch lines are judged first so a plain one is what yields. The surviving
+ * lines keep their original order.
+ */
+export function tidyEdges(graph: AutomationGraph): AutomationGraph {
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const usedBranches = new Map<string, Set<string>>();
+  const joined = new Set<string>();
+  const decided = new Map<string, AutomationGraphEdge | null>();
+
+  const ordered = [
+    ...graph.edges.filter((edge) => edge.branch),
+    ...graph.edges.filter((edge) => !edge.branch),
+  ];
+  for (const edge of ordered) {
+    const pair = `${edge.source}→${edge.target}`;
+    if (joined.has(pair)) { decided.set(edge.id, null); continue; }
+
+    const used = usedBranches.get(edge.source) ?? new Set<string>();
+    let branch = edge.branch;
+    const branches = getNodeBranches(byId.get(edge.source));
+    if (branches.length && !branch) {
+      branch = branches.find((item) => !used.has(item.key))?.key ?? null;
+      if (!branch) { decided.set(edge.id, null); continue; }
+    }
+    if (branch) {
+      if (used.has(branch)) { decided.set(edge.id, null); continue; }
+      used.add(branch);
+      usedBranches.set(edge.source, used);
+    }
+    joined.add(pair);
+    decided.set(edge.id, branch === edge.branch ? edge : { ...edge, branch });
+  }
+
+  const edges = graph.edges
+    .map((edge) => decided.get(edge.id))
+    .filter((edge): edge is AutomationGraphEdge => !!edge);
+  const unchanged = edges.length === graph.edges.length
+    && edges.every((edge, index) => edge === graph.edges[index]);
+  return unchanged ? graph : { ...graph, edges };
 }
 
 // ── Canvas projection ───────────────────────────────────────────────────────
@@ -641,6 +697,13 @@ export function describeConnectionRefusal(
   if (source.type === "end") return "O passo final não tem saída.";
 
   const branches = getNodeBranches(source);
+  // One line between two steps, whichever branch it would leave from.
+  if (graph.edges.some((edge) => edge.source === sourceId && edge.target === targetId)) {
+    return branches.length
+      ? "Outro ramo deste passo já segue para aí. Cada ramo tem de ir para um passo diferente."
+      : "Estes dois passos já estão ligados.";
+  }
+
   if (branches.length) {
     if (!branch) return "Escolhe de que ramo sai esta ligação.";
     if (!branches.some((item) => item.key === branch)) return "Esse ramo já não existe neste passo.";
@@ -648,15 +711,10 @@ export function describeConnectionRefusal(
     // would be arbitrary.
     const taken = graph.edges.some((edge) => edge.source === sourceId && edge.branch === branch);
     if (taken) return "Este ramo já está ligado. Apaga a ligação atual primeiro.";
-  } else {
-    if (branch) return "Este passo não tem ramos.";
-    // A step with no branches may fan out: the engine walks every unbranched
-    // edge, so several here means several paths side by side. Only the exact
-    // same pair twice is meaningless.
-    const already = graph.edges.some(
-      (edge) => edge.source === sourceId && edge.target === targetId && !edge.branch,
-    );
-    if (already) return "Estes dois passos já estão ligados.";
+  } else if (branch) {
+    // A step with no branches may still fan out — the engine walks every
+    // unbranched edge, so several here are several paths side by side.
+    return "Este passo não tem ramos.";
   }
 
   // Following the edges forward from the target must never come back here.

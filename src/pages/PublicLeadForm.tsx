@@ -179,24 +179,19 @@ export default function PublicLeadForm() {
     return () => observer.disconnect();
   }, [isSuccess, isValidating]);
 
-  // Inject Meta Pixels - using sessionStorage to persist across React remounts
+  // Inject Meta Pixels. Duplicate init (React StrictMode remounts) is stopped by
+  // the per-page window.__senvia_pixel_init guard below. It used to be a
+  // sessionStorage flag, which outlives a reload while fbq does not: every
+  // reload in the same tab skipped the init, and the form's pixel never fired.
   useEffect(() => {
     if (!formData?.meta_pixels || !formData?.form_id) return;
-    
+
     const activePixels = formData.meta_pixels.filter(p => p.enabled && p.pixel_id);
     if (activePixels.length === 0) {
       console.log('[Meta Pixel] No active pixels configured');
       return;
     }
 
-    // Use sessionStorage to prevent duplicate initialization (persists across React StrictMode remounts)
-    const pixelStorageKey = `pixel_init_${formData.form_id}`;
-    if (sessionStorage.getItem(pixelStorageKey)) {
-      console.log('[Meta Pixel] Already initialized in this session, skipping');
-      return;
-    }
-    sessionStorage.setItem(pixelStorageKey, 'true');
-    
     console.log('[Meta Pixel] Initializing pixels:', activePixels.map(p => p.pixel_id));
 
     // Inject the base Facebook Pixel code (only once)

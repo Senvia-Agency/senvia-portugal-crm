@@ -140,6 +140,10 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
               payments={props.payments}
               allPayments={props.allPayments}
               dueSoonPayments={props.stats.dueSoonPayments}
+              // The search bar above drives the list too — without this the
+              // detail showed a second box of its own and the top one did
+              // nothing to it.
+              searchTerm={search}
               onBack={() => props.onDetailViewChange(null)}
             />
           ) : (

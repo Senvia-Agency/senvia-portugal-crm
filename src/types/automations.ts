@@ -32,6 +32,10 @@ export type AutomationTriggerType =
   | 'lead_status_changed'
   | 'form_submitted'
   | 'whatsapp_keyword'
+  // Any message that reaches a WhatsApp caixa (the one in trigger_config, or
+  // any when none is set). Started by the engine's reply handler, one run per
+  // conversation; a keyword flow that matched the same message takes priority.
+  | 'message_received'
   | 'sale_status_changed'
   | 'list_joined'
   // Legacy triggers migrated from the old automation system. They are not
@@ -152,6 +156,8 @@ export interface AutomationMediaAttachment {
  */
 export interface AutomationNodeConfig {
   // send_whatsapp
+  /** The QR-code caixa that sends. Absent = the organization's first connected one. */
+  channel_id?: string;
   message?: string;
   /** Uploaded attachment. `media_url` is the legacy URL-only field. */
   media?: AutomationMediaAttachment;
@@ -206,6 +212,8 @@ export interface AutomationNodeConfig {
   to_status?: string;
   form_slug?: string;
   keywords?: string[];
+  /** message_received: seconds of silence before starting, joining what came meanwhile. */
+  buffer_seconds?: number;
 
   [key: string]: unknown;
 }
