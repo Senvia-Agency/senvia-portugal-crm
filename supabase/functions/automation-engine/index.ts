@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
+import { requiresSingleBillingEnrollment } from "../_shared/sale-billing-trigger-dedupe.ts";
 
 // Motor dos fluxos de automação.
 //
@@ -1087,10 +1088,9 @@ async function handleEnroll(db: any, body: Record<string, unknown>) {
 
     const subjectId = (record.id as string) ?? null;
 
-    // Reinscrição: 'once' impede para sempre; 'after_completion' só permite
-    // depois de o anterior ter terminado (o índice único já bloqueia percursos
-    // simultâneos, aqui trata-se dos já concluídos).
-    if (subjectId && flow.reentry_policy === "once") {
+    const preventsRepeatedEnrollment =
+      flow.reentry_policy === "once" || requiresSingleBillingEnrollment(triggerType);
+    if (subjectId && preventsRepeatedEnrollment) {
       const { data: prior } = await db.from("automation_runs")
         .select("id").eq("flow_id", flow.id).eq("subject_id", subjectId).limit(1);
       if (prior?.length) { results.push({ flow: flow.id, skipped: "já entrou neste fluxo" }); continue; }

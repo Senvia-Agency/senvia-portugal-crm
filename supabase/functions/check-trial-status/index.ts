@@ -34,7 +34,7 @@ serve(async (req) => {
     // Find orgs in trial (have trial_ends_at, no plan or plan = 'basic', not billing_exempt)
     const { data: orgs, error } = await supabase
       .from("organizations")
-      .select("id, name, trial_ends_at, plan, trial_reminders_sent")
+      .select("id, name, trial_ends_at, plan, trial_reminders_sent, contact_phone")
       .eq("billing_exempt", false)
       .not("trial_ends_at", "is", null);
 
@@ -66,7 +66,7 @@ serve(async (req) => {
       // Janela alta para nunca disparar em trials antigos/expirados.
       if (daysLeft >= 12 && !reminders["automation_started"]) {
         logStep("Trial started", { orgId: org.id });
-        await dispatchAutomation(supabase, "trial_started", { email: adminEmail, nome: org.name });
+        await dispatchAutomation(supabase, "trial_started", { email: adminEmail, nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "" });
         reminders["automation_started"] = true;
         await updateReminders(supabase, org.id, reminders);
         processed++;
@@ -75,7 +75,7 @@ serve(async (req) => {
       // Dia 3 do trial (ativação) — ~8-11 dias por usar.
       if (daysLeft <= 11 && daysLeft >= 8 && !reminders["automation_day3"]) {
         logStep("Trial day 3", { orgId: org.id });
-        await dispatchAutomation(supabase, "trial_day_3", { email: adminEmail, nome: org.name });
+        await dispatchAutomation(supabase, "trial_day_3", { email: adminEmail, nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "" });
         reminders["automation_day3"] = true;
         await updateReminders(supabase, org.id, reminders);
         processed++;
@@ -84,7 +84,7 @@ serve(async (req) => {
       // Dia 7 do trial (diferenciadores) — ~4-7 dias por usar.
       if (daysLeft <= 7 && daysLeft >= 4 && !reminders["automation_day7"]) {
         logStep("Trial day 7", { orgId: org.id });
-        await dispatchAutomation(supabase, "trial_day_7", { email: adminEmail, nome: org.name });
+        await dispatchAutomation(supabase, "trial_day_7", { email: adminEmail, nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "" });
         reminders["automation_day7"] = true;
         await updateReminders(supabase, org.id, reminders);
         processed++;
@@ -95,7 +95,7 @@ serve(async (req) => {
         logStep("Trial expiring in 3 days", { orgId: org.id });
         await dispatchAutomation(supabase, "trial_expiring_3d", {
           email: adminEmail,
-          nome: org.name,
+          nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "",
           dias: "3",
         });
         reminders["automation_3d"] = true;
@@ -108,7 +108,7 @@ serve(async (req) => {
         logStep("Trial expiring in 1 day", { orgId: org.id });
         await dispatchAutomation(supabase, "trial_expiring_1d", {
           email: adminEmail,
-          nome: org.name,
+          nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "",
           dias: "1",
         });
         reminders["automation_1d"] = true;
@@ -121,7 +121,7 @@ serve(async (req) => {
         logStep("Trial expired", { orgId: org.id });
         await dispatchAutomation(supabase, "trial_expired", {
           email: adminEmail,
-          nome: org.name,
+          nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "",
         });
 
         // Move from "Clientes em Trial" to "Trial Expirado"

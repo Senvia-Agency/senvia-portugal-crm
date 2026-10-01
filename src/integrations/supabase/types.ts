@@ -117,6 +117,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           entry_node_id: string | null
+          folder_id: string | null
           graph: Json
           id: string
           last_enrolled_at: string | null
@@ -136,6 +137,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           entry_node_id?: string | null
+          folder_id?: string | null
           graph?: Json
           id?: string
           last_enrolled_at?: string | null
@@ -155,6 +157,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           entry_node_id?: string | null
+          folder_id?: string | null
           graph?: Json
           id?: string
           last_enrolled_at?: string | null
@@ -170,6 +173,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "automation_flows_folder_id_fkey"
+            columns: ["folder_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "automation_folders"
+            referencedColumns: ["id", "organization_id"]
+          },
           {
             foreignKeyName: "automation_flows_organization_id_fkey"
             columns: ["organization_id"]
@@ -191,6 +201,41 @@ export type Database = {
             referencedRelation: "trial_activation_overview"
             referencedColumns: ["organization_id"]
           },
+        ]
+      }
+      automation_folders: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_folders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
         ]
       }
       automation_queue: {

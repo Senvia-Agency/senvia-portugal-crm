@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AlertCircle, Copy, MoreVertical, Pause, Play, Plus, Search, Sparkles, Trash2, Workflow, X, Zap,
+  AlertCircle, Copy, Folder, MoreVertical, Pause, Pencil, Play, Plus, Search, Sparkles, Trash2, Workflow, X, Zap,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -20,9 +21,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { groupAutomationFlows } from '@/lib/automation-folders';
 import {
   NODE_CATEGORY_STYLES, TRIGGER_FAMILIES, getNodeDefinition, getNodeLabel, getTriggerFamily,
 } from '@/lib/automation-nodes';
@@ -33,16 +38,27 @@ import {
   useAutomationFlows, useAutomationRunCounts, useCreateAutomationFlow, useDeleteAutomationFlow,
   useDuplicateAutomationFlow, useSetAutomationFlowStatus,
 } from '@/hooks/useAutomationFlows';
-import type { AutomationFlow } from '@/types/automations';
+import {
+  useAutomationFolders, useCreateAutomationFolder, useDeleteAutomationFolder, useUpdateAutomationFolder,
+} from '@/hooks/useAutomationFolders';
+import type { AutomationFlow, AutomationFolder } from '@/types/automations';
 
 export default function Automations() {
   const { data: flows, isLoading } = useAutomationFlows();
+  const { data: folders = [] } = useAutomationFolders();
   const { data: runCounts } = useAutomationRunCounts();
   const duplicateFlow = useDuplicateAutomationFlow();
   const deleteFlow = useDeleteAutomationFlow();
   const setStatus = useSetAutomationFlowStatus();
+  const createFolder = useCreateAutomationFolder();
+  const updateFolder = useUpdateAutomationFolder();
+  const deleteFolder = useDeleteAutomationFolder();
 
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [folderName, setFolderName] = useState('');
+  const [folderToEdit, setFolderToEdit] = useState<AutomationFolder | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<AutomationFolder | null>(null);
   const navigate = useNavigate();
   const createFlow = useCreateAutomationFlow();
 
@@ -60,6 +76,7 @@ export default function Automations() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = usePersistedState('automations-status-v1', 'all');
   const [familyFilter, setFamilyFilter] = usePersistedState('automations-family-v1', 'all');
+  const [openFolders, setOpenFolders] = usePersistedState<string[]>('automation-folders-v2', []);
 
   // Só se oferecem as famílias que a organização REALMENTE tem. Um dropdown com
   // nove opções das quais sete não dão resultado nenhum não ajuda a procurar.
@@ -86,6 +103,28 @@ export default function Automations() {
   }, [flows, search, statusFilter, familyFilter]);
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all' || familyFilter !== 'all';
+  const groupedFlows = useMemo(
+    () => groupAutomationFlows(visibleFlows, folders),
+    [visibleFlows, folders],
+  );
+
+  const openFolderDialog = (folder?: AutomationFolder) => {
+    setFolderToEdit(folder ?? null);
+    setFolderName(folder?.name ?? '');
+    setFolderDialogOpen(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (folderToEdit) {
+      await updateFolder.mutateAsync({ id: folderToEdit.id, name: folderName });
+    } else {
+      const folder = await createFolder.mutateAsync({ name: folderName });
+      setOpenFolders((current) => current.includes(folder.id) ? current : [...current, folder.id]);
+    }
+    setFolderDialogOpen(false);
+    setFolderName('');
+    setFolderToEdit(null);
+  };
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('all');
@@ -100,6 +139,10 @@ export default function Automations() {
         subtitle="Fluxos automáticos de WhatsApp, email e ações no CRM"
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => openFolderDialog()}>
+              <Folder className="mr-2 h-4 w-4" />
+              Nova pasta
+            </Button>
             <Button variant="outline" onClick={() => setGalleryOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Usar modelo
@@ -120,7 +163,7 @@ export default function Automations() {
             <Skeleton key={index} className="h-[60px] rounded-none border-b border-border last:border-b-0" />
           ))}
         </div>
-      ) : !flows?.length ? (
+      ) : !flows?.length && folders.length === 0 ? (
         <EmptyState
           icon={Zap}
           title="Ainda não tem automações"
@@ -180,7 +223,7 @@ export default function Automations() {
           )}
         </div>
 
-        {visibleFlows.length === 0 ? (
+        {visibleFlows.length === 0 && folders.length === 0 ? (
           <EmptyState
             icon={Search}
             title="Nenhuma automação encontrada"
@@ -189,29 +232,88 @@ export default function Automations() {
             <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button>
           </EmptyState>
         ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          {visibleFlows.map((flow) => (
-            <FlowRow
-              key={flow.id}
-              flow={flow}
-              counts={runCounts?.[flow.id]}
-              onDuplicate={() => duplicateFlow.mutate(flow.id)}
-              onDelete={() => setFlowToDelete(flow)}
-              onToggleStatus={() =>
-                setStatus.mutate({
-                  id: flow.id,
-                  status: flow.status === 'active' ? 'paused' : 'active',
-                  version: flow.version,
-                })
-              }
-            />
-          ))}
-        </div>
+          <div className="space-y-3">
+            {folders.length > 0 && (
+              <Accordion type="multiple" value={openFolders} onValueChange={setOpenFolders} className="overflow-hidden rounded-2xl border border-border bg-card">
+                {groupedFlows.folders.map(({ folder, flows: folderFlows }) => (
+                  <AutomationFolder
+                    key={folder.id}
+                    folder={folder}
+                    flows={folderFlows}
+                    runCounts={runCounts}
+                    onDuplicate={(id) => duplicateFlow.mutate(id)}
+                    onDelete={setFlowToDelete}
+                    onEdit={openFolderDialog}
+                    onDeleteFolder={setFolderToDelete}
+                    onToggleStatus={(flow) => setStatus.mutate({ id: flow.id, status: flow.status === 'active' ? 'paused' : 'active', version: flow.version })}
+                  />
+                ))}
+              </Accordion>
+            )}
+            {groupedFlows.unfiled.length > 0 && (
+              <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+                  Sem pasta <span className="ml-1 text-xs font-medium text-muted-foreground">{groupedFlows.unfiled.length}</span>
+                </div>
+                {groupedFlows.unfiled.map((flow) => (
+                  <FlowRow
+                    key={flow.id}
+                    flow={flow}
+                    counts={runCounts?.[flow.id]}
+                    onDuplicate={() => duplicateFlow.mutate(flow.id)}
+                    onDelete={() => setFlowToDelete(flow)}
+                    onToggleStatus={() => setStatus.mutate({ id: flow.id, status: flow.status === 'active' ? 'paused' : 'active', version: flow.version })}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
         </>
       )}
 
       <RecipeGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
+
+      <Dialog
+        open={folderDialogOpen}
+        onOpenChange={(open) => {
+          setFolderDialogOpen(open);
+          if (!open) {
+            setFolderName('');
+            setFolderToEdit(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{folderToEdit ? 'Mudar nome da pasta' : 'Nova pasta'}</DialogTitle>
+            <DialogDescription>
+              Organize as automações como quiser. A pasta não muda o funcionamento do fluxo.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSaveFolder();
+            }}
+          >
+            <Input
+              autoFocus
+              maxLength={80}
+              value={folderName}
+              onChange={(event) => setFolderName(event.target.value)}
+              placeholder="Ex.: Pós-venda"
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFolderDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={!folderName.trim() || createFolder.isPending || updateFolder.isPending}>
+                {folderToEdit ? 'Guardar' : 'Criar pasta'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!flowToDelete} onOpenChange={(open) => !open && setFlowToDelete(null)}>
         <AlertDialogContent>
@@ -236,7 +338,89 @@ export default function Automations() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar pasta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As automações em <strong>{folderToDelete?.name}</strong> ficam sem pasta. Nenhuma automação será eliminada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (folderToDelete) deleteFolder.mutate(folderToDelete.id);
+                setFolderToDelete(null);
+              }}
+            >
+              Eliminar pasta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+interface AutomationFolderProps {
+  folder: AutomationFolder;
+  flows: AutomationFlow[];
+  runCounts: Record<string, { active: number; failed: number; completed: number; total: number }> | undefined;
+  onDuplicate: (id: string) => void;
+  onDelete: (flow: AutomationFlow) => void;
+  onEdit: (folder: AutomationFolder) => void;
+  onDeleteFolder: (folder: AutomationFolder) => void;
+  onToggleStatus: (flow: AutomationFlow) => void;
+}
+
+function AutomationFolder({ folder, flows, runCounts, onDuplicate, onDelete, onEdit, onDeleteFolder, onToggleStatus }: AutomationFolderProps) {
+  return (
+    <AccordionItem value={folder.id} className="border-b border-border last:border-b-0">
+      <div className="flex items-center pr-2 hover:bg-muted/40">
+        <AccordionTrigger className="flex-1 px-4 py-3 hover:no-underline">
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <Folder className="h-4 w-4 text-primary" />
+            {folder.name}
+            <span className="text-xs font-medium text-muted-foreground">{flows.length}</span>
+          </span>
+        </AccordionTrigger>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Gerir pasta ${folder.name}`}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(folder)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Mudar nome
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDeleteFolder(folder)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Eliminar pasta
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <AccordionContent className="pb-0">
+        {flows.length ? flows.map((flow) => (
+          <FlowRow
+            key={flow.id}
+            flow={flow}
+            counts={runCounts?.[flow.id]}
+            onDuplicate={() => onDuplicate(flow.id)}
+            onDelete={() => onDelete(flow)}
+            onToggleStatus={() => onToggleStatus(flow)}
+          />
+        )) : (
+          <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Nenhuma automação com os filtros atuais.</p>
+        )}
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 

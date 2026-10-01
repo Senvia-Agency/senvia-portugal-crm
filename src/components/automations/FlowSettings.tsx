@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, RotateCcw, ShieldAlert } from 'lucide-react';
+import { Clock, Folder, RotateCcw, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -8,11 +8,15 @@ import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import type { AutomationFlow, AutomationReentryPolicy, QuietHours } from '@/types/automations';
+import { NO_AUTOMATION_FOLDER, automationFolderIdFromSelection } from '@/lib/automation-folder-selection';
+import type { AutomationFlow, AutomationFolder, AutomationReentryPolicy, QuietHours } from '@/types/automations';
 
 interface FlowSettingsProps {
   flow: AutomationFlow;
+  folders: AutomationFolder[];
+  onFolderChange: (folderId: string | null) => void;
   onSave: (patch: {
+    folder_id: string | null;
     quiet_hours: QuietHours | null;
     reentry_policy: AutomationReentryPolicy;
     max_steps_per_run: number;
@@ -35,15 +39,17 @@ const REENTRY_LABELS: Record<AutomationReentryPolicy, { label: string; hint: str
   },
 };
 
-export function FlowSettings({ flow, onSave, isSaving }: FlowSettingsProps) {
+export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }: FlowSettingsProps) {
   const [quietEnabled, setQuietEnabled] = useState(!!flow.quiet_hours?.start);
   const [start, setStart] = useState(flow.quiet_hours?.start ?? '21:00');
   const [end, setEnd] = useState(flow.quiet_hours?.end ?? '09:00');
   const [reentry, setReentry] = useState<AutomationReentryPolicy>(flow.reentry_policy);
   const [maxSteps, setMaxSteps] = useState(String(flow.max_steps_per_run ?? 100));
+  const [folderId, setFolderId] = useState(flow.folder_id ?? NO_AUTOMATION_FOLDER);
 
   const handleSave = () => {
     onSave({
+      folder_id: automationFolderIdFromSelection(folderId),
       quiet_hours: quietEnabled ? { start, end } : null,
       reentry_policy: reentry,
       max_steps_per_run: Math.min(500, Math.max(1, Number(maxSteps) || 100)),
@@ -52,6 +58,37 @@ export function FlowSettings({ flow, onSave, isSaving }: FlowSettingsProps) {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4 md:p-6">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Folder className="h-4 w-4 text-primary" />
+            Pasta
+          </CardTitle>
+          <CardDescription>
+            Escolha onde esta automação aparece na lista. A pasta não altera o gatilho nem o que ela envia.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select
+            value={folderId}
+            onValueChange={(selection) => {
+              setFolderId(selection);
+              onFolderChange(automationFolderIdFromSelection(selection));
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Sem pasta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_AUTOMATION_FOLDER}>Sem pasta</SelectItem>
+              {folders.map((folder) => (
+                <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

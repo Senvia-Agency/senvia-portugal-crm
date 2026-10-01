@@ -33,6 +33,7 @@ import {
   useSetAutomationFlowStatus,
   useUpdateAutomationFlow,
 } from '@/hooks/useAutomationFlows';
+import { useAutomationFolders } from '@/hooks/useAutomationFolders';
 import type {
   AutomationGraph, AutomationNodeConfig, AutomationNodeType, AutomationReentryPolicy,
   AutomationTriggerType,
@@ -50,6 +51,7 @@ export default function AutomationEditor() {
   const { data: flow, isLoading } = useAutomationFlow(id ?? null);
   const updateFlow = useUpdateAutomationFlow();
   const setStatus = useSetAutomationFlowStatus();
+  const { data: folders = [] } = useAutomationFolders();
 
   const [graph, setGraph] = useState<AutomationGraph>({ nodes: [], edges: [] });
   const [name, setName] = useState('');
@@ -515,7 +517,9 @@ export default function AutomationEditor() {
             <FlowSettings
               // The switch on the trigger may hold a choice not saved yet.
               flow={{ ...flow, reentry_policy: reentry }}
+              folders={folders}
               isSaving={isBusy}
+              onFolderChange={(folderId) => updateFlow.mutate({ id: flow.id, folder_id: folderId })}
               onSave={(patch) => {
                 setReentry(patch.reentry_policy);
                 updateFlow.mutate({ id: flow.id, ...patch });

@@ -30,13 +30,13 @@ const ptDate = (iso: string) =>
  */
 export async function organizationAdminContact(db: any, organizationId: string) {
   const [org, admin] = await Promise.all([
-    db.from('organizations').select('name, plan').eq('id', organizationId).maybeSingle(),
+    db.from('organizations').select('name, plan, contact_phone').eq('id', organizationId).maybeSingle(),
     db.from('organization_members').select('user_id')
       .eq('organization_id', organizationId).eq('role', 'admin').eq('is_active', true)
       .order('joined_at', { ascending: true }).limit(1).maybeSingle(),
   ]);
   const profile = admin.data?.user_id
-    ? (await db.from('profiles').select('email, full_name').eq('id', admin.data.user_id).maybeSingle()).data
+    ? (await db.from('profiles').select('email, full_name, phone').eq('id', admin.data.user_id).maybeSingle()).data
     : null;
   if (!profile?.email) return null;
   return {
@@ -44,6 +44,10 @@ export async function organizationAdminContact(db: any, organizationId: string) 
     nome: (profile.full_name || org.data?.name || '') as string,
     empresa: (org.data?.name ?? '') as string,
     plano: planLabel(org.data?.plan),
+    // The organization's contact phone (given at sign-up), else the admin's
+    // own. The engine reads `telefone` as the run's phone: without it every
+    // WhatsApp step in the agency's flows failed with "sem telefone".
+    telefone: ((org.data?.contact_phone || profile.phone || '') as string).trim(),
   };
 }
 

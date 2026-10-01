@@ -16,6 +16,8 @@ import {
   contactRefFromJid, deliveryStatusFrom, isDeliveryUpgrade, parseContent,
   timestampFrom, unwrapMessage, webhookToken,
 } from '../_shared/evolution-inbox.ts';
+import { fetchEvolutionContactAvatar } from '../_shared/evolution-contact-avatar.ts';
+import { getConfig } from '../_shared/multicanal.ts';
 
 const log = (s: string, d?: unknown) =>
   console.log(`[EVOLUTION-WEBHOOK] ${s}${d ? ` - ${JSON.stringify(d)}` : ''}`);
@@ -43,6 +45,7 @@ function sameToken(a: string, b: string): boolean {
 interface Channel {
   id: string;
   organization_id: string;
+  evolution_instance: string | null;
   assigned_user_ids: string[] | null;
   phone_number: string | null;
   status: string | null;
@@ -53,6 +56,17 @@ interface Channel {
 type Db = any;
 // deno-lint-ignore no-explicit-any
 type AnyData = any;
+
+async function refreshContactAvatar(db: Db, channel: Channel, conversationId: string, contactRef: string): Promise<void> {
+  if (!channel.evolution_instance) return;
+  const avatarUrl = await fetchEvolutionContactAvatar(getConfig(), channel.evolution_instance, contactRef);
+  if (!avatarUrl) return;
+  const { error } = await db.from('meta_conversations')
+    .update({ contact_avatar_url: avatarUrl })
+    .eq('id', conversationId)
+    .is('contact_avatar_url', null);
+  if (error) logError('contact avatar not updated', { conversationId, error: error.message });
+}
 
 /** Push notification. Failing here must never stop the message from being stored. */
 async function notify(channel: Channel, title: string, body: string, convId: string): Promise<void> {
@@ -203,7 +217,7 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
 
   const { data: existing } = await db
     .from('meta_conversations')
-    .select('id, contact_name, last_message_at')
+    .select('id, contact_name, contact_avatar_url, last_message_at')
     .eq('channel_id', channel.id)
     .eq('contact_ref', contactRef)
     .maybeSingle();
@@ -269,6 +283,9 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
   // Only what comes IN is unread — flagging what the owner just typed on their
   // phone would ask them to read their own words.
   if (!outgoing) {
+    if (!existing?.contact_avatar_url) {
+      background(refreshContactAvatar(db, channel, convId, contactRef));
+    }
     await db.rpc('increment_meta_unread', { _conversation_id: convId }).then(() => {}, () => {});
     await notify(channel, `💬 WhatsApp: ${name || existing?.contact_name || contactRef}`, summary, convId);
     // After the response: a resumed flow may send messages and wait between
@@ -333,7 +350,7 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
   const { data: channel } = await db
     .from('messaging_channels')
-    .select('id, organization_id, assigned_user_ids, phone_number, status, metadata, provider')
+    .select('id, organization_id, evolution_instance, assigned_user_ids, phone_number, status, metadata, provider')
     .eq('evolution_instance', instance)
     .is('archived_at', null)
     .maybeSingle();

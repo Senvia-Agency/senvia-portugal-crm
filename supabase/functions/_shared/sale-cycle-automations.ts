@@ -1,12 +1,3 @@
-// Automations a TENANT runs about its own recurring sales: the flow belongs to
-// the organization that made the sale, the contact is its client. The source
-// of truth is the per-period billing ledger (sale_recurring_cycles), not the
-// renewal date on the sale row — that one is left behind by the generator and
-// was stale on 10 of 15 active recurrences when this was written.
-//
-// Only manual billing is covered. A Stripe-billed cycle is charged and dunned
-// by Stripe; "please pay" mail to that client would be noise.
-
 // deno-lint-ignore-file no-explicit-any
 
 import { deterministicUuid } from './agency-automations.ts';
@@ -33,6 +24,17 @@ const euro = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(value ?? 0));
 const daysBetween = (fromIso: string, toIso: string) =>
   Math.round((Date.parse(toIso + 'T00:00:00Z') - Date.parse(fromIso + 'T00:00:00Z')) / 86_400_000);
+
+export function saleBillingTriggerForPaymentDate(
+  paymentDate: string,
+  today: string,
+  inTwoDays: string,
+): string | null {
+  if (paymentDate === inTwoDays) return SALE_CYCLE_DUE_IN_2_DAYS;
+  if (paymentDate === today) return SALE_CYCLE_DUE_TODAY;
+  if (paymentDate < today) return SALE_CYCLE_OVERDUE;
+  return null;
+}
 
 interface EngineTarget { supabaseUrl: string; serviceKey: string }
 
@@ -119,7 +121,7 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
   const windowStart = isoDay(-OVERDUE_WINDOW_DAYS);
   const summary = { due_in_2_days: 0, due_today: 0, overdue: 0, skipped_no_email: 0, failed: 0 };
 
-  const [{ data: upcoming, error: e1 }, { data: cycles, error: e2 }] = await Promise.all([
+  const [{ data: upcoming, error: e1 }, { data: cycles, error: e2 }, { data: payments, error: e3 }] = await Promise.all([
     db.from('sale_recurrences')
       .select('id, sale_id, organization_id, amount, next_cycle_date')
       .eq('service_status', 'active').eq('billing_provider', 'manual')
@@ -128,16 +130,26 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       .select('id, sale_id, organization_id, amount, due_date, period_start, period_end, recurrence_id, recurrence:sale_recurrences(service_status, billing_provider)')
       .is('paid_at', null).neq('status', 'paid')
       .gte('due_date', windowStart).lte('due_date', today),
+    db.from('sale_payments')
+      .select('id, sale_id, organization_id, amount, payment_date, status, notes, sale:sales!inner(status)')
+      .eq('status', 'pending')
+      .gte('payment_date', windowStart).lte('payment_date', inTwoDays),
   ]);
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
+  if (e3) throw new Error(e3.message);
 
   const liveCycles = (cycles ?? []).filter((c: any) =>
     c.recurrence?.service_status === 'active' && c.recurrence?.billing_provider === 'manual');
+  const pendingPayments = (payments ?? []).filter((payment: any) =>
+    payment.sale?.status !== 'cancelled' &&
+    typeof payment.payment_date === 'string' &&
+    saleBillingTriggerForPaymentDate(payment.payment_date, today, inTwoDays) !== null);
 
   const saleIds = [...new Set([
     ...(upcoming ?? []).map((r: any) => r.sale_id),
     ...liveCycles.map((c: any) => c.sale_id),
+    ...pendingPayments.map((payment: any) => payment.sale_id),
   ].filter(Boolean))] as string[];
   const contexts = await loadContexts(db, saleIds);
 
@@ -161,6 +173,28 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       data_vencimento: ptDate(r.next_cycle_date),
       dias_para_vencimento: '2',
     }), 'due_in_2_days');
+  }
+
+  for (const payment of pendingPayments) {
+    const trigger = saleBillingTriggerForPaymentDate(payment.payment_date, today, inTwoDays);
+    if (!trigger) continue;
+    const ctx = contexts.get(payment.sale_id);
+    if (!ctx) continue;
+    const record = buildRecord(payment.id, ctx, {
+      valor: euro(payment.amount),
+      data_vencimento: ptDate(payment.payment_date),
+      periodo: payment.notes || 'Pagamento agendado',
+      ...(trigger === SALE_CYCLE_DUE_IN_2_DAYS ? { dias_para_vencimento: '2' } : {}),
+      ...(trigger === SALE_CYCLE_DUE_TODAY ? { dias_para_vencimento: '0' } : {}),
+      ...(trigger === SALE_CYCLE_OVERDUE ? { dias_em_atraso: String(daysBetween(payment.payment_date, today)) } : {}),
+    });
+    if (trigger === SALE_CYCLE_DUE_IN_2_DAYS) {
+      await send(trigger, payment.organization_id, record, 'due_in_2_days');
+    } else if (trigger === SALE_CYCLE_DUE_TODAY) {
+      await send(trigger, payment.organization_id, record, 'due_today');
+    } else {
+      await send(trigger, payment.organization_id, record, 'overdue');
+    }
   }
 
   for (const c of liveCycles) {

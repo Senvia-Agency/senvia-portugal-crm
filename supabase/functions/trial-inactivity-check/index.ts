@@ -47,7 +47,7 @@ serve(async (req) => {
     // trial, e não são contas internas. Excluímos a própria org SENVIA.
     const { data: orgs, error } = await supabase
       .from("organizations")
-      .select("id, name, created_at, trial_ends_at, plan, last_active_at, first_paid_at, trial_reminders_sent")
+      .select("id, name, created_at, trial_ends_at, plan, last_active_at, first_paid_at, trial_reminders_sent, contact_phone")
       .eq("billing_exempt", false)
       .is("first_paid_at", null)
       .neq("id", SENVIA_ORG_ID)
@@ -88,7 +88,7 @@ serve(async (req) => {
         }
 
         // 1) Email de re-engajamento ao utilizador (via templating/Brevo).
-        await dispatchAutomation(supabase, "trial_inactive_48h", { email: owner.email, nome: org.name });
+        await dispatchAutomation(supabase, "trial_inactive_48h", { email: owner.email, nome: org.name, empresa: org.name, telefone: org.contact_phone ?? "" });
 
         // 2) Alerta interno à equipa SENVIA (best-effort).
         if (senvia?.brevo_api_key && senvia?.brevo_sender_email) {

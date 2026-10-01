@@ -27,6 +27,7 @@ interface CreateAutomationFlowData {
    */
   graph?: AutomationGraph;
   entry_node_id?: string;
+  folder_id?: string | null;
 }
 
 interface UpdateAutomationFlowData {
@@ -41,6 +42,7 @@ interface UpdateAutomationFlowData {
   reentry_policy?: AutomationReentryPolicy;
   quiet_hours?: QuietHours | null;
   max_steps_per_run?: number | null;
+  folder_id?: string | null;
 }
 
 function hydrateFlow(row: Record<string, unknown>): AutomationFlow {
@@ -128,6 +130,7 @@ export function useCreateAutomationFlow() {
           trigger_config: (data.trigger_config ?? {}) as unknown as Json,
           graph: graph as unknown as Json,
           entry_node_id: entryNodeId,
+          folder_id: data.folder_id ?? null,
           version: 1,
           reentry_policy: 'once',
           created_by: user?.id,
@@ -168,6 +171,7 @@ export function useUpdateAutomationFlow() {
       if (data.reentry_policy !== undefined) updateData.reentry_policy = data.reentry_policy;
       if (data.quiet_hours !== undefined) updateData.quiet_hours = data.quiet_hours;
       if (data.max_steps_per_run !== undefined) updateData.max_steps_per_run = data.max_steps_per_run;
+      if (data.folder_id !== undefined) updateData.folder_id = data.folder_id;
 
       const { data: flow, error } = await supabase
         .from(FLOWS)
@@ -300,6 +304,7 @@ export function useDuplicateAutomationFlow() {
           trigger_config: source.trigger_config as unknown as Json,
           graph: source.graph as unknown as Json,
           entry_node_id: source.entry_node_id ?? null,
+          folder_id: source.folder_id,
           version: 1,
           reentry_policy: source.reentry_policy ?? 'once',
           quiet_hours: (source.quiet_hours ?? null) as unknown as Json,

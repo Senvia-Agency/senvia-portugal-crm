@@ -282,6 +282,7 @@ export interface AutomationFlow {
   status: AutomationFlowStatus;
   trigger_type: AutomationTriggerType | null;
   trigger_config: AutomationNodeConfig;
+  folder_id: string | null;
   graph: AutomationGraph;
   entry_node_id: string | null;
   version: number;
@@ -292,6 +293,15 @@ export interface AutomationFlow {
   created_at: string;
   updated_at: string;
   last_enrolled_at: string | null;
+}
+
+export interface AutomationFolder {
+  id: string;
+  organization_id: string;
+  name: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AutomationRun {

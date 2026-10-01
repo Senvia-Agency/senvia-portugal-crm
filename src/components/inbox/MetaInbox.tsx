@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff } from 'lucide-react';
+import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatDateTime } from '@/lib/format';
+import { shouldDeliverVoiceRecording } from '@/lib/voice-recording';
 import { toast } from 'sonner';
 import {
   useMetaConversations, useMetaMessages, useSendMetaMessage, useMarkMetaRead,
@@ -19,6 +20,8 @@ import { ListStatusTicks } from './StatusTicks';
 import { MediaViewer, type MediaItem } from './MediaViewer';
 import { MessageText } from './MessageText';
 import { FileTypeIcon } from './FileTypeIcon';
+import { ContactNotes } from '@/components/contacts/ContactNotes';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 /**
  * Caixa de Instagram / Messenger.
@@ -56,6 +59,8 @@ export function MetaInbox({
   const caixaDe = (id: string) => caixas?.find((c) => c.id === id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem('inbox-panel-v1') !== '0');
+  const [panelSheetOpen, setPanelSheetOpen] = useState(false);
   const markRead = useMarkMetaRead();
 
   // Trocar de caixa não deve manter aberta uma conversa da anterior.
@@ -74,6 +79,23 @@ export function MetaInbox({
   const openConversation = (c: MetaConversation) => {
     setSelectedId(c.id);
     if (c.unread_count > 0) markRead.mutate({ conversationId: c.id, seen: c.unread_count });
+  };
+
+  const openContactPanel = () => {
+    if (window.innerWidth >= 1024) {
+      setPanelOpen(true);
+      localStorage.setItem('inbox-panel-v1', '1');
+      return;
+    }
+    setPanelSheetOpen(true);
+  };
+
+  const closeContactPanel = () => {
+    setPanelSheetOpen(false);
+    if (window.innerWidth >= 1024) {
+      setPanelOpen(false);
+      localStorage.setItem('inbox-panel-v1', '0');
+    }
   };
 
   return (
@@ -182,6 +204,7 @@ export function MetaInbox({
           // isso que se arquiva em vez de apagar — mas não se responde por ela.
           arquivada={!!caixaDe(selected.channel_id)?.archived_at}
           onBack={() => setSelectedId(null)}
+          onOpenContact={openContactPanel}
         />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-8 text-center lg:flex">
@@ -190,7 +213,82 @@ export function MetaInbox({
           </p>
         </div>
       )}
+      {selected && panelOpen && (
+        <aside className="hidden w-80 shrink-0 border-l lg:block">
+          <MetaContactPanel conversation={selected} channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType} onClose={closeContactPanel} />
+        </aside>
+      )}
+      <Sheet open={panelSheetOpen} onOpenChange={setPanelSheetOpen}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+          <SheetTitle className="sr-only">Contacto</SheetTitle>
+          {selected && <MetaContactPanel conversation={selected} channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType} onClose={closeContactPanel} />}
+        </SheetContent>
+      </Sheet>
     </div>
+  );
+}
+
+function MetaContactPanel({ conversation, channelType, onClose }: { conversation: MetaConversation; channelType?: string; onClose: () => void }) {
+  const phone = conversation.contact_ref.includes('@') ? null : conversation.contact_ref.replace(/\D/g, '');
+  const displayName = conversation.contact_name || conversation.contact_ref;
+
+  const copyPhone = async () => {
+    if (!phone) return;
+    await navigator.clipboard.writeText(phone);
+    toast.success('Número copiado');
+  };
+
+  return (
+    <section className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+      <header className="flex items-start gap-3 border-b p-4">
+        <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{displayName}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{phone || 'Contacto sem número disponível'}</p>
+        </div>
+        <Button variant="ghost" size="icon" title="Fechar painel" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </header>
+
+      <div className="space-y-4 p-4">
+        {phone && (
+          <div className={cn('grid gap-2', channelType === 'whatsapp' ? 'grid-cols-3' : 'grid-cols-2')}>
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <a href={`tel:${phone}`}><Phone className="h-3.5 w-3.5" /> Ligar</a>
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void copyPhone()}>
+              <Copy className="h-3.5 w-3.5" /> Copiar
+            </Button>
+            {channelType === 'whatsapp' && <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <a href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /> WhatsApp</a>
+            </Button>}
+          </div>
+        )}
+
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</p>
+          <dl className="mt-3 space-y-2 text-sm">
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-muted-foreground">Nome</dt>
+              <dd className="text-right font-medium">{displayName}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-muted-foreground">Canal</dt>
+              <dd className="text-right font-medium">{channelType === 'instagram' ? 'Instagram' : channelType === 'facebook' ? 'Messenger' : 'WhatsApp'}</dd>
+            </div>
+            {conversation.last_message_at && (
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-muted-foreground">Última mensagem</dt>
+                <dd className="text-right font-medium">{formatDateTime(conversation.last_message_at)}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <ContactNotes phone={phone} source="inbox" />
+      </div>
+    </section>
   );
 }
 
@@ -257,11 +355,13 @@ function MetaThread({
   channelType,
   arquivada,
   onBack,
+  onOpenContact,
 }: {
   conversation: MetaConversation;
   channelType?: string;
   arquivada?: boolean;
   onBack: () => void;
+  onOpenContact: () => void;
 }) {
   const { data: messages = [], isLoading, isError, refetch } = useMetaMessages(conversation.id);
   const send = useSendMetaMessage();
@@ -518,6 +618,10 @@ function MetaThread({
             </p>
           )}
         </div>
+        <div className="flex-1" />
+        <Button variant="ghost" size="icon" title="Painel do contacto" onClick={onOpenContact}>
+          <PanelRight className="h-4 w-4" />
+        </Button>
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
@@ -1459,7 +1563,7 @@ function VoiceRecorder({
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const recRef = useRef<MediaRecorder | null>(null);
+  const recordingRef = useRef<{ recorder: MediaRecorder; cancelled: boolean } | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const tickRef = useRef<number | null>(null);
 
@@ -1472,8 +1576,10 @@ function VoiceRecorder({
   // aparecer na conversa.
   useEffect(() => () => {
     if (tickRef.current) window.clearInterval(tickRef.current);
+    const active = recordingRef.current;
+    if (active) active.cancelled = true;
     chunksRef.current = [];
-    recRef.current?.stream.getTracks().forEach((t) => t.stop());
+    active?.recorder.stream.getTracks().forEach((t) => t.stop());
   }, []);
 
   const começar = async () => {
@@ -1485,18 +1591,22 @@ function VoiceRecorder({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream, { mimeType: formato.mime });
+      const active = { recorder: rec, cancelled: false };
       chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.ondataavailable = (e) => {
+        if (!active.cancelled && e.data.size > 0) chunksRef.current.push(e.data);
+      };
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: formato.mime });
         // Gravações de menos de um segundo são quase sempre um toque acidental.
-        if (blob.size > 1000) {
+        if (shouldDeliverVoiceRecording({ cancelled: active.cancelled, byteLength: blob.size })) {
           onRecorded(new File([blob], `voz-${Date.now()}.${formato.ext}`, { type: formato.mime }));
         }
+        chunksRef.current = [];
       };
       rec.start();
-      recRef.current = rec;
+      recordingRef.current = active;
       setRecording(true);
       onRecordingChange?.(true);
       setSeconds(0);
@@ -1510,12 +1620,11 @@ function VoiceRecorder({
 
   const parar = (enviar: boolean) => {
     if (tickRef.current) { window.clearInterval(tickRef.current); tickRef.current = null; }
-    const rec = recRef.current;
-    if (!rec) return;
-    // Cancelar: limpa o que foi gravado ANTES de parar, para o onstop não enviar.
-    if (!enviar) chunksRef.current = [];
-    rec.stop();
-    recRef.current = null;
+    const active = recordingRef.current;
+    if (!active) return;
+    if (!enviar) active.cancelled = true;
+    active.recorder.stop();
+    recordingRef.current = null;
     setRecording(false);
     onRecordingChange?.(false);
   };

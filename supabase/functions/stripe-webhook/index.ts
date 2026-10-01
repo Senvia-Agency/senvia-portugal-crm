@@ -255,6 +255,7 @@ serve(async (req) => {
               email,
               nome: contact?.nome || orgName,
               empresa: contact?.empresa || orgName,
+              telefone: contact?.telefone || "",
               plano: contact?.plano || planLabel(plan),
               plan: plan || "unknown",
               dias_carencia: String(PAYMENT_GRACE_DAYS),
