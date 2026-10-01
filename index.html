@@ -106,39 +106,8 @@
       }
     }
     </script>
-
-    <!-- Meta Pixel Code -->
-    <script>
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
-    (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    function senviaMetaExternalId(){
-      var key = 'senvia_external_id';
-      var params = new URLSearchParams(window.location.search);
-      var fromUrl = params.get('external_id');
-      var cookieMatch = document.cookie.match(new RegExp('(?:^|; )' + key + '=([^;]+)'));
-      var fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1]) : '';
-      var fromStorage = localStorage.getItem(key) || '';
-      var value = fromUrl || fromStorage || fromCookie || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
-      localStorage.setItem(key, value);
-      document.cookie = key + '=' + encodeURIComponent(value) + '; path=/; domain=.senvia.pt; max-age=31536000; SameSite=Lax; Secure';
-      return value;
-    }
-    // Senvia's own pixel stays off the pages that belong to a client: the
-    // public lead forms (/f, /c) load that organization's pixels instead, and
-    // an unsubscribe link is followed by the client's contacts. Firing it there
-    // sent their visitors to Senvia's ad account and showed up as "the wrong
-    // pixel" next to the one configured in the form.
-    if (!/^\/(f|c|unsubscribe)(\/|$)/.test(window.location.pathname)) {
-      fbq('init', '2027821837745963', { external_id: senviaMetaExternalId() });
-      fbq('track', 'PageView');
-    }
-    </script>
   </head>
   <body>
-    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=2027821837745963&ev=PageView&noscript=1"/></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -3,6 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary, reloadOnce } from "./components/ErrorBoundary";
 import { PaidTrafficFilterProvider } from "@/contexts/PaidTrafficFilterContext";
+import { loadSenviaPixel } from "@/lib/senvia-pixel";
 
 // When a lazily-loaded chunk fails to preload (e.g. a new deploy replaced the
 // hashed files while this tab was open), Vite fires `vite:preloadError`.
@@ -55,6 +56,9 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && !import.met
     regs.forEach((r) => r.unregister());
   }).catch(() => {});
 }
+
+// Senvia's Meta pixel — never on a client's public form (see senvia-pixel.ts).
+loadSenviaPixel();
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
