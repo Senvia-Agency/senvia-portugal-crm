@@ -39,8 +39,11 @@ function matchLine(text: string, label: string): string | null {
 }
 
 function extractDelayMinutes(text: string): number | null {
+  if (/\b(imediato|imediatamente|agora|sem atraso)\b/i.test(text)) return 0;
   const minutes = text.match(/(\d+)\s*(?:minutos|min|minutes)\b/i);
   if (minutes) return Math.max(0, Number(minutes[1]));
+  const hours = text.match(/(\d+)\s*(?:horas?|h)\b/i);
+  if (hours) return Math.max(0, Number(hours[1]) * 60);
   const days = text.match(/(\d+)\s*dias?\b/i);
   if (days) return Math.max(0, Number(days[1]) * 24 * 60);
   return null;
@@ -72,20 +75,39 @@ function shouldDirectCreateEmailAutomation(userText: string, contextText: string
   return wantsAutomation && automationContext && createIntent;
 }
 
+function defaultAutomationCopy(stage: string): { subject: string; message: string } {
+  const normalized = stage.toLowerCase();
+  if (normalized.includes("contact")) {
+    return {
+      subject: "Ainda faz sentido avançarmos?",
+      message:
+        "Olá {{nome}},\n\nEstou a passar só para confirmar se ainda faz sentido avançarmos com o teu pedido.\n\nSe quiseres, responde a este email e ajudamos-te com o próximo passo.\n\nObrigado.",
+    };
+  }
+
+  return {
+    subject: "Seguimos com o próximo passo?",
+    message:
+      "Olá {{nome}},\n\nEstou a passar para dar seguimento ao teu pedido.\n\nSe quiseres avançar, responde a este email e ajudamos-te com o próximo passo.\n\nObrigado.",
+  };
+}
+
 async function maybeCreateEmailAutomationDirect(messages: any[], ctx: any): Promise<string | null> {
   const userText = latestUserText(messages);
   const contextText = recentConversationText(messages);
   if (!shouldDirectCreateEmailAutomation(userText, contextText)) return null;
 
   const allText = `${contextText}\n${userText}`;
-  const subject = matchLine(allText, "Assunto") || allText.match(/assunto\s+["“]?([^"\n”]+)["”]?/i)?.[1]?.trim();
-  const rawMessage = matchLine(allText, "Mensagem") || matchLine(allText, "Corpo") || matchLine(allText, "Texto") || subject;
   const stage = extractStage(allText);
-  const delay = extractDelayMinutes(allText);
 
-  if (!subject || !rawMessage || !stage || delay === null) {
-    return "Consigo criar essa automação, mas falta-me confirmar os dados essenciais: assunto, mensagem, estado/etapa e atraso.";
+  if (!stage) {
+    return "Consigo criar essa automação, mas preciso de saber em que estado/etapa ela deve disparar.";
   }
+
+  const defaults = defaultAutomationCopy(stage);
+  const subject = matchLine(allText, "Assunto") || allText.match(/assunto\s+["“]?([^"\n”]+)["”]?/i)?.[1]?.trim() || defaults.subject;
+  const rawMessage = matchLine(allText, "Mensagem") || matchLine(allText, "Corpo") || matchLine(allText, "Texto") || defaults.message;
+  const delay = extractDelayMinutes(allText) ?? 4320;
 
   const resultRaw = await runTool("create_email_automation", {
     name: subject,
