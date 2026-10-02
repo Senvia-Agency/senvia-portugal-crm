@@ -24,8 +24,10 @@ export function sanitizeEmailHtml(html: string): string {
     const href = element.getAttribute('href');
     if (href !== null && !safeEmailLink(href)) element.removeAttribute('href');
     const src = element.getAttribute('src');
-    // Quoted mail must not load tracking pixels or same-origin authenticated URLs.
-    if (src !== null && !/^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(src)) element.removeAttribute('src');
+    const signatureImage = element.tagName === 'IMG' && element.closest('.senvia-signature') !== null;
+    if (src !== null
+      && !/^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(src)
+      && !(signatureImage && /^https:\/\//i.test(src))) element.removeAttribute('src');
     const classes = (element.getAttribute('class') || '').split(/\s+/).filter(value => value === 'senvia-quote' || value === 'senvia-signature');
     element.removeAttribute('class');
     if (classes.length) element.setAttribute('class', classes.join(' '));

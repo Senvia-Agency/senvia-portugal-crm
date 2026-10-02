@@ -20,17 +20,27 @@ test('sanitized email DOM excludes active content, handlers and dangerous URLs',
 
 test('email formatting survives but CSS resources and global layout do not', () => {
   // Given
-  const input = '<table class="senvia-signature fixed" style="position:fixed;background-image:url(https://tracker.invalid);color:red"><tr><td style="font-weight:bold;padding-right:16px">Hello <b>team</b><img src="data:image/png;base64,aGVsbG8=" width="90"><img src="https://tracker.invalid/pixel"></td></tr></table>';
+  const input = '<table class="senvia-quote fixed" style="position:fixed;background-image:url(https://tracker.invalid);color:red"><tr><td style="font-weight:bold;padding-right:16px">Hello <b>team</b><img src="data:image/png;base64,aGVsbG8=" width="90"><img src="https://tracker.invalid/pixel"></td></tr></table>';
   // When
   const host = dom.window.document.createElement('div');
   host.innerHTML = sanitizeEmailHtml(input);
   // Then
-  assert.equal(host.querySelector('table')?.className, 'senvia-signature');
+  assert.equal(host.querySelector('table')?.className, 'senvia-quote');
   assert.equal(host.querySelector('table')?.style.color, 'red');
   assert.equal(host.querySelector('table')?.style.position, '');
   assert.equal(host.querySelector('table')?.style.backgroundImage, '');
   assert.equal(host.querySelector('b')?.textContent, 'team');
   assert.equal(host.querySelectorAll('img[src]').length, 1);
+});
+
+test('signature keeps safe HTTPS image sources and links', () => {
+  const input = '<div class="senvia-signature"><a href="https://www.senvia.pt/"><img src="https://app.senvia.pt/icon-192.png" alt="Senvia"></a></div>';
+
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = sanitizeEmailHtml(input);
+
+  assert.equal(host.querySelector('img')?.getAttribute('src'), 'https://app.senvia.pt/icon-192.png');
+  assert.equal(host.querySelector('a')?.getAttribute('href'), 'https://www.senvia.pt/');
 });
 
 test('quoted sender fields remain text and quoted body is sanitized', () => {
