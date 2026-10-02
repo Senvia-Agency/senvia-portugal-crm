@@ -58,6 +58,7 @@ function extractStage(text: string): string | null {
 }
 
 function shouldDirectCreateEmailAutomation(userText: string, contextText: string): boolean {
+  const latest = userText.toLowerCase();
   const text = `${userText}\n${contextText}`.toLowerCase();
   const wantsAutomation = text.includes("automação") || text.includes("automatico") || text.includes("automático");
   const automationContext =
@@ -68,10 +69,23 @@ function shouldDirectCreateEmailAutomation(userText: string, contextText: string
     text.includes("etapa") ||
     text.includes("estado") ||
     text.includes("atraso");
-  // Users often approve an automation after Otto has already summarized it.
-  // The latest user message may be just "sim" or "tenta de novo", so intent
-  // must be read from the whole recent exchange, not only the last sentence.
-  const createIntent = /\b(cria|criar|grava|gravar|configura|configurar|faz|fazer|usa|usar|sim|confirmo|aprovado|podes|pode|quero|preciso|tenta|tentar)\b/i.test(text);
+
+  // Never execute a write action when the latest turn is clearly a question,
+  // complaint, or follow-up about what just happened. Earlier automation words
+  // in the context must not cause repeated creations.
+  const asksAboutResult =
+    latest.includes("?") ||
+    /\b(correto|certo|template|criou|criaste|porque|por que|pq|repet|rid[ií]culo|wtf|caralho)\b/i.test(userText);
+  const explicitCreate =
+    /\b(cria|criar|grava|gravar|configura|configurar|faz|fazer|usa|usar|confirmo|aprovado|podes|pode|quero|preciso|tenta|tentar)\b/i.test(userText);
+  const delegatedCreate =
+    /\b(deixo|deixa|decide|decidir|define|definir|escolhe|escolher)\b/i.test(userText) &&
+    /\b(mensagem|mensagens|assunto|atraso|etapa|estado|contactado|contacto)\b/i.test(userText);
+  const selectedAutomationOption =
+    /\b(follow-?up|novo lead|lead recebido|mudan[cç]a de etapa|email para lead)\b/i.test(userText);
+  const shortApproval = /^\s*(sim|ok|okay|aprovado|confirmo|podes|pode)\s*[.!]*\s*$/i.test(userText);
+
+  const createIntent = !asksAboutResult && (explicitCreate || delegatedCreate || selectedAutomationOption || shortApproval);
   return wantsAutomation && automationContext && createIntent;
 }
 
@@ -122,7 +136,7 @@ async function maybeCreateEmailAutomationDirect(messages: any[], ctx: any): Prom
 
   const result = JSON.parse(resultRaw);
   if (result?.success) {
-    return `Automação criada e ativa.\n\n- Estado: ${stage}\n- Atraso: ${delay} minutos\n- Assunto: ${subject}\n\n[link:Ver Templates|/marketing/templates]`;
+    return `Automação de email criada e ativa.\n\n- Gatilho: lead entra/muda para ${stage}\n- Atraso: ${delay} minutos\n- Assunto: ${subject}\n\nNo SENVIA OS, esta automação fica guardada como um template de email com automação ativa.\n\n[link:Ver Templates|/marketing/templates]`;
   }
   return `Não consegui criar a automação: ${result?.error || "erro desconhecido"}`;
 }
