@@ -4,6 +4,7 @@
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { readTools } from "./read.ts";
 import { writeTools } from "./write.ts";
+import { operationalTools } from "./operational.ts";
 import { onboardingTools } from "./onboarding-tools.ts";
 import { supportTools } from "./support.ts";
 import { logAction } from "../audit.ts";
@@ -11,6 +12,7 @@ import { logAction } from "../audit.ts";
 export const ALL_TOOLS: Tool[] = [
   ...readTools,
   ...writeTools,
+  ...operationalTools,
   ...onboardingTools,
   ...supportTools,
 ];

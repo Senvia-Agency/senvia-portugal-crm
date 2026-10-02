@@ -37,6 +37,8 @@ export interface ToolContext {
   supabaseAdmin: SupabaseClient;
   isAdmin: boolean;
   permissions: Record<string, any> | null;
+  dataScope: "own" | "team" | "all";
+  effectiveUserIds: string[] | null;
   org: OrgInfo;
   onboarding: OnboardingState;
   mode: OttoMode;

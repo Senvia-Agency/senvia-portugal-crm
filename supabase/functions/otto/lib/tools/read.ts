@@ -14,6 +14,39 @@ const EMPTY = (entity: string) => ({
   _instruction: `ZERO RESULTADOS encontrados. Informa o utilizador que não encontraste ${entity} com esse termo. NÃO INVENTES DADOS.`,
 });
 
+function allowedUserIds(ctx: any): string[] | null {
+  if (ctx.dataScope === "all") return null;
+  return Array.isArray(ctx.effectiveUserIds) ? ctx.effectiveUserIds : (ctx.userId ? [ctx.userId] : []);
+}
+
+function isAllowedOwner(ctx: any, userId?: string | null): boolean {
+  const ids = allowedUserIds(ctx);
+  if (!ids) return true;
+  return !!userId && ids.includes(userId);
+}
+
+async function filterSalesByScope(rows: any[], ctx: any): Promise<any[]> {
+  const ids = allowedUserIds(ctx);
+  if (!ids || rows.length === 0) return rows;
+  const leadIds = [...new Set(rows.map((r: any) => r.lead_id).filter(Boolean))];
+  const clientIds = [...new Set(rows.map((r: any) => r.client_id).filter(Boolean))];
+  const [leadResp, clientResp] = await Promise.all([
+    leadIds.length
+      ? ctx.supabaseAdmin.from("leads").select("id, assigned_to").in("id", leadIds)
+      : Promise.resolve({ data: [] }),
+    clientIds.length
+      ? ctx.supabaseAdmin.from("crm_clients").select("id, assigned_to").in("id", clientIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const leadOwners = Object.fromEntries((leadResp.data || []).map((l: any) => [l.id, l.assigned_to]));
+  const clientOwners = Object.fromEntries((clientResp.data || []).map((c: any) => [c.id, c.assigned_to]));
+  return rows.filter((r: any) =>
+    isAllowedOwner(ctx, r.created_by) ||
+    isAllowedOwner(ctx, leadOwners[r.lead_id]) ||
+    isAllowedOwner(ctx, clientOwners[r.client_id])
+  );
+}
+
 export const readTools: Tool[] = [
   {
     name: "search_clients",
@@ -28,7 +61,8 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_clients_unaccent", { org_id: ctx.orgId, search_term: args.query, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((c: any) => ({
+      const scoped = (data || []).filter((c: any) => isAllowedOwner(ctx, c.assigned_to));
+      const results = scoped.map((c: any) => ({
         id: c.id, code: c.code, name: c.name, email: c.email, phone: c.phone,
         nif: c.nif, company: c.company, status: c.status, total_sales: c.total_sales, total_value: c.total_value,
       }));
@@ -52,7 +86,8 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_leads_unaccent", { org_id: ctx.orgId, search_term: args.query, lead_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((l: any) => ({
+      const scoped = (data || []).filter((l: any) => isAllowedOwner(ctx, l.assigned_to));
+      const results = scoped.map((l: any) => ({
         id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status,
         source: l.source, assigned_to: l.assigned_to, created_at: l.created_at, value: l.value,
       }));
@@ -101,14 +136,15 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_sales_unaccent", { org_id: ctx.orgId, search_term: args.query, pay_status: args.payment_status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      if (!data || data.length === 0) return EMPTY("vendas");
-      const clientIds = [...new Set(data.filter((s: any) => s.client_id).map((s: any) => s.client_id))];
+      const scoped = await filterSalesByScope(data || [], ctx);
+      if (!scoped || scoped.length === 0) return EMPTY("vendas");
+      const clientIds = [...new Set(scoped.filter((s: any) => s.client_id).map((s: any) => s.client_id))];
       if (clientIds.length > 0) {
         const { data: clients } = await ctx.supabaseAdmin.from("crm_clients").select("id, name").in("id", clientIds);
         const clientMap = Object.fromEntries((clients || []).map((c: any) => [c.id, c.name]));
-        data.forEach((s: any) => { s.client_name = clientMap[s.client_id] || null; });
+        scoped.forEach((s: any) => { s.client_name = clientMap[s.client_id] || null; });
       }
-      return { results: data, count: data.length };
+      return { results: scoped, count: scoped.length };
     },
   },
   {
@@ -127,14 +163,15 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_proposals_unaccent", { org_id: ctx.orgId, search_term: args.query, prop_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      if (!data || data.length === 0) return EMPTY("propostas");
-      const propClientIds = [...new Set(data.filter((p: any) => p.client_id).map((p: any) => p.client_id))];
+      const scoped = await filterSalesByScope(data || [], ctx);
+      if (!scoped || scoped.length === 0) return EMPTY("propostas");
+      const propClientIds = [...new Set(scoped.filter((p: any) => p.client_id).map((p: any) => p.client_id))];
       if (propClientIds.length > 0) {
         const { data: clients } = await ctx.supabaseAdmin.from("crm_clients").select("id, name").in("id", propClientIds);
         const clientMap = Object.fromEntries((clients || []).map((c: any) => [c.id, c.name]));
-        data.forEach((p: any) => { p.client_name = clientMap[p.client_id] || null; });
+        scoped.forEach((p: any) => { p.client_name = clientMap[p.client_id] || null; });
       }
-      return { results: data, count: data.length };
+      return { results: scoped, count: scoped.length };
     },
   },
   {
@@ -149,12 +186,15 @@ export const readTools: Tool[] = [
     execute: async (args, ctx) => {
       const { data, error } = await ctx.supabaseAdmin
         .from("crm_clients")
-        .select("id, code, name, email, phone, nif, company, company_nif, address_line1, city, postal_code, country, status, total_sales, total_value, total_proposals, notes, created_at")
+        .select("id, code, name, email, phone, nif, company, company_nif, address_line1, city, postal_code, country, status, total_sales, total_value, total_proposals, notes, assigned_to, created_at")
         .eq("organization_id", ctx.orgId)
         .eq("id", args.client_id)
         .maybeSingle();
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
       if (!data) return { error: "Cliente não encontrado", _instruction: "Cliente não existe na base de dados. Informa o utilizador. NÃO INVENTES DADOS." };
+      if (!isAllowedOwner(ctx, (data as any).assigned_to)) {
+        return { error: "Sem acesso", _instruction: "O cliente existe, mas está fora do escopo de dados deste utilizador." };
+      }
       return data;
     },
   },
@@ -176,6 +216,10 @@ export const readTools: Tool[] = [
         .maybeSingle();
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
       if (!sale) return { error: "Venda não encontrada", _instruction: "Venda não existe na base de dados. Informa o utilizador. NÃO INVENTES DADOS." };
+      const scopedSale = await filterSalesByScope([sale], ctx);
+      if (scopedSale.length === 0) {
+        return { error: "Sem acesso", _instruction: "A venda existe, mas está fora do escopo de dados deste utilizador." };
+      }
       const { data: payments } = await ctx.supabaseAdmin
         .from("sale_payments")
         .select("id, amount, payment_date, payment_method, status, invoice_reference")
@@ -196,7 +240,10 @@ export const readTools: Tool[] = [
     execute: async (_args, ctx) => {
       const { data: stages } = await ctx.supabaseAdmin
         .from("pipeline_stages").select("key, label:name").eq("organization_id", ctx.orgId).order("position");
-      const { data: leads } = await ctx.supabaseAdmin.from("leads").select("status").eq("organization_id", ctx.orgId);
+      let leadQuery = ctx.supabaseAdmin.from("leads").select("status, assigned_to").eq("organization_id", ctx.orgId);
+      const ids = allowedUserIds(ctx);
+      if (ids) leadQuery = leadQuery.in("assigned_to", ids);
+      const { data: leads } = await leadQuery;
       const counts: Record<string, number> = {};
       (leads || []).forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
       const summary = (stages || []).map((s: any) => ({ stage: s.label, key: s.key, count: counts[s.key] || 0 }));
@@ -252,11 +299,13 @@ export const readTools: Tool[] = [
       const future = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await ctx.supabaseAdmin
         .from("calendar_events")
-        .select("id, title, event_type, start_time, end_time, description, status")
+        .select("id, title, event_type, start_time, end_time, description, status, user_id")
         .eq("organization_id", ctx.orgId).gte("start_time", now).lte("start_time", future).order("start_time").limit(10);
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
-      if (!data || data.length === 0) return { events: [], count: 0, _instruction: "ZERO eventos encontrados no período. Informa o utilizador. NÃO INVENTES DADOS." };
-      return { events: data, count: data.length };
+      const ids = allowedUserIds(ctx);
+      const scoped = ids ? (data || []).filter((e: any) => ids.includes(e.user_id)) : (data || []);
+      if (scoped.length === 0) return { events: [], count: 0, _instruction: "ZERO eventos encontrados no período. Informa o utilizador. NÃO INVENTES DADOS." };
+      return { events: scoped, count: scoped.length };
     },
   },
   {

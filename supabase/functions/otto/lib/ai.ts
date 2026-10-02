@@ -7,8 +7,9 @@
 //   OTTO_API_KEY   — provider key         (default: falls back to GEMINI_API_KEY)
 //
 // Resilience: if the primary config (OTTO_*) is set but misconfigured/unreachable,
-// we automatically fall back to the proven Gemini defaults (GEMINI_API_KEY +
-// default endpoint/model) so a bad OTTO_* secret can never take Otto down.
+// we can fall back to the proven Gemini defaults (GEMINI_API_KEY + default
+// endpoint/model). OpenClaw configs are intentionally excluded from this fallback:
+// Otto must stay on the OpenClaw agent instead of silently drifting back to Gemini.
 const DEFAULT_BASE =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const DEFAULT_MODEL = "gemini-2.5-flash";
@@ -48,10 +49,14 @@ export function getAIConfigs(): AIConfigs {
     apiKey,
   };
 
-  // A distinct Gemini fallback only makes sense when an OTTO_* override is in play
-  // and we still have a Gemini key to fall back to.
+  // A distinct Gemini fallback only makes sense when an OTTO_* override is in play,
+  // we still have a Gemini key to fall back to, and the requested primary is not
+  // the OpenClaw Otto agent.
   const usingOverride = !!(ottoKey || ottoBase || ottoModel);
-  const fallback: AIConfig | null = (usingOverride && geminiKey)
+  const isOpenClawPrimary =
+    primary.model.startsWith("openclaw/") ||
+    primary.baseUrl.includes("gw.senvia.pt");
+  const fallback: AIConfig | null = (usingOverride && geminiKey && !isOpenClawPrimary)
     ? { model: DEFAULT_MODEL, baseUrl: DEFAULT_BASE, apiKey: geminiKey }
     : null;
 

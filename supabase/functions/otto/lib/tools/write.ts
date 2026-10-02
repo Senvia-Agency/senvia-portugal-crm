@@ -19,6 +19,22 @@ async function resolveStageKey(ctx: any, requested?: string): Promise<{ key: str
   return { key: stages[0].key };
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function textToEmailHtml(value: string): string {
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph.trim()).replace(/\n/g, "<br>")}</p>`)
+    .join("\n");
+}
+
 export const writeTools: Tool[] = [
   {
     name: "create_lead",
@@ -36,7 +52,7 @@ export const writeTools: Tool[] = [
       },
       required: ["name", "email", "phone"],
     },
-    permission: { module: "leads", subarea: "kanban", action: "create" },
+    permission: { module: "leads", subarea: "kanban", action: "add" },
     isWrite: true,
     execute: async (args, ctx) => {
       if (!args.name || !args.email || !args.phone) {
@@ -84,7 +100,7 @@ export const writeTools: Tool[] = [
       },
       required: ["name"],
     },
-    permission: { module: "clients", subarea: "list", action: "create" },
+    permission: { module: "clients", subarea: "list", action: "add" },
     isWrite: true,
     execute: async (args, ctx) => {
       if (!args.name) return { error: "Nome em falta", _instruction: "Pede o nome do cliente antes de criar." };
@@ -140,6 +156,92 @@ export const writeTools: Tool[] = [
       return {
         success: true,
         _instruction: `Lead **${data.name}** movida para a etapa solicitada. Informa o utilizador. [link:Ver Pipeline|/leads]`,
+      };
+    },
+  },
+  {
+    name: "create_email_automation",
+    description: "Criar um template de email com automação ativa. Usa quando o utilizador pedir para enviar email automático após criação/mudança de estado de lead, cliente, venda ou proposta. Confirma assunto, mensagem, gatilho, estado destino e atraso antes de criar.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Nome interno do template/automação" },
+        subject: { type: "string", description: "Assunto do email" },
+        message: { type: "string", description: "Corpo do email em texto simples ou HTML" },
+        trigger_type: {
+          type: "string",
+          enum: ["lead_created", "lead_status_changed", "client_created", "client_status_changed", "sale_status_changed", "proposal_created", "proposal_status_changed"],
+          description: "Gatilho da automação",
+        },
+        to_status: { type: "string", description: "Estado/etapa destino quando o gatilho depende de estado. Pode ser nome ou key, ex: Contacto" },
+        from_status: { type: "string", description: "Estado/etapa origem opcional. Usa 'any' ou omite para qualquer origem" },
+        delay_minutes: { type: "number", description: "Atraso em minutos antes de enviar. Ex: 4320 para 3 dias" },
+        category: { type: "string", enum: ["general", "proposal", "welcome", "followup", "promotion"], description: "Categoria do template" },
+      },
+      required: ["name", "subject", "message", "trigger_type"],
+    },
+    permission: { module: "marketing", subarea: "templates", action: "create" },
+    isWrite: true,
+    execute: async (args, ctx) => {
+      const triggerType = String(args.trigger_type || "");
+      const statusTriggers = new Set(["lead_status_changed", "client_status_changed", "sale_status_changed", "proposal_status_changed"]);
+      const automationConfig: Record<string, string> = {};
+
+      if (statusTriggers.has(triggerType)) {
+        if (!args.to_status) {
+          return { error: "Estado destino em falta", _instruction: "Pede o estado/etapa destino antes de criar a automação. NÃO inventes." };
+        }
+
+        if (triggerType === "lead_status_changed" || triggerType === "client_status_changed") {
+          const { key, error } = await resolveStageKey(ctx, String(args.to_status));
+          if (error || !key) return { error: error || "Estado destino inválido", _instruction: "Informa o utilizador que essa etapa não existe e pede uma etapa válida." };
+          automationConfig.to_status = key;
+
+          if (args.from_status && String(args.from_status).toLowerCase() !== "any") {
+            const from = await resolveStageKey(ctx, String(args.from_status));
+            if (from.error || !from.key) return { error: from.error || "Estado origem inválido", _instruction: "Informa o utilizador que essa etapa de origem não existe." };
+            automationConfig.from_status = from.key;
+          }
+        } else {
+          automationConfig.to_status = String(args.to_status);
+          if (args.from_status && String(args.from_status).toLowerCase() !== "any") {
+            automationConfig.from_status = String(args.from_status);
+          }
+        }
+      }
+
+      const rawMessage = String(args.message || "").trim();
+      const htmlContent = /<\/?[a-z][\s\S]*>/i.test(rawMessage) ? rawMessage : textToEmailHtml(rawMessage);
+      const delayMinutes = Number.isFinite(Number(args.delay_minutes)) ? Math.max(0, Math.round(Number(args.delay_minutes))) : 0;
+
+      const { data, error } = await ctx.supabaseAdmin
+        .from("email_templates")
+        .insert({
+          organization_id: ctx.orgId,
+          name: args.name,
+          subject: args.subject,
+          html_content: htmlContent,
+          category: args.category || "followup",
+          variables: [],
+          is_active: true,
+          created_by: ctx.userId,
+          automation_enabled: true,
+          automation_trigger_type: triggerType,
+          automation_trigger_config: automationConfig,
+          automation_delay_minutes: delayMinutes,
+        })
+        .select("id, name, subject, automation_trigger_type, automation_trigger_config, automation_delay_minutes")
+        .single();
+
+      if (error) {
+        return { error: error.message, _instruction: "ERRO ao criar a automação. Informa o utilizador que houve um problema técnico. NÃO digas que foi criada." };
+      }
+
+      return {
+        success: true,
+        template_id: data.id,
+        template: data,
+        _instruction: `Automação **${data.name}** criada e ativa. Informa o utilizador. [link:Ver Templates|/marketing/templates]`,
       };
     },
   },

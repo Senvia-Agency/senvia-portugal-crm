@@ -68,6 +68,7 @@ export async function loadContext(
   // Resolve admin role + profile permissions.
   let isAdmin = isSuperAdmin;
   let permissions: Record<string, any> | null = null;
+  let dataScope: "own" | "team" | "all" = "all";
   if (!isAdmin) {
     const { data: adminRole } = await admin
       .from("user_roles")
@@ -86,10 +87,34 @@ export async function loadContext(
     if (member?.profile_id) {
       const { data: profile } = await admin
         .from("organization_profiles")
-        .select("module_permissions")
+        .select("module_permissions, data_scope")
         .eq("id", member.profile_id)
         .maybeSingle();
       permissions = profile?.module_permissions || null;
+      dataScope = (profile?.data_scope === "team" || profile?.data_scope === "all") ? profile.data_scope : "own";
+    }
+  }
+  if (isAdmin) dataScope = "all";
+
+  let effectiveUserIds: string[] | null = null;
+  if (dataScope === "own") {
+    effectiveUserIds = [userId!];
+  } else if (dataScope === "team") {
+    const { data: ledTeam } = await admin
+      .from("teams")
+      .select("id")
+      .eq("organization_id", orgId!)
+      .eq("leader_id", userId!)
+      .maybeSingle();
+
+    if (ledTeam?.id) {
+      const { data: entries } = await admin
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", ledTeam.id);
+      effectiveUserIds = [userId!, ...((entries || []).map((e: any) => e.user_id).filter(Boolean))];
+    } else {
+      effectiveUserIds = [userId!];
     }
   }
 
@@ -125,6 +150,8 @@ export async function loadContext(
       supabaseAdmin: admin,
       isAdmin,
       permissions,
+      dataScope,
+      effectiveUserIds,
       org,
       onboarding,
       mode,

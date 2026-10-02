@@ -22,6 +22,86 @@ const MODULE_LABELS: Record<string, string> = {
   ecommerce: "E-commerce", settings: "Definições",
 };
 
+function latestUserText(messages: any[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return String(messages[i]?.content || "");
+  }
+  return "";
+}
+
+function recentConversationText(messages: any[], limit = 8): string {
+  return messages.slice(-limit).map((m: any) => String(m?.content || "")).join("\n");
+}
+
+function matchLine(text: string, label: string): string | null {
+  const re = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, "i");
+  return text.match(re)?.[1]?.trim() || null;
+}
+
+function extractDelayMinutes(text: string): number | null {
+  const minutes = text.match(/(\d+)\s*(?:minutos|min|minutes)\b/i);
+  if (minutes) return Math.max(0, Number(minutes[1]));
+  const days = text.match(/(\d+)\s*dias?\b/i);
+  if (days) return Math.max(0, Number(days[1]) * 24 * 60);
+  return null;
+}
+
+function extractStage(text: string): string | null {
+  const explicit = text.match(/(?:estado|etapa)\s*[:=]\s*([^\n,.;]+)/i)?.[1]?.trim();
+  if (explicit) return explicit;
+  const named = text.match(/estado\s+([A-Za-zÀ-ÿ0-9 _-]+)/i)?.[1]?.trim();
+  if (named) return named;
+  return text.match(/\b(Contactado|Contacto)\b/i)?.[0] || null;
+}
+
+function shouldDirectCreateEmailAutomation(userText: string, contextText: string): boolean {
+  const text = `${userText}\n${contextText}`.toLowerCase();
+  const wantsAutomation = text.includes("automação") || text.includes("automatico") || text.includes("automático");
+  const automationContext =
+    text.includes("email") ||
+    text.includes("e-mail") ||
+    text.includes("gatilho") ||
+    text.includes("lead") ||
+    text.includes("etapa") ||
+    text.includes("estado") ||
+    text.includes("atraso");
+  const createIntent = /\b(cria|criar|grava|gravar|configura|configurar|faz|fazer|usa|usar|sim|confirmo|aprovado|podes|quero|preciso)\b/i.test(userText);
+  return wantsAutomation && automationContext && createIntent;
+}
+
+async function maybeCreateEmailAutomationDirect(messages: any[], ctx: any): Promise<string | null> {
+  const userText = latestUserText(messages);
+  const contextText = recentConversationText(messages);
+  if (!shouldDirectCreateEmailAutomation(userText, contextText)) return null;
+
+  const allText = `${contextText}\n${userText}`;
+  const subject = matchLine(allText, "Assunto") || allText.match(/assunto\s+["“]?([^"\n”]+)["”]?/i)?.[1]?.trim();
+  const rawMessage = matchLine(allText, "Mensagem") || matchLine(allText, "Corpo") || matchLine(allText, "Texto") || subject;
+  const stage = extractStage(allText);
+  const delay = extractDelayMinutes(allText);
+
+  if (!subject || !rawMessage || !stage || delay === null) {
+    return "Consigo criar essa automação, mas falta-me confirmar os dados essenciais: assunto, mensagem, estado/etapa e atraso.";
+  }
+
+  const resultRaw = await runTool("create_email_automation", {
+    name: subject,
+    subject,
+    message: rawMessage,
+    trigger_type: "lead_status_changed",
+    to_status: stage,
+    from_status: "any",
+    delay_minutes: delay,
+    category: "followup",
+  }, ctx);
+
+  const result = JSON.parse(resultRaw);
+  if (result?.success) {
+    return `Automação criada e ativa.\n\n- Estado: ${stage}\n- Atraso: ${delay} minutos\n- Assunto: ${subject}\n\n[link:Ver Templates|/marketing/templates]`;
+  }
+  return `Não consegui criar a automação: ${result?.error || "erro desconhecido"}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonError("Método não permitido", 405);
@@ -61,6 +141,11 @@ serve(async (req) => {
 
     const systemContent = buildSystemPrompt(ctx, { hasDataAccess, blockedLabels });
     let conversationMessages: any[] = [{ role: "system", content: systemContent }, ...messages];
+
+    if (hasDataAccess && ctx) {
+      const directAutomation = await maybeCreateEmailAutomationDirect(messages, ctx);
+      if (directAutomation) return streamText(directAutomation);
+    }
 
     // ── Tool-calling loop ──
     for (let i = 0; i < MAX_ITERATIONS; i++) {

@@ -65,8 +65,10 @@ Regras: usa um token só quando o utilizador quer FAZER uma ação (não em perg
 Para FATURAÇÃO (InvoiceXpress/KeyInvoice), BREVO e DADOS DA EMPRESA não há guia visual: pede o valor (ex: a API key) no chat e guarda-o tu com as ferramentas configure_invoicing / configure_brevo / set_company_info.`;
 
 const WRITE_RULES = `AÇÕES DE ESCRITA (criar/alterar dados):
-- Tens ferramentas que CRIAM e ALTERAM dados (create_lead, create_client, update_lead_status e configurações). Usa-as quando o utilizador pedir uma ação concreta.
+- Tens ferramentas que CRIAM e ALTERAM dados (create_lead, create_client, update_lead_status, create_email_automation, create_proposal, create_sale, add_sale_payment, create_expense, create_calendar_event, create_marketing_contact e configurações). Usa-as quando o utilizador pedir uma ação concreta.
 - ANTES de executar uma ação de escrita, confirma os dados essenciais com o utilizador numa frase curta. Para create_lead precisas de nome, email e telefone.
+- Para create_email_automation, confirma assunto, mensagem, gatilho, estado/etapa destino quando aplicável, e atraso. Exemplo: lead_status_changed + etapa Contacto + 4320 minutos cria envio após 3 dias.
+- Para propostas, vendas, pagamentos, despesas, eventos e contactos de marketing, confirma entidade/valor/data quando aplicável. Não emitas faturas/recibos nem prometas envio fiscal: essas ferramentas só mexem nos registos internos.
 - Se faltar um dado obrigatório, pede-o. NÃO inventes valores para preencher.
 - Após a ação, confirma o resultado com base no que a ferramenta retornou (não afirmes sucesso se a ferramenta deu erro).`;
 
