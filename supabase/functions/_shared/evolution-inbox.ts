@@ -16,6 +16,19 @@
 import type { MulticanalConfig } from './multicanal.ts';
 import { evolutionFetch } from './multicanal.ts';
 
+/**
+ * WhatsApp message types that are signalling, not something a person wrote:
+ * stored, they would only ever show as "[tipo]" bubbles.
+ */
+export const SIGNALLING_TYPES = new Set([
+  'secretEncryptedMessage',
+  'encReactionMessage',
+  'encEventResponseMessage',
+  'senderKeyDistributionMessage',
+  'keepInChatMessage',
+  'pinInChatMessage',
+]);
+
 /** Events the inbox needs. `SEND_MESSAGE` covers replies typed in Chatwoot. */
 export const EVOLUTION_WEBHOOK_EVENTS = [
   'CONNECTION_UPDATE',
@@ -146,7 +159,9 @@ export function unwrapMessage(message: AnyMsg): AnyMsg {
       ?? m.viewOnceMessageV2?.message
       ?? m.viewOnceMessageV2Extension?.message
       ?? m.documentWithCaptionMessage?.message
-      ?? m.editedMessage?.message;
+      ?? m.editedMessage?.message
+      // Sent from the owner's other device: the real message is inside.
+      ?? m.deviceSentMessage?.message;
     if (!inner) break;
     m = inner;
   }
@@ -213,9 +228,13 @@ export function parseContent(messageId: string, message: AnyMsg): ParsedContent 
     texto = `[sondagem] ${(m.pollCreationMessage ?? m.pollCreationMessageV3).name ?? ''}`.trim();
   } else {
     // Something we do not render yet. Leaving a trace beats a silent gap in
-    // the conversation.
+    // the conversation — except for WhatsApp's own signalling, which is no
+    // message at all: encrypted edits and reactions (secretEncrypted,
+    // encReaction) cannot be read without the message secret, and the rest is
+    // key exchange or pin/keep bookkeeping. Shown, they were bubbles reading
+    // "[secretEncrypted]" next to the real conversation.
     const tipo = Object.keys(m).find((k) => k !== 'messageContextInfo');
-    texto = tipo ? `[${tipo.replace(/Message$/, '')}]` : '';
+    texto = tipo && !SIGNALLING_TYPES.has(tipo) ? `[${tipo.replace(/Message$/, '')}]` : '';
   }
 
   const ctx = m.extendedTextMessage?.contextInfo

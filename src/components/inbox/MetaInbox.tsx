@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink } from 'lucide-react';
+import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +12,7 @@ import { shouldDeliverVoiceRecording } from '@/lib/voice-recording';
 import { toast } from 'sonner';
 import {
   useMetaConversations, useMetaMessages, useSendMetaMessage, useMarkMetaRead,
-  useMetaAction, useSendMetaAttachment, useMetaMedia,
+  useMetaAction, useSendMetaAttachment, useMetaMedia, useFillContactAvatars,
   useWhatsAppTemplates, useSyncWhatsAppTemplates, useSendWhatsAppTemplate,
   type MetaConversation, type MetaMessage, type WhatsAppTemplate,
 } from '@/hooks/useMetaInbox';
@@ -21,6 +21,15 @@ import { MediaViewer, type MediaItem } from './MediaViewer';
 import { MessageText } from './MessageText';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ContactNotes } from '@/components/contacts/ContactNotes';
+import { ConversationTasks } from '@/components/inbox/ConversationTasks';
+import { AddLeadModal } from '@/components/leads/AddLeadModal';
+import { useCrmContactByPhone } from '@/hooks/useCrmContactByPhone';
+import { useClientProposals, useClientSales } from '@/hooks/useClientHistory';
+import { useTeamMembers } from '@/hooks/useTeam';
+import { usePipelineStages } from '@/hooks/usePipelineStages';
+import { SALE_STATUS_LABELS, type SaleStatus } from '@/types/sales';
+import { PROPOSAL_STATUS_LABELS, type ProposalStatus } from '@/types/proposals';
+import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 /**
@@ -53,6 +62,8 @@ export function MetaInbox({
   onOpenRail?: () => void;
 }) {
   const { data: conversations = [], isLoading, isError, refetch } = useMetaConversations(channelId);
+  // Fotos de WhatsApp que faltam: o servidor vai buscá-las, uma vez por sessão.
+  useFillContactAvatars(conversations);
   // Com várias caixas, cada linha tem de dizer a que caixa pertence — senão duas
   // conversas de contas diferentes ficam indistinguíveis na mesma lista.
   const varias = Array.isArray(channelId) && channelId.length > 1;
@@ -228,9 +239,32 @@ export function MetaInbox({
   );
 }
 
+const OPEN_SALE_STATUSES: SaleStatus[] = ['in_progress', 'fulfilled'];
+const OPEN_PROPOSAL_STATUSES: ProposalStatus[] = ['draft', 'sent', 'negotiating'];
+const euro = (value: number | string | null | undefined) =>
+  value == null ? null : new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(value));
+
 function MetaContactPanel({ conversation, channelType, onClose }: { conversation: MetaConversation; channelType?: string; onClose: () => void }) {
   const phone = conversation.contact_ref.includes('@') ? null : conversation.contact_ref.replace(/\D/g, '');
   const displayName = conversation.contact_name || conversation.contact_ref;
+  const navigate = useNavigate();
+
+  // The CRM record behind this number, as the old inbox panel had it: who
+  // this is, what is open with them, and what was promised to them.
+  const { data: match, isLoading: matching } = useCrmContactByPhone(phone);
+  const clientId = match?.kind === 'client' ? match.id : null;
+  const { data: sales = [] } = useClientSales(clientId);
+  const { data: proposals = [] } = useClientProposals(clientId);
+  const openSales = sales.filter((sale) => OPEN_SALE_STATUSES.includes(sale.status as SaleStatus));
+  const openProposals = proposals.filter((proposal) => OPEN_PROPOSAL_STATUSES.includes(proposal.status as ProposalStatus));
+  const { data: stages = [] } = usePipelineStages();
+  const { data: team = [] } = useTeamMembers();
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const stageName = match?.kind === 'lead' ? stages.find((st) => st.key === match.status)?.name ?? match.status : null;
+  const openRecord = () => {
+    if (!match) return;
+    navigate(match.kind === 'client' ? `/clients?highlight=${match.id}` : `/leads?lead=${match.id}`);
+  };
 
   const copyPhone = async () => {
     if (!phone) return;
@@ -254,14 +288,14 @@ function MetaContactPanel({ conversation, channelType, onClose }: { conversation
       <div className="space-y-4 p-4">
         {phone && (
           <div className={cn('grid gap-2', channelType === 'whatsapp' ? 'grid-cols-3' : 'grid-cols-2')}>
-            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <a href={`tel:${phone}`}><Phone className="h-3.5 w-3.5" /> Ligar</a>
+            <Button variant="outline" size="sm" className="h-auto min-w-0 flex-col gap-1 px-1 py-2 text-xs" asChild>
+              <a href={`tel:${phone}`}><Phone className="h-4 w-4" /> Ligar</a>
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void copyPhone()}>
-              <Copy className="h-3.5 w-3.5" /> Copiar
+            <Button variant="outline" size="sm" className="h-auto min-w-0 flex-col gap-1 px-1 py-2 text-xs" onClick={() => void copyPhone()}>
+              <Copy className="h-4 w-4" /> Copiar
             </Button>
-            {channelType === 'whatsapp' && <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <a href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /> WhatsApp</a>
+            {channelType === 'whatsapp' && <Button variant="outline" size="sm" className="h-auto min-w-0 flex-col gap-1 px-1 py-2 text-xs" asChild>
+              <a href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> WhatsApp</a>
             </Button>}
           </div>
         )}
@@ -286,8 +320,111 @@ function MetaContactPanel({ conversation, channelType, onClose }: { conversation
           </dl>
         </div>
 
+        {/* The CRM record: client or lead, or the way to create one. */}
+        {phone && (
+          matching ? (
+            <Skeleton className="h-20 w-full rounded-xl" />
+          ) : match ? (
+            <div className="rounded-xl border bg-card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {match.kind === 'client' ? 'Cliente' : 'Lead'}
+                </p>
+                <button type="button" onClick={openRecord} className="flex items-center gap-0.5 text-xs font-medium text-primary hover:underline">
+                  Ver ficha <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="mt-2 truncate text-sm font-semibold">{match.name || displayName}</p>
+              <dl className="mt-2 space-y-1.5 text-sm">
+                {match.kind === 'client' && match.code && (
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Código</dt><dd className="font-medium">{match.code}</dd></div>
+                )}
+                {match.kind === 'lead' && (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Etapa</dt>
+                    <dd><span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{stageName || '—'}</span></dd>
+                  </div>
+                )}
+                {match.kind === 'lead' && match.value != null && (
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Valor</dt><dd className="font-semibold text-success">{euro(match.value)}</dd></div>
+                )}
+                {match.email && (
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Email</dt><dd className="min-w-0 truncate font-medium">{match.email}</dd></div>
+                )}
+              </dl>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed bg-card p-3">
+              <p className="text-sm font-medium">Ainda não está no CRM</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Nenhum cliente ou lead tem este número.</p>
+              <Button size="sm" variant="outline" className="mt-2 gap-1.5" onClick={() => setAddLeadOpen(true)}>
+                <UserPlus className="h-3.5 w-3.5" /> Criar lead
+              </Button>
+            </div>
+          )
+        )}
+
+        {/* What is open with this client, as the old panel showed it. */}
+        {(openSales.length > 0 || openProposals.length > 0) && (
+          <div className="space-y-2 rounded-xl border bg-card p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Em aberto</p>
+            {openSales.map((sale) => (
+              <button
+                key={sale.id}
+                type="button"
+                onClick={() => navigate(`/sales?sale=${sale.id}`)}
+                className="flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-accent/50"
+              >
+                <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">Venda {sale.code ?? ''}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {[euro(sale.total_value), SALE_STATUS_LABELS[sale.status as SaleStatus]].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+            {openProposals.map((proposal) => (
+              <button
+                key={proposal.id}
+                type="button"
+                onClick={() => navigate(`/proposals?proposal=${proposal.id}`)}
+                className="flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-accent/50"
+              >
+                <FileSignature className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">Proposta {proposal.code ?? ''}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {[euro(proposal.total_value), PROPOSAL_STATUS_LABELS[proposal.status as ProposalStatus]].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* What was promised to this person. */}
+        {phone && (
+          <ConversationTasks
+            phone={phone}
+            contactName={displayName}
+            conversationId={null}
+            leadId={match?.kind === 'lead' ? match.id : null}
+            clientId={match?.kind === 'client' ? match.id : null}
+            teamMembers={team.map((member) => ({ user_id: member.user_id, full_name: member.full_name }))}
+          />
+        )}
+
         <ContactNotes phone={phone} source="inbox" />
       </div>
+
+      <AddLeadModal
+        open={addLeadOpen}
+        onOpenChange={setAddLeadOpen}
+        initialData={{ name: conversation.contact_name ?? undefined, phone: phone ?? undefined, source: 'WhatsApp' }}
+      />
     </section>
   );
 }

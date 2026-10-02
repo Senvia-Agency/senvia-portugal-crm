@@ -22,6 +22,8 @@ import { requestMfaResponse } from "../_shared/user-authorization.ts";
 // atendentes definidos.
 
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { getConfig } from "../_shared/multicanal.ts";
+import { avatarUrlExpired, fetchEvolutionContactAvatar } from "../_shared/evolution-contact-avatar.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +41,53 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+/** Most conversations whose photo one request looks up (two Evolution calls each). */
+const AVATAR_BATCH = 20;
+
+// deno-lint-ignore no-explicit-any
+async function refreshAvatars(admin: any, userId: string, ids: unknown) {
+  const wanted = (Array.isArray(ids) ? ids : []).map(String).filter(Boolean).slice(0, AVATAR_BATCH);
+  const updated: Record<string, string> = {};
+  const missing: Record<string, string> = {};
+  if (!wanted.length) return { updated, missing };
+
+  const { data: convs } = await admin.from("meta_conversations")
+    .select("id, channel_id, contact_ref, contact_avatar_url")
+    .in("id", wanted);
+  const channelIds = [...new Set(((convs ?? []) as Array<{ channel_id: string }>).map((c) => c.channel_id))];
+  const { data: channels } = channelIds.length
+    ? await admin.from("messaging_channels")
+      .select("id, provider, evolution_instance, metadata")
+      .in("id", channelIds).is("archived_at", null)
+    : { data: [] };
+
+  // Only QR-code caixas the user may open; Instagram and Messenger get their
+  // photos from Meta.
+  const usable = new Map<string, string>();
+  for (const ch of (channels ?? []) as Array<{ id: string; provider: string; evolution_instance: string | null; metadata: Record<string, unknown> | null }>) {
+    if (ch.provider !== "evolution" || ch.metadata?.native_inbox !== true || !ch.evolution_instance) continue;
+    const { data: pode } = await admin.rpc("pode_aceder_caixa", { _user_id: userId, _channel_id: ch.id });
+    if (pode === true) usable.set(ch.id, ch.evolution_instance);
+  }
+
+  const cfg = getConfig();
+  for (const conv of (convs ?? []) as Array<{ id: string; channel_id: string; contact_ref: string; contact_avatar_url: string | null }>) {
+    const instance = usable.get(conv.channel_id);
+    if (!instance || !avatarUrlExpired(conv.contact_avatar_url)) continue;
+    try {
+      const { url, reason } = await fetchEvolutionContactAvatar(cfg, instance, conv.contact_ref);
+      if (!url) { missing[conv.id] = reason ?? "sem foto"; continue; }
+      await admin.from("meta_conversations").update({ contact_avatar_url: url }).eq("id", conv.id);
+      updated[conv.id] = url;
+    } catch (e) {
+      missing[conv.id] = (e as Error).message;
+    }
+  }
+  if (Object.keys(missing).length) log("fotos sem resposta da Evolution", missing);
+  log("fotos atualizadas", { pedidas: wanted.length, atualizadas: Object.keys(updated).length });
+  return { updated, missing };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -58,7 +107,17 @@ Deno.serve(async (req) => {
     const mfaResponse = await requestMfaResponse(req, user.id, corsHeaders);
     if (mfaResponse) return mfaResponse;
 
-    const { message_id, media_id } = await req.json().catch(() => ({}));
+    const payload = await req.json().catch(() => ({}));
+
+    // Fotos dos contactos de WhatsApp (QR) que ainda não as têm. O webhook só
+    // as pede quando chega uma mensagem; uma conversa antiga, de quem não volta
+    // a escrever, ficava com as iniciais para sempre. A Caixa de Entrada pede-as
+    // aqui ao abrir, com a mesma regra de acesso dos anexos.
+    if (payload?.action === "avatars") {
+      return json(await refreshAvatars(admin, user.id, payload.conversation_ids));
+    }
+
+    const { message_id, media_id } = payload;
     if (!message_id || !media_id) {
       return json({ error: "message_id e media_id são obrigatórios" }, 400);
     }

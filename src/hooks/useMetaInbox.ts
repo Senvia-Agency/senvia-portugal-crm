@@ -132,6 +132,38 @@ export function useMetaConversations(channelId: string | string[] | null) {
   });
 }
 
+/**
+ * Fotos de contacto que faltam (WhatsApp por QR): pede-as ao servidor, que as
+ * vai buscar ao WhatsApp. Cada conversa é pedida uma vez por sessão do browser,
+ * tenha ou não foto — quem a tem escondida não deve gerar um pedido a cada
+ * atualização da lista. O webhook volta a tentar quando a pessoa escrever.
+ */
+const avataresPedidos = new Set<string>();
+
+export function useFillContactAvatars(conversations: MetaConversation[]) {
+  const queryClient = useQueryClient();
+  const semFoto = conversations
+    .filter((c) => !c.contact_avatar_url && !avataresPedidos.has(c.id))
+    .map((c) => c.id)
+    .slice(0, 20);
+  const chave = semFoto.join(',');
+
+  useEffect(() => {
+    if (!chave) return;
+    const ids = chave.split(',');
+    ids.forEach((id) => avataresPedidos.add(id));
+    // Sem cancelamento: a lista muda (e o efeito limpa) antes da resposta, e
+    // recarregar as conversas depois de sair da página não faz mal nenhum.
+    supabase.functions.invoke('meta-media', { body: { action: 'avatars', conversation_ids: ids } })
+      .then(({ data, error }) => {
+        if (error) return;
+        if (Object.keys((data as { updated?: Record<string, string> })?.updated ?? {}).length) {
+          void queryClient.invalidateQueries({ queryKey: ['meta-conversations'] });
+        }
+      });
+  }, [chave, queryClient]);
+}
+
 /** Quantas mensagens se leem de uma vez. */
 export const META_PAGINA = 200;
 

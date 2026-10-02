@@ -31,7 +31,8 @@ interface TeamMemberLite {
 interface ConversationTasksProps {
   phone: string;
   contactName: string;
-  conversationId: number;
+  /** Chatwoot-era conversation id; the native inbox (uuid) has none. */
+  conversationId?: number | null;
   leadId?: string | null;
   clientId?: string | null;
   teamMembers: TeamMemberLite[];
