@@ -155,6 +155,37 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
     });
   };
 
+  const mailboxAction = async (action: 'move_to_trash' | 'delete_permanently', ids: readonly string[]) => {
+    if (!orgId || !channelId) throw new Error('Caixa não selecionada');
+    const eligibleIds = [...new Set(ids)].filter((id) => !pendingRef.current.has(id));
+    if (eligibleIds.length === 0) return;
+
+    eligibleIds.forEach((id) => {
+      pendingRef.current.add(id);
+      marcarPendente(id);
+      removeFromList(id);
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('email-message-action', {
+        body: { action, message_ids: eligibleIds },
+      });
+      const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+        ? data.error
+        : null;
+      if (error || message) throw new Error(message || 'Não foi possível concluir a ação no servidor de correio.');
+      libertar(eligibleIds);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['email-messages'] }),
+        qc.invalidateQueries({ queryKey: ['email-folders', channelId] }),
+      ]);
+    } catch (error) {
+      libertar(eligibleIds);
+      await qc.invalidateQueries({ queryKey: ['email-messages', folderId] });
+      throw error;
+    }
+  };
+
   return {
     pendentes,
     libertar,
@@ -162,7 +193,9 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
     setFlag: (id: string, on: boolean) => { patchList(id, { flagged: on }); return queue(on ? 'flag' : 'unflag', { messageId: id }); },
     archive: (id: string) => destrutiva('archive', id),
     spam: (id: string) => destrutiva('spam', id),
-    trash: (id: string) => destrutiva('delete', id),
+    trash: (id: string) => mailboxAction('move_to_trash', [id]),
+    trashBatch: (ids: readonly string[]) => mailboxAction('move_to_trash', ids),
+    deletePermanently: (ids: readonly string[]) => mailboxAction('delete_permanently', ids),
     move: (id: string, targetFolderId: string) => destrutiva('move', id, { targetFolderId }),
     markFolderRead: (targetFolderId: string) => { patchAll({ seen: true }); return queue('mark_folder_read', { folderId: targetFolderId }); },
     loadOlder: (targetFolderId: string, batch = 40) => queue('load_older', { folderId: targetFolderId, batch }),

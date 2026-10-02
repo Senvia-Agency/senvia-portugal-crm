@@ -193,12 +193,17 @@ async function execute(cmd) {
   if (caixa.organization_id !== cmd.organization_id) throw new Error('comando não autorizado');
   const [access] = await q(`SELECT EXISTS (
     SELECT 1 FROM messaging_channels c
-      JOIN organization_members om ON om.organization_id=c.organization_id
-      LEFT JOIN organization_profiles op ON op.id=om.profile_id AND op.organization_id=om.organization_id
     WHERE c.id=$1 AND c.organization_id=$2 AND c.channel_type='email' AND c.archived_at IS NULL
-      AND om.user_id=$3 AND om.is_active=true
-      AND (coalesce(cardinality(c.assigned_user_ids),0)=0
-        OR $3=ANY(c.assigned_user_ids) OR om.role='admin' OR op.base_role='admin')
+      AND (
+        EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=$3 AND ur.role='super_admin')
+        OR EXISTS (
+          SELECT 1 FROM organization_members om
+          LEFT JOIN organization_profiles op ON op.id=om.profile_id AND op.organization_id=om.organization_id
+          WHERE om.organization_id=c.organization_id AND om.user_id=$3 AND om.is_active=true
+            AND (coalesce(cardinality(c.assigned_user_ids),0)=0
+              OR $3=ANY(c.assigned_user_ids) OR om.role='admin' OR op.base_role='admin')
+        )
+      )
   ) AS allowed`, [caixa.id, caixa.organization_id, cmd.created_by]);
   if (access?.allowed !== true) throw new Error('comando não autorizado');
   const client = getManager(cmd.channel_id)?.client;

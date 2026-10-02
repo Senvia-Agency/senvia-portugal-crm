@@ -1,10 +1,9 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
@@ -29,6 +28,7 @@ interface TemplateEditorProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  workspace?: boolean;
 }
 
 const COMPLEX_HTML_REGEX = /<(table|div|img|style|section|header|footer|td|tr|th|thead|tbody|span[^>]*style)/i;
@@ -37,10 +37,47 @@ function hasComplexHtml(html: string): boolean {
   return COMPLEX_HTML_REGEX.test(html);
 }
 
-function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
-  if (!editor) return null;
+function VariablePalette({ onInsert }: { onInsert: (variable: string) => void }) {
+  const groups = [
+    { label: 'Contacto', variables: TEMPLATE_VARIABLES_CLIENT },
+    { label: 'Organização', variables: TEMPLATE_VARIABLES_ORG },
+    { label: 'Venda e renovação', variables: TEMPLATE_VARIABLES_RENEWAL },
+  ];
 
-  const setLink = useCallback(() => {
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm font-semibold text-foreground">Personalização</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Clica numa variável para a inserir na posição do cursor.</p>
+      </div>
+      {groups.map((group) => (
+        <section key={group.label} className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.label}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.variables.map((variable) => (
+              <Button
+                key={variable.key}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto min-h-7 justify-start px-2 py-1 text-left text-xs"
+                title={variable.label}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onInsert(variable.key)}
+              >
+                {variable.key}
+              </Button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  const setLink = () => {
+    if (!editor) return;
     const previousUrl = editor.getAttributes("link").href;
     const url = window.prompt("URL do link:", previousUrl);
     if (url === null) return;
@@ -49,7 +86,9 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       return;
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-  }, [editor]);
+  };
+
+  if (!editor) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-muted/30">
@@ -93,7 +132,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   );
 }
 
-export function TemplateEditor({ value, onChange, className }: TemplateEditorProps) {
+export function TemplateEditor({ value, onChange, className, workspace = false }: TemplateEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeTab, setActiveTab] = useState("editor");
@@ -222,43 +261,15 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
   const showComplexWarning = activeTab === "editor" && hasComplexHtml(value);
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Variables */}
-      <div className="space-y-3">
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Contacto / Cliente</Label>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_VARIABLES_CLIENT.map((v) => (
-              <Button key={v.key} type="button" variant="outline" size="sm" className="h-7 text-xs" onMouseDown={(e) => e.preventDefault()} onClick={() => insertVariable(v.key)}>
-                {v.key}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Organização / Comercial</Label>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_VARIABLES_ORG.map((v) => (
-              <Button key={v.key} type="button" variant="outline" size="sm" className="h-7 text-xs" onMouseDown={(e) => e.preventDefault()} onClick={() => insertVariable(v.key)}>
-                {v.key}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Venda / Renovação</Label>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_VARIABLES_RENEWAL.map((v) => (
-              <Button key={v.key} type="button" variant="outline" size="sm" className="h-7 text-xs" onMouseDown={(e) => e.preventDefault()} onClick={() => insertVariable(v.key)}>
-                {v.key}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Editor and Preview */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+    <div className={cn(workspace ? "grid gap-6 xl:grid-cols-[15rem_minmax(0,1fr)]" : "space-y-4", className)}>
+      {workspace && (
+        <aside className="h-fit rounded-xl border bg-muted/30 p-4 xl:sticky xl:top-0">
+          <VariablePalette onInsert={insertVariable} />
+        </aside>
+      )}
+      <div className="min-w-0 space-y-4">
+        {!workspace && <VariablePalette onInsert={insertVariable} />}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="editor">Editor Visual</TabsTrigger>
           <TabsTrigger value="html">HTML</TabsTrigger>
@@ -298,14 +309,10 @@ export function TemplateEditor({ value, onChange, className }: TemplateEditorPro
             <iframe ref={iframeRef} title="Email Preview" className="w-full h-[400px] border-0" sandbox="allow-same-origin" />
           </div>
         </TabsContent>
-      </Tabs>
-
-      {/* Quick tips */}
-      <div className="text-xs text-muted-foreground">
-        <p>
-          <strong>Dica:</strong> Use a tab <strong>HTML</strong> para colar templates complexos com tabelas e estilos. As variáveis como{" "}
-          <code className="bg-muted px-1 py-0.5 rounded">{"{{nome}}"}</code> serão substituídas ao enviar.
-        </p>
+        </Tabs>
+        <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+          Para templates com tabelas ou estilos, usa o separador <strong className="text-foreground">HTML</strong>. A pré-visualização mostra o resultado antes de guardar.
+        </div>
       </div>
     </div>
   );

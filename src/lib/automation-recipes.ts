@@ -196,7 +196,7 @@ export const AUTOMATION_RECIPES: AutomationRecipe[] = [
             subject: '{{nome}}, a sua mensalidade vence em 2 dias',
             html: [
               '<p>Olá {{nome}},</p>',
-              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} vence a {{data_vencimento}}.</p>',
+              '<p>A mensalidade de {{valor}} referente à venda n.º {{codigo_venda}} vence a {{data_vencimento}}.</p>',
               '<p>Se já tratou do pagamento, ignore este email. Qualquer dúvida, responda-nos.</p>',
             ].join(''),
           },
@@ -226,7 +226,7 @@ export const AUTOMATION_RECIPES: AutomationRecipe[] = [
             subject: '{{nome}}, a sua mensalidade vence hoje',
             html: [
               '<p>Olá {{nome}},</p>',
-              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} vence hoje, {{data_vencimento}}.</p>',
+              '<p>A mensalidade de {{valor}} referente à venda n.º {{codigo_venda}} vence hoje, {{data_vencimento}}.</p>',
               '<p>Se já pagou, obrigado e ignore este email. Se precisar de ajuda, estamos por aqui.</p>',
             ].join(''),
           },
@@ -256,7 +256,7 @@ export const AUTOMATION_RECIPES: AutomationRecipe[] = [
             subject: '{{nome}}, a sua mensalidade está em atraso',
             html: [
               '<p>Olá {{nome}},</p>',
-              '<p>A mensalidade de {{valor}} referente a {{codigo_venda}} venceu a {{data_vencimento}} e continua por pagar, há {{dias_em_atraso}} dias.</p>',
+              '<p>A mensalidade de {{valor}} referente à venda n.º {{codigo_venda}} venceu a {{data_vencimento}} e continua por pagar, há {{dias_em_atraso}} dias.</p>',
               '<p>Pedimos que regularize assim que possível. Se já o fez, ignore este email; se houver algum problema, fale connosco.</p>',
             ].join(''),
           },

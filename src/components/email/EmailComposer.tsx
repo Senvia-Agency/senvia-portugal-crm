@@ -17,6 +17,7 @@ import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { cn } from '@/lib/utils';
 import type { EmailAttachment } from '@/hooks/useEmail';
 import { insertEmailPaste, quoteEmailHtml as quoteHtml, sanitizeEmailHtml, toEditorHtml } from '@/lib/email-html';
+import { resolveEmailSignatureHtml } from '@/lib/email-signature';
 
 interface Attached { filename: string; contentType: string; b64: string; size: number; }
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
@@ -204,7 +205,7 @@ export function EmailComposer({
   resolveAttachment?: (attachmentId: string) => Promise<{ data_b64: string; content_type: string | null } | null>;
 }) {
   const { toast } = useToast();
-  const { organization } = useAuth();
+  const { organization, profile } = useAuth();
   const actions = useEmailActions(channelId, folderId);
   const { data: caixas = [] } = useEmailChannels();
   const caixa = channelId ? caixas.find((c) => c.id === channelId) : undefined;
@@ -230,22 +231,13 @@ export function EmailComposer({
   const [subject, setSubject] = useState('');
   const [attachments, setAttachments] = useState<Attached[]>([]);
 
-  // The signature the gateway would apply on send (see commands.js applySignature)
-  // — shown INLINE while composing instead of being a server-side surprise the
-  // user only discovers after sending. 'reply'/'replyAll' use the reply default,
-  // everything else (new, forward) uses the new-message default, mirroring the
-  // gateway's own `p.inReplyTo ? reply : new` rule.
   const signatureHtml = useMemo(() => {
-    const sigs = caixa?.metadata?.signatures || [];
-    if (!sigs.length) return '';
-    const sigId = (mode === 'reply' || mode === 'replyAll')
-      ? caixa?.metadata?.signature_default_reply
-      : caixa?.metadata?.signature_default_new;
-    const sig = sigId ? sigs.find((s) => s.id === sigId) : null;
-    if (!sig || !sig.html?.trim()) return '';
-    return `<br><br><div class="senvia-signature">--<br>${toEditorHtml(sig.html)}</div>`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caixa, mode]);
+    return resolveEmailSignatureHtml({
+      mode,
+      metadata: caixa?.metadata,
+      profileSignature: profile?.email_signature,
+    });
+  }, [caixa?.metadata, mode, profile?.email_signature]);
 
   // Compute initial field values once on mount.
   const initial = useMemo(() => {

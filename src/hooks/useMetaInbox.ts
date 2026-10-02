@@ -499,7 +499,12 @@ export function useSendMetaAttachment() {
   const { organization } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ conversationId, file }: { conversationId: string; file: File }) => {
+    mutationFn: async ({ conversationId, file, text, replyToMid }: {
+      conversationId: string;
+      file: File;
+      text?: string | null;
+      replyToMid?: string | null;
+    }) => {
       const ehImagem = file.type.startsWith('image/');
       const tipo = ehImagem ? 'image'
         : file.type.startsWith('video/') ? 'video'
@@ -543,6 +548,8 @@ export function useSendMetaAttachment() {
           conversation_id: conversationId,
           attachment_url: pub.publicUrl,
           attachment_type: tipo,
+          text: text?.trim() || undefined,
+          reply_to_mid: replyToMid ?? undefined,
         },
       });
       if (error) {

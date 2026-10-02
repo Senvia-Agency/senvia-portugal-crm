@@ -18,6 +18,7 @@ import {
 } from '@/hooks/useMetaInbox';
 import { ListStatusTicks } from './StatusTicks';
 import { MediaViewer, type MediaItem } from './MediaViewer';
+import { createMetaMessageSendPlan } from '@/lib/meta-message-send-plan';
 import { MessageText } from './MessageText';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ContactNotes } from '@/components/contacts/ContactNotes';
@@ -635,7 +636,12 @@ function MetaThread({
     setPendentes((ps) => ps.map((p) => (p.id === item.id ? { ...p, erro: null } : p)));
     try {
       if (item.ficheiro) {
-        await sendFile.mutateAsync({ conversationId: conversation.id, file: item.ficheiro });
+        await sendFile.mutateAsync({
+          conversationId: conversation.id,
+          file: item.ficheiro,
+          text: item.texto,
+          replyToMid: item.replyToMid,
+        });
       } else {
         await send.mutateAsync({
           conversationId: conversation.id,
@@ -663,28 +669,23 @@ function MetaThread({
   const handleSend = () => {
     const text = draft.trim();
     if (!text && colados.length === 0) return;
-    // Limpa-se já a caixa de texto: a bolha passa a ser o sítio onde a mensagem
-    // vive, e é lá que se vê se foi ou não. As imagens coladas vão primeiro e o
-    // texto a seguir, como uma legenda.
-    const itens = colados.map((c) => pendenteDeFicheiro(c.file, c.previewUrl));
-    if (text) {
-      itens.push({
-        id: crypto.randomUUID(),
-        texto: text,
-        replyToMid: replyTo?.external_id ?? null,
-      });
-    }
+    const plano = createMetaMessageSendPlan({
+      attachments: colados,
+      text,
+      replyToMid: replyTo?.external_id ?? null,
+    });
+    const itens = plano.map((item) => item.kind === 'attachment'
+      ? pendenteDeFicheiro(item.attachment.file, item.attachment.previewUrl, item.caption, item.replyToMid)
+      : { id: crypto.randomUUID(), texto: item.text, replyToMid: item.replyToMid });
     setPendentes((ps) => [...ps, ...itens]);
     setColados([]);
     setDraft('');
-    // A citação só segue com texto; sem ele, fica para a próxima mensagem.
-    if (text) setReplyTo(null);
-    // Uma de cada vez: em paralelo o texto, mais leve, chegava antes da imagem.
+    setReplyTo(null);
     void (async () => { for (const item of itens) await enviarPendente(item); })();
   };
 
   /** Pré-visualização sem esperar pela Meta: o ficheiro já está aqui. */
-  const pendenteDeFicheiro = (file: File, previewUrl?: string): Pendente => ({
+  const pendenteDeFicheiro = (file: File, previewUrl?: string, texto?: string | null, replyToMid?: string | null): Pendente => ({
     id: crypto.randomUUID(),
     ficheiro: file,
     previewUrl: previewUrl ?? URL.createObjectURL(file),
@@ -692,6 +693,8 @@ function MetaThread({
       : file.type.startsWith('video/') ? 'video'
       : file.type.startsWith('audio/') ? 'audio'
       : 'file',
+    texto: texto ?? undefined,
+    replyToMid: replyToMid ?? undefined,
   });
 
   /** Anexo ou nota de voz: mostra-se logo, a partir do ficheiro local. */

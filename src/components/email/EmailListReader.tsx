@@ -9,6 +9,10 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -301,7 +305,9 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
 
   // Detect if current folder is Rascunhos.
   const { data: folders = [] } = useEmailFolders(channelId);
-  const isDraftsFolder = !!folderId && folders.find((f) => f.id === folderId)?.role === 'drafts';
+  const currentFolder = folders.find((f) => f.id === folderId);
+  const isDraftsFolder = currentFolder?.role === 'drafts';
+  const isTrashFolder = currentFolder?.role === 'trash';
 
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -383,6 +389,14 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     });
   }, []);
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const reportMailboxActionError = (error: unknown) => {
+    toast({
+      title: 'Ação de email não concluída',
+      description: error instanceof Error ? error.message : 'Tenta novamente.',
+      variant: 'destructive',
+    });
+  };
+  const runMailboxAction = (request: Promise<unknown>) => { void request.catch(reportMailboxActionError); };
   const runBatch = async (fn: (id: string) => Promise<unknown>, label: string) => {
     const ids = [...selectedIds];
     clearSelection();
@@ -391,10 +405,23 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     if (failed > 0) toast({ title: `${failed} de ${ids.length} operações falharam (${label})`, variant: 'destructive' });
   };
   const batchArchive = () => { runBatch(actions.archive, 'arquivar'); };
-  const batchTrash = () => { runBatch(actions.trash, 'apagar'); };
+  const batchTrash = () => {
+    const ids = [...selectedIds];
+    clearSelection();
+    runMailboxAction(actions.trashBatch(ids));
+  };
   const batchSpam = () => { runBatch(actions.spam, 'spam'); };
   const batchSetRead = (read: boolean) => { runBatch((id) => actions.setRead(id, read), 'marcar'); };
   const markAllRead = () => { if (folderId) actions.markFolderRead(folderId); };
+  const [permanentDeleteIds, setPermanentDeleteIds] = useState<string[] | null>(null);
+  const requestPermanentDelete = (ids: readonly string[]) => setPermanentDeleteIds([...ids]);
+  const confirmPermanentDelete = () => {
+    const ids = permanentDeleteIds;
+    setPermanentDeleteIds(null);
+    if (!ids?.length) return;
+    clearSelection();
+    runMailboxAction(actions.deletePermanently(ids));
+  };
   // ───────────────────────────────────────────────────────────────────────────
 
   // "Carregar mais antigos" — asks the gateway to sync the next older batch.
@@ -420,7 +447,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
   // "Não lidos" filter: the folder badge counts ALL unread on IMAP, but only the
   // recent window is synced — so unread mail can live outside it. When the filter
   // is turned on and the folder has more unread than we've loaded, pull them.
-  const currentFolder = folders.find((f) => f.id === folderId);
   const folderUnread = currentFolder?.unread_count ?? 0;
   const [syncingUnread, setSyncingUnread] = useState(false);
   useEffect(() => { setSyncingUnread(false); }, [folderId, channelId]);
@@ -480,7 +506,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
       } else if (e.key === 'e' && messageId && !isDraftsFolder) {
         act(() => actions.archive(messageId));
       } else if (e.key === '#' && messageId && !isDraftsFolder) {
-        act(() => actions.trash(messageId));
+        if (isTrashFolder) requestPermanentDelete([messageId]);
+        else act(() => runMailboxAction(actions.trash(messageId)));
       } else if (e.key === 'r' && opened?.message) {
         addCompose('reply', opened.message);
       } else if (e.key === 'u' && messageId && !isDraftsFolder) {
@@ -494,7 +521,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, messageId, opened, isDraftsFolder, selectedIds]);
+  }, [messages, messageId, opened, isDraftsFolder, isTrashFolder, selectedIds]);
   // ───────────────────────────────────────────────────────────────────────────
 
   const [dlId, setDlId] = useState<string | null>(null);
@@ -572,7 +599,13 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
               <Button size="icon" variant="ghost" className="h-7 w-7" title="Spam" onClick={batchSpam}>
                 <ShieldAlert className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7" title="Apagar" onClick={batchTrash}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                title={isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
+                onClick={() => isTrashFolder ? requestPermanentDelete([...selectedIds]) : batchTrash()}
+              >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -819,9 +852,13 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                     </button>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); actions.trash(m.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isTrashFolder) requestPermanentDelete([m.id]);
+                        else runMailboxAction(actions.trash(m.id));
+                      }}
                       className="text-muted-foreground hover:text-destructive"
-                      title="Apagar"
+                      title={isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -921,10 +958,14 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                     </button>
                   ))}
                   <button
-                    onClick={() => { act(() => actions.trash(opened.message.id)); setActionsOpen(false); }}
+                    onClick={() => {
+                      if (isTrashFolder) requestPermanentDelete([opened.message.id]);
+                      else act(() => runMailboxAction(actions.trash(opened.message.id)));
+                      setActionsOpen(false);
+                    }}
                     className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="h-4 w-4 shrink-0" /> Apagar
+                    <Trash2 className="h-4 w-4 shrink-0" /> {isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
                   </button>
                   {folders.length > 1 && (
                     <>
@@ -1027,6 +1068,24 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
           resolveAttachment={resolveAttachment}
         />
       ))}
+      <AlertDialog open={permanentDeleteIds !== null} onOpenChange={(open) => !open && setPermanentDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {permanentDeleteIds?.length === 1
+                ? 'Este email será eliminado definitivamente da caixa de correio.'
+                : `Estes ${permanentDeleteIds?.length ?? 0} emails serão eliminados definitivamente da caixa de correio.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmPermanentDelete}>
+              Eliminar definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

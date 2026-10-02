@@ -435,6 +435,7 @@ serve(async (req: Request): Promise<Response> => {
           vendedor_telefone: vendor?.phone || "",
           assinatura: senderSignature || "",
           ...recipient.variables,
+          email_suporte: finalSenderEmail,
         };
 
         const subject = replaceVariables(templateSubject, variables);
