@@ -65,7 +65,10 @@ function shouldDirectCreateEmailAutomation(userText: string, contextText: string
     text.includes("etapa") ||
     text.includes("estado") ||
     text.includes("atraso");
-  const createIntent = /\b(cria|criar|grava|gravar|configura|configurar|faz|fazer|usa|usar|sim|confirmo|aprovado|podes|quero|preciso)\b/i.test(userText);
+  // Users often approve an automation after Otto has already summarized it.
+  // The latest user message may be just "sim" or "tenta de novo", so intent
+  // must be read from the whole recent exchange, not only the last sentence.
+  const createIntent = /\b(cria|criar|grava|gravar|configura|configurar|faz|fazer|usa|usar|sim|confirmo|aprovado|podes|pode|quero|preciso|tenta|tentar)\b/i.test(text);
   return wantsAutomation && automationContext && createIntent;
 }
 
