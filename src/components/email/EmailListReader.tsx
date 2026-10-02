@@ -593,6 +593,9 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => batchSetRead(true)}>
                 Lido
               </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => batchSetRead(false)}>
+                Não lido
+              </Button>
               <Button size="icon" variant="ghost" className="h-7 w-7" title="Arquivar" onClick={batchArchive}>
                 <Archive className="h-3.5 w-3.5" />
               </Button>
@@ -842,6 +845,14 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
                   </div>
                   {/* Quick actions — appear on hover (archive skipped in Rascunhos, which never reaches here) */}
                   <div className="flex shrink-0 items-start gap-0.5 self-start pt-1.5 pr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); actions.setRead(m.id, !m.seen); }}
+                      className="text-muted-foreground hover:text-foreground"
+                      title={m.seen ? 'Marcar como não lida' : 'Marcar como lida'}
+                    >
+                      <MailOpen className="h-3.5 w-3.5" />
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); actions.archive(m.id); }}
