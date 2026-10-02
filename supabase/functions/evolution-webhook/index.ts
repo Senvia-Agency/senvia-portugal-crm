@@ -16,7 +16,7 @@ import {
   contactRefFromJid, deliveryStatusFrom, isDeliveryUpgrade, parseContent,
   timestampFrom, unwrapMessage, webhookToken,
 } from '../_shared/evolution-inbox.ts';
-import { fetchEvolutionContactAvatar } from '../_shared/evolution-contact-avatar.ts';
+import { avatarUrlExpired, fetchEvolutionContactAvatar } from '../_shared/evolution-contact-avatar.ts';
 import { getConfig } from '../_shared/multicanal.ts';
 
 const log = (s: string, d?: unknown) =>
@@ -59,13 +59,18 @@ type AnyData = any;
 
 async function refreshContactAvatar(db: Db, channel: Channel, conversationId: string, contactRef: string): Promise<void> {
   if (!channel.evolution_instance) return;
-  const avatarUrl = await fetchEvolutionContactAvatar(getConfig(), channel.evolution_instance, contactRef);
-  if (!avatarUrl) return;
-  const { error } = await db.from('meta_conversations')
-    .update({ contact_avatar_url: avatarUrl })
-    .eq('id', conversationId)
-    .is('contact_avatar_url', null);
-  if (error) logError('contact avatar not updated', { conversationId, error: error.message });
+  try {
+    const { url, reason } = await fetchEvolutionContactAvatar(getConfig(), channel.evolution_instance, contactRef);
+    // It used to give up in silence, so a conversation without a photo said
+    // nothing about why. Now the log does.
+    if (!url) { log('contact avatar unavailable', { conversationId, reason }); return; }
+    const { error } = await db.from('meta_conversations')
+      .update({ contact_avatar_url: url })
+      .eq('id', conversationId);
+    if (error) logError('contact avatar not updated', { conversationId, error: error.message });
+  } catch (e) {
+    logError('contact avatar lookup failed', { conversationId, error: (e as Error).message });
+  }
 }
 
 /** Push notification. Failing here must never stop the message from being stored. */
@@ -283,7 +288,8 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
   // Only what comes IN is unread — flagging what the owner just typed on their
   // phone would ask them to read their own words.
   if (!outgoing) {
-    if (!existing?.contact_avatar_url) {
+    // No photo yet, or WhatsApp's signed link for it has expired.
+    if (avatarUrlExpired(existing?.contact_avatar_url)) {
       background(refreshContactAvatar(db, channel, convId, contactRef));
     }
     await db.rpc('increment_meta_unread', { _conversation_id: convId }).then(() => {}, () => {});
