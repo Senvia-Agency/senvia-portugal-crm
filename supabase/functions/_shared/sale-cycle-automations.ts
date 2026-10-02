@@ -131,7 +131,7 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       .is('paid_at', null).neq('status', 'paid')
       .gte('due_date', windowStart).lte('due_date', today),
     db.from('sale_payments')
-      .select('id, sale_id, organization_id, amount, payment_date, status, notes, sale:sales!inner(status)')
+      .select('id, sale_id, organization_id, amount, payment_date, status, notes, recurring_cycle_id, sale:sales!inner(status)')
       .eq('status', 'pending')
       .gte('payment_date', windowStart).lte('payment_date', inTwoDays),
   ]);
@@ -141,9 +141,22 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
 
   const liveCycles = (cycles ?? []).filter((c: any) =>
     c.recurrence?.service_status === 'active' && c.recurrence?.billing_provider === 'manual');
+  // One charge, one announcement. A monthly renewal exists twice — the cycle
+  // and the pending payment generated for it (recurring_cycle_id) — and each
+  // has its own id, so the engine's once-per-subject check let both through:
+  // on 2026-10-02 two clients got the same reminder twice on WhatsApp. The
+  // cycle (or the 2-day notice of the recurrence) speaks for its payment; a
+  // payment is only announced on its own when nothing else covers that sale
+  // on that date (instalments, one-off scheduled payments).
+  const covered = new Set<string>([
+    ...liveCycles.map((c: any) => `${c.sale_id}:${c.due_date}`),
+    ...(upcoming ?? []).map((r: any) => `${r.sale_id}:${r.next_cycle_date}`),
+  ]);
   const pendingPayments = (payments ?? []).filter((payment: any) =>
     payment.sale?.status !== 'cancelled' &&
+    !payment.recurring_cycle_id &&
     typeof payment.payment_date === 'string' &&
+    !covered.has(`${payment.sale_id}:${payment.payment_date}`) &&
     saleBillingTriggerForPaymentDate(payment.payment_date, today, inTwoDays) !== null);
 
   const saleIds = [...new Set([
