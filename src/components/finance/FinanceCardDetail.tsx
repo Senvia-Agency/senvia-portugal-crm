@@ -29,6 +29,7 @@ import { useSales } from "@/hooks/useSales";
 import { useProfileNames } from "@/hooks/useTeam";
 import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
 import { useUpdateSalePayment, useCreateSalePayment } from "@/hooks/useSalePayments";
+import { TelecomBalanceDetail } from "@/components/finance/TelecomBalanceDetail";
 import { MinhasComissoesContent } from "@/components/finance/MinhasComissoesContent";
 import { TeamCommissionsTab } from "@/components/finance/TeamCommissionsTab";
 import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
@@ -759,9 +760,8 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
-      {type === "balance" && (
-        <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />
-      )}
+      {type === "balance" && orgIsTelecom && <TelecomBalanceDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
+      {type === "balance" && !orgIsTelecom && <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />}
     </div>
   );
 }
