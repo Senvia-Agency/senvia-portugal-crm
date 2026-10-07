@@ -33,4 +33,20 @@ test('BDS organization commission is summarized separately from sellers’ sales
       sourceSaleIds: ['already-paid'],
     },
   ]);
+
+  assert.deepEqual(
+    aggregateBdsOrganizationCommissionItems([
+      { sale_id: 'vitor-sale', user_id: 'sara', amount: 210, paid_at: null },
+    ], '2026-10', 'commercial'),
+    [],
+    'a seller filter must not show Sara’s organization commission under another commercial',
+  );
+
+  assert.equal(
+    aggregateBdsOrganizationCommissionItems([
+      { sale_id: 'vitor-sale', user_id: 'sara', amount: 210, paid_at: null },
+    ], '2026-10', 'sara')[0]?.amount,
+    210,
+    'filtering Sara must include organization commission earned from other sellers’ sales',
+  );
 });

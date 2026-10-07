@@ -20,6 +20,7 @@ export interface BdsOrganizationCommissionItem {
 export function aggregateBdsOrganizationCommissionItems(
   rows: readonly BdsOrganizationCommissionRow[],
   period: string,
+  selectedUserId: string | null = null,
 ): BdsOrganizationCommissionItem[] {
   const grouped = new Map<string, {
     userId: string;
@@ -29,6 +30,7 @@ export function aggregateBdsOrganizationCommissionItems(
   }>();
 
   for (const row of rows) {
+    if (selectedUserId && row.user_id !== selectedUserId) continue;
     const paid = row.paid_at !== null;
     const key = `${row.user_id}:${paid ? 'paid' : 'pending'}`;
     const current = grouped.get(key) ?? {

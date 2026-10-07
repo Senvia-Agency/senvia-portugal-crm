@@ -124,6 +124,11 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // (sale, month) keeps React keys and selection unique in the UI.
       const monthKey = format(monthStart, 'yyyy-MM');
       const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean }[] = [];
+      const organizationSaleIds: string[] = [];
+      const organizationCommissionFilters = financeOptions?.commissionFilters
+        ? { ...financeOptions.commissionFilters, userId: null }
+        : undefined;
+      const period = financeOptions ? financeOptions.dateRange : { from: monthStart, to: monthEnd };
       for (const s of commissionSales) {
         const tv = Number(s.total_value) || 0;
         const comissao = Number(s.comissao || 0);
@@ -134,10 +139,15 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         // payment to wait for. Tying it to sale_payments (as every other
         // vertical does) left installed sales showing 0 € forever.
         if (isTelecom) {
+          if (isBdsOrganization(organization?.name)
+            && isTelecomCommissionEarned(s)
+            && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds)
+            && telecomCommissionInPeriod(s, period)) {
+            organizationSaleIds.push(s.id);
+          }
           if (!isTelecomCommissionEarned(s) || !saleMatchesCommissionFilters(s, financeOptions?.commissionFilters, saleTypeIds)) continue;
           const ref = telecomCommissionDate(s);
           if (!ref) continue;
-          const period = financeOptions ? financeOptions.dateRange : { from: monthStart, to: monthEnd };
           if (telecomCommissionInPeriod(s, period)) {
             monthItems.push({ sale: s, amount: comissao, date: ref, monthKey, proportional: false });
           }
@@ -291,12 +301,12 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // single-commercial behaviour resolved by getCommercial().
       const splitsBySale = await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
       const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number; paidAt: string | null }>();
-      if (isBdsOrganization(organization?.name) && monthItems.length > 0) {
+      if (isBdsOrganization(organization?.name) && organizationSaleIds.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
           .from('bds_sara_org_commission')
           .select('sale_id, user_id, amount, paid_at')
           .eq('organization_id', organizationId)
-          .in('sale_id', monthItems.map((item) => item.sale.id));
+          .in('sale_id', organizationSaleIds);
         if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
           throw organizationSharesError;
         }
@@ -349,6 +359,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
           paid_at: share.paidAt,
         })),
         monthKey,
+        financeOptions?.commissionFilters?.userId ?? null,
       );
       for (const item of organizationItems) {
         const e = ensure(item.userId);
@@ -443,22 +454,32 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         (s) => (isTelecom ? telecomCommissionInPeriod(s, dateRange) : inRange(s.activation_date || s.sale_date))
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),
       );
+      const allSales = (sales || []) as any[];
+      const organizationCommissionFilters = commissionFilters
+        ? { ...commissionFilters, userId: null }
+        : undefined;
+      const organizationCandidates = isTelecom && isBdsOrganization(organization?.name)
+        ? allSales.filter((s) => telecomCommissionInPeriod(s, dateRange)
+          && isTelecomCommissionEarned(s)
+          && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds))
+        : [];
       const candIds = candidates.map((s) => s.id);
-      const bdsOrgCommissionBySale = new Map<string, { amount: number; paidAt: string | null }>();
-      if (isBdsOrganization(organization?.name) && candIds.length > 0) {
+      let organizationCommissionTotal = 0;
+      let organizationCommissionPaidTotal = 0;
+      if (organizationCandidates.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
           .from('bds_sara_org_commission')
-          .select('sale_id, amount, paid_at')
+          .select('user_id, amount, paid_at')
           .eq('organization_id', orgId)
-          .in('sale_id', candIds);
+          .in('sale_id', organizationCandidates.map((sale) => sale.id));
         if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
           throw organizationSharesError;
         }
         for (const share of organizationShares || []) {
-          bdsOrgCommissionBySale.set(share.sale_id, {
-            amount: Number(share.amount || 0),
-            paidAt: share.paid_at,
-          });
+          if (commissionFilters?.userId && share.user_id !== commissionFilters.userId) continue;
+          const amount = Number(share.amount || 0);
+          organizationCommissionTotal += amount;
+          if (share.paid_at) organizationCommissionPaidTotal += amount;
         }
       }
       const { data: candPays } = candIds.length
@@ -557,10 +578,8 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               telecomStatus: s.telecom_status,
               amount: org,
             });
-            const saraOrgCommission = bdsOrgCommissionBySale.get(s.id);
-            total += sellerAmount + (saraOrgCommission?.amount ?? 0);
+            total += sellerAmount;
             if (s.commission_paid_at) paidTotal += sellerAmount;
-            if (saraOrgCommission?.paidAt) paidTotal += saraOrgCommission.amount;
             count += 1;
           }
           continue;
@@ -573,6 +592,9 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         const fraction = fullyPaid ? 1 : (tv > 0 ? Math.min(1, (paidSum.get(s.id) || 0) / tv) : 0);
         if (fraction > 0) { total += Number(s.comissao || 0) * fraction; count += 1; }
       }
+
+      total += organizationCommissionTotal;
+      paidTotal += organizationCommissionPaidTotal;
 
       // Pending recurring commissions are outstanding debt until paid. They carry
       // FORWARD — counted from their month onwards (created on/before the period
