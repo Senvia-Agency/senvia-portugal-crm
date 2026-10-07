@@ -64,7 +64,7 @@ BEGIN
   SELECT m.user_id INTO _sara_id
   FROM public.organization_members m JOIN public.profiles p ON p.id = m.user_id
   WHERE m.organization_id = NEW.organization_id AND p.full_name ILIKE 'Sara Vieira'
-  ORDER BY m.created_at LIMIT 1;
+  ORDER BY m.joined_at LIMIT 1;
   IF _sara_id IS NULL OR COALESCE(NEW.org_commission, 0) <= 0 THEN
     DELETE FROM public.bds_sara_org_commission WHERE sale_id = NEW.id;
   ELSE
@@ -86,9 +86,9 @@ BEGIN
   SELECT id INTO _org FROM public.organizations WHERE name = 'BDS Telecomunicações' LIMIT 1;
   IF _org IS NULL THEN RAISE EXCEPTION 'Organização BDS Telecomunicações não encontrada'; END IF;
   SELECT m.user_id INTO _sara FROM public.organization_members m JOIN public.profiles p ON p.id = m.user_id
-    WHERE m.organization_id = _org AND p.full_name ILIKE 'Sara Vieira' ORDER BY m.created_at LIMIT 1;
+    WHERE m.organization_id = _org AND p.full_name ILIKE 'Sara Vieira' ORDER BY m.joined_at LIMIT 1;
   SELECT m.user_id INTO _vitor FROM public.organization_members m JOIN public.profiles p ON p.id = m.user_id
-    WHERE m.organization_id = _org AND (p.full_name ILIKE 'Vitor%' OR p.full_name ILIKE 'Vítor%') ORDER BY m.created_at LIMIT 1;
+    WHERE m.organization_id = _org AND (p.full_name ILIKE 'Vitor%' OR p.full_name ILIKE 'Vítor%') ORDER BY m.joined_at LIMIT 1;
   SELECT id INTO _seller_profile FROM public.organization_profiles WHERE organization_id = _org AND name ILIKE 'Vendedor' LIMIT 1;
   IF _sara IS NULL OR _vitor IS NULL OR _seller_profile IS NULL THEN RAISE EXCEPTION 'Sara, Vitor ou perfil Vendedor não encontrado na BDS'; END IF;
 
