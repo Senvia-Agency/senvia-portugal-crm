@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 export const SALE_FINANCE_QUERY_KEYS = [
   ['finance-sales'], ['finance-stats'], ['commercial-commissions'],
+  ['sale-chargebacks'],
   ['team-commission-total'], ['my-commissions'], ['team-commissions'],
   ['commissions-detail'], ['commissions-live'], ['sales-commissions'],
   ['activations-monthly'], ['activations-annual'],

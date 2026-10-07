@@ -9,7 +9,7 @@ import { DateRange } from 'react-day-picker';
 import { saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useSaleTypeIds } from '@/hooks/useSaleTypeIds';
 import { sumOperationalSaleUnits } from '@/lib/sale-units';
-import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES, telecomCommissionInPeriod } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES, telecomCommissionPartsInPeriod } from '@/lib/telecom-finance';
 import { isTelecomAwaitingScheduledInstall } from '@/lib/telecom-sale-views';
 
 interface UseFinanceStatsOptions {
@@ -244,15 +244,23 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
       if (dateRange.to && d > endOfDay(dateRange.to)) return false;
       return true;
     };
-    const telecomSales = (sales || []).filter((sale: any) => saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds));
+    // Seller selection only narrows commission figures. Operational totals
+    // (installations, organization balance) continue to describe the whole org.
+    const generalFilters = commissionFilters ? { ...commissionFilters, userId: null } : undefined;
+    const telecomSales = (sales || []).filter((sale: any) => saleMatchesCommissionFilters(sale, generalFilters, saleTypeIds));
+    const commissionSales = (sales || []).filter((sale: any) => saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds));
     const toInstallRows = telecomSales.filter((sale: any) =>
       isTelecomAwaitingScheduledInstall(sale) && inPeriod(sale.sale_date));
     const installedRows = telecomSales.filter((sale: any) =>
-      isTelecomCommissionEarned(sale) && telecomCommissionInPeriod(sale, dateRange));
+      isTelecomCommissionEarned(sale) && telecomCommissionPartsInPeriod(sale, dateRange).length > 0);
     const telecomToInstall = toInstallRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
-    const telecomInstalled = installedRows.reduce((sum: number, sale: any) => sum + Number(sale.comissao || 0), 0);
+    const telecomInstalled = installedRows.reduce((sum: number, sale: any) =>
+      sum + telecomCommissionPartsInPeriod(sale, dateRange).reduce((lineSum, part) => lineSum + part.gross, 0), 0);
     // Earned gross uses the same lifecycle and effective date as team/org shares.
-    const totalCommission = telecomInstalled;
+    const totalCommission = commissionSales
+      .filter((sale: any) => isTelecomCommissionEarned(sale))
+      .reduce((sum: number, sale: any) => sum + telecomCommissionPartsInPeriod(sale, dateRange)
+        .reduce((partSum, part) => partSum + part.gross, 0), 0);
 
     const totalReceived = eligibleFilteredPayments
       .filter((payment) => payment.status === 'paid')

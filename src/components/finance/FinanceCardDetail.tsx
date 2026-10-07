@@ -742,7 +742,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
         </Button>}
         <h2 className="text-lg font-semibold">
           {/* Same override as the card that opened this. */}
-          {type === "faturado" && orgIsTelecom ? "Total de Comissão" : TITLES[type]}
+          {type === "faturado" && orgIsTelecom ? "Total de Comissão" : type === "myCommissions" && commissionFilters?.userId ? "Comissão do vendedor" : TITLES[type]}
         </h2>
 
         {type === "expenses" && (
@@ -807,7 +807,7 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments.filter(paymentMatches)} due />}
       {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={search} />}
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
-      {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} />}
+      {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} userId={commissionFilters?.userId} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
       {type === "balance" && orgIsTelecom && <TelecomBalanceDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
       {type === "balance" && !orgIsTelecom && <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />}

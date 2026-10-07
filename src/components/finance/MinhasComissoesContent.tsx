@@ -44,12 +44,12 @@ function badgeMeta(s: CommissionSale): { label: string; className: string } {
   };
 }
 
-export function MinhasComissoesContent({ dateRange }: { dateRange?: DateRange }) {
+export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: DateRange; userId?: string | null }) {
   const { organization } = useAuth();
   const isTelecom = organization?.niche === 'telecom';
   const dateOf = (s: Parameters<typeof telecomCommissionDate>[0]) =>
     isTelecom ? telecomCommissionDate(s) : s.sale_date;
-  const { data: allSales = [], isLoading } = useMyCommissions();
+  const { data: allSales = [], isLoading } = useMyCommissions(userId);
   const [filter, setFilter] = useState<StatusFilter>('pending');
 
   // Whether a date falls in the selected period (no range → always true).

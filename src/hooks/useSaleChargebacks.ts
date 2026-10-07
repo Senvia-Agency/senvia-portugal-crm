@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { isBdsOrganization, parseChargebackAmount } from '@/lib/bds-finance';
 import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
+import { isSaleChargebackApplicable } from '@/lib/sale-chargeback';
 
 export type ChargebackStatus = 'pending' | 'reconciled' | 'dismissed';
 
@@ -21,7 +22,7 @@ export interface SaleChargeback {
   created_at: string;
   updated_at: string;
   /** Joined for display. */
-  sale?: { code: string | null; sale_date: string | null; client_id: string | null; total_value: number | null } | null;
+  sale?: { code: string | null; sale_date: string | null; client_id: string | null; total_value: number | null; telecom_status: string | null } | null;
   beneficiary_name?: string | null;
   client?: { name: string } | null;
 }
@@ -48,12 +49,12 @@ export function useSaleChargebacks() {
     queryFn: async (): Promise<SaleChargeback[]> => {
       const { data, error } = await (supabase as any)
         .from('sale_chargebacks')
-        .select('*, sale:sales(code, sale_date, client_id, total_value)')
+        .select('*, sale:sales(code, sale_date, client_id, total_value, telecom_status)')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
       if (error) throw error;
 
-      let rows = (data ?? []) as unknown as SaleChargeback[];
+      let rows = ((data ?? []) as unknown as SaleChargeback[]).filter(isSaleChargebackApplicable);
       if (isBdsOrganization(organization?.name)) {
         const { data: manualRows, error: manualError } = await bdsFinanceSupabase
           .from('bds_manual_chargebacks')

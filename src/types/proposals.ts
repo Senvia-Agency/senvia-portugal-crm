@@ -157,6 +157,8 @@ export const SERVICOS_PRODUCTS = [
 
 // Detalhes por produto de serviço (legacy format - duracao/valor/kwp/comissao)
 export interface ServicosProductDetail {
+  /** Effective activation date for this product; absent on older sales. */
+  activation_date?: string;
   duracao?: number;
   valor?: number;
   kwp?: number;

@@ -523,7 +523,14 @@ export function EditSaleModal({
           modelo_servico: (modeloServico as ModeloServico) || null,
           kwp: parseFloat(kwp) || null,
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : null,
-          servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
+          servicos_details: Object.keys(servicosDetails).length > 0
+            ? isTelecom && isAdmin
+              ? Object.fromEntries(servicosProdutos.map(product => [product, {
+                  ...servicosDetails[product],
+                  activation_date: servicosDetails[product]?.activation_date ?? sale.activation_date ?? '',
+                }]))
+              : servicosDetails
+            : null,
           ...(isTelecom ? {
             activation_date: activationDate || ((telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : null),
             telecom_status: telecomStatus || null,
@@ -748,8 +755,6 @@ export function EditSaleModal({
                           onChange={setSellerId}
                         />
 
-                        {/* No activation field: the install date is the activation
-                            once the sale is live (see the save payload). */}
                         {isTelecom && (
                           <>
                             {/* Full row: the date plus its "das X às Y" window
@@ -986,6 +991,27 @@ export function EditSaleModal({
                             setServicosDetails(prev => ({ ...prev, [product]: detail }));
                           }}
                         />
+                        {isAdmin && servicosProdutos.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                            <p className="text-sm font-medium">Ativação por produto</p>
+                            <p className="text-xs text-muted-foreground">Cada produto entra na comissão do mês da sua ativação. Produto sem data ainda não conta.</p>
+                            {servicosProdutos.map(product => (
+                              <div key={product} className="flex flex-wrap items-center gap-3">
+                                <Label className="min-w-40 text-xs">{product}</Label>
+                                <Input
+                                  type="date"
+                                  aria-label={`Data de ativação de ${product}`}
+                                  className="h-9 w-auto"
+                                  value={servicosDetails[product]?.activation_date ?? sale.activation_date ?? ''}
+                                  onChange={event => setServicosDetails(prev => ({
+                                    ...prev,
+                                    [product]: { ...prev[product], activation_date: event.target.value },
+                                  }))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}

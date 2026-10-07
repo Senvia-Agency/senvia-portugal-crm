@@ -167,7 +167,7 @@ export function CreateSaleModal({
   const updateCpe = useUpdateCpe();
   const { finalPositiveStage } = useFinalStages();
   const { organization, user } = useAuth();
-  const { can } = usePermissions();
+  const { can, isAdmin } = usePermissions();
   const canConfigureFiscal = can('finance', 'invoices', 'issue');
   const isTelecom = organization?.niche === 'telecom';
   const { modules } = useModules();
@@ -892,7 +892,15 @@ export function CreateSaleModal({
           comissao: parseFloat(comissao) || undefined,
           negotiation_type: negotiationType || undefined,
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : undefined,
-          servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : undefined,
+          servicos_details: Object.keys(servicosDetails).length > 0
+            ? isAdmin && servicosProdutos.length > 0
+              ? Object.fromEntries(servicosProdutos.map(product => [product, {
+                  ...servicosDetails[product],
+                  activation_date: servicosDetails[product]?.activation_date
+                    ?? (activationDate ? format(activationDate, 'yyyy-MM-dd') : scheduledInstallDate || ''),
+                }]))
+              : servicosDetails
+            : undefined,
           telecom_status: telecomStatus || undefined,
           scheduled_install_date: scheduledInstallDate
             ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
@@ -1567,6 +1575,28 @@ export function CreateSaleModal({
                           setServicosDetails(prev => ({ ...prev, [product]: detail }));
                         }}
                       />
+                      {isAdmin && servicosProdutos.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          <p className="text-sm font-medium">Ativação por produto</p>
+                          <p className="text-xs text-muted-foreground">Cada produto entra na comissão do mês da sua ativação. Produto sem data ainda não conta.</p>
+                          {servicosProdutos.map(product => (
+                            <div key={product} className="flex flex-wrap items-center gap-3">
+                              <Label className="min-w-40 text-xs">{product}</Label>
+                              <Input
+                                type="date"
+                                aria-label={`Data de ativação de ${product}`}
+                                className="h-9 w-auto"
+                                value={servicosDetails[product]?.activation_date
+                                  ?? (activationDate ? format(activationDate, 'yyyy-MM-dd') : scheduledInstallDate || '')}
+                                onChange={event => setServicosDetails(prev => ({
+                                  ...prev,
+                                  [product]: { ...prev[product], activation_date: event.target.value },
+                                }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}

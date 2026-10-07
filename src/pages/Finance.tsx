@@ -158,9 +158,11 @@ export default function Finance() {
     "finance-commission-filters-v1",
     DEFAULT_COMMISSION_FILTERS,
   );
+  const generalCommissionFilters = isTelecom ? { ...commissionFilters, userId: null } : undefined;
   const [myCommissionsModalOpen, setMyCommissionsModalOpen] = useState(false);
   const [detailView, setDetailView] = useState<FinanceDetailType | null>(null);
-  const { data: myCommissions } = useMyCommissions();
+  const selectedCommissionUserId = isAdmin && isTelecom ? commissionFilters.userId : null;
+  const { data: myCommissions } = useMyCommissions(selectedCommissionUserId);
 
   // Commission cards respect the selected period (direct + recurring).
   const inPeriod = (dateStr?: string | null) => {
@@ -174,10 +176,11 @@ export default function Finance() {
 
   // Team commissions (admin Comissões card) — period-aware.
   const { data: teamCommission } = useTeamCommissionTotal(dateRange, isTelecom ? commissionFilters : undefined);
+  const { data: generalTeamCommission } = useTeamCommissionTotal(dateRange, generalCommissionFilters);
   const teamCommissionTotal = teamCommission?.total ?? 0;
   const teamSalesCount = teamCommission?.count ?? 0;
   // Telecom margin: what the operators paid, minus what the sellers took.
-  const orgMarginTotal = teamCommission?.orgTotal ?? 0;
+  const orgMarginTotal = generalTeamCommission?.orgTotal ?? 0;
 
   // Personal commission totals ("As Minhas Comissões") — filtered by period (sale date).
   // Telecom is earned on installation, so the period must be read off the
@@ -216,7 +219,7 @@ export default function Finance() {
     : [];
   const chargebacksTotal = chargebacksInPeriod.reduce((sum, c) => sum + Number(c.amount || 0), 0);
   const myConfirmedTotal = myGrossConfirmedTotal - chargebacksInPeriod
-    .filter((c) => c.user_id === user?.id)
+    .filter((c) => c.user_id === (selectedCommissionUserId || user?.id))
     .reduce((sum, c) => sum + Number(c.amount || 0), 0);
   // Telecom has no client receipts, so its balance is what the org keeps of
   // the installed commission, minus what it spends.
@@ -351,7 +354,11 @@ export default function Finance() {
               payments={payments}
               allPayments={allPayments}
               dueSoonPayments={stats.dueSoonPayments}
-              commissionFilters={isTelecom ? commissionFilters : undefined}
+              commissionFilters={isTelecom
+                ? detailView === 'faturado' || detailView === 'commissions' || detailView === 'myCommissions'
+                  ? commissionFilters
+                  : generalCommissionFilters
+                : undefined}
               onBack={() => setDetailView(null)}
             />
           ) : (
@@ -601,7 +608,7 @@ export default function Finance() {
               onClick={() => setDetailView("myCommissions")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">As Minhas Comissões</CardTitle>
+                <CardTitle className="text-sm font-medium">{selectedCommissionUserId ? 'Comissão do vendedor' : 'As Minhas Comissões'}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Percent className="h-4 w-4 text-emerald-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -677,7 +684,7 @@ export default function Finance() {
                   </div>
                   {/* Same earned-sale basis as gross and team commission. */}
                   <p className="text-xs text-muted-foreground">
-                    {teamSalesCount} vendas ativas ou instaladas
+                    {generalTeamCommission?.count ?? 0} vendas ativas ou instaladas
                   </p>
                 </CardContent>
               </Card>

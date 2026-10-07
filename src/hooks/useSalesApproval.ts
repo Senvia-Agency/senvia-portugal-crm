@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, telecomTeamCommission, telecomCommissionParts, TELECOM_EARNED_STATUSES } from '@/lib/telecom-finance';
 
 export interface PendingApprovalSale {
   id: string;
@@ -211,10 +211,10 @@ export interface MyCommissionSale {
  * an admin who also works deals sees only their own here (the team view lives
  * in CommissionsWidget / Aprovar Instalações).
  */
-export function useMyCommissions() {
+export function useMyCommissions(selectedUserId?: string | null) {
   const { user, organization } = useAuth();
   const organizationId = organization?.id;
-  const userId = user?.id;
+  const userId = selectedUserId || user?.id;
   const isTelecom = organization?.niche === 'telecom';
 
   return useQuery({
@@ -253,7 +253,7 @@ export function useMyCommissions() {
 
       const { data: sales, error } = await (supabase as any)
         .from('sales')
-        .select('id, code, status, telecom_status, total_value, comissao, org_commission, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id, commission_payment_month_offset, commission_expected_date')
+        .select('id, code, status, telecom_status, total_value, comissao, org_commission, sale_date, activation_date, created_at, approved_at, client_id, lead_id, payment_status, created_by, seller_id, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId)
         .or(filters.join(','))
         .order('created_at', { ascending: false });
@@ -284,7 +284,7 @@ export function useMyCommissions() {
       const { data: allSplits } = saleIds.length > 0
         ? await (supabase as any)
             .from('sale_commission_splits')
-            .select('sale_id, user_id, amount')
+            .select('sale_id, user_id, product_name, amount')
             .in('sale_id', saleIds)
         : { data: [] as any[] };
       const saleHasSplits = new Set<string>(((allSplits as any[]) || []).map((sp) => sp.sale_id));
@@ -319,11 +319,11 @@ export function useMyCommissions() {
         (s.lead_id && leadNameMap.get(s.lead_id)) ||
         null;
 
-      const directResults: MyCommissionSale[] = sales.map((s: any) => {
+      const directResults: MyCommissionSale[] = sales.flatMap((s: any) => {
         const paid = paidSum.get(s.id) || 0;
         const tv = Number(s.total_value) || 0;
         const fullyPaid = (tv > 0 && paid >= tv - 0.01) || s.payment_status === 'paid';
-        return {
+        const base: MyCommissionSale = {
           id: s.id,
           code: s.code,
           status: s.status,
@@ -345,6 +345,30 @@ export function useMyCommissions() {
           paid_amount: fullyPaid ? tv : paid,
           kind: 'direct',
         };
+        const details = s.servicos_details || {};
+        const names = (s.servicos_produtos || []) as string[];
+        const hasProductDates = names.some(name => Object.prototype.hasOwnProperty.call(details[name] || {}, 'activation_date'));
+        if (!isTelecom || !hasProductDates) return [base];
+
+        const saleSplits = ((allSplits as any[]) || []).filter(split => split.sale_id === s.id);
+        const myProductSplits = saleSplits.filter(split => split.user_id === userId);
+        const parts = telecomCommissionParts(s, saleSplits);
+        return parts.filter(part => part.product && part.date).map(part => {
+          const productAmount = saleHasSplits.has(s.id)
+            ? myProductSplits
+                .filter(split => split.product_name === part.product)
+                .reduce((sum, split) => sum + Number(split.amount || 0), 0)
+            : Number(base.comissao || 0) * (Number(s.comissao || 0) > 0 ? part.gross / Number(s.comissao) : 0);
+          return {
+            ...base,
+            id: `${s.id}:${part.product}`,
+            code: `${s.code || 'Venda'} · ${part.product}`,
+            comissao: productAmount,
+            sale_date: part.date,
+            activation_date: part.date,
+            commission_expected_date: part.date,
+          };
+        });
       });
 
       // Recurring commissions (Stripe + manual renewals) attributed to this user.

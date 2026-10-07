@@ -6,7 +6,7 @@ import { useTeamMembers } from '@/hooks/useTeam';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
-import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod } from '@/lib/telecom-finance';
 import { buildSaleTypeIds, saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { extraCardPayoutFromSale } from '@/lib/telecom-card-breakdown';
@@ -14,6 +14,7 @@ import { isBdsOrganization } from '@/lib/bds-finance';
 import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
 import { aggregateBdsOrganizationCommissionItems } from '@/lib/bds-organization-commission';
 import { applicationMonthInRange } from '@/lib/chargeback-month';
+import { isSaleChargebackApplicable } from '@/lib/sale-chargeback';
 
 export interface CommissionItem {
   kind: 'direct' | 'recurring' | 'organization' | 'chargeback';
@@ -95,6 +96,9 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       if (salesErr) throw salesErr;
 
       const commissionSales = (sales || []).filter((s: any) => Number(s.comissao || 0) > 0);
+      const allTelecomSplitsBySale = isTelecom
+        ? await fetchSplitsBySale(commissionSales.map((sale: any) => sale.id as string))
+        : new Map<string, import('@/hooks/useCommissionSplits').SaleCommissionSplit[]>();
 
       // Dedupe by paid Stripe invoice, not by sale. A recurring record for a
       // later renewal must not erase an earlier month's direct commission.
@@ -141,17 +145,18 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         // payment to wait for. Tying it to sale_payments (as every other
         // vertical does) left installed sales showing 0 € forever.
         if (isTelecom) {
+          const parts = telecomCommissionPartsInPeriod(s, period, allTelecomSplitsBySale.get(s.id));
           if (isBdsOrganization(organization?.name)
             && isTelecomCommissionEarned(s)
             && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds)
-            && telecomCommissionInPeriod(s, period)) {
+            && parts.length > 0) {
             organizationSaleIds.push(s.id);
           }
           if (!isTelecomCommissionEarned(s) || !saleMatchesCommissionFilters(s, financeOptions?.commissionFilters, saleTypeIds)) continue;
-          const ref = telecomCommissionDate(s);
+          const ref = parts[0]?.date;
           if (!ref) continue;
-          if (telecomCommissionInPeriod(s, period)) {
-            monthItems.push({ sale: s, amount: comissao, date: ref, monthKey, proportional: false });
+          if (parts.length > 0) {
+            monthItems.push({ sale: s, amount: parts.reduce((sum, part) => sum + part.gross, 0), date: ref, monthKey, proportional: false });
           }
           continue;
         }
@@ -301,7 +306,9 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // A sale can pay several people (sale_commission_splits). Where splits
       // exist the commission is divided by them; sales without splits keep the
       // single-commercial behaviour resolved by getCommercial().
-      const splitsBySale = await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
+      const splitsBySale = isTelecom
+        ? allTelecomSplitsBySale
+        : await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
       const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number; paidAt: string | null }>();
       if (isBdsOrganization(organization?.name) && organizationSaleIds.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
@@ -313,9 +320,15 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
           throw organizationSharesError;
         }
         for (const share of organizationShares || []) {
+          const sale = commissionSales.find((entry: any) => entry.id === share.sale_id);
+          const splits = allTelecomSplitsBySale.get(share.sale_id);
+          const allParts = sale ? telecomCommissionParts(sale, splits) : [];
+          const allOrg = allParts.reduce((sum, part) => sum + part.org, 0);
+          const periodOrg = sale ? telecomCommissionPartsInPeriod(sale, period, splits)
+            .reduce((sum, part) => sum + part.org, 0) : 0;
           bdsOrgCommissionBySale.set(share.sale_id, {
             userId: share.user_id,
-            amount: Number(share.amount || 0),
+            amount: allOrg > 0 ? Math.round(Number(share.amount || 0) * periodOrg / allOrg * 100) / 100 : Number(share.amount || 0),
             paidAt: share.paid_at,
           });
         }
@@ -329,11 +342,17 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         // mi.amount can already be a fraction of the commission (proportional to
         // the payments received this month), so each share keeps that fraction.
         const saleCommission = Number(s.comissao || 0);
-        const factor = saleCommission > 0 ? mi.amount / saleCommission : 0;
+        const factor = isTelecom ? 1 : saleCommission > 0 ? mi.amount / saleCommission : 0;
+        const periodParts = isTelecom ? telecomCommissionPartsInPeriod(s, period, splits) : [];
+        const includedProducts = new Set(periodParts.map(part => part.product));
+        const eligibleSplits = isTelecom && periodParts.some(part => part.product !== null)
+          ? splits?.filter(split => includedProducts.has(split.product_name))
+          : splits;
 
-        const shares = splits && splits.length > 0
-          ? splits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
-          : [{ userId: getCommercial(s), amount: isTelecom ? telecomTeamCommission(s) : mi.amount }];
+        const shares = eligibleSplits && eligibleSplits.length > 0
+          ? eligibleSplits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
+          : [{ userId: getCommercial(s), amount: isTelecom
+            ? periodParts.reduce((sum, part) => sum + part.seller, 0) : mi.amount }];
         for (const share of shares) {
           if (!share.userId) continue;
           const e = ensure(share.userId);
@@ -382,7 +401,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       if (isTelecom) {
         const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
           (supabase as any).from('sale_chargebacks')
-            .select('id, user_id, amount, application_month, applied_at')
+            .select('id, user_id, amount, application_month, applied_at, sale:sales(telecom_status)')
             .eq('organization_id', organizationId).eq('status', 'reconciled'),
           isBdsOrganization(organization?.name)
             ? bdsFinanceSupabase.from('bds_manual_chargebacks')
@@ -403,7 +422,9 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
           if (paid) e.totalPaid += amount;
           else e.totalPending += amount;
         };
-        for (const row of saleChargebacksResult.data || []) addChargeback(row, false);
+        for (const row of saleChargebacksResult.data || []) {
+          if (isSaleChargebackApplicable(row)) addChargeback(row, false);
+        }
         for (const row of manualChargebacksResult.data || []) addChargeback(row, true);
       }
 
@@ -479,17 +500,20 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         .in('status', ['delivered', 'fulfilled']);
       if (salesError) throw salesError;
 
+      const allSales = (sales || []) as any[];
+      const saleSplitsById = isTelecom
+        ? await fetchSplitsBySale(allSales.map(sale => sale.id as string))
+        : new Map<string, import('@/hooks/useCommissionSplits').SaleCommissionSplit[]>();
       // Only count commissions on RECEIVED sales (concluded AND fully paid).
-      const candidates = ((sales || []) as any[]).filter(
-        (s) => (isTelecom ? telecomCommissionInPeriod(s, dateRange) : inRange(s.activation_date || s.sale_date))
+      const candidates = allSales.filter(
+        (s) => (isTelecom ? telecomCommissionPartsInPeriod(s, dateRange, saleSplitsById.get(s.id)).length > 0 : inRange(s.activation_date || s.sale_date))
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),
       );
-      const allSales = (sales || []) as any[];
       const organizationCommissionFilters = commissionFilters
         ? { ...commissionFilters, userId: null }
         : undefined;
       const organizationCandidates = isTelecom && isBdsOrganization(organization?.name)
-        ? allSales.filter((s) => telecomCommissionInPeriod(s, dateRange)
+        ? allSales.filter((s) => telecomCommissionPartsInPeriod(s, dateRange, saleSplitsById.get(s.id)).length > 0
           && isTelecomCommissionEarned(s)
           && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds))
         : [];
@@ -499,7 +523,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       if (organizationCandidates.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
           .from('bds_sara_org_commission')
-          .select('user_id, amount, paid_at')
+          .select('sale_id, user_id, amount, paid_at')
           .eq('organization_id', orgId)
           .in('sale_id', organizationCandidates.map((sale) => sale.id));
         if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
@@ -507,7 +531,14 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         }
         for (const share of organizationShares || []) {
           if (commissionFilters?.userId && share.user_id !== commissionFilters.userId) continue;
-          const amount = Number(share.amount || 0);
+          const sale = organizationCandidates.find(candidate => candidate.id === share.sale_id);
+          const splits = saleSplitsById.get(share.sale_id);
+          const allOrg = sale ? telecomCommissionParts(sale, splits).reduce((sum, part) => sum + part.org, 0) : 0;
+          const periodOrg = sale ? telecomCommissionPartsInPeriod(sale, dateRange, splits)
+            .reduce((sum, part) => sum + part.org, 0) : 0;
+          const amount = allOrg > 0
+            ? Math.round(Number(share.amount || 0) * periodOrg / allOrg * 100) / 100
+            : Number(share.amount || 0);
           organizationCommissionTotal += amount;
           if (share.paid_at) organizationCommissionPaidTotal += amount;
         }
@@ -569,9 +600,10 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         // seller took. What the team actually earns is the difference.
         if (isTelecom) {
           if (isTelecomCommissionEarned(s)) {
-            const gross = Number(s.comissao || 0);
-            const org = Number(s.org_commission || 0);
-            const sellerAmount = Math.max(gross - org, 0);
+            const parts = telecomCommissionPartsInPeriod(s, dateRange, saleSplitsById.get(s.id));
+            const gross = parts.reduce((sum, part) => sum + part.gross, 0);
+            const org = parts.reduce((sum, part) => sum + part.org, 0);
+            const sellerAmount = parts.reduce((sum, part) => sum + part.seller, 0);
             const cardSplits = cardSplitsBySale.get(s.id);
             const snapshotIsKnown = cardBreakdownAvailable
               && cardSplits !== undefined
@@ -602,8 +634,8 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               id: s.id,
               code: s.code,
               clientName: s.client?.name || s.lead?.name || '—',
-              products: s.servicos_produtos ?? [],
-              date: telecomCommissionDate(s),
+              products: parts.filter(part => part.product !== null).map(part => part.product as string),
+              date: parts[0]?.date ?? telecomCommissionDate(s),
               deferred: Number(s.commission_payment_month_offset || 0) > 0,
               telecomStatus: s.telecom_status,
               amount: org,
@@ -629,7 +661,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       if (isTelecom) {
         const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
           (supabase as any).from('sale_chargebacks')
-            .select('amount, user_id, application_month, applied_at')
+            .select('amount, user_id, application_month, applied_at, sale:sales(telecom_status)')
             .eq('organization_id', orgId).eq('status', 'reconciled'),
           isBdsOrganization(organization?.name)
             ? bdsFinanceSupabase.from('bds_manual_chargebacks')
@@ -639,7 +671,10 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         ]);
         if (saleChargebacksResult.error) throw saleChargebacksResult.error;
         if (manualChargebacksResult.error) throw manualChargebacksResult.error;
-        for (const chargeback of [...(saleChargebacksResult.data || []), ...(manualChargebacksResult.data || [])]) {
+        for (const chargeback of [
+          ...(saleChargebacksResult.data || []).filter(isSaleChargebackApplicable),
+          ...(manualChargebacksResult.data || []),
+        ]) {
           if (!applicationMonthInRange(chargeback.application_month, dateRange)) continue;
           if (commissionFilters?.userId && chargeback.user_id !== commissionFilters.userId) continue;
           const amount = Number(chargeback.amount || 0);

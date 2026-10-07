@@ -800,6 +800,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                             {TELECOM_TECHNOLOGY_LABELS[detail.tecnologia]}
                                           </Badge>
                                         )}
+                                        {detail?.activation_date && (
+                                          <Badge variant="outline" className="text-[11px]">
+                                            Ativação: {format(new Date(`${detail.activation_date}T12:00:00`), 'dd/MM/yyyy')}
+                                          </Badge>
+                                        )}
                                         {/* No commission figure here on purpose. What used to sit
                                             on this line was servicos_details[...].comissao — a value
                                             frozen into the sale's JSON when it was created, which no
