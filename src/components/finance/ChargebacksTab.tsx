@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { format, parseISO } from 'date-fns';
+import { pt } from 'date-fns/locale';
 import { AlertTriangle, Check, Plus, Undo2, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/format';
@@ -16,9 +18,10 @@ import {
   useUpdateChargebackStatus,
   useCreateManualChargeback,
   CHARGEBACK_STATUS_LABELS,
+  type SaleChargeback,
   type ChargebackStatus,
 } from '@/hooks/useSaleChargebacks';
-import { useOrganization } from '@/hooks/useOrganization';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useClients } from '@/hooks/useClients';
 import { isBdsOrganization } from '@/lib/bds-finance';
@@ -39,7 +42,7 @@ export function ChargebacksTab() {
   const { data: chargebacks = [], isLoading } = useSaleChargebacks();
   const updateStatus = useUpdateChargebackStatus();
   const { isAdmin } = usePermissions();
-  const { data: organization } = useOrganization();
+  const { organization } = useAuth();
   const { data: teamMembers = [] } = useTeamMembers(true);
   const { data: clients = [] } = useClients();
   const createManual = useCreateManualChargeback();
@@ -47,6 +50,8 @@ export function ChargebacksTab() {
   const [sellerId, setSellerId] = useState('');
   const [amount, setAmount] = useState('');
   const [clientId, setClientId] = useState('');
+  const [confirmTarget, setConfirmTarget] = useState<SaleChargeback | null>(null);
+  const [applicationMonth, setApplicationMonth] = useState('');
   const canCreateManual = isAdmin && isBdsOrganization(organization?.name);
 
   const totals = useMemo(() => {
@@ -72,7 +77,7 @@ export function ChargebacksTab() {
           <CardContent>
             <p className="text-2xl font-semibold">{formatCurrency(totals.pending)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {totals.pendingCount} venda{totals.pendingCount === 1 ? '' : 's'} cancelada{totals.pendingCount === 1 ? '' : 's'} após instalação
+              {totals.pendingCount} CB por confirmar
             </p>
           </CardContent>
         </Card>
@@ -82,7 +87,7 @@ export function ChargebacksTab() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold text-red-500">{formatCurrency(totals.reconciled)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Já descontados da comissão</p>
+            <p className="text-xs text-muted-foreground mt-1">Associados ao mês de comissão escolhido</p>
           </CardContent>
         </Card>
       </div>
@@ -141,7 +146,7 @@ export function ChargebacksTab() {
                           setSellerId(''); setAmount(''); setClientId('');
                         },
                       });
-                    }}>Registar chargeback</Button>
+                    }}>Registar por confirmar</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -166,6 +171,7 @@ export function ChargebacksTab() {
                     <TableHead>Beneficiário</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead>Mês de desconto</TableHead>
                     {isAdmin && <TableHead className="w-32" />}
                   </TableRow>
                 </TableHeader>
@@ -192,6 +198,9 @@ export function ChargebacksTab() {
                           {CHARGEBACK_STATUS_LABELS[cb.status]}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-sm">
+                        {cb.application_month ? format(parseISO(cb.application_month), 'MMMM yyyy', { locale: pt }) : '—'}
+                      </TableCell>
                       {isAdmin && (
                         <TableCell>
                           <div className="flex justify-end gap-1">
@@ -203,7 +212,7 @@ export function ChargebacksTab() {
                                   size="icon"
                                   className="h-7 w-7"
                                   title="Confirmar — a operadora cobrou mesmo"
-                                  onClick={() => updateStatus.mutate({ id: cb.id, status: 'reconciled', manual: cb.reason === 'manual' })}
+                                  onClick={() => { setConfirmTarget(cb); setApplicationMonth(''); }}
                                 >
                                   <Check className="h-3.5 w-3.5 text-green-600" />
                                 </Button>
@@ -218,7 +227,7 @@ export function ChargebacksTab() {
                                   <X className="h-3.5 w-3.5 text-destructive" />
                                 </Button>
                               </>
-                            ) : (
+                            ) : !cb.applied_at ? (
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -229,7 +238,7 @@ export function ChargebacksTab() {
                               >
                                 <Undo2 className="h-3.5 w-3.5 text-muted-foreground" />
                               </Button>
-                            )}
+                            ) : null}
                           </div>
                         </TableCell>
                       )}
@@ -241,6 +250,26 @@ export function ChargebacksTab() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={!!confirmTarget} onOpenChange={(open) => { if (!open) setConfirmTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar chargeback</DialogTitle>
+            <DialogDescription>Escolhe o mês da comissão em que este valor será descontado.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="chargeback-application-month">Mês de desconto</Label>
+            <Input id="chargeback-application-month" type="month" value={applicationMonth} onChange={(event) => setApplicationMonth(event.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="button" disabled={!confirmTarget || !applicationMonth || updateStatus.isPending} onClick={() => {
+              if (!confirmTarget) return;
+              updateStatus.mutate({ id: confirmTarget.id, status: 'reconciled', manual: confirmTarget.reason === 'manual', applicationMonth }, {
+                onSuccess: () => { setConfirmTarget(null); setApplicationMonth(''); },
+              });
+            }}>Confirmar desconto</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

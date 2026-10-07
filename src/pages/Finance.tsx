@@ -1,5 +1,6 @@
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { commissionPortions } from '@/lib/commission-earnings';
+import { applicationMonthInRange } from '@/lib/chargeback-month';
 import { telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -128,7 +129,7 @@ function TelecomFinanceFilters({
 }
 
 export default function Finance() {
-  const { organization, organizations } = useAuth();
+  const { organization, organizations, user } = useAuth();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const salesSettings = (organization?.sales_settings as { commissions_enabled?: boolean }) || {};
   const commissionsEnabled = !!salesSettings.commissions_enabled;
@@ -190,7 +191,7 @@ export default function Finance() {
     const isPending = s.status === 'pending' || s.status === 'in_progress';
     return isPending ? sum + (Number(s.comissao) || 0) : sum;
   }, 0);
-  const myConfirmedTotal = myInPeriod.reduce((sum, s) => {
+  const myGrossConfirmedTotal = myInPeriod.reduce((sum, s) => {
     if (isTelecom) return sum + commissionPortions(s).confirmed;
     const isConfirmed = s.status === 'delivered' || s.status === 'fulfilled';
     return isConfirmed ? sum + (Number(s.comissao) || 0) : sum;
@@ -211,9 +212,12 @@ export default function Finance() {
   // cancellation post-install. Dismissed ones never happened.
   const { data: chargebacks = [] } = useSaleChargebacks();
   const chargebacksInPeriod = isTelecom
-    ? chargebacks.filter((c) => c.status !== "dismissed" && inPeriod(c.created_at))
+    ? chargebacks.filter((c) => c.status === 'reconciled' && applicationMonthInRange(c.application_month, dateRange))
     : [];
   const chargebacksTotal = chargebacksInPeriod.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const myConfirmedTotal = myGrossConfirmedTotal - chargebacksInPeriod
+    .filter((c) => c.user_id === user?.id)
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
   // Telecom has no client receipts, so its balance is what the org keeps of
   // the installed commission, minus what it spends.
   const balanceShown = isTelecom ? orgMarginTotal - stats.totalExpenses : stats.balance;
@@ -360,7 +364,7 @@ export default function Finance() {
               onClick={() => setDetailView("faturado")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{isTelecom ? "Total de Comissão" : "Total Faturado"}</CardTitle>
+                <CardTitle className="text-sm font-medium">{isTelecom ? "Comissão bruta" : "Total Faturado"}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -373,7 +377,7 @@ export default function Finance() {
                   <div className="text-xl font-bold md:text-2xl">{formatCurrency(isTelecom ? stats.totalCommission : stats.totalBilled)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  {hasFilters ? "No período" : isTelecom ? "Até ao mês atual" : "Histórico total"}
+                  {hasFilters ? (isTelecom ? "Antes dos CB · no período" : "No período") : isTelecom ? "Antes dos CB · até ao mês atual" : "Histórico total"}
                   {isTelecom && hasCommissionFilters(commissionFilters) && " · filtrado"}
                 </p>
               </CardContent>
@@ -446,8 +450,8 @@ export default function Finance() {
                     <div className="text-xl font-bold text-destructive md:text-2xl">{formatCurrency(chargebacksTotal)}</div>
                     <p className="text-xs text-muted-foreground">
                       {chargebacksInPeriod.length === 0
-                        ? "Nenhuma devolução"
-                        : `${chargebacksInPeriod.length} devolvida${chargebacksInPeriod.length === 1 ? "" : "s"} pela operadora`}
+                        ? "Nenhum CB confirmado no período"
+                        : `${chargebacksInPeriod.length} CB confirmado${chargebacksInPeriod.length === 1 ? "" : "s"} no período`}
                     </p>
                   </CardContent>
                 </Card>

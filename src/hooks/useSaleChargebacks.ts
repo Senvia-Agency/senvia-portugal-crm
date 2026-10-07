@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { useOrganization } from '@/hooks/useOrganization';
 import { isBdsOrganization, parseChargebackAmount } from '@/lib/bds-finance';
 import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
 
@@ -17,6 +16,8 @@ export interface SaleChargeback {
   amount: number;
   reason: string;
   status: ChargebackStatus;
+  application_month: string | null;
+  applied_at: string | null;
   created_at: string;
   updated_at: string;
   /** Joined for display. */
@@ -60,13 +61,14 @@ export function useSaleChargebacks() {
           .eq('organization_id', orgId)
           .order('created_at', { ascending: false });
         if (manualError) throw manualError;
-        const manualClientIds = [...new Set((manualRows ?? []).map((row) => row.client_id).filter((id): id is string => !!id))];
+        const manualChargebacks = (manualRows ?? []) as unknown as SaleChargeback[];
+        const manualClientIds = [...new Set(manualChargebacks.map((row) => row.client_id).filter((id): id is string => !!id))];
         const { data: manualClients, error: manualClientsError } = manualClientIds.length
           ? await supabase.from('crm_clients').select('id, name').in('id', manualClientIds)
           : { data: [], error: null };
         if (manualClientsError) throw manualClientsError;
         const clientNames = new Map((manualClients ?? []).map((client) => [client.id, client.name]));
-        rows = [...rows, ...(manualRows ?? []).map((row) => ({ ...row, sale: null, client: row.client_id ? { name: clientNames.get(row.client_id) ?? 'Cliente' } : null }))]
+        rows = [...rows, ...manualChargebacks.map((row) => ({ ...row, sale: null, client: row.client_id ? { name: clientNames.get(row.client_id) ?? 'Cliente' } : null }))]
           .sort((a, b) => b.created_at.localeCompare(a.created_at));
       }
       const userIds = [...new Set(rows.map(r => r.user_id))];
@@ -87,23 +89,29 @@ export function useUpdateChargebackStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status, manual }: { id: string; status: ChargebackStatus; manual?: boolean }) => {
+    mutationFn: async ({ id, status, manual, applicationMonth }: { id: string; status: ChargebackStatus; manual?: boolean; applicationMonth?: string }) => {
+      if (status === 'reconciled' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(applicationMonth ?? '')) {
+        throw new Error('Seleciona o mês em que o chargeback será descontado.');
+      }
+      const update = { status, application_month: status === 'reconciled' ? `${applicationMonth}-01` : null, applied_at: null };
       if (manual) {
         const { error: manualError } = await bdsFinanceSupabase
           .from('bds_manual_chargebacks')
-          .update({ status })
+          .update(update)
           .eq('id', id);
         if (manualError) throw manualError;
         return;
       }
       const { error } = await (supabase as any)
         .from('sale_chargebacks')
-        .update({ status })
+        .update(update)
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] });
+      queryClient.invalidateQueries({ queryKey: ['commercial-commissions'] });
+      queryClient.invalidateQueries({ queryKey: ['team-commission-total'] });
       toast.success('Chargeback atualizado');
     },
     onError: (error: Error) => {
@@ -114,7 +122,7 @@ export function useUpdateChargebackStatus() {
 
 export function useCreateManualChargeback() {
   const queryClient = useQueryClient();
-  const { data: organization } = useOrganization();
+  const { organization } = useAuth();
 
   return useMutation({
     mutationFn: async ({ userId, amountText, clientId }: { userId: string; amountText: string; clientId: string | null }) => {
@@ -130,15 +138,16 @@ export function useCreateManualChargeback() {
           user_id: userId,
           amount,
           reason: 'manual',
-          status: 'reconciled',
+          status: 'pending',
         });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] });
       queryClient.invalidateQueries({ queryKey: ['commercial-commissions'] });
+      queryClient.invalidateQueries({ queryKey: ['team-commission-total'] });
       queryClient.invalidateQueries({ queryKey: ['finance-stats'] });
-      toast.success('Chargeback manual registado');
+      toast.success('Chargeback manual registado. Confirma-o e seleciona o mês de desconto.');
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível registar o chargeback.'),
   });

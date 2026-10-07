@@ -13,9 +13,10 @@ import { extraCardPayoutFromSale } from '@/lib/telecom-card-breakdown';
 import { isBdsOrganization } from '@/lib/bds-finance';
 import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
 import { aggregateBdsOrganizationCommissionItems } from '@/lib/bds-organization-commission';
+import { applicationMonthInRange } from '@/lib/chargeback-month';
 
 export interface CommissionItem {
-  kind: 'direct' | 'recurring' | 'organization';
+  kind: 'direct' | 'recurring' | 'organization' | 'chargeback';
   id: string;            // saleId (direct) or stripe record id (recurring)
   label: string;         // client / sale label
   date: string | null;
@@ -25,6 +26,7 @@ export interface CommissionItem {
   proportional?: boolean; // true when amount is proportional to partial payment
   expectedMonth?: boolean;
   sourceSaleIds?: readonly string[];
+  manualChargeback?: boolean;
 }
 
 export interface CommercialCommission {
@@ -377,6 +379,34 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         if (paid) e.totalPaid += amount; else { e.totalPending += amount; e.pendingRecordIds.push(r.id); }
       }
 
+      if (isTelecom) {
+        const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
+          (supabase as any).from('sale_chargebacks')
+            .select('id, user_id, amount, application_month, applied_at')
+            .eq('organization_id', organizationId).eq('status', 'reconciled'),
+          isBdsOrganization(organization?.name)
+            ? bdsFinanceSupabase.from('bds_manual_chargebacks')
+              .select('id, user_id, amount, application_month, applied_at')
+              .eq('organization_id', organizationId).eq('status', 'reconciled')
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (saleChargebacksResult.error) throw saleChargebacksResult.error;
+        if (manualChargebacksResult.error) throw manualChargebacksResult.error;
+        const addChargeback = (row: { id: string; user_id: string; amount: number; application_month: string | null; applied_at: string | null }, manual: boolean) => {
+          if (!applicationMonthInRange(row.application_month, period)) return;
+          if (financeOptions?.commissionFilters?.userId && row.user_id !== financeOptions.commissionFilters.userId) return;
+          const e = ensure(row.user_id);
+          const amount = -Number(row.amount || 0);
+          const paid = !!row.applied_at;
+          e.items.push({ kind: 'chargeback', id: row.id, label: 'Chargeback', date: row.application_month, amount, saleValue: null, paid, manualChargeback: manual });
+          e.total += amount;
+          if (paid) e.totalPaid += amount;
+          else e.totalPending += amount;
+        };
+        for (const row of saleChargebacksResult.data || []) addChargeback(row, false);
+        for (const row of manualChargebacksResult.data || []) addChargeback(row, true);
+      }
+
       let commercials = Array.from(byUser.values());
       if (effectiveUserIds && effectiveUserIds.length > 0) {
         commercials = commercials.filter(c => effectiveUserIds.includes(c.userId));
@@ -596,6 +626,28 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       total += organizationCommissionTotal;
       paidTotal += organizationCommissionPaidTotal;
 
+      if (isTelecom) {
+        const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
+          (supabase as any).from('sale_chargebacks')
+            .select('amount, user_id, application_month, applied_at')
+            .eq('organization_id', orgId).eq('status', 'reconciled'),
+          isBdsOrganization(organization?.name)
+            ? bdsFinanceSupabase.from('bds_manual_chargebacks')
+              .select('amount, user_id, application_month, applied_at')
+              .eq('organization_id', orgId).eq('status', 'reconciled')
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (saleChargebacksResult.error) throw saleChargebacksResult.error;
+        if (manualChargebacksResult.error) throw manualChargebacksResult.error;
+        for (const chargeback of [...(saleChargebacksResult.data || []), ...(manualChargebacksResult.data || [])]) {
+          if (!applicationMonthInRange(chargeback.application_month, dateRange)) continue;
+          if (commissionFilters?.userId && chargeback.user_id !== commissionFilters.userId) continue;
+          const amount = Number(chargeback.amount || 0);
+          total -= amount;
+          if (chargeback.applied_at) paidTotal -= amount;
+        }
+      }
+
       // Pending recurring commissions are outstanding debt until paid. They carry
       // FORWARD — counted from their month onwards (created on/before the period
       // end) — but never backward into a month before the debt existed.
@@ -638,12 +690,14 @@ export function usePayCommercialCommissions() {
   const { organization, session } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ fullName, bankAccountId, saleIds, recordIds, organizationSaleIds, total }: {
+    mutationFn: async ({ fullName, bankAccountId, saleIds, recordIds, organizationSaleIds, saleChargebackIds, manualChargebackIds, total }: {
       fullName: string;
       bankAccountId: string | null;
       saleIds: string[];
       recordIds: string[];
       organizationSaleIds: string[];
+      saleChargebackIds: string[];
+      manualChargebackIds: string[];
       total: number;
     }) => {
       const orgId = organization?.id;
@@ -686,6 +740,20 @@ export function usePayCommercialCommissions() {
         });
         if (expErr) throw expErr;
       }
+      if (saleChargebackIds.length) {
+        const { error } = await (supabase as any).from('sale_chargebacks')
+          .update({ applied_at: nowIso })
+          .eq('organization_id', orgId).eq('status', 'reconciled')
+          .in('id', saleChargebackIds);
+        if (error) throw error;
+      }
+      if (manualChargebackIds.length) {
+        const { error } = await bdsFinanceSupabase.from('bds_manual_chargebacks')
+          .update({ applied_at: nowIso })
+          .eq('organization_id', orgId).eq('status', 'reconciled')
+          .in('id', manualChargebackIds);
+        if (error) throw error;
+      }
     },
     onSuccess: async () => {
       await Promise.all([
@@ -697,6 +765,7 @@ export function usePayCommercialCommissions() {
         queryClient.invalidateQueries({ queryKey: ['finance-stats'] }),
         queryClient.invalidateQueries({ queryKey: ['team-commission-total'] }),
         queryClient.invalidateQueries({ queryKey: ['my-commissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] }),
       ]);
       toast.success('Comissões marcadas como pagas e registadas como despesa!');
     },
@@ -713,7 +782,8 @@ export function useMarkCommissionPaid() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item:
-      | { kind: 'direct' | 'recurring'; id: string }
+      | { kind: 'direct'; id: string }
+      | { kind: 'recurring'; id: string }
       | { kind: 'organization'; id: string; sourceSaleIds: readonly string[] }) => {
       const nowIso = new Date().toISOString();
       if (item.kind === 'direct') {
@@ -736,6 +806,7 @@ export function useMarkCommissionPaid() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['commercial-commissions'] });
       await queryClient.invalidateQueries({ queryKey: ['team-commission-total'] });
+      await queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] });
       toast.success('Comissão marcada como paga.');
     },
     onError: () => toast.error('Erro ao marcar comissão'),

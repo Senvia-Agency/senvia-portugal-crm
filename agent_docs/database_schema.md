@@ -290,3 +290,7 @@ The six prepared referral, action-limit, single-plan and support-attachment migr
 ### Referral reward coupons (local migration 20260925210000)
 
 Each confirmed referral reward can store a unique `stripe_coupon_id` in `organization_referrals`. The service-role-only `reserve_referral_month_for_reward` RPC binds a renewal invoice to the exact reward identified by its coupon, under the organization lock. This prevents a pre-applied coupon from consuming a different earned month. The existing reservation RPC remains for legacy shared coupons. Apply this migration before deploying the referral webhook and reconciliation changes.
+
+### Telecom chargeback accounting month (20261007173000)
+
+`sale_chargebacks` and `bds_manual_chargebacks` retain `created_at` for audit and add `application_month` (the first day of the commission month chosen on confirmation) and `applied_at` (when the deduction is included in a commission payment). Confirmed chargebacks require an application month. Pending or dismissed chargebacks do not reduce commissions. Both tables remain isolated by organization RLS; the new indexes support organization, month and status lookups. Existing confirmed rows are initially assigned their creation month. The separate `20261007174000` data patch assigns the six reviewed BDS chargebacks to September 2026 only when the expected records match exactly.

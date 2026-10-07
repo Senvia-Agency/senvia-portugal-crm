@@ -84,6 +84,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
   const selectedTotal = selectedItems.reduce((s, i) => s + i.amount, 0);
 
   const toggleSelected = (key: string, on: boolean) => {
+    if (pendingItems.some(item => itemKey(item) === key && item.kind === 'chargeback')) return;
     setSelectedIds(prev => {
       const next = new Set(prev);
       on ? next.add(key) : next.delete(key);
@@ -92,7 +93,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
   };
 
   const confirmPay = () => {
-    if (!payTarget || selectedItems.length === 0) return;
+    if (!payTarget || selectedItems.length === 0 || selectedTotal < 0) return;
     payMutation.mutate(
       {
         fullName: payTarget.name,
@@ -102,6 +103,8 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
         organizationSaleIds: selectedItems
           .filter(i => i.kind === 'organization')
           .flatMap(i => i.sourceSaleIds ?? []),
+        saleChargebackIds: selectedItems.filter(i => i.kind === 'chargeback' && !i.manualChargeback).map(i => i.id),
+        manualChargebackIds: selectedItems.filter(i => i.kind === 'chargeback' && i.manualChargeback).map(i => i.id),
         total: selectedTotal,
       },
       { onSuccess: () => setPayTarget(null) },
@@ -247,6 +250,8 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                             <span className="inline-flex items-center gap-1 text-muted-foreground">
                                               <RefreshCw className="h-3 w-3" /> Recorrente
                                             </span>
+                                          ) : item.kind === 'chargeback' ? (
+                                            <span className="text-red-600">Chargeback</span>
                                           ) : item.kind === 'organization' ? (
                                             <span className="text-muted-foreground">Organização</span>
                                           ) : (
@@ -260,7 +265,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                         </TableCell>
                                         <TableCell className="text-xs">{item.label}</TableCell>
                                         <TableCell className="text-xs">
-                                          {item.date ? format(new Date(item.date), item.expectedMonth ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt }) : '—'}
+                                          {item.date ? format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt }) : '—'}
                                         </TableCell>
                                         <TableCell className="text-right text-xs">
                                           {item.saleValue != null ? formatCurrency(item.saleValue) : '—'}
@@ -277,9 +282,9 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                                   : 'border-amber-500/30 bg-amber-500/20 text-amber-600',
                                               )}
                                             >
-                                              {item.paid ? 'Pago' : 'Pendente'}
+                                              {item.kind === 'chargeback' ? (item.paid ? 'Aplicado' : 'Por aplicar') : (item.paid ? 'Pago' : 'Pendente')}
                                             </Badge>
-                                            {!item.paid && (
+                                            {!item.paid && item.kind !== 'chargeback' && (
                                               <button
                                                 type="button"
                                                 title="Marcar como paga"
@@ -330,7 +335,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                 onClick={() =>
                   setSelectedIds(
                     selectedItems.length === pendingItems.length
-                      ? new Set()
+                      ? new Set(pendingItems.filter(item => item.kind === 'chargeback').map(itemKey))
                       : new Set(pendingItems.map(itemKey)),
                   )
                 }
@@ -346,13 +351,14 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                   <label key={key} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50">
                     <Checkbox
                       checked={selectedIds.has(key)}
+                      disabled={item.kind === 'chargeback'}
                       onCheckedChange={(v) => toggleSelected(key, v === true)}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{item.label}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {item.kind === 'recurring' ? 'Recorrente' : item.kind === 'organization' ? 'Organização' : 'Direta'}
-                        {item.date ? ` · ${format(new Date(item.date), item.expectedMonth ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })}` : ''}
+                        {item.kind === 'chargeback' ? 'Desconto obrigatório' : item.kind === 'recurring' ? 'Recorrente' : item.kind === 'organization' ? 'Organização' : 'Direta'}
+                        {item.date ? ` · ${format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })}` : ''}
                       </span>
                     </span>
                     <span className="text-sm font-medium">{formatCurrency(item.amount)}</span>
@@ -375,7 +381,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
             <Button variant="outline" onClick={() => setPayTarget(null)} disabled={payMutation.isPending}>
               Cancelar
             </Button>
-            <Button onClick={confirmPay} disabled={payMutation.isPending || selectedItems.length === 0}>
+            <Button onClick={confirmPay} disabled={payMutation.isPending || selectedItems.length === 0 || selectedTotal < 0}>
               {payMutation.isPending ? 'A processar...' : `Pagar ${formatCurrency(selectedTotal)}`}
             </Button>
           </DialogFooter>
