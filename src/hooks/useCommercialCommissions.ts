@@ -12,9 +12,10 @@ import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { extraCardPayoutFromSale } from '@/lib/telecom-card-breakdown';
 import { isBdsOrganization } from '@/lib/bds-finance';
 import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
+import { aggregateBdsOrganizationCommissionItems } from '@/lib/bds-organization-commission';
 
 export interface CommissionItem {
-  kind: 'direct' | 'recurring';
+  kind: 'direct' | 'recurring' | 'organization';
   id: string;            // saleId (direct) or stripe record id (recurring)
   label: string;         // client / sale label
   date: string | null;
@@ -23,6 +24,7 @@ export interface CommissionItem {
   paid: boolean;
   proportional?: boolean; // true when amount is proportional to partial payment
   expectedMonth?: boolean;
+  sourceSaleIds?: readonly string[];
 }
 
 export interface CommercialCommission {
@@ -68,7 +70,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
   const saleTypeIds = buildSaleTypeIds(catalog ?? []);
 
   return useQuery<CommercialCommissionsData>({
-    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
+    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v2'],
     queryFn: async () => {
       const empty: CommercialCommissionsData = { commercials: [], total: 0, totalPending: 0 };
       if (!organizationId || !selectedMonth) return empty;
@@ -288,18 +290,22 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // exist the commission is divided by them; sales without splits keep the
       // single-commercial behaviour resolved by getCommercial().
       const splitsBySale = await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
-      const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number }>();
+      const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number; paidAt: string | null }>();
       if (isBdsOrganization(organization?.name) && monthItems.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
           .from('bds_sara_org_commission')
-          .select('sale_id, user_id, amount')
+          .select('sale_id, user_id, amount, paid_at')
           .eq('organization_id', organizationId)
           .in('sale_id', monthItems.map((item) => item.sale.id));
         if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
           throw organizationSharesError;
         }
         for (const share of organizationShares || []) {
-          bdsOrgCommissionBySale.set(share.sale_id, { userId: share.user_id, amount: Number(share.amount || 0) });
+          bdsOrgCommissionBySale.set(share.sale_id, {
+            userId: share.user_id,
+            amount: Number(share.amount || 0),
+            paidAt: share.paid_at,
+          });
         }
       }
 
@@ -316,13 +322,6 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         const shares = splits && splits.length > 0
           ? splits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
           : [{ userId: getCommercial(s), amount: isTelecom ? telecomTeamCommission(s) : mi.amount }];
-        const organizationShare = bdsOrgCommissionBySale.get(s.id);
-        if (organizationShare) {
-          const existingShare = shares.find((share) => share.userId === organizationShare.userId);
-          if (existingShare) existingShare.amount += organizationShare.amount * factor;
-          else shares.push({ userId: organizationShare.userId, amount: organizationShare.amount * factor });
-        }
-
         for (const share of shares) {
           if (!share.userId) continue;
           const e = ensure(share.userId);
@@ -341,6 +340,22 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
           if (paid) e.totalPaid += share.amount;
           else { e.totalPending += share.amount; e.pendingSaleIds.push(s.id); }
         }
+      }
+      const organizationItems = aggregateBdsOrganizationCommissionItems(
+        Array.from(bdsOrgCommissionBySale, ([saleId, share]) => ({
+          sale_id: saleId,
+          user_id: share.userId,
+          amount: share.amount,
+          paid_at: share.paidAt,
+        })),
+        monthKey,
+      );
+      for (const item of organizationItems) {
+        const e = ensure(item.userId);
+        e.items.push(item);
+        e.total += item.amount;
+        if (item.paid) e.totalPaid += item.amount;
+        else e.totalPending += item.amount;
       }
       for (const r of recs) {
         const e = ensure((r.user_id as string) || 'unassigned');
@@ -398,7 +413,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
     extraCardsReconstructedSales: number;
     organizationSales: OrganizationCommissionSale[];
   }>({
-    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, sellerProfiles, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
+    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, sellerProfiles, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v2'],
     queryFn: async () => {
       if (!orgId) return {
         total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0,
@@ -429,17 +444,22 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),
       );
       const candIds = candidates.map((s) => s.id);
-      const bdsOrgCommissionBySale = new Map<string, number>();
+      const bdsOrgCommissionBySale = new Map<string, { amount: number; paidAt: string | null }>();
       if (isBdsOrganization(organization?.name) && candIds.length > 0) {
         const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
           .from('bds_sara_org_commission')
-          .select('sale_id, amount')
+          .select('sale_id, amount, paid_at')
           .eq('organization_id', orgId)
           .in('sale_id', candIds);
         if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
           throw organizationSharesError;
         }
-        for (const share of organizationShares || []) bdsOrgCommissionBySale.set(share.sale_id, Number(share.amount || 0));
+        for (const share of organizationShares || []) {
+          bdsOrgCommissionBySale.set(share.sale_id, {
+            amount: Number(share.amount || 0),
+            paidAt: share.paid_at,
+          });
+        }
       }
       const { data: candPays } = candIds.length
         ? await supabase.from('sale_payments').select('sale_id, amount, status').in('sale_id', candIds)
@@ -537,9 +557,10 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               telecomStatus: s.telecom_status,
               amount: org,
             });
-            const saraOrgCommission = bdsOrgCommissionBySale.get(s.id) || 0;
-            total += sellerAmount + saraOrgCommission;
-            if (s.commission_paid_at) paidTotal += sellerAmount + saraOrgCommission;
+            const saraOrgCommission = bdsOrgCommissionBySale.get(s.id);
+            total += sellerAmount + (saraOrgCommission?.amount ?? 0);
+            if (s.commission_paid_at) paidTotal += sellerAmount;
+            if (saraOrgCommission?.paidAt) paidTotal += saraOrgCommission.amount;
             count += 1;
           }
           continue;
@@ -595,11 +616,12 @@ export function usePayCommercialCommissions() {
   const { organization, session } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ fullName, bankAccountId, saleIds, recordIds, total }: {
+    mutationFn: async ({ fullName, bankAccountId, saleIds, recordIds, organizationSaleIds, total }: {
       fullName: string;
       bankAccountId: string | null;
       saleIds: string[];
       recordIds: string[];
+      organizationSaleIds: string[];
       total: number;
     }) => {
       const orgId = organization?.id;
@@ -616,6 +638,13 @@ export function usePayCommercialCommissions() {
         const { error } = await (supabase as any).from('stripe_commission_records')
           .update({ status: 'paid', paid_at: nowIso, bank_account_id: bankAccountId })
           .in('id', recordIds);
+        if (error) throw error;
+      }
+      if (organizationSaleIds.length) {
+        const { error } = await bdsFinanceSupabase.from('bds_sara_org_commission')
+          .update({ paid_at: nowIso })
+          .eq('organization_id', orgId)
+          .in('sale_id', organizationSaleIds);
         if (error) throw error;
       }
       if (total > 0) {
@@ -661,17 +690,24 @@ export function usePayCommercialCommissions() {
 export function useMarkCommissionPaid() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ kind, id }: { kind: 'direct' | 'recurring'; id: string }) => {
+    mutationFn: async (item:
+      | { kind: 'direct' | 'recurring'; id: string }
+      | { kind: 'organization'; id: string; sourceSaleIds: readonly string[] }) => {
       const nowIso = new Date().toISOString();
-      if (kind === 'direct') {
+      if (item.kind === 'direct') {
         const { error } = await (supabase as any).from('sales')
           .update({ commission_paid_at: nowIso })
-          .eq('id', id);
+          .eq('id', item.id);
         if (error) throw error;
-      } else {
+      } else if (item.kind === 'recurring') {
         const { error } = await (supabase as any).from('stripe_commission_records')
           .update({ status: 'paid', paid_at: nowIso })
-          .eq('id', id);
+          .eq('id', item.id);
+        if (error) throw error;
+      } else {
+        const { error } = await bdsFinanceSupabase.from('bds_sara_org_commission')
+          .update({ paid_at: nowIso })
+          .in('sale_id', [...item.sourceSaleIds]);
         if (error) throw error;
       }
     },

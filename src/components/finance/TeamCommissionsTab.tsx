@@ -99,6 +99,9 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
         bankAccountId: bankAccount === 'none' ? null : bankAccount,
         saleIds: selectedItems.filter(i => i.kind === 'direct').map(i => i.id),
         recordIds: selectedItems.filter(i => i.kind === 'recurring').map(i => i.id),
+        organizationSaleIds: selectedItems
+          .filter(i => i.kind === 'organization')
+          .flatMap(i => i.sourceSaleIds ?? []),
         total: selectedTotal,
       },
       { onSuccess: () => setPayTarget(null) },
@@ -244,6 +247,8 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                             <span className="inline-flex items-center gap-1 text-muted-foreground">
                                               <RefreshCw className="h-3 w-3" /> Recorrente
                                             </span>
+                                          ) : item.kind === 'organization' ? (
+                                            <span className="text-muted-foreground">Organização</span>
                                           ) : (
                                             <span className="text-muted-foreground">Direta</span>
                                           )}
@@ -279,7 +284,9 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                                 type="button"
                                                 title="Marcar como paga"
                                                 disabled={markPaidMutation.isPending}
-                                                onClick={() => markPaidMutation.mutate({ kind: item.kind, id: item.id })}
+                                                onClick={() => item.kind === 'organization'
+                                                  ? markPaidMutation.mutate({ kind: item.kind, id: item.id, sourceSaleIds: item.sourceSaleIds ?? [] })
+                                                  : markPaidMutation.mutate({ kind: item.kind, id: item.id })}
                                                 className="inline-flex h-5 w-5 items-center justify-center rounded text-green-600 hover:bg-green-500/20 disabled:opacity-40"
                                               >
                                                 <Check className="h-3 w-3" />
@@ -344,7 +351,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{item.label}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {item.kind === 'recurring' ? 'Recorrente' : 'Direta'}
+                        {item.kind === 'recurring' ? 'Recorrente' : item.kind === 'organization' ? 'Organização' : 'Direta'}
                         {item.date ? ` · ${format(new Date(item.date), item.expectedMonth ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })}` : ''}
                       </span>
                     </span>

@@ -5,9 +5,9 @@ type BdsFinanceSchema = {
   public: {
     Tables: {
       bds_sara_org_commission: {
-        Row: { sale_id: string; organization_id: string; user_id: string; amount: number; updated_at: string };
-        Insert: { sale_id: string; organization_id: string; user_id: string; amount: number; updated_at?: string };
-        Update: Partial<{ sale_id: string; organization_id: string; user_id: string; amount: number; updated_at: string }>;
+        Row: { sale_id: string; organization_id: string; user_id: string; amount: number; updated_at: string; paid_at: string | null };
+        Insert: { sale_id: string; organization_id: string; user_id: string; amount: number; updated_at?: string; paid_at?: string | null };
+        Update: Partial<{ sale_id: string; organization_id: string; user_id: string; amount: number; updated_at: string; paid_at: string | null }>;
         Relationships: [];
       };
       bds_manual_chargebacks: {
