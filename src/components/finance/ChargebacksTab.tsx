@@ -1,18 +1,27 @@
-import { useMemo } from 'react';
-import { AlertTriangle, Check, Undo2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertTriangle, Check, Plus, Undo2, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/format';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   useSaleChargebacks,
   useUpdateChargebackStatus,
+  useCreateManualChargeback,
   CHARGEBACK_STATUS_LABELS,
   type ChargebackStatus,
 } from '@/hooks/useSaleChargebacks';
+import { useOrganization } from '@/hooks/useOrganization';
+import { useTeamMembers } from '@/hooks/useTeam';
+import { useClients } from '@/hooks/useClients';
+import { isBdsOrganization } from '@/lib/bds-finance';
 
 const STATUS_STYLES: Record<ChargebackStatus, string> = {
   pending: 'bg-amber-500/20 text-amber-600 border-amber-500/30',
@@ -30,6 +39,15 @@ export function ChargebacksTab() {
   const { data: chargebacks = [], isLoading } = useSaleChargebacks();
   const updateStatus = useUpdateChargebackStatus();
   const { isAdmin } = usePermissions();
+  const { data: organization } = useOrganization();
+  const { data: teamMembers = [] } = useTeamMembers(true);
+  const { data: clients = [] } = useClients();
+  const createManual = useCreateManualChargeback();
+  const [manualOpen, setManualOpen] = useState(false);
+  const [sellerId, setSellerId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [clientId, setClientId] = useState('');
+  const canCreateManual = isAdmin && isBdsOrganization(organization?.name);
 
   const totals = useMemo(() => {
     const sum = (status: ChargebackStatus) =>
@@ -71,11 +89,64 @@ export function ChargebacksTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Chargebacks (CB)</CardTitle>
-          <CardDescription>
-            Gerados automaticamente quando uma venda passa a "Cancelado" (cancelada após a instalação).
-            Vendas anuladas antes da instalação não geram CB.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Chargebacks (CB)</CardTitle>
+              <CardDescription>
+                Gerados automaticamente quando uma venda passa a "Cancelado" (cancelada após a instalação).
+                Vendas anuladas antes da instalação não geram CB.
+              </CardDescription>
+            </div>
+            {canCreateManual && (
+              <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+                <DialogTrigger asChild>
+                      <Button type="button" size="sm">
+                        <Plus className="mr-1.5 h-4 w-4" />Chargeback manual
+                      </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Registar chargeback manual</DialogTitle></DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Comercial que vendeu *</Label>
+                      <Select value={sellerId} onValueChange={setSellerId}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar comercial" /></SelectTrigger>
+                        <SelectContent>
+                          {teamMembers.filter(member => !member.is_banned && member.role !== 'viewer').map(member => (
+                            <SelectItem key={member.user_id} value={member.user_id}>{member.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-chargeback-amount">Valor (€) *</Label>
+                      <Input id="manual-chargeback-amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={event => setAmount(event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cliente (opcional)</Label>
+                      <Select value={clientId || 'none'} onValueChange={value => setClientId(value === 'none' ? '' : value)}>
+                        <SelectTrigger><SelectValue placeholder="Sem cliente associado" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sem cliente associado</SelectItem>
+                          {clients.map(client => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" disabled={createManual.isPending || !sellerId || !amount} onClick={() => {
+                      createManual.mutate({ userId: sellerId, amountText: amount, clientId: clientId || null }, {
+                        onSuccess: () => {
+                          setManualOpen(false);
+                          setSellerId(''); setAmount(''); setClientId('');
+                        },
+                      });
+                    }}>Registar chargeback</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -91,7 +162,7 @@ export function ChargebacksTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Venda</TableHead>
+                    <TableHead>Venda / cliente</TableHead>
                     <TableHead>Beneficiário</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead>Estado</TableHead>
@@ -102,7 +173,10 @@ export function ChargebacksTab() {
                   {chargebacks.map(cb => (
                     <TableRow key={cb.id}>
                       <TableCell className="text-sm">
-                        <span className="font-medium">{cb.sale?.code ?? '—'}</span>
+                        <span className="font-medium">{cb.reason === 'manual' ? 'Manual' : (cb.sale?.code ?? '—')}</span>
+                        {cb.reason === 'manual' && cb.client?.name && (
+                          <span className="ml-2 text-xs text-muted-foreground">{cb.client.name}</span>
+                        )}
                         {cb.sale?.sale_date && (
                           <span className="ml-2 text-xs text-muted-foreground">
                             {new Date(cb.sale.sale_date).toLocaleDateString('pt-PT')}
@@ -129,7 +203,7 @@ export function ChargebacksTab() {
                                   size="icon"
                                   className="h-7 w-7"
                                   title="Confirmar — a operadora cobrou mesmo"
-                                  onClick={() => updateStatus.mutate({ id: cb.id, status: 'reconciled' })}
+                                  onClick={() => updateStatus.mutate({ id: cb.id, status: 'reconciled', manual: cb.reason === 'manual' })}
                                 >
                                   <Check className="h-3.5 w-3.5 text-green-600" />
                                 </Button>
@@ -139,7 +213,7 @@ export function ChargebacksTab() {
                                   size="icon"
                                   className="h-7 w-7"
                                   title="Descartar — não se aplica"
-                                  onClick={() => updateStatus.mutate({ id: cb.id, status: 'dismissed' })}
+                                  onClick={() => updateStatus.mutate({ id: cb.id, status: 'dismissed', manual: cb.reason === 'manual' })}
                                 >
                                   <X className="h-3.5 w-3.5 text-destructive" />
                                 </Button>
@@ -151,7 +225,7 @@ export function ChargebacksTab() {
                                 size="icon"
                                 className="h-7 w-7"
                                 title="Voltar a por confirmar"
-                                onClick={() => updateStatus.mutate({ id: cb.id, status: 'pending' })}
+                                onClick={() => updateStatus.mutate({ id: cb.id, status: 'pending', manual: cb.reason === 'manual' })}
                               >
                                 <Undo2 className="h-3.5 w-3.5 text-muted-foreground" />
                               </Button>

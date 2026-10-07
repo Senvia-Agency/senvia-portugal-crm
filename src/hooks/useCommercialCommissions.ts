@@ -9,6 +9,9 @@ import { toast } from 'sonner';
 import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { buildSaleTypeIds, saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
+import { extraCardPayoutFromSale } from '@/lib/telecom-card-breakdown';
+import { isBdsOrganization } from '@/lib/bds-finance';
+import { bdsFinanceSupabase } from '@/lib/bds-finance-client';
 
 export interface CommissionItem {
   kind: 'direct' | 'recurring';
@@ -285,6 +288,20 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // exist the commission is divided by them; sales without splits keep the
       // single-commercial behaviour resolved by getCommercial().
       const splitsBySale = await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
+      const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number }>();
+      if (isBdsOrganization(organization?.name) && monthItems.length > 0) {
+        const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
+          .from('bds_sara_org_commission')
+          .select('sale_id, user_id, amount')
+          .eq('organization_id', organizationId)
+          .in('sale_id', monthItems.map((item) => item.sale.id));
+        if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
+          throw organizationSharesError;
+        }
+        for (const share of organizationShares || []) {
+          bdsOrgCommissionBySale.set(share.sale_id, { userId: share.user_id, amount: Number(share.amount || 0) });
+        }
+      }
 
       for (const mi of monthItems) {
         const s = mi.sale;
@@ -299,6 +316,12 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
         const shares = splits && splits.length > 0
           ? splits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
           : [{ userId: getCommercial(s), amount: isTelecom ? telecomTeamCommission(s) : mi.amount }];
+        const organizationShare = bdsOrgCommissionBySale.get(s.id);
+        if (organizationShare) {
+          const existingShare = shares.find((share) => share.userId === organizationShare.userId);
+          if (existingShare) existingShare.amount += organizationShare.amount * factor;
+          else shares.push({ userId: organizationShare.userId, amount: organizationShare.amount * factor });
+        }
 
         for (const share of shares) {
           if (!share.userId) continue;
@@ -354,14 +377,35 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
   const orgId = organization?.id;
   const isTelecom = organization?.niche === 'telecom';
   const { catalog } = useServicosProducts();
+  const { data: teamMembers = [] } = useTeamMembers(true);
+  const profileIdByUserId = new Map(teamMembers.map((member) => [member.user_id, member.profile_id ?? null]));
+  const sellerProfiles = teamMembers.map((member) => [member.user_id, member.profile_id ?? null]);
   const saleTypeIds = buildSaleTypeIds(catalog ?? []);
   const fromKey = dateRange?.from ? dateRange.from.toISOString() : 'all';
   const toKey = dateRange?.to ? dateRange.to.toISOString() : 'none';
 
-  return useQuery<{ total: number; count: number; orgTotal: number; grossTotal: number; paidTotal: number; organizationSales: OrganizationCommissionSale[] }>({
-    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
+  return useQuery<{
+    total: number;
+    count: number;
+    orgTotal: number;
+    grossTotal: number;
+    paidTotal: number;
+    extraCardsTotal: number | null;
+    extraCardsPaidTotal: number | null;
+    commissionWithoutCards: number | null;
+    commissionWithoutCardsPaid: number | null;
+    extraCardsUntrackedSales: number;
+    extraCardsReconstructedSales: number;
+    organizationSales: OrganizationCommissionSale[];
+  }>({
+    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, sellerProfiles, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
     queryFn: async () => {
-      if (!orgId) return { total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0, organizationSales: [] };
+      if (!orgId) return {
+        total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0,
+        extraCardsTotal: 0, extraCardsPaidTotal: 0,
+        commissionWithoutCards: 0, commissionWithoutCardsPaid: 0,
+        extraCardsUntrackedSales: 0, extraCardsReconstructedSales: 0, organizationSales: [],
+      };
 
       const inRange = (dateStr?: string | null) => {
         if (!dateRange?.from) return true;
@@ -374,7 +418,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
 
       const { data: sales, error: salesError } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, commission_paid_at, seller_id, created_by, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
+        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, total_cartoes, commission_paid_at, seller_id, created_by, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
         .eq('organization_id', orgId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesError) throw salesError;
@@ -385,12 +429,50 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),
       );
       const candIds = candidates.map((s) => s.id);
+      const bdsOrgCommissionBySale = new Map<string, number>();
+      if (isBdsOrganization(organization?.name) && candIds.length > 0) {
+        const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
+          .from('bds_sara_org_commission')
+          .select('sale_id, amount')
+          .eq('organization_id', orgId)
+          .in('sale_id', candIds);
+        if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
+          throw organizationSharesError;
+        }
+        for (const share of organizationShares || []) bdsOrgCommissionBySale.set(share.sale_id, Number(share.amount || 0));
+      }
       const { data: candPays } = candIds.length
         ? await supabase.from('sale_payments').select('sale_id, amount, status').in('sale_id', candIds)
         : { data: [] as any[] };
       const paidSum = new Map<string, number>();
       for (const p of (candPays as any[]) || []) {
         if (p.status === 'paid') paidSum.set(p.sale_id, (paidSum.get(p.sale_id) || 0) + Number(p.amount || 0));
+      }
+
+      const cardSplitsBySale = new Map<string, Array<number | null>>();
+      let cardBreakdownAvailable = isTelecom;
+      if (isTelecom && candIds.length > 0) {
+        const { data: cardSplits, error: cardSplitsError } = await supabase
+          .from('sale_commission_splits')
+          .select('sale_id, extra_card_amount')
+          .in('sale_id', candIds);
+        const missingBreakdown = cardSplitsError && (
+          cardSplitsError.code === '42703'
+          || cardSplitsError.code === 'PGRST204'
+          || cardSplitsError.code === '42P01'
+          || cardSplitsError.code === 'PGRST205'
+        );
+        if (missingBreakdown) {
+          cardBreakdownAvailable = false;
+        } else if (cardSplitsError) {
+          throw cardSplitsError;
+        } else {
+          for (const split of (cardSplits || []) as Array<{ sale_id: string; extra_card_amount: number | null }>) {
+            const rows = cardSplitsBySale.get(split.sale_id) || [];
+            rows.push(split.extra_card_amount === null ? null : Number(split.extra_card_amount));
+            cardSplitsBySale.set(split.sale_id, rows);
+          }
+        }
       }
 
       let total = 0;
@@ -402,6 +484,11 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       // Telecom only: the slice of `total` already marked as paid to the
       // team ("Marcar como paga" stamps commission_paid_at on the sale).
       let paidTotal = 0;
+      let extraCardsTotal = 0;
+      let extraCardsPaidTotal = 0;
+      let extraCardsUntrackedSales = 0;
+      let extraCardsUntrackedPaidSales = 0;
+      let extraCardsReconstructedSales = 0;
       const organizationSales: OrganizationCommissionSale[] = [];
       for (const s of candidates) {
         // Telecom is paid by the OPERATOR: the commission is earned the moment
@@ -413,6 +500,31 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
           if (isTelecomCommissionEarned(s)) {
             const gross = Number(s.comissao || 0);
             const org = Number(s.org_commission || 0);
+            const sellerAmount = Math.max(gross - org, 0);
+            const cardSplits = cardSplitsBySale.get(s.id);
+            const snapshotIsKnown = cardBreakdownAvailable
+              && cardSplits !== undefined
+              && cardSplits.every((amount) => amount !== null);
+            const sellerId = s.seller_id || s.created_by || null;
+            const reconstructedCardAmount = snapshotIsKnown ? null : extraCardPayoutFromSale(
+              s.servicos_produtos,
+              s.servicos_details,
+              s.total_cartoes,
+              catalog ?? [],
+              sellerId,
+              sellerId ? profileIdByUserId.get(sellerId) ?? null : null,
+            );
+            const cardAmount = snapshotIsKnown
+              ? (cardSplits || []).reduce((sum, amount) => sum + (amount ?? 0), 0)
+              : reconstructedCardAmount;
+            if (cardAmount !== null) {
+              extraCardsTotal += cardAmount;
+              if (s.commission_paid_at) extraCardsPaidTotal += cardAmount;
+              if (!snapshotIsKnown) extraCardsReconstructedSales += 1;
+            } else if (sellerAmount > 0) {
+              extraCardsUntrackedSales += 1;
+              if (s.commission_paid_at) extraCardsUntrackedPaidSales += 1;
+            }
             grossTotal += gross;
             orgTotal += org;
             organizationSales.push({
@@ -425,8 +537,9 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               telecomStatus: s.telecom_status,
               amount: org,
             });
-            total += Math.max(gross - org, 0);
-            if (s.commission_paid_at) paidTotal += Math.max(gross - org, 0);
+            const saraOrgCommission = bdsOrgCommissionBySale.get(s.id) || 0;
+            total += sellerAmount + saraOrgCommission;
+            if (s.commission_paid_at) paidTotal += sellerAmount + saraOrgCommission;
             count += 1;
           }
           continue;
@@ -456,7 +569,22 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
       }
 
       organizationSales.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.code || '').localeCompare(a.code || ''));
-      return { total, count, orgTotal, grossTotal, paidTotal, organizationSales };
+      const extraCardsKnown = extraCardsUntrackedSales === 0;
+      const extraCardsPaidKnown = extraCardsUntrackedPaidSales === 0;
+      return {
+        total,
+        count,
+        orgTotal,
+        grossTotal,
+        paidTotal,
+        extraCardsTotal,
+        extraCardsPaidTotal,
+        commissionWithoutCards: extraCardsKnown ? Math.max(total - extraCardsTotal, 0) : null,
+        commissionWithoutCardsPaid: extraCardsPaidKnown ? Math.max(paidTotal - extraCardsPaidTotal, 0) : null,
+        extraCardsUntrackedSales,
+        extraCardsReconstructedSales,
+        organizationSales,
+      };
     },
     enabled: !!orgId,
   });

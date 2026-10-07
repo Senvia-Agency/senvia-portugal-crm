@@ -3711,6 +3711,7 @@ export type Database = {
           gdpr_consent: boolean
           id: string
           import_id: string | null
+          lead_verification_id: string | null
           name: string
           notes: string | null
           organization_id: string
@@ -3736,6 +3737,7 @@ export type Database = {
           gdpr_consent?: boolean
           id?: string
           import_id?: string | null
+          lead_verification_id?: string | null
           name: string
           notes?: string | null
           organization_id: string
@@ -3761,6 +3763,7 @@ export type Database = {
           gdpr_consent?: boolean
           id?: string
           import_id?: string | null
+          lead_verification_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string
@@ -3809,6 +3812,51 @@ export type Database = {
             referencedColumns: ["organization_id"]
           },
         ]
+      }
+      lead_verification_challenges: {
+        Row: {
+          created_at: string
+          email_token_hash: string | null
+          email_verified_at: string | null
+          expires_at: string
+          finalized_lead_id: string | null
+          form_id: string | null
+          id: string
+          organization_id: string
+          payload: Json | null
+          phone_digits: string | null
+          whatsapp_code_hash: string | null
+          whatsapp_verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email_token_hash?: string | null
+          email_verified_at?: string | null
+          expires_at?: string
+          finalized_lead_id?: string | null
+          form_id?: string | null
+          id?: string
+          organization_id: string
+          payload?: Json | null
+          phone_digits?: string | null
+          whatsapp_code_hash?: string | null
+          whatsapp_verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email_token_hash?: string | null
+          email_verified_at?: string | null
+          expires_at?: string
+          finalized_lead_id?: string | null
+          form_id?: string | null
+          id?: string
+          organization_id?: string
+          payload?: Json | null
+          phone_digits?: string | null
+          whatsapp_code_hash?: string | null
+          whatsapp_verified_at?: string | null
+        }
+        Relationships: []
       }
       leads_backup_dups_20260521: {
         Row: {
@@ -5201,6 +5249,7 @@ export type Database = {
           plan: string | null
           proposal_fields_settings: Json | null
           public_key: string
+          public_lead_verification_enabled: boolean
           sale_fields_settings: Json | null
           sales_settings: Json | null
           servicos_products_config: Json | null
@@ -5285,6 +5334,7 @@ export type Database = {
           plan?: string | null
           proposal_fields_settings?: Json | null
           public_key?: string
+          public_lead_verification_enabled?: boolean
           sale_fields_settings?: Json | null
           sales_settings?: Json | null
           servicos_products_config?: Json | null
@@ -5368,6 +5418,7 @@ export type Database = {
           plan?: string | null
           proposal_fields_settings?: Json | null
           public_key?: string
+          public_lead_verification_enabled?: boolean
           sale_fields_settings?: Json | null
           sales_settings?: Json | null
           servicos_products_config?: Json | null
@@ -6997,6 +7048,51 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
         ]
+      }
+      sale_commission_splits: {
+        Row: {
+          amount: number
+          basis: string
+          created_at: string
+          extra_card_amount: number | null
+          id: string
+          organization_id: string
+          product_name: string | null
+          rate: number
+          sale_id: string
+          source: string
+          source_ref: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          basis: string
+          created_at?: string
+          extra_card_amount?: number | null
+          id?: string
+          organization_id: string
+          product_name?: string | null
+          rate?: number
+          sale_id: string
+          source: string
+          source_ref?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          basis?: string
+          created_at?: string
+          extra_card_amount?: number | null
+          id?: string
+          organization_id?: string
+          product_name?: string | null
+          rate?: number
+          sale_id?: string
+          source?: string
+          source_ref?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       sales: {
         Row: {

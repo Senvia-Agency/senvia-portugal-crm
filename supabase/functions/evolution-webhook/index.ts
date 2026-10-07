@@ -18,6 +18,12 @@ import {
 } from '../_shared/evolution-inbox.ts';
 import { avatarUrlExpired, fetchEvolutionContactAvatar } from '../_shared/evolution-contact-avatar.ts';
 import { getConfig } from '../_shared/multicanal.ts';
+import {
+  finalizeVerifiedLead,
+  isLeadVerificationMessage,
+  leadVerificationWhatsAppCodeHash,
+  parseLeadVerificationCode,
+} from '../_shared/lead-verification.ts';
 
 const log = (s: string, d?: unknown) =>
   console.log(`[EVOLUTION-WEBHOOK] ${s}${d ? ` - ${JSON.stringify(d)}` : ''}`);
@@ -220,6 +226,32 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
   const summary = texto || `[${anexos[0]?.type ?? 'anexo'}]`;
   const name = !outgoing && data?.pushName ? String(data.pushName) : null;
 
+  const confirmationCode = !outgoing ? parseLeadVerificationCode(texto) : null;
+  if (confirmationCode) {
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    if (serviceKey && supabaseUrl) {
+      const codeHash = await leadVerificationWhatsAppCodeHash(confirmationCode, serviceKey);
+      const senderDigits = contactRef.replace(/\D/g, '');
+      if (codeHash) {
+        const { data: challenge, error } = await db.from('lead_verification_challenges')
+          .update({ whatsapp_verified_at: new Date().toISOString() })
+          .eq('organization_id', channel.organization_id)
+          .eq('phone_digits', senderDigits)
+          .eq('whatsapp_code_hash', codeHash)
+          .is('whatsapp_verified_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .select('id, email_verified_at')
+          .maybeSingle();
+        if (error) logError('lead verification update failed', { error: error.message });
+        if (challenge?.email_verified_at) {
+          background(finalizeVerifiedLead(challenge.id, supabaseUrl, serviceKey));
+        }
+      }
+    }
+    return 'verification';
+  }
+
   const { data: existing } = await db
     .from('meta_conversations')
     .select('id, contact_name, contact_avatar_url, last_message_at')
@@ -293,10 +325,14 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
       background(refreshContactAvatar(db, channel, convId, contactRef));
     }
     await db.rpc('increment_meta_unread', { _conversation_id: convId }).then(() => {}, () => {});
-    await notify(channel, `💬 WhatsApp: ${name || existing?.contact_name || contactRef}`, summary, convId);
+    if (!isLeadVerificationMessage(texto)) {
+      await notify(channel, `💬 WhatsApp: ${name || existing?.contact_name || contactRef}`, summary, convId);
+    }
     // After the response: a resumed flow may send messages and wait between
     // them, and Evolution must not be held for that.
-    background(notifyAutomations(channel, contactRef, texto, name || existing?.contact_name || null, convId, at));
+    if (!isLeadVerificationMessage(texto)) {
+      background(notifyAutomations(channel, contactRef, texto, name || existing?.contact_name || null, convId, at));
+    }
   }
   return 'stored';
 }

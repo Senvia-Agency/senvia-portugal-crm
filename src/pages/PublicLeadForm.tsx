@@ -108,6 +108,8 @@ export default function PublicLeadForm() {
   // preencher. Não custa um clique a quem preenche a sério.
   const antiBot = useAntiBot();
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isVerificationPending, setIsVerificationPending] = useState(false);
+  const requiresContactVerification = formData?.org_slug === 'senvia-agency';
   
   // Form state
   const [name, setName] = useState('');
@@ -321,8 +323,8 @@ export default function PublicLeadForm() {
     }
 
     let normalizedPhone = '';
-    if (settings.fields.phone.visible) {
-      const required = settings.fields.phone.required;
+    if (settings.fields.phone.visible || requiresContactVerification) {
+      const required = settings.fields.phone.required || requiresContactVerification;
       const hasValue = phone && phone.trim().length > 0;
       if (required || hasValue) {
         const r = normalizeInternationalPhone(phone);
@@ -336,8 +338,8 @@ export default function PublicLeadForm() {
     }
 
     let normalizedEmail = '';
-    if (settings.fields.email.visible) {
-      const required = settings.fields.email.required;
+    if (settings.fields.email.visible || requiresContactVerification) {
+      const required = settings.fields.email.required || requiresContactVerification;
       const hasValue = email && email.trim().length > 0;
       if (required || hasValue) {
         const r = normalizeEmail(email);
@@ -401,6 +403,12 @@ export default function PublicLeadForm() {
       // Check if backend marked this as a duplicate - do NOT track pixel for duplicates
       if (response.data?.duplicate === true) {
         console.log('[Meta Pixel] Backend marked as duplicate, NOT tracking Lead event');
+        setIsSuccess(true);
+        return;
+      }
+
+      if (response.data?.verification_required === true) {
+        setIsVerificationPending(true);
         setIsSuccess(true);
         return;
       }
@@ -537,8 +545,10 @@ export default function PublicLeadForm() {
             <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: `${settings.primary_color}20` }}>
               <CheckCircle className="w-8 h-8" style={{ color: settings.primary_color }} />
             </div>
-            <CardTitle className="text-slate-900">{settings.success_message.title}</CardTitle>
-            <CardDescription className="text-base">{settings.success_message.description}</CardDescription>
+            <CardTitle className="text-slate-900">{isVerificationPending ? 'Confirma o teu email para continuar' : settings.success_message.title}</CardTitle>
+            <CardDescription className="text-base">{isVerificationPending
+              ? 'Enviámos um link de confirmação. Depois de confirmares o email, abre o WhatsApp pelo link apresentado para provar que o número te pertence.'
+              : settings.success_message.description}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -580,10 +590,10 @@ export default function PublicLeadForm() {
               </div>
             )}
             
-            {settings.fields.phone.visible && (
+            {(settings.fields.phone.visible || requiresContactVerification) && (
               <div className="space-y-2">
                 <Label htmlFor="phone">
-                  {settings.fields.phone.label} {settings.fields.phone.required && '*'}
+                  {settings.fields.phone.label} {(settings.fields.phone.required || requiresContactVerification) && '*'}
                 </Label>
                 <PhoneInput
                   value={phone}
@@ -593,10 +603,10 @@ export default function PublicLeadForm() {
               </div>
             )}
             
-            {settings.fields.email.visible && (
+            {(settings.fields.email.visible || requiresContactVerification) && (
               <div className="space-y-2">
                 <Label htmlFor="email">
-                  {settings.fields.email.label} {settings.fields.email.required && '*'}
+                  {settings.fields.email.label} {(settings.fields.email.required || requiresContactVerification) && '*'}
                 </Label>
                 <Input 
                   id="email" 

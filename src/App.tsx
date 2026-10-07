@@ -49,6 +49,7 @@ const Automations = lazy(() => import("./pages/Automations"));
 const AutomationEditor = lazy(() => import("./pages/AutomationEditor"));
 const PublicLeadForm = lazy(() => import("./pages/PublicLeadForm"));
 const ConversationalLeadForm = lazy(() => import("./pages/ConversationalLeadForm"));
+const VerifyLead = lazy(() => import("./pages/VerifyLead"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const InviteRegister = lazy(() => import("./pages/InviteRegister"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -105,6 +106,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                 <Route path="/f/:slug/:formSlug" element={<PublicLeadForm />} />
                 <Route path="/c/:slug" element={<ConversationalLeadForm />} />
                 <Route path="/c/:slug/:formSlug" element={<ConversationalLeadForm />} />
+                <Route path="/confirmar-lead" element={<VerifyLead />} />
                 <Route path="/invite/:token" element={<InviteRegister />} />
                 <Route path="/precos" element={<Pricing />} />
                 <Route path="/privacy" element={<Privacy />} />

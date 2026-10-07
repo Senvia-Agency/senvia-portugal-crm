@@ -115,8 +115,10 @@ const ConversationalLeadForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false); // Prevent duplicate submissions
   const [isComplete, setIsComplete] = useState(false);
+  const [isVerificationPending, setIsVerificationPending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState<FormData | null>(null);
+  const requiresContactVerification = formData?.org_slug === 'senvia-agency';
   const [error, setError] = useState<string | null>(null);
   const [stepData, setStepData] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -325,22 +327,22 @@ const ConversationalLeadForm = () => {
     });
 
     // Add visible fixed fields (except name which is in welcome)
-    if (settings.fields.email.visible) {
+    if (settings.fields.email.visible || requiresContactVerification) {
       stepList.push({
         type: 'field',
         key: 'email',
         label: settings.fields.email.label,
-        required: settings.fields.email.required,
+        required: settings.fields.email.required || requiresContactVerification,
         fieldType: 'email',
       });
     }
 
-    if (settings.fields.phone.visible) {
+    if (settings.fields.phone.visible || requiresContactVerification) {
       stepList.push({
         type: 'field',
         key: 'phone',
         label: settings.fields.phone.label,
-        required: settings.fields.phone.required,
+        required: settings.fields.phone.required || requiresContactVerification,
         fieldType: 'phone',
       });
     }
@@ -370,7 +372,7 @@ const ConversationalLeadForm = () => {
     });
 
     return stepList;
-  }, [formData?.form_settings]);
+  }, [formData?.form_settings, requiresContactVerification]);
 
   const totalSteps = steps.length;
 
@@ -409,8 +411,8 @@ const ConversationalLeadForm = () => {
     const phoneResult = phoneRaw ? normalizeInternationalPhone(phoneRaw) : null;
     const emailRaw = (data.email || "").trim();
     const emailResult = emailRaw ? normalizeEmail(emailRaw) : null;
-    const phoneRequired = !!settings.fields?.phone?.required;
-    if ((phoneRequired && !phoneResult?.ok) || (emailResult && !emailResult.ok)) {
+    const phoneRequired = !!settings.fields?.phone?.required || requiresContactVerification;
+    if ((phoneRequired && !phoneResult?.ok) || (requiresContactVerification && !emailResult?.ok) || (emailResult && !emailResult.ok)) {
       setSubmitError(settings.error_message || "Verifica o telefone e o email e tenta novamente.");
       setHasSubmitted(false);
       setIsSubmitting(false);
@@ -467,6 +469,12 @@ const ConversationalLeadForm = () => {
         return;
       }
 
+      if (data?.verification_required === true) {
+        setIsVerificationPending(true);
+        setIsComplete(true);
+        return;
+      }
+
       // Only track Lead event AFTER confirmed success AND if we have a lead_id
       if (data?.lead_id) {
         console.log('[Meta Pixel] Lead submitted successfully, tracking event with lead_id:', data.lead_id);
@@ -489,8 +497,10 @@ const ConversationalLeadForm = () => {
       return (
         <SuccessScreen
           userName={getFirstName(stepData.welcome || stepData.name)}
-          title={formData.form_settings.success_message.title}
-          description={formData.form_settings.success_message.description}
+          title={isVerificationPending ? 'Confirma o teu email para continuar' : formData.form_settings.success_message.title}
+          description={isVerificationPending
+            ? 'Enviámos um link de confirmação. Depois de confirmares o email, abre o WhatsApp pelo link apresentado para provar que o número te pertence.'
+            : formData.form_settings.success_message.description}
         />
       );
     }

@@ -445,45 +445,96 @@ function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = ""
   const rowsTotal = searchTerm.trim()
     ? rows.reduce((sum, sale) => sum + sale.amount, 0)
     : (data?.orgTotal ?? 0);
+  const displayAmount = (amount: number | null | undefined) => amount == null ? "Não disponível" : formatCurrency(amount);
+  const commissionPending = data ? Math.max(data.total - data.paidTotal, 0) : 0;
+  const cardsPending = data?.extraCardsTotal != null && data.extraCardsPaidTotal != null
+    ? Math.max(data.extraCardsTotal - data.extraCardsPaidTotal, 0)
+    : null;
+  const commissionWithoutCardsPending = data?.commissionWithoutCards != null && data.commissionWithoutCardsPaid != null
+    ? Math.max(data.commissionWithoutCards - data.commissionWithoutCardsPaid, 0)
+    : null;
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader><TableRow>
-          <TableHead>Recebimento previsto</TableHead>
-          <TableHead>Cliente / Produto</TableHead>
-          <TableHead>Código</TableHead>
-          <TableHead>Estado</TableHead>
-          <TableHead className="text-right">Valor da Organização</TableHead>
-        </TableRow></TableHeader>
-        <TableBody>
-          {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
-            <TableRow key={sale.id}>
-              <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
-              <TableCell>
-                <Button
-                  variant="link"
-                  className="h-auto p-0 text-left font-medium"
-                  onClick={() => setSelectedSaleId(sale.id)}
-                >
-                  {sale.clientName}
-                </Button>
-                <p className="text-xs text-muted-foreground">{sale.products.join(' · ') || 'Produto não identificado'}</p>
-              </TableCell>
-              <TableCell>{sale.code || '—'}</TableCell>
-              <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
-              <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {rows.length > 0 && <TotalFooter count={rows.length} total={rowsTotal} />}
-      <SaleDetailsModal
-        sale={selectedSale}
-        open={selectedSale !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedSaleId(null);
-        }}
-      />
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-md border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Valor líquido da organização</p>
+          <p className="mt-1 text-lg font-semibold">{formatCurrency(data?.orgTotal ?? 0)}</p>
+        </div>
+        <div className="rounded-md border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Cartões extra dos vendedores</p>
+          <p className="mt-1 text-lg font-semibold">{displayAmount(data?.extraCardsTotal)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {data?.extraCardsPaidTotal == null || cardsPending == null
+              ? "Pago / por pagar indisponível"
+              : `${formatCurrency(data.extraCardsPaidTotal)} pagas · ${formatCurrency(cardsPending)} por pagar${data.extraCardsUntrackedSales ? ' (subtotal identificado)' : ''}`}
+          </p>
+        </div>
+        <div className="rounded-md border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Comissões sem cartões</p>
+          <p className="mt-1 text-lg font-semibold">{displayAmount(data?.commissionWithoutCards)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {data?.commissionWithoutCardsPaid == null || commissionWithoutCardsPending == null
+              ? "Pago / por pagar indisponível"
+              : `${formatCurrency(data.commissionWithoutCardsPaid)} pagas · ${formatCurrency(commissionWithoutCardsPending)} por pagar`}
+          </p>
+        </div>
+        <div className="rounded-md border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground">Comissões totais (inclui cartões)</p>
+          <p className="mt-1 text-lg font-semibold">{formatCurrency(data?.total ?? 0)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCurrency(data?.paidTotal ?? 0)} pagas · {formatCurrency(commissionPending)} por pagar
+          </p>
+        </div>
+      </div>
+      {!!data?.extraCardsReconstructedSales && (
+        <p className="text-xs text-muted-foreground">
+          Em {data.extraCardsReconstructedSales} venda(s), os cartões extra foram calculados pela quantidade guardada na venda e pela taxa atual do produto.
+        </p>
+      )}
+      {!!data?.extraCardsUntrackedSales && (
+        <p className="text-xs text-muted-foreground">
+          O subtotal dos cartões extra não inclui {data.extraCardsUntrackedSales} venda(s) sem dados suficientes para reconstruir esse valor. Por isso, a comissão sem cartões também não pode ser calculada com exactidão.
+        </p>
+      )}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Recebimento previsto</TableHead>
+            <TableHead>Cliente / Produto</TableHead>
+            <TableHead>Código</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead className="text-right">Valor da Organização</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
+              <TableRow key={sale.id}>
+                <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-left font-medium"
+                    onClick={() => setSelectedSaleId(sale.id)}
+                  >
+                    {sale.clientName}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">{sale.products.join(' · ') || 'Produto não identificado'}</p>
+                </TableCell>
+                <TableCell>{sale.code || '—'}</TableCell>
+                <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
+                <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {rows.length > 0 && <TotalFooter count={rows.length} total={rowsTotal} />}
+        <SaleDetailsModal
+          sale={selectedSale}
+          open={selectedSale !== null}
+          onOpenChange={(open) => {
+            if (!open) setSelectedSaleId(null);
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -603,9 +654,7 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
   );
 }
 
-function BalanceDetail({
-  dateRange, received, receivedTotal,
-}: { dateRange?: DateRange; received: PaymentWithSale[]; receivedTotal: number }) {
+function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: DateRange; received: PaymentWithSale[]; receivedTotal: number }) {
   const { data: expenses = [] } = useExpenses();
   const expensesTotal = useMemo(
     () => expenses.filter((e) => inRange(e.expense_date, dateRange)).reduce((s, e) => s + (Number(e.amount) || 0), 0),

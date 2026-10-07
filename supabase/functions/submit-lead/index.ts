@@ -2,6 +2,16 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { normalizeEmail, normalizePtPhone, normalizeInternationalPhone } from '../_shared/contact-validation.ts';
 import { ipDoPedido, rateLimitDb, respostaLimiteExcedido } from '../_shared/security.ts';
 import { applySenviaEmailTemplate } from '../_shared/senvia-email-template.ts';
+import {
+  createLeadVerificationSecrets,
+  isEqualSecret,
+  leadVerificationFinalizeSignature,
+  leadVerificationRateLimitKey,
+  parseLeadVerificationChallenge,
+  parseLeadVerificationPayload,
+  sendLeadVerificationEmail,
+  type LeadVerificationPayload,
+} from '../_shared/lead-verification.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -207,6 +217,11 @@ interface LeadSubmission {
   source?: string;
   notes?: string | null;
   custom_data?: Record<string, unknown>;
+  verification_id?: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // ===== WEBHOOK MODE HANDLER (Zapier/Make/External) =====
@@ -662,6 +677,33 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const mode = url.searchParams.get('mode');
     const token = url.searchParams.get('token');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    let verifiedSubmissionId: string | null = null;
+    let isVerifiedSubmission = false;
+    if (mode !== 'webhook') {
+      const rawBody: unknown = await req.clone().json();
+      const requestedId = isRecord(rawBody) && typeof rawBody.verification_id === 'string'
+        ? rawBody.verification_id
+        : null;
+      const signature = req.headers.get('x-senvia-lead-verification');
+      if (requestedId || signature) {
+        if (!requestedId || !/^[0-9a-f-]{36}$/i.test(requestedId) || !signature) {
+          return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const expected = await leadVerificationFinalizeSignature(requestedId, serviceRoleKey);
+        if (!isEqualSecret(signature, expected)) {
+          return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        verifiedSubmissionId = requestedId;
+        isVerifiedSubmission = true;
+      }
+    }
 
     // ===== LIMITE DE PEDIDOS =====
     //
@@ -679,18 +721,18 @@ Deno.serve(async (req) => {
     // é o TOKEN, não o IP, e o limite é muito mais largo.
     const limitador = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      serviceRoleKey,
     );
     const ip = ipDoPedido(req);
 
-    if (mode === 'webhook' && token) {
+    if (!isVerifiedSubmission && mode === 'webhook' && token) {
       const rl = await rateLimitDb(limitador, `submit-lead:wh:${token}`, 300, 60);
       if (!rl.allowed) {
         console.warn('[submit-lead] limite do webhook excedido', { hits: rl.hits });
         return respostaLimiteExcedido(rl.retryAfter, corsHeaders,
           'Demasiados envios seguidos para este webhook. Abranda o ritmo e volta a tentar.');
       }
-    } else {
+    } else if (!isVerifiedSubmission) {
       const curto = await rateLimitDb(limitador, `submit-lead:min:${ip}`, 5, 60);
       if (!curto.allowed) {
         console.warn('[submit-lead] limite por minuto excedido', { hits: curto.hits });
@@ -710,9 +752,56 @@ Deno.serve(async (req) => {
       return await handleWebhookMode(req, token);
     }
 
+    const supabase = limitador;
+
     // ===== STANDARD FORM MODE =====
     // Parse request body
-    const body: LeadSubmission = await req.json();
+    let body: LeadSubmission = await req.json();
+    if (isVerifiedSubmission && verifiedSubmissionId) {
+      const { data: challengeRow, error: challengeError } = await supabase
+        .from('lead_verification_challenges')
+        .select('id, organization_id, payload, phone_digits, email_token_hash, whatsapp_code_hash, email_verified_at, whatsapp_verified_at, expires_at, finalized_lead_id')
+        .eq('id', verifiedSubmissionId)
+        .maybeSingle();
+      if (challengeError) throw challengeError;
+      const challenge = parseLeadVerificationChallenge(challengeRow);
+      if (!challenge) {
+        return new Response(JSON.stringify({ error: 'Confirmação inválida ou expirada.' }), {
+          status: 410,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (challenge.finalizedLeadId) {
+        return new Response(JSON.stringify({ success: true, lead_id: challenge.finalizedLeadId, duplicate: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (new Date(challenge.expiresAt).getTime() <= Date.now()
+        || !challenge.emailVerifiedAt || !challenge.whatsappVerifiedAt || !challenge.payload) {
+        return new Response(JSON.stringify({ error: 'Os dois contactos ainda não foram confirmados.' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      body = { ...challenge.payload, verification_id: verifiedSubmissionId };
+      const { data: existingVerifiedLead, error: existingVerifiedLeadError } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('lead_verification_id', verifiedSubmissionId)
+        .maybeSingle();
+      if (existingVerifiedLeadError) throw existingVerifiedLeadError;
+      if (existingVerifiedLead) {
+        await supabase.from('lead_verification_challenges')
+          .update({ finalized_lead_id: existingVerifiedLead.id, payload: null, phone_digits: null, whatsapp_code_hash: null })
+          .eq('id', verifiedSubmissionId)
+          .is('finalized_lead_id', null);
+        return new Response(JSON.stringify({ success: true, lead_id: existingVerifiedLead.id, duplicate: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
     console.log('Lead submission received');
 
     // ===== ARMADILHA PARA ROBÔS =====
@@ -734,7 +823,7 @@ Deno.serve(async (req) => {
     const tempoPreenchimento = Number(body.hp_tempo_ms ?? 0);
     const TEMPO_MINIMO_MS = 2500;
 
-    if (armadilha) {
+    if (armadilha && !isVerifiedSubmission) {
       console.warn('[submit-lead] ARMADILHA: campo invisível preenchido', {
         detected: true,
       });
@@ -746,7 +835,7 @@ Deno.serve(async (req) => {
 
     // `> 0` na condição: um formulário servido antes desta versão não manda o
     // campo, e `0` não pode ser lido como "preencheu num instante".
-    if (tempoPreenchimento > 0 && tempoPreenchimento < TEMPO_MINIMO_MS) {
+    if (tempoPreenchimento > 0 && tempoPreenchimento < TEMPO_MINIMO_MS && !isVerifiedSubmission) {
       console.warn('[submit-lead] ARMADILHA: preenchido depressa demais', {
         ms: tempoPreenchimento,
       });
@@ -809,14 +898,11 @@ Deno.serve(async (req) => {
 
     // Create Supabase client with service role to bypass RLS
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Validate public_key and get organization_id (including webhook_url, whatsapp config, and meta_pixels)
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, name, niche, webhook_url, whatsapp_instance, whatsapp_api_key, whatsapp_base_url, meta_pixels, sales_settings, brevo_api_key, brevo_sender_email, slug, ai_response_mode, ai_qualification_rules, msg_template_hot, msg_template_warm, msg_template_cold')
+      .select('id, name, niche, webhook_url, whatsapp_instance, whatsapp_api_key, whatsapp_base_url, meta_pixels, sales_settings, brevo_api_key, brevo_sender_email, slug, public_lead_verification_enabled, ai_response_mode, ai_qualification_rules, msg_template_hot, msg_template_warm, msg_template_cold')
       .eq('public_key', body.public_key)
       .maybeSingle();
 
@@ -895,6 +981,98 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (org.public_lead_verification_enabled === true) {
+      if (!cleanEmail || !cleanPhone) {
+        return new Response(JSON.stringify({ error: 'Para confirmar o contacto, indica um email e um telefone válidos.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const emailLimitKey = await leadVerificationRateLimitKey(cleanEmail, serviceRoleKey);
+      const phoneLimitKey = await leadVerificationRateLimitKey(cleanPhone, serviceRoleKey);
+      const emailLimit = await rateLimitDb(supabase, `lead-verification:email:${emailLimitKey}`, 3, 3600);
+      const phoneLimit = await rateLimitDb(supabase, `lead-verification:phone:${phoneLimitKey}`, 3, 3600);
+      if (!emailLimit.allowed || !phoneLimit.allowed) {
+        return new Response(JSON.stringify({ error: 'Já foram pedidos vários códigos para estes contactos. Tenta novamente mais tarde.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const now = new Date().toISOString();
+      const { error: cleanupError } = await supabase
+        .from('lead_verification_challenges')
+        .delete()
+        .lt('expires_at', now);
+      if (cleanupError) throw cleanupError;
+
+      const secrets = await createLeadVerificationSecrets(serviceRoleKey);
+      const payload: LeadVerificationPayload = {
+        name: typeof body.name === 'string' ? body.name.trim() || 'Lead Externo' : 'Lead Externo',
+        email: cleanEmail,
+        phone: cleanPhone,
+        gdpr_consent: true,
+        public_key: body.public_key,
+        form_id: body.form_id || null,
+        source: typeof body.source === 'string' ? body.source : formSettings.form_name || 'Formulário Público',
+        notes: typeof body.notes === 'string' ? body.notes.trim() || null : null,
+        custom_data: isRecord(body.custom_data) ? body.custom_data : {},
+        hp_website: '',
+        hp_tempo_ms: TEMPO_MINIMO_MS,
+      };
+      const { data: challenge, error: challengeError } = await supabase
+        .from('lead_verification_challenges')
+        .insert({
+          organization_id: org.id,
+          form_id: body.form_id || null,
+          email_token_hash: secrets.emailTokenHash,
+          whatsapp_code_hash: secrets.whatsappCodeHash,
+          phone_digits: cleanPhone.replace(/\D/g, ''),
+          payload,
+        })
+        .select('id')
+        .single();
+      if (challengeError || !challenge) {
+        console.error('[submit-lead] verification challenge could not be stored');
+        return new Response(JSON.stringify({ error: 'Não foi possível iniciar a confirmação.' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const brevoKey = Deno.env.get('BREVO_TRANSACTIONAL_API_KEY')
+        || org.brevo_api_key
+        || Deno.env.get('BREVO_API_KEY');
+      if (!brevoKey) {
+        await supabase.from('lead_verification_challenges').delete().eq('id', challenge.id);
+        return new Response(JSON.stringify({ error: 'A confirmação por email está temporariamente indisponível.' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const emailSent = await sendLeadVerificationEmail({
+        apiKey: brevoKey,
+        senderEmail: org.brevo_sender_email || 'geral@senvia.pt',
+        senderName: org.brevo_sender_email ? org.name : 'Senvia',
+        recipient: cleanEmail,
+        confirmationUrl: `https://app.senvia.pt/confirmar-lead#token=${secrets.emailToken}`,
+      });
+      if (!emailSent) {
+        await supabase.from('lead_verification_challenges').delete().eq('id', challenge.id);
+        return new Response(JSON.stringify({ error: 'Não foi possível enviar o email de confirmação. Tenta novamente.' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, verification_required: true }), {
+        status: 202,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ===== DEDUPLICATION CHECK =====
     // Prevent duplicate leads with same phone within 60 seconds
     if (cleanPhone && cleanPhone !== '000000000') {
@@ -911,6 +1089,12 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingLead) {
+        if (verifiedSubmissionId) {
+          await supabase.from('lead_verification_challenges')
+            .update({ finalized_lead_id: existingLead.id, payload: null, phone_digits: null, whatsapp_code_hash: null })
+            .eq('id', verifiedSubmissionId)
+            .is('finalized_lead_id', null);
+        }
         console.log('Duplicate lead detected (same phone within 60s), returning existing:', existingLead.id);
         return new Response(
           JSON.stringify({ 
@@ -978,6 +1162,7 @@ Deno.serve(async (req) => {
         status: formSettings.target_stage || 'new',
         notes: [formSettings.form_name ? `Formulário: ${formSettings.form_name}` : null, body.notes?.trim() || null].filter(Boolean).join('\n') || null,
         custom_data: body.custom_data || {},
+        ...(verifiedSubmissionId ? { lead_verification_id: verifiedSubmissionId } : {}),
       })
       .select()
       .maybeSingle();
@@ -1016,6 +1201,14 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Erro ao guardar contacto' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (verifiedSubmissionId) {
+      const { error: finalizedError } = await supabase.from('lead_verification_challenges')
+        .update({ finalized_lead_id: lead.id, payload: null, phone_digits: null, whatsapp_code_hash: null })
+        .eq('id', verifiedSubmissionId)
+        .is('finalized_lead_id', null);
+      if (finalizedError) throw finalizedError;
     }
 
     console.log('Lead created successfully:', lead.id);
