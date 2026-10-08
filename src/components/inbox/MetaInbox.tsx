@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -564,16 +564,22 @@ function MetaThread({
     },
   }), []);
   const queryClient = useQueryClient();
-  const endRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const positionedConversationRef = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const typingRef = useRef<number | null>(null);
 
   useEffect(() => { setDraft(''); setReplyTo(null); }, [conversation.id]);
-  // Também desce quando a bolha pendente aparece — senão a mensagem que se
-  // acabou de escrever nascia fora do ecrã.
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, pendentes.length]);
+  useLayoutEffect(() => {
+    const viewport = messageListRef.current;
+    if (!viewport || isLoading || isError) return;
+    const isOpening = positionedConversationRef.current !== conversation.id;
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior: isOpening ? 'instant' : 'smooth',
+    });
+    positionedConversationRef.current = conversation.id;
+  }, [conversation.id, isLoading, isError, messages.length, pendentes.length]);
 
   // Os endereços locais das pré-visualizações ficam presos à memória do
   // browser até serem largados à mão.
@@ -764,7 +770,7 @@ function MetaThread({
         </Button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+      <div ref={messageListRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
         {isLoading ? (
           [...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-2/3 rounded-lg" />)
         ) : isError ? (
@@ -934,7 +940,6 @@ function MetaThread({
           </div>
         ))}
 
-        <div ref={endRef} />
       </div>
 
       <footer className="border-t p-3">
