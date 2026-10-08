@@ -153,3 +153,19 @@ prod_U0wG6doz0zgZFV → elite
 ```
 
 Agency org ID (Senvia): `06fe9e1d-9670-45b0-8717-c5a6e90be380` — hardcoded in webhook for commission tracking.
+
+## Production release safeguards
+
+Production must use the connected Git deployment from `main`. Do not deploy a local `dist/`, use `vercel deploy --prod`, or publish a prebuilt directory. The 8 October 2026 incident was caused by a CLI publication of an outdated frontend that selected protected organization columns.
+
+`npm run build` now checks the explicit organization query and rejects production builds without a `main` Git commit identity. Each build writes `build-info.json` with the source commit and entry-bundle SHA-256 hashes.
+
+After Vercel reports Ready, run:
+
+```bash
+npm run verify:production -- <full-main-commit-sha>
+```
+
+This verifies the commit identity, actual HTML entry bundle, asset hashes, and explicit organization query on `https://app.senvia.pt`. The build runs the source and organization-query guards automatically. Run the public-domain verifier after each successful deployment. Verification failures require investigation; do not report publication as complete. The additional GitHub Actions workflow is prepared locally but requires an OAuth credential with the `workflow` scope before it can be published.
+
+For emergency recovery, promote a Ready Git deployment with a verified source commit, then run the same verification. Do not grant browser access to protected credential columns to make an old frontend work.
