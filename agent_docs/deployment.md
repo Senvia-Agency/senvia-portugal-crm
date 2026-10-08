@@ -166,6 +166,6 @@ After Vercel reports Ready, run:
 npm run verify:production -- <full-main-commit-sha>
 ```
 
-This verifies the commit identity, actual HTML entry bundle, asset hashes, and explicit organization query on `https://app.senvia.pt`. The build runs the source and organization-query guards automatically. Run the public-domain verifier after each successful deployment. Verification failures require investigation; do not report publication as complete. The additional GitHub Actions workflow is prepared locally but requires an OAuth credential with the `workflow` scope before it can be published.
+This verifies the commit identity, actual HTML entry bundle, asset hashes, and explicit organization query on `https://app.senvia.pt`. The build runs the source and organization-query guards automatically. Run the public-domain verifier after each successful deployment. Verification failures require investigation; do not report publication as complete. GitHub Actions runs the regression guard for `main` pushes and relevant pull requests, and verifies the public domain after successful Git production deployments.
 
 For emergency recovery, promote a Ready Git deployment with a verified source commit, then run the same verification. Do not grant browser access to protected credential columns to make an old frontend work.

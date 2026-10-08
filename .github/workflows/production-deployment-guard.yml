@@ -1,0 +1,34 @@
+name: Production deployment guard
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - src/contexts/AuthContext.tsx
+      - scripts/*production*.mjs
+      - package.json
+      - .github/workflows/production-deployment-guard.yml
+  deployment_status:
+permissions:
+  contents: read
+jobs:
+  regression:
+    if: github.event_name != 'deployment_status'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node --test scripts/production-deployment-guard.test.mjs
+  verify-domain:
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          persist-credentials: false
+      - name: Verify production commit and asset integrity
+        env:
+          EXPECTED_SHA: ${{ github.event.deployment.sha }}
+        run: node scripts/verify-production.mjs "$EXPECTED_SHA"
