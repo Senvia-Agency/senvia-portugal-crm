@@ -95,13 +95,26 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
   if ((open.count ?? 0) >= 3) return { ok: true, analyzed: 0, suggested: 0 };
   const now = Date.now();
   const cutoff = new Date(now - 48 * 60 * 60 * 1000).toISOString();
-  const messagesResult = await admin.from('meta_messages').select('id,content,direction,is_deleted,created_at,sent_at').eq('conversation_id', conversation.id).eq('organization_id', conversation.organization_id).eq('is_deleted', false).or(`sent_at.gte.${cutoff},and(sent_at.is.null,created_at.gte.${cutoff})`).order('created_at', { ascending: false }).limit(10);
-  if (messagesResult.error) throw new SuggestionError('MESSAGE_READ_FAILED', 500);
-  const messages = z.array(messageSchema).safeParse(messagesResult.data);
-  if (!messages.success) throw new SuggestionError('MESSAGE_INVALID', 500);
-  let analyzed = 0, suggested = 0;
-  const candidates = messages.data.filter(message => eligibleMessage(message, now)).slice(0, 5);
-  for (const message of local ? candidates : candidates.reverse()) {
+  const readMessages = (direction?: 'incoming' | 'outgoing') => {
+    let query = admin.from('meta_messages').select('id,content,direction,is_deleted,created_at,sent_at').eq('conversation_id', conversation.id).eq('organization_id', conversation.organization_id).eq('is_deleted', false).or(`sent_at.gte.${cutoff},and(sent_at.is.null,created_at.gte.${cutoff})`);
+    if (direction) query = query.eq('direction', direction);
+    return query.order('sent_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(10);
+  };
+  const results = local ? await Promise.all([readMessages('incoming'), readMessages('outgoing')]) : [await readMessages()];
+  if (results.some(result => result.error)) throw new SuggestionError('MESSAGE_READ_FAILED', 500);
+  const parsed = z.array(z.array(messageSchema)).safeParse(results.map(result => result.data));
+  if (!parsed.success) throw new SuggestionError('MESSAGE_INVALID', 500);
+  const lists = parsed.data.map(messages => messages.filter(message => eligibleMessage(message, now)));
+  const candidates: z.infer<typeof messageSchema>[] = [];
+  if (local) {
+    const [received = [], sent = []] = lists;
+    for (let index = 0; index < Math.max(received.length, sent.length); index++) {
+      if (received[index]) candidates.push(received[index]);
+      if (sent[index]) candidates.push(sent[index]);
+    }
+  } else candidates.push(...(lists[0] ?? []).slice(0, 5).reverse());
+  let analyzed = 0, suggested = 0, hasMore = false;
+  for (const [index, message] of candidates.entries()) {
     const claim = await admin.rpc('claim_inbox_task_analysis', { p_message_id: message.id, p_organization_id: conversation.organization_id });
     if (claim.error) throw new SuggestionError('ANALYSIS_CLAIM_FAILED', 500);
     if (claim.data === null) continue;
@@ -113,7 +126,7 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
       if (finish.error) throw new SuggestionError('SUGGESTION_WRITE_FAILED', 500);
       analyzed++;
       if (finish.data === true) suggested++;
-      if (local) break;
+      if (local) { hasMore = (open.count ?? 0) + suggested < 3 && index < candidates.length - 1; break; }
       if ((open.count ?? 0) + suggested >= 3) break;
     } catch (error) {
       const release = await admin.from('inbox_task_analysis').delete().eq('message_id', message.id).eq('lease_token', token.data).eq('status', 'processing');
@@ -121,5 +134,5 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
       throw error;
     }
   }
-  return { ok: true, analyzed, suggested };
+  return { ok: true, analyzed, suggested, ...(local ? { has_more: hasMore } : {}) };
 }

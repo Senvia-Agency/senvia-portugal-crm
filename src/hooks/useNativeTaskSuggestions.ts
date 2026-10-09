@@ -11,18 +11,26 @@ export function useNativeTaskSuggestions(conversationId: string | undefined, lat
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: false,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('inbox-task-suggestions', {
-        body: { conversation_id: conversationId },
-      });
-      if (error) throw new Error('Não foi possível analisar esta conversa. Tenta novamente.');
-      const payload: unknown = data;
-      if (!payload || typeof payload !== 'object' || !('ok' in payload) || payload.ok !== true) {
-        throw new Error('Não foi possível analisar esta conversa. Tenta novamente.');
+    queryFn: async ({ signal }: { readonly signal?: AbortSignal } = {}) => {
+      let analyzed = 0, suggested = 0, hasMore = false;
+      for (let batch = 0; batch < 3; batch++) {
+        if (signal?.aborted) throw new Error('Análise cancelada.');
+        const { data, error } = await supabase.functions.invoke('inbox-task-suggestions', {
+          body: { conversation_id: conversationId }, signal,
+        });
+        if (error) throw new Error('Não foi possível analisar esta conversa. Tenta novamente.');
+        const payload: unknown = data;
+        if (!payload || typeof payload !== 'object' || !('ok' in payload) || payload.ok !== true) {
+          throw new Error('Não foi possível analisar esta conversa. Tenta novamente.');
+        }
+        const count = 'analyzed' in payload && typeof payload.analyzed === 'number' ? payload.analyzed : 0;
+        analyzed += count;
+        suggested += 'suggested' in payload && typeof payload.suggested === 'number' ? payload.suggested : 0;
+        hasMore = 'has_more' in payload && payload.has_more === true;
+        await queryClient.invalidateQueries({ queryKey: ['inbox-tasks', organization?.id] });
+        if (!hasMore || count === 0) break;
       }
-      await queryClient.invalidateQueries({ queryKey: ['inbox-tasks', organization?.id] });
-      return { analyzed: 'analyzed' in payload && typeof payload.analyzed === 'number' ? payload.analyzed : 0,
-        suggested: 'suggested' in payload && typeof payload.suggested === 'number' ? payload.suggested : 0 };
+      return { analyzed, suggested, hasMore };
     },
   });
 }

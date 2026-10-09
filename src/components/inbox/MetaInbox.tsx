@@ -834,7 +834,7 @@ function MetaThread({
             const taskText = m.is_deleted ? '' : m.content?.trim();
             return (
             <div key={m.id} className={cn('group/msg flex items-center gap-1', m.direction === 'outgoing' ? 'justify-end' : 'justify-start')}>
-              {onCreateTask && taskText && (
+              {m.direction === 'outgoing' && onCreateTask && taskText && (
                 <TaskFromMessageButton onClick={() => onCreateTask(taskText)} />
               )}
               {/* Reagir. Só faz sentido em mensagens que a Meta conhece pelo id
@@ -855,7 +855,7 @@ function MetaThread({
                 </>
               )}
               <div className={cn(
-                'relative max-w-[75%] rounded-2xl px-3 py-2 text-sm',
+                'relative min-w-0 max-w-[75%] rounded-2xl px-3 py-2 text-sm',
                 m.direction === 'outgoing'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-foreground',
@@ -928,6 +928,9 @@ function MetaThread({
                   </span>
                 )}
               </div>
+              {m.direction === 'incoming' && onCreateTask && taskText && (
+                <TaskFromMessageButton onClick={() => onCreateTask(taskText)} />
+              )}
               {m.direction === 'incoming' && m.external_id && (
                 <>
                   <ReactionPicker

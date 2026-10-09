@@ -140,3 +140,19 @@ test('task action supports text in both directions without a provider message ID
   assert.doesNotMatch(button.props.className, /opacity-0/);
 });
 
+
+test('received-message task action follows its bubble and remains visible', () => {
+  let mapper;
+  const find = node => { if (ts.isCallExpression(node) && node.expression.getText(ast) === 'messages.map') mapper = node.arguments[0]; ts.forEachChild(node, find); };
+  find(declaration('MetaThread'));
+  const context = { cn: (...args) => args.filter(Boolean).join(' '), MessageText: 'message', TaskFromMessageButton: 'task-action', formatRelativeTime: () => 'now', onCreateTask: () => {} };
+  const { renderMessage } = evaluate(`export const renderMessage = ${mapper.getText(ast)};`, context);
+  for (const direction of ['incoming', 'outgoing']) {
+    const row = renderMessage({ id: direction, direction, external_id: null, content: 'Enviar proposta ao cliente', attachments: [] });
+    const children = row.props.children.flat().filter(Boolean);
+    const action = children.findIndex(node => node.type === 'task-action');
+    const bubble = children.findIndex(node => node.type === 'div');
+    assert.ok(action >= 0 && bubble >= 0);
+    assert.equal(action > bubble, direction === 'incoming');
+  }
+});

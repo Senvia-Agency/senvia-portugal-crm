@@ -253,6 +253,9 @@ export function ConversationTasks({
           <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => void analysis.refetch()}>Tentar novamente</Button>
         </div>
       )}
+      {aiEnabled && analysis.data?.hasMore && !analysis.isError && (
+        <Button variant="link" size="sm" className="mb-2 h-10 px-0 text-xs" disabled={analysis.isFetching} onClick={() => void analysis.refetch()}>Analisar mais mensagens</Button>
+      )}
       {/* AI suggestions — accepted becomes a real task, dismissed disappears */}
       {suggestions.length > 0 && (
         <div className="mb-2 space-y-1.5">

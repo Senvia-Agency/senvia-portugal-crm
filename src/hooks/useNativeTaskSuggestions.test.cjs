@@ -61,3 +61,17 @@ test('manual native task retains its source box and conversation queries scope t
   await f.api.useConversationTasks('351912345678', 'box-id').queryFn();
   assert.equal(scoped, 'source_channel_id.is.null,source_channel_id.eq.box-id');
 });
+
+test('continues pending local messages in bounded batches and refreshes after every batch', async () => {
+  let calls = 0;
+  const f = load('useNativeTaskSuggestions.ts', { functions: { invoke: async () => { calls++; return { data: { ok: true, analyzed: 1, suggested: 0, has_more: true } }; } } });
+  const result = await f.api.useNativeTaskSuggestions('conv', 'msg', true).queryFn();
+  assert.equal(calls, 3); assert.equal(f.invalidations.length, 3); assert.equal(result.hasMore, true);
+});
+
+test('cancelled conversation analysis does not start another request', async () => {
+  let calls = 0; const controller = new AbortController();
+  const f = load('useNativeTaskSuggestions.ts', { functions: { invoke: async () => { calls++; controller.abort(); return { data: { ok: true, analyzed: 1, suggested: 0, has_more: true } }; } } });
+  await assert.rejects(f.api.useNativeTaskSuggestions('conv', 'msg', true).queryFn({ signal: controller.signal }));
+  assert.equal(calls, 1);
+});
