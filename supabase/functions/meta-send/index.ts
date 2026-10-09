@@ -1,3 +1,4 @@
+import { scheduleInboxTaskSuggestions } from '../_shared/inbox-task-dispatch.ts';
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 // meta-send — responde a uma conversa de Instagram ou Messenger.
 //
@@ -217,6 +218,7 @@ async function enviarWhatsApp(p: any): Promise<Response> {
     updated_at: new Date().toISOString(),
   }).eq("id", conv.id);
 
+  if (!insErr) scheduleInboxTaskSuggestions(conv.id, textoModelo ?? (temTexto ? String(text) : null));
   log("WhatsApp enviado", { conversa: conv.id, canal: channel?.label });
   return json({ success: true, stored: !insErr, message_id: wamid });
 }
@@ -400,6 +402,7 @@ async function enviarEvolution(p: any): Promise<Response> {
     updated_at: new Date().toISOString(),
   }).eq("id", conv.id);
 
+  if (guardada) scheduleInboxTaskSuggestions(conv.id, temTexto ? String(text) : null);
   log("WhatsApp (QR) enviado", { conversa: conv.id, canal: channel?.label });
   return json({ success: true, stored: guardada, message_id: messageId });
 }

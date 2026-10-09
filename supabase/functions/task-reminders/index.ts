@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const { data: due, error } = await admin
       .from('inbox_tasks')
-      .select('id, organization_id, title, contact_name, contact_phone, assigned_to, created_by')
+      .select('id, organization_id, title, contact_name, contact_phone, assigned_to, created_by, source_channel_id')
       .is('done_at', null)
       .eq('reminder_sent', false)
       .eq('suggested', false) // AI suggestions only remind after being accepted
@@ -39,6 +39,13 @@ Deno.serve(async (req) => {
 
     let sent = 0;
     for (const t of due ?? []) {
+      const target = t.assigned_to ?? t.created_by;
+      if (!target) continue;
+      if (t.source_channel_id) {
+        const access = await admin.rpc('pode_aceder_caixa', { _user_id: target, _channel_id: t.source_channel_id });
+        if (access.error) throw access.error;
+        if (access.data !== true) continue;
+      }
       // Claim first — a concurrent cron run must not double-notify.
       const { data: claimed } = await admin
         .from('inbox_tasks')
@@ -49,8 +56,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!claimed) continue;
 
-      const target = t.assigned_to ?? t.created_by;
-      if (!target) continue; // AI task accepted without assignee — no one to ping
       try {
         await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
           method: 'POST',

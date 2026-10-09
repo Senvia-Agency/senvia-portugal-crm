@@ -3142,6 +3142,7 @@ export type Database = {
           organization_id: string
           phone_key: string | null
           reminder_sent: boolean
+          source_channel_id: string | null
           source_message: string | null
           suggested: boolean
           title: string
@@ -3162,6 +3163,7 @@ export type Database = {
           organization_id: string
           phone_key?: string | null
           reminder_sent?: boolean
+          source_channel_id?: string | null
           source_message?: string | null
           suggested?: boolean
           title: string
@@ -3182,6 +3184,7 @@ export type Database = {
           organization_id?: string
           phone_key?: string | null
           reminder_sent?: boolean
+          source_channel_id?: string | null
           source_message?: string | null
           suggested?: boolean
           title?: string
@@ -3192,6 +3195,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "crm_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbox_tasks_source_channel_id_fkey"
+            columns: ["source_channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
             referencedColumns: ["id"]
           },
           {

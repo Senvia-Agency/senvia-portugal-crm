@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature } from 'lucide-react';
+import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,6 +73,11 @@ export function MetaInbox({
   const [search, setSearch] = useState('');
   const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem('inbox-panel-v1') !== '0');
   const [panelSheetOpen, setPanelSheetOpen] = useState(false);
+  const [taskPrefill, setTaskPrefill] = useState<{
+    readonly conversationId: string;
+    readonly text: string;
+    readonly surface: 'desktop' | 'sheet';
+  } | null>(null);
   const markRead = useMarkMetaRead();
 
   // Trocar de caixa não deve manter aberta uma conversa da anterior.
@@ -108,6 +113,15 @@ export function MetaInbox({
       setPanelOpen(false);
       localStorage.setItem('inbox-panel-v1', '0');
     }
+  };
+
+  const requestTaskPrefill = (text: string) => {
+    if (!selected) return;
+    setTaskPrefill({ conversationId: selected.id, text, surface: window.innerWidth >= 1024 ? 'desktop' : 'sheet' });
+    openContactPanel();
+  };
+  const consumeTaskPrefill = () => {
+    setTaskPrefill((current) => current?.conversationId === selected?.id ? null : current);
   };
 
   return (
@@ -217,6 +231,7 @@ export function MetaInbox({
           arquivada={!!caixaDe(selected.channel_id)?.archived_at}
           onBack={() => setSelectedId(null)}
           onOpenContact={openContactPanel}
+          onCreateTask={(caixaDe(selected.channel_id)?.channel_type ?? channelType) === 'whatsapp' && /^[0-9]{9,15}$/.test(selected.contact_ref) ? requestTaskPrefill : undefined}
         />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-8 text-center lg:flex">
@@ -227,13 +242,27 @@ export function MetaInbox({
       )}
       {selected && panelOpen && (
         <aside className="hidden w-80 shrink-0 border-l lg:block">
-          <MetaContactPanel conversation={selected} channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType} onClose={closeContactPanel} />
+          <MetaContactPanel
+            key={selected.id}
+            conversation={selected}
+            channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType}
+            onClose={closeContactPanel}
+            taskPrefill={taskPrefill?.conversationId === selected.id && taskPrefill.surface === 'desktop' ? taskPrefill.text : null}
+            onPrefillConsumed={consumeTaskPrefill}
+          />
         </aside>
       )}
       <Sheet open={panelSheetOpen} onOpenChange={setPanelSheetOpen}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           <SheetTitle className="sr-only">Contacto</SheetTitle>
-          {selected && <MetaContactPanel conversation={selected} channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType} onClose={closeContactPanel} />}
+          {selected && <MetaContactPanel
+            key={selected.id}
+            conversation={selected}
+            channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType}
+            onClose={closeContactPanel}
+            taskPrefill={taskPrefill?.conversationId === selected.id && taskPrefill.surface === 'sheet' ? taskPrefill.text : null}
+            onPrefillConsumed={consumeTaskPrefill}
+          />}
         </SheetContent>
       </Sheet>
     </div>
@@ -245,7 +274,13 @@ const OPEN_PROPOSAL_STATUSES: ProposalStatus[] = ['draft', 'sent', 'negotiating'
 const euro = (value: number | string | null | undefined) =>
   value == null ? null : new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(value));
 
-function MetaContactPanel({ conversation, channelType, onClose }: { conversation: MetaConversation; channelType?: string; onClose: () => void }) {
+function MetaContactPanel({ conversation, channelType, onClose, taskPrefill, onPrefillConsumed }: {
+  conversation: MetaConversation;
+  channelType?: string;
+  onClose: () => void;
+  taskPrefill?: string | null;
+  onPrefillConsumed?: () => void;
+}) {
   const phone = conversation.contact_ref.includes('@') ? null : conversation.contact_ref.replace(/\D/g, '');
   const displayName = conversation.contact_name || conversation.contact_ref;
   const navigate = useNavigate();
@@ -412,9 +447,13 @@ function MetaContactPanel({ conversation, channelType, onClose }: { conversation
             phone={phone}
             contactName={displayName}
             conversationId={null}
+            nativeConversationId={conversation.id}
+            channelId={conversation.channel_id}
             leadId={match?.kind === 'lead' ? match.id : null}
             clientId={match?.kind === 'client' ? match.id : null}
             teamMembers={team.map((member) => ({ user_id: member.user_id, full_name: member.full_name }))}
+            prefill={taskPrefill}
+            onPrefillConsumed={onPrefillConsumed}
           />
         )}
 
@@ -494,12 +533,14 @@ function MetaThread({
   arquivada,
   onBack,
   onOpenContact,
+  onCreateTask,
 }: {
   conversation: MetaConversation;
   channelType?: string;
   arquivada?: boolean;
   onBack: () => void;
   onOpenContact: () => void;
+  onCreateTask?: (text: string) => void;
 }) {
   const { data: messages = [], isLoading, isError, refetch } = useMetaMessages(conversation.id);
   const send = useSendMetaMessage();
@@ -787,8 +828,13 @@ function MetaThread({
         ) : messages.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">Sem mensagens nesta conversa.</p>
         ) : (
-          messages.map((m) => (
+          messages.map((m) => {
+            const taskText = m.is_deleted ? '' : m.content?.trim();
+            return (
             <div key={m.id} className={cn('group/msg flex items-center gap-1', m.direction === 'outgoing' ? 'justify-end' : 'justify-start')}>
+              {onCreateTask && taskText && (
+                <TaskFromMessageButton onClick={() => onCreateTask(taskText)} />
+              )}
               {/* Reagir. Só faz sentido em mensagens que a Meta conhece pelo id
                   — sem external_id não há a que reagir do lado dela. */}
               {m.direction === 'outgoing' && m.external_id && (
@@ -896,7 +942,8 @@ function MetaThread({
                 </>
               )}
             </div>
-          ))
+            );
+          })
         )}
 
         {/* Já escritas, ainda por confirmar. Ficam esbatidas até a Meta aceitar
@@ -1801,6 +1848,22 @@ function VoiceRecorder({
       onClick={começar}
     >
       <Mic className="h-4 w-4" />
+    </Button>
+  );
+}
+
+function TaskFromMessageButton({ onClick }: { readonly onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={onClick}
+      title="Criar tarefa a partir desta mensagem"
+      aria-label="Criar tarefa a partir desta mensagem"
+      className="h-10 w-10 shrink-0 rounded-full text-muted-foreground lg:h-8 lg:w-8"
+    >
+      <ClipboardList className="h-4 w-4" />
     </Button>
   );
 }

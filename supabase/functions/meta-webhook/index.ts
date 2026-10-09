@@ -12,6 +12,7 @@
 // Secret. É verificada — sem isso, qualquer pessoa que descubra este endereço
 // podia injetar mensagens falsas nas conversas dos clientes.
 
+import { scheduleInboxTaskSuggestions } from '../_shared/inbox-task-dispatch.ts';
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -433,6 +434,7 @@ async function guardarWhatsApp(
     return "erro";
   }
   if (msgErr) return "duplicada";
+  scheduleInboxTaskSuggestions(convId, texto || null, at);
 
   // Só o que ENTRA conta por ler. Marcar como não lida uma mensagem que o
   // próprio dono escreveu era pedir-lhe atenção para o que ele acabou de dizer.

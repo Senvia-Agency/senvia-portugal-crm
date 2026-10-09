@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Database } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -25,8 +26,7 @@ export interface InboxTask {
   source_message: string | null;
 }
 
-// The table is newer than the auto-generated Supabase types — hence the cast.
-const tasksTable = () => (supabase as any).from('inbox_tasks');
+const tasksTable = () => supabase.from('inbox_tasks');
 
 export function phoneSuffix(phone: string | null | undefined): string {
   return (phone || '').replace(/\D/g, '').slice(-9);
@@ -62,21 +62,23 @@ export function useOpenInboxTasks(enabled = true) {
 
 // Open + recently-done tasks of ONE conversation/contact (matched by the last 9
 // digits of the phone, like the rest of the inbox).
-export function useConversationTasks(phone: string | null | undefined) {
+export function useConversationTasks(phone: string | null | undefined, channelId?: string) {
   const { organization } = useAuth();
   const suffix = phoneSuffix(phone);
   return useQuery({
-    queryKey: ['inbox-tasks', organization?.id, 'conv', suffix],
+    queryKey: ['inbox-tasks', organization?.id, 'conv', suffix, channelId ?? 'all'],
     queryFn: async (): Promise<InboxTask[]> => {
       if (!organization?.id || suffix.length < 9) return [];
-      const { data, error } = await tasksTable()
+      let query = tasksTable()
         .select('*')
         .eq('organization_id', organization.id)
-        .eq('phone_key', suffix) // indexed; replaces unindexed LIKE '%suffix'
+        .eq('phone_key', suffix); // indexed; replaces unindexed LIKE '%suffix'
+      if (channelId) query = query.or(`source_channel_id.is.null,source_channel_id.eq.${channelId}`);
+      const { data, error } = await query
         .order('done_at', { ascending: true, nullsFirst: true })
         .order('due_at', { ascending: true, nullsFirst: false })
         .limit(50);
-      if (error) return []; // degrade gracefully (e.g. column not yet migrated)
+      if (error) throw error;
       return (data ?? []) as InboxTask[];
     },
     enabled: !!organization?.id && suffix.length >= 9,
@@ -93,6 +95,7 @@ export interface NewInboxTask {
   dueAt?: Date | null;
   assignedTo?: string | null;
   conversationId?: number | null;
+  sourceChannelId?: string;
   contactPhone?: string | null;
   contactName?: string | null;
   leadId?: string | null;
@@ -110,6 +113,7 @@ export function useCreateInboxTask() {
         created_by: user.id,
         assigned_to: t.assignedTo ?? null,
         conversation_id: t.conversationId ?? null,
+        source_channel_id: t.sourceChannelId ?? null,
         contact_phone: (t.contactPhone || '').replace(/\D/g, '') || null,
         contact_name: t.contactName ?? null,
         lead_id: t.leadId ?? null,
@@ -166,7 +170,7 @@ export function useUpdateInboxTask() {
       title?: string;
       description?: string | null;
     }) => {
-      const updates: Record<string, unknown> = {};
+      const updates: Database['public']['Tables']['inbox_tasks']['Update'] = {};
       if (dueAt !== undefined) {
         updates.due_at = dueAt ? dueAt.toISOString() : null;
         updates.reminder_sent = false;
@@ -215,26 +219,29 @@ export function useAcceptSuggestedTask() {
 
 // ---- Per-org toggle for AI suggestions (messaging_channels.metadata) ----
 
-export function useAiTasksEnabled() {
+export function useAiTasksEnabled(channelId?: string) {
   const { organization } = useAuth();
   return useQuery({
-    queryKey: ['inbox-ai-tasks-enabled', organization?.id],
+    queryKey: ['inbox-ai-tasks-enabled', organization?.id, channelId ?? 'org'],
     queryFn: async (): Promise<boolean> => {
-      if (!organization?.id) return true;
-      const { data } = await supabase
-        .from('messaging_channels')
-        .select('metadata_public')
-        .eq('organization_id', organization.id)
-        .eq('channel_type', 'whatsapp')
-        .maybeSingle();
-      return (data?.metadata_public as { ai_tasks_enabled?: boolean } | null)?.ai_tasks_enabled !== false;
+      if (!organization?.id) return false;
+      let query = supabase.from('messaging_channels').select('metadata_public')
+        .eq('organization_id', organization.id).eq('channel_type', 'whatsapp').is('archived_at', null);
+      if (channelId) query = query.eq('id', channelId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).some((channel) => {
+        const metadata = channel.metadata_public;
+        return !metadata || typeof metadata !== 'object' || Array.isArray(metadata)
+          || metadata.ai_tasks_enabled !== false;
+      });
     },
     enabled: !!organization?.id,
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useSaveAiTasksEnabled() {
+export function useSaveAiTasksEnabled(channelId?: string) {
   const { organization } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
@@ -242,24 +249,25 @@ export function useSaveAiTasksEnabled() {
       if (!organization?.id) throw new Error('Organização não encontrada');
       // Atomic JSON merge — won't clobber auto_reply or the channel's own config.
       // The RPC is admin-gated and raises for non-admins.
-      // Cast: the RPC is newer than the generated Supabase types.
-      const { error } = await (supabase.rpc as any)('merge_messaging_channel_metadata', {
-        p_org_id: organization.id,
-        p_channel_type: 'whatsapp',
-        p_patch: { ai_tasks_enabled: enabled },
-      });
+      const { error } = channelId
+        ? await supabase.rpc('merge_messaging_channel_metadata_by_id', {
+          p_channel_id: channelId, p_patch: { ai_tasks_enabled: enabled },
+        })
+        : await supabase.rpc('merge_messaging_channel_metadata', {
+          p_org_id: organization.id, p_channel_type: 'whatsapp', p_patch: { ai_tasks_enabled: enabled },
+        });
       if (error) throw error;
     },
     // Optimistic: the sparkles flips on click; rolls back if the server refuses.
     onMutate: async (enabled) => {
-      const key = ['inbox-ai-tasks-enabled', organization?.id];
+      const key = ['inbox-ai-tasks-enabled', organization?.id, channelId ?? 'org'];
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<boolean>(key);
       queryClient.setQueryData(key, enabled);
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      queryClient.setQueryData(['inbox-ai-tasks-enabled', organization?.id], ctx?.previous);
+      queryClient.setQueryData(['inbox-ai-tasks-enabled', organization?.id, channelId ?? 'org'], ctx?.previous);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['inbox-ai-tasks-enabled', organization?.id] });

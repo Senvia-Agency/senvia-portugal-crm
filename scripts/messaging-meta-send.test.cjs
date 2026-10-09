@@ -24,6 +24,7 @@ function loadMetaSend(globals) {
       env: { get: (key) => key === 'SUPABASE_URL' ? 'https://fixture.invalid' : 'fixture-service-role' },
     },
     requestMfaResponse: async () => null,
+    scheduleInboxTaskSuggestions: () => {},
     ...globals,
   };
   vm.runInNewContext(ts.transpileModule(code, {

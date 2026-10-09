@@ -11,6 +11,7 @@
 // are served. Events from the first integration's instances are acknowledged
 // and dropped: nobody reads those rows any more.
 
+import { scheduleInboxTaskSuggestions } from '../_shared/inbox-task-dispatch.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.2';
 import {
   contactRefFromJid, deliveryStatusFrom, isDeliveryUpgrade, parseContent,
@@ -316,6 +317,7 @@ async function storeMessage(db: Db, channel: Channel, data: AnyData): Promise<st
     return 'error';
   }
   if (msgErr) return 'duplicate';
+  scheduleInboxTaskSuggestions(convId, texto || null, at);
 
   // Only what comes IN is unread — flagging what the owner just typed on their
   // phone would ask them to read their own words.

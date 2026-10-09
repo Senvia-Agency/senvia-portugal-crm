@@ -11,6 +11,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { useNativeTaskSuggestions } from '@/hooks/useNativeTaskSuggestions';
+import { useMetaMessages } from '@/hooks/useMetaInbox';
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -33,6 +35,8 @@ interface ConversationTasksProps {
   contactName: string;
   /** Chatwoot-era conversation id; the native inbox (uuid) has none. */
   conversationId?: number | null;
+  nativeConversationId?: string;
+  channelId?: string;
   leadId?: string | null;
   clientId?: string | null;
   teamMembers: TeamMemberLite[];
@@ -106,17 +110,19 @@ function toLocalInput(iso: string): string {
 // ---- component ----
 
 export function ConversationTasks({
-  phone, contactName, conversationId, leadId, clientId, teamMembers, prefill, onPrefillConsumed,
+  phone, contactName, conversationId, nativeConversationId, channelId, leadId, clientId, teamMembers, prefill, onPrefillConsumed,
 }: ConversationTasksProps) {
   const { user } = useAuth();
-  const { data: tasks = [] } = useConversationTasks(phone);
+  const { data: tasks = [], isError: tasksFailed } = useConversationTasks(phone, channelId);
   const createTask = useCreateInboxTask();
   const toggleTask = useToggleInboxTask();
   const updateTask = useUpdateInboxTask();
   const deleteTask = useDeleteInboxTask();
   const acceptSuggestion = useAcceptSuggestedTask();
-  const { data: aiEnabled = true } = useAiTasksEnabled();
-  const saveAiEnabled = useSaveAiTasksEnabled();
+  const { data: aiEnabled = false, isError: aiConfigFailed } = useAiTasksEnabled(channelId);
+  const saveAiEnabled = useSaveAiTasksEnabled(channelId);
+  const { data: nativeMessages = [] } = useMetaMessages(nativeConversationId ?? null);
+  const analysis = useNativeTaskSuggestions(nativeConversationId, nativeMessages[nativeMessages.length - 1]?.id, aiEnabled);
 
   const [title, setTitle] = useState("");
   // Presets adapt to the clock: "Hoje (18h)" disappears once 18h is near/past
@@ -178,6 +184,7 @@ export function ConversationTasks({
         dueAt: presetToDate(duePreset, customDue),
         assignedTo: assignee === "me" ? user?.id ?? null : assignee === "none" ? null : assignee,
         conversationId,
+        sourceChannelId: channelId,
         contactPhone: phone,
         contactName,
         leadId: leadId ?? null,
@@ -236,6 +243,16 @@ export function ConversationTasks({
         </button>
       </p>
 
+      {(tasksFailed || aiConfigFailed) && (
+        <p role="alert" className="mb-2 text-xs text-destructive">Não foi possível carregar as tarefas ou as definições da IA.</p>
+      )}
+      {analysis.isFetching && <p role="status" className="mb-2 text-xs text-muted-foreground">A IA está a analisar as mensagens…</p>}
+      {analysis.isError && aiEnabled && (
+        <div role="alert" className="mb-2 text-xs text-destructive">
+          Não foi possível analisar esta conversa.
+          <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => void analysis.refetch()}>Tentar novamente</Button>
+        </div>
+      )}
       {/* AI suggestions — accepted becomes a real task, dismissed disappears */}
       {suggestions.length > 0 && (
         <div className="mb-2 space-y-1.5">
