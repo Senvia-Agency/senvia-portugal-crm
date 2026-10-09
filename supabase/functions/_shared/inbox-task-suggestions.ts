@@ -57,7 +57,11 @@ async function classify(message: z.infer<typeof messageSchema>, key: string): Pr
         { role: 'user', content: JSON.stringify({ sender: message.direction === 'incoming' ? 'CLIENTE' : 'COMERCIAL', message: message.content, message_date: message.sent_at ?? message.created_at, now: new Date(now).toISOString(), timezone: 'Europe/Lisbon' }) },
       ] }),
   });
-  if (!response.ok) throw new SuggestionError('AI_UNAVAILABLE');
+  if (!response.ok) {
+    const upstream = z.object({ error: z.object({ status: z.enum(['INVALID_ARGUMENT', 'FAILED_PRECONDITION', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'INTERNAL', 'UNAVAILABLE']).optional() }).optional() }).safeParse(await response.json().catch(() => null));
+    const reason = upstream.success ? upstream.data.error?.status : undefined;
+    throw new SuggestionError(`AI_UNAVAILABLE_HTTP_${response.status}${reason ? '_' + reason : ''}`);
+  }
   const completion = completionSchema.safeParse(await response.json());
   const text = completion.success ? completion.data.choices[0]?.message.content : null;
   if (!text) throw new SuggestionError('AI_INVALID_RESPONSE');
