@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 import { z } from 'npm:zod@3.25.76';
-import { analyzeConversation, conversationSchema, matchesServiceKey, SuggestionError } from '../_shared/inbox-task-suggestions.ts';
+import { analyzeConversation, conversationSchema, hasVerifiedServiceAccess, matchesServiceKey, SuggestionError } from '../_shared/inbox-task-suggestions.ts';
 import { requestMfaResponse } from '../_shared/user-authorization.ts';
 import { rateLimit } from '../_shared/security.ts';
 
@@ -24,10 +24,13 @@ export async function handleRequest(req: Request): Promise<Response> {
     const userClient = createClient(url, internal ? service : anon, { global: { headers: { Authorization: `Bearer ${bearer}` } }, auth: { persistSession: false, autoRefreshToken: false } });
     if (!internal) {
       const identity = await userClient.auth.getUser();
-      if (identity.error || !identity.data.user) return response({ error: 'UNAUTHORIZED' }, 401);
-      const policy = await requestMfaResponse(req, identity.data.user.id, cors);
-      if (policy) return policy;
-      if (!rateLimit(`inbox-task-suggestions:${identity.data.user.id}`, 10, 60_000).allowed) return response({ error: 'RATE_LIMITED' }, 429);
+      if (identity.error || !identity.data.user) {
+        if (!await hasVerifiedServiceAccess(userClient)) return response({ error: 'UNAUTHORIZED' }, 401);
+      } else {
+        const policy = await requestMfaResponse(req, identity.data.user.id, cors);
+        if (policy) return policy;
+        if (!rateLimit(`inbox-task-suggestions:${identity.data.user.id}`, 10, 60_000).allowed) return response({ error: 'RATE_LIMITED' }, 429);
+      }
     }
     // User requests must prove access through the existing conversation RLS before admin work.
     const readable = await userClient.from('meta_conversations').select('id,organization_id,channel_id,contact_ref,contact_name').eq('id', input.data.conversation_id).maybeSingle();

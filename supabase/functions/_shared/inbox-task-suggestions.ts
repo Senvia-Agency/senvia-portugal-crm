@@ -40,6 +40,12 @@ export async function matchesServiceKey(provided: string, expected: string): Pro
   return difference === 0;
 }
 
+export async function hasVerifiedServiceAccess(client: SupabaseClient): Promise<boolean> {
+  // PostgREST verifies the caller JWT; this table explicitly denies anon/authenticated privileges.
+  const result = await client.from('inbox_task_analysis').select('message_id', { head: true }).limit(0);
+  return result.error === null && result.status >= 200 && result.status < 300;
+}
+
 async function classify(message: z.infer<typeof messageSchema>, key: string): Promise<TaskDecision | null> {
   const now = Date.now();
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
