@@ -61,7 +61,7 @@ import {
   TELECOM_VIEW_LABELS,
   isTelecomViewKey,
   isTelecomViewPeriodScoped,
-  matchesTelecomView,
+  matchesTelecomViewInPeriod,
   type TelecomViewKey,
 } from "@/lib/telecom-sale-views";
 import { useAuth } from "@/contexts/AuthContext";
@@ -342,12 +342,11 @@ const deleteSale = useMutation({
       // page's date filter — except for "próximo mês", which is a forward
       // look and must not be cut down to the period being analysed.
       if (telecomView) {
-        if (!matchesTelecomView(sale, telecomView, telecomReference)) return false;
-        if (isTelecomViewPeriodScoped(telecomView) && telecomFrom && telecomTo) {
-          if (!sale.sale_date) return false;
-          const d = parseISO(sale.sale_date);
-          if (d < startOfDay(parseISO(telecomFrom)) || d > endOfDay(parseISO(telecomTo))) return false;
-        }
+        // The card's own rule and dates (installation, activation, sale), so
+        // the list shows exactly the sales the number on the card counted.
+        const from = telecomFrom ? startOfDay(parseISO(telecomFrom)) : null;
+        const to = telecomTo ? endOfDay(parseISO(telecomTo)) : null;
+        if (!matchesTelecomViewInPeriod(sale, telecomView, from ?? startOfDay(telecomReference), to)) return false;
       }
 
       // Telecom: operator, state and seller come from the switch bar, through
@@ -360,6 +359,10 @@ const deleteSale = useMutation({
       const matchesOperator = true;
 
       const matchesDate = (() => {
+        // A dashboard card brings its own window (checked above, by the
+        // card's dates). The page's saved sale-date filter would cut it again:
+        // an October installation sold in September vanished from the list.
+        if (telecomView) return true;
         if (!dateRange?.from) return true;
         const referenceDate = isPerfect2Gether ? sale.activation_date || sale.sale_date : sale.sale_date;
         if (!referenceDate) return false;

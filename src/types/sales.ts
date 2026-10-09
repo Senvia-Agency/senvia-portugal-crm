@@ -245,6 +245,7 @@ export interface Sale {
   org_commission: number | null;
   commission_payment_month_offset?: number;
   commission_expected_date?: string | null;
+  commission_month_override?: string | null;
 
   // Tipo de Negociação e Serviços/Produtos
   negotiation_type: NegotiationType | null;

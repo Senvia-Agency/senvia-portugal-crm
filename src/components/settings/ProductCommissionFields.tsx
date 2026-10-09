@@ -165,13 +165,14 @@ function paysExtraCards(product: CatalogProduct): boolean {
     || (product.quantity_tiers ?? []).some((t) => (t.extra_card_commission ?? 0) > 0);
 }
 
+function hasExtraCardRate(product: CatalogProduct): boolean {
+  return paysExtraCards(product)
+    || (product.extra_card_operator_pays ?? 0) > 0
+    || (product.quantity_tiers ?? []).some((t) => (t.extra_card_operator_pays ?? 0) > 0);
+}
+
 /**
- * Flat commission per extra SIM card added on top of the ones the package
- * already includes — e.g. a Vodafone package with 2 included cards pays
- * +10€ for each additional one, ported or brand new. Absent/0 means this
- * product doesn't offer extra cards at all (the fields don't show on the
- * sale screen). Independent of the commission model above it — applies the
- * same whether the base commission is flat splits or escalões.
+ * Separate seller payout and operator contribution for each extra SIM card.
  */
 export function ExtraCardField({
   product,
@@ -184,7 +185,7 @@ export function ExtraCardField({
 }) {
   return (
     <div className="space-y-1.5">
-      <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Comissão por cartão extra (€)">
+      <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Comissão do vendedor por cartão extra (€)">
         <Input
           type="number"
           step="0.01"
@@ -196,9 +197,20 @@ export function ExtraCardField({
           className={cn(tonedInputClass, 'w-full')}
         />
       </TonedField>
+      <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label="Valor pago pela operadora por cartão extra (€)">
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={product.extra_card_operator_pays || ''}
+          onChange={(e) => onChange({ extra_card_operator_pays: parseFloat(e.target.value) || 0 })}
+          onBlur={() => onCommit({})}
+          placeholder="0.00"
+          className={cn(tonedInputClass, 'w-full')}
+        />
+      </TonedField>
       <p className="text-[11px] text-muted-foreground">
-        Deixe em branco se este produto não permitir cartões extra. Quando preenchido, a venda passa a
-        pedir quantos cartões extra (com portabilidade / novos) foram vendidos, e cada um soma este valor.
+        São valores separados: a operadora acrescenta o valor indicado à comissão bruta, e o vendedor recebe a sua comissão por cartão extra.
       </p>
     </div>
   );
@@ -396,7 +408,7 @@ export function CommissionSection({
       {sellsCards(product) && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <IncludedCardsField product={product} onChange={onChange} onCommit={onCommit} />
-          <ExtraCardField product={product} onChange={onChange} onCommit={onCommit} />
+          {hasExtraCardRate(product) && <ExtraCardField product={product} onChange={onChange} onCommit={onCommit} />}
         </div>
       )}
     </div>

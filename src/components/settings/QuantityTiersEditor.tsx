@@ -200,7 +200,7 @@ export function QuantityTiersEditor({
                         className={cn(tonedInputClass, 'w-20')}
                       />
                     </TonedField>
-                    <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Cartão extra (€)">
+                    <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Vendedor / cartão extra (€)">
                       <Input
                         type="number"
                         min="0"
@@ -208,6 +208,18 @@ export function QuantityTiersEditor({
                         placeholder="produto"
                         value={tier.extra_card_commission ?? ''}
                         onChange={(e) => updateTier(tier.id, { extra_card_commission: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        onBlur={() => onCommit(tiers)}
+                        className={cn(tonedInputClass, 'w-24')}
+                      />
+                    </TonedField>
+                    <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label="Operadora / cartão extra (€)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="produto"
+                        value={tier.extra_card_operator_pays ?? ''}
+                        onChange={(e) => updateTier(tier.id, { extra_card_operator_pays: e.target.value ? parseFloat(e.target.value) : undefined })}
                         onBlur={() => onCommit(tiers)}
                         className={cn(tonedInputClass, 'w-24')}
                       />

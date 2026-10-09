@@ -1,10 +1,30 @@
--- Keep the exact extra-card payout separate from the seller's base commission.
--- Existing rows stay NULL because the historic card rate/tier was not frozen.
+-- BDS extra cards, as agreed on 2026-10-09:
+--
+--   per extra card    seller gets   operator pays   organization
+--   Vítor             10 €          5 €             -5 €
+--   comerciais        10 €          5 €             -5 €
+--   Sara               5 €          5 €              0 €
+--
+-- Builds on 20261006120000_extra_card_commission_breakdown (operator
+-- contribution per extra card, extra_card_amount frozen per line), which had
+-- not been applied, and adds a per-person rate: a split may carry
+-- `extra_card_value`, overriding the product's `extra_card_commission`.
+-- Supersedes 20261008110000_bds_extra_card_operator_contribution (same 10/5
+-- rates, but it recalculated every unpaid sale whatever its date, and had no
+-- per-person rate) — that one must not be applied.
+--
+-- Recalculated: BDS sales installed (or still to be installed) from
+-- 1 October 2026 on, with extra cards, not paid, not cancelled or void.
+-- Earlier sales keep the values they were frozen with.
+
+BEGIN;
+
 ALTER TABLE public.sale_commission_splits
   ADD COLUMN IF NOT EXISTS extra_card_amount numeric;
 
 COMMENT ON COLUMN public.sale_commission_splits.extra_card_amount IS
   'Frozen payout for extra SIM cards on this commission line. NULL means the historic split predates this breakdown.';
+
 CREATE OR REPLACE FUNCTION public.generate_sale_commission_splits(p_sale_id uuid)
  RETURNS numeric
  LANGUAGE plpgsql
@@ -300,6 +320,13 @@ BEGIN
       END IF;
       IF NOT _award_bonus THEN _bonus_amount := 0; END IF;
     END IF;
+    -- The seller's own rate per extra card, when the split sets one: at BDS
+    -- the product pays 10 € a card but Sara 5 €, so with the operator's 5 €
+    -- her extra cards cost the org nothing. Same count of cards either way.
+    IF _seller_split IS NOT NULL
+       AND public._safe_numeric(_seller_split->>'extra_card_value') IS NOT NULL THEN
+      _extra_total := ROUND(public._safe_numeric(_seller_split->>'extra_card_value') * _extra_qty, 2);
+    END IF;
     -- A recipient marked `extra_cards: false` gets no extra-card money at
     -- all. At BDS that is whoever is already paid the operator's whole amount:
     -- the org keeps nothing on those sales, so there is no margin to pay the
@@ -356,3 +383,80 @@ BEGIN
   RETURN _sum_gross;
 END;
 $function$;
+
+-- Card products of BDS: 10 € per extra card to the seller, 5 € from the
+-- operator; in every split, the comerciais (perfil Vendedor) now get extra
+-- cards and Sara gets her own 5 €. Applied to product-level and band-level
+-- splits alike.
+CREATE OR REPLACE FUNCTION pg_temp.bds_extra_split(_split jsonb)
+RETURNS jsonb LANGUAGE sql IMMUTABLE AS $f$
+  SELECT CASE
+    WHEN _split->>'kind' = 'profile' AND _split->>'profile_id' = '9aeaf184-b91b-4cd7-a364-a0c0ab68d1cc'
+      THEN (_split - 'extra_card_value') || '{"extra_cards": true}'::jsonb
+    WHEN COALESCE(_split->>'kind', 'user') = 'user' AND _split->>'user_id' = '7ef11373-6b89-42ce-9fd7-a1707c031442'
+      THEN _split || '{"extra_cards": true, "extra_card_value": 5}'::jsonb
+    ELSE _split
+  END
+$f$;
+
+CREATE OR REPLACE FUNCTION pg_temp.bds_extra_entry(_entry jsonb)
+RETURNS jsonb LANGUAGE sql IMMUTABLE AS $f$
+  SELECT _entry
+    || CASE WHEN COALESCE(public._safe_numeric(_entry->>'extra_card_commission'), 0) > 0
+            THEN '{"extra_card_commission": 10, "extra_card_operator_pays": 5}'::jsonb ELSE '{}'::jsonb END
+    || CASE WHEN jsonb_typeof(_entry->'splits') = 'array'
+            THEN jsonb_build_object('splits', (SELECT COALESCE(jsonb_agg(pg_temp.bds_extra_split(s) ORDER BY o), '[]'::jsonb)
+                                              FROM jsonb_array_elements(_entry->'splits') WITH ORDINALITY AS x(s, o)))
+            ELSE '{}'::jsonb END
+$f$;
+
+UPDATE public.organizations AS org
+SET servicos_products_config = (
+  SELECT jsonb_agg(
+    CASE WHEN item.entry->'type_ids' ? 'cartoes'
+      THEN pg_temp.bds_extra_entry(item.entry)
+        || CASE WHEN jsonb_typeof(item.entry->'quantity_tiers') = 'array'
+                THEN jsonb_build_object('quantity_tiers', (
+                  SELECT COALESCE(jsonb_agg(pg_temp.bds_extra_entry(t.entry) ORDER BY t.o), '[]'::jsonb)
+                  FROM jsonb_array_elements(item.entry->'quantity_tiers') WITH ORDINALITY AS t(entry, o)))
+                ELSE '{}'::jsonb END
+      ELSE item.entry
+    END ORDER BY item.ordinality)
+  FROM jsonb_array_elements(org.servicos_products_config) WITH ORDINALITY AS item(entry, ordinality)
+)
+WHERE org.id = '78a42249-4dd6-4e6c-b78b-fe862da7e956'
+  AND jsonb_typeof(org.servicos_products_config) = 'array';
+
+-- Re-freeze the sales in scope with the rates above.
+DO $$
+DECLARE
+  _sale record;
+  _gross numeric;
+BEGIN
+  FOR _sale IN
+    SELECT s.id
+    FROM public.sales AS s
+    WHERE s.organization_id = '78a42249-4dd6-4e6c-b78b-fe862da7e956'
+      AND s.commission_paid_at IS NULL
+      AND s.status <> 'cancelled'
+      AND COALESCE(s.telecom_status, '') NOT IN ('anulado', 'cancelado')
+      AND (
+        COALESCE(s.scheduled_install_date::date, s.activation_date) >= DATE '2026-10-01'
+        OR (s.scheduled_install_date IS NULL AND s.activation_date IS NULL
+            AND s.telecom_status IN ('pendente', 'em_instalacao'))
+      )
+      AND EXISTS (
+        SELECT 1 FROM unnest(s.servicos_produtos) AS line(product_name)
+        WHERE COALESCE(public._safe_numeric(s.servicos_details->line.product_name->>'total_cards'), 0) > 1
+           OR COALESCE(public._safe_numeric(s.servicos_details->line.product_name->>'extra_cards_new'), 0)
+            + COALESCE(public._safe_numeric(s.servicos_details->line.product_name->>'extra_cards_portability'), 0) > 0
+      )
+  LOOP
+    _gross := public.generate_sale_commission_splits(_sale.id);
+    IF _gross IS NOT NULL THEN
+      UPDATE public.sales SET comissao = _gross WHERE id = _sale.id;
+    END IF;
+  END LOOP;
+END $$;
+
+COMMIT;

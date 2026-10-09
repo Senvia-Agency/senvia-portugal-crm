@@ -11,9 +11,9 @@ type BdsFinanceSchema = {
         Relationships: [];
       };
       bds_manual_chargebacks: {
-        Row: { id: string; organization_id: string; user_id: string; client_id: string | null; amount: number; reason: 'manual'; status: 'pending' | 'reconciled' | 'dismissed'; application_month: string | null; applied_at: string | null; created_at: string; updated_at: string };
-        Insert: { id?: string; organization_id: string; user_id: string; client_id?: string | null; amount: number; reason?: 'manual'; status?: 'pending' | 'reconciled' | 'dismissed'; application_month?: string | null; applied_at?: string | null; created_at?: string; updated_at?: string };
-        Update: Partial<{ id: string; organization_id: string; user_id: string; client_id: string | null; amount: number; reason: 'manual'; status: 'pending' | 'reconciled' | 'dismissed'; application_month: string | null; applied_at: string | null; created_at: string; updated_at?: string }>;
+        Row: { id: string; organization_id: string; user_id: string; client_id: string | null; client_name: string | null; amount: number; reason: 'manual'; status: 'pending' | 'reconciled' | 'dismissed'; application_month: string | null; applied_at: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; organization_id: string; user_id: string; client_id?: string | null; client_name?: string | null; amount: number; reason?: 'manual'; status?: 'pending' | 'reconciled' | 'dismissed'; application_month?: string | null; applied_at?: string | null; created_at?: string; updated_at?: string };
+        Update: Partial<{ id: string; organization_id: string; user_id: string; client_id: string | null; client_name: string | null; amount: number; reason: 'manual'; status: 'pending' | 'reconciled' | 'dismissed'; application_month: string | null; applied_at: string | null; created_at: string; updated_at?: string }>;
         Relationships: [];
       };
     };

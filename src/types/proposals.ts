@@ -326,6 +326,10 @@ export interface CommissionSplit {
   // of its own margin — so someone already paid the operator's whole amount
   // (the org keeps nothing on his sales) gets none. Absent means true.
   extra_cards?: boolean;
+  // What THIS recipient is paid per extra card, when it differs from the
+  // product's rate. At BDS the product pays 10 € a card, but Sara 5 €: with
+  // the operator's 5 € her extra cards cost the org nothing. Absent = product.
+  extra_card_value?: number;
 }
 
 /** The €/% mode that applies to a split for a given technology. */
@@ -378,6 +382,7 @@ export interface QuantityTier {
   // rate per extra card. Absent falls back to the product's own values.
   included_cards?: number;
   extra_card_commission?: number;
+  extra_card_operator_pays?: number;
   // The band's own switch for the bonus. Off keeps the amount stored but
   // pays nothing; absent = the old rule, a non-zero bonus applies.
   bonus_enabled?: boolean;
@@ -453,6 +458,8 @@ export interface CatalogProduct {
   // absent or 0 means this product doesn't support extra cards at all, and
   // the "Cartões extra" fields don't show for it.
   extra_card_commission?: number;
+  // Operator contribution per extra SIM; separate from the seller's payout above.
+  extra_card_operator_pays?: number;
   // How many SIM cards/lines one unit of this product already includes (e.g.
   // a "2P" package includes 2; Alarme or Energia Residencial include 0 — not
   // every product is a card at all). Added to the extra cards sold on the
@@ -517,11 +524,20 @@ export function getCatalogCommission(product: CatalogProduct): number {
 export function getExtraCardCommission(product: CatalogProduct, extraCards?: ExtraCards, quantity?: number): number {
   const cards = cardConfigFor(product, quantity);
   const rate = cards.extra_card_commission ?? 0;
-  if (!rate || !extraCards) return 0;
-  const count = extraCards.total != null
-    ? Math.max(0, extraCards.total - (cards.included_cards ?? 1))
+  return Math.round(rate * extraCardCount(extraCards, cards.included_cards) * 100) / 100;
+}
+
+export function getExtraCardOperatorPays(product: CatalogProduct, extraCards?: ExtraCards, quantity?: number): number {
+  const cards = cardConfigFor(product, quantity);
+  const rate = cards.extra_card_operator_pays ?? 0;
+  return Math.round(rate * extraCardCount(extraCards, cards.included_cards) * 100) / 100;
+}
+
+function extraCardCount(extraCards: ExtraCards | undefined, includedCards: number | undefined): number {
+  if (!extraCards) return 0;
+  return extraCards.total != null
+    ? Math.max(0, extraCards.total - (includedCards ?? 1))
     : Math.max(0, extraCards.portabilidade || 0) + Math.max(0, extraCards.novos || 0);
-  return Math.round(rate * count * 100) / 100;
 }
 
 /**
@@ -534,7 +550,7 @@ export function getExtraCardCommission(product: CatalogProduct, extraCards?: Ext
 export function cardConfigFor(
   product: CatalogProduct,
   quantity?: number,
-): { included_cards?: number; extra_card_commission?: number } {
+): { included_cards?: number; extra_card_commission?: number; extra_card_operator_pays?: number } {
   const qty = commissionUnits(quantity);
   const tier = usesQuantityTiers(product)
     ? product.quantity_tiers?.find((t) => qty >= t.min && (t.max == null || qty <= t.max))
@@ -542,6 +558,7 @@ export function cardConfigFor(
   return {
     included_cards: tier?.included_cards ?? product.included_cards,
     extra_card_commission: tier?.extra_card_commission ?? product.extra_card_commission,
+    extra_card_operator_pays: tier?.extra_card_operator_pays ?? product.extra_card_operator_pays,
   };
 }
 
@@ -560,7 +577,7 @@ export function cardConfigFor(
  */
 export function getCatalogCommissionForQuantity(product: CatalogProduct, quantity: number, extraCards?: ExtraCards): number {
   const tiers = usesQuantityTiers(product) ? product.quantity_tiers : undefined;
-  if (!tiers || tiers.length === 0) return getCatalogCommission(product) + getExtraCardCommission(product, extraCards);
+  if (!tiers || tiers.length === 0) return getCatalogCommission(product) + getExtraCardOperatorPays(product, extraCards);
 
   const qty = commissionUnits(quantity);
   const tier = tiers.find(t => qty >= t.min && (t.max == null || qty <= t.max));
@@ -579,7 +596,7 @@ export function getCatalogCommissionForQuantity(product: CatalogProduct, quantit
   // above): the real value is awarded to a single sale server-side, computed
   // against the group's accumulated quantity, not this one.
   const bonusAmount = tier.bonus_type === 'pct' ? (base * tierBonusValue(tier)) / 100 : tierBonusValue(tier);
-  return Math.round((base + bonusAmount) * 100) / 100 + getExtraCardCommission(product, extraCards, qty);
+  return Math.round((base + bonusAmount) * 100) / 100 + getExtraCardOperatorPays(product, extraCards, qty);
 }
 
 /**
@@ -700,10 +717,9 @@ export interface SaleLineCommission {
  * seller whole, so it raises `gross` and `seller` equally and leaves `org`
  * untouched.
  *
- * The extra-card money is not paid by the operator. The org pays it to the
- * seller out of its own margin: it raises `seller` and lowers `org`, and
- * `gross` stays what the operator pays (200 → seller 150 + 10, org 40). A
- * seller whose line says `extra_cards: false` gets none of it.
+ * Each extra card adds its operator contribution to `gross` and its seller
+ * payout to `seller` independently. With 5 € from the operator and 10 € to
+ * the seller, 200 € becomes gross 205 €, seller 160 €, organization 45 €.
  *
  * A product with no `operator_pays` configured yet cannot say what the org
  * keeps, so it reports gross = seller and org = 0 rather than inventing a
@@ -755,19 +771,26 @@ export function getSaleLineCommission(
         ? (sellerBase * tierBonusValue(tier)) / 100
         : tierBonusValue(tier))
     : 0;
-  const extra = sellerSplitFor(splits, sellerUserId, sellerProfileId)?.extra_cards === false
+  const sellerSplit = sellerSplitFor(splits, sellerUserId, sellerProfileId);
+  const extra = sellerSplit?.extra_cards === false
     ? 0
-    : getExtraCardCommission(product, extraCards, qty);
+    : sellerSplit?.extra_card_value != null
+      // The seller's own rate per extra card (Sara: 5 €), same count of cards.
+      ? Math.round(sellerSplit.extra_card_value
+          * extraCardCount(extraCards, cardConfigFor(product, qty).included_cards) * 100) / 100
+      : getExtraCardCommission(product, extraCards, qty);
+  const operatorExtra = getExtraCardOperatorPays(product, extraCards, qty);
 
   const grossBase = operatorPerUnit != null ? operatorPerUnit * qty : sellerBase;
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const seller = round(sellerBase + bonus + extra);
-  // No operator_pays configured: the org's margin is unknown, so gross follows
-  // the seller (org 0) — the extra included, or org would read -10.
+  // A satellite sale leaves the org nothing (normalize_satellite_sale_commission
+  // does the same server-side): gross is what the seller gets.
   const gross = tech === 'satelite' ? seller
-    : operatorPerUnit != null ? round(grossBase + bonus)
-    : seller;
+    : operatorPerUnit != null
+    ? round(grossBase + bonus + operatorExtra)
+    : round(sellerBase + bonus + operatorExtra);
   return { gross, seller, org: round(gross - seller) };
 }
 

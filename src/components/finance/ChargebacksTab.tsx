@@ -25,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useClients } from '@/hooks/useClients';
 import { isBdsOrganization } from '@/lib/bds-finance';
+import { resolveManualChargebackClient } from '@/lib/manual-chargeback-client';
 
 const STATUS_STYLES: Record<ChargebackStatus, string> = {
   pending: 'bg-amber-500/20 text-amber-600 border-amber-500/30',
@@ -49,7 +50,7 @@ export function ChargebacksTab() {
   const [manualOpen, setManualOpen] = useState(false);
   const [sellerId, setSellerId] = useState('');
   const [amount, setAmount] = useState('');
-  const [clientId, setClientId] = useState('');
+  const [clientName, setClientName] = useState('');
   const [confirmTarget, setConfirmTarget] = useState<SaleChargeback | null>(null);
   const [applicationMonth, setApplicationMonth] = useState('');
   const canCreateManual = isAdmin && isBdsOrganization(organization?.name);
@@ -128,22 +129,30 @@ export function ChargebacksTab() {
                       <Input id="manual-chargeback-amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={event => setAmount(event.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Cliente (opcional)</Label>
-                      <Select value={clientId || 'none'} onValueChange={value => setClientId(value === 'none' ? '' : value)}>
-                        <SelectTrigger><SelectValue placeholder="Sem cliente associado" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sem cliente associado</SelectItem>
-                          {clients.map(client => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="manual-chargeback-client">Cliente (opcional)</Label>
+                      <Input
+                        id="manual-chargeback-client"
+                        type="text"
+                        list="manual-chargeback-client-options"
+                        placeholder="Escrever nome do cliente"
+                        value={clientName}
+                        onChange={event => setClientName(event.target.value)}
+                      />
+                      <datalist id="manual-chargeback-client-options">
+                        {clients.map(client => <option key={client.id} value={client.name} />)}
+                      </datalist>
+                      <p className="text-xs text-muted-foreground">
+                        Pode escrever um nome antigo que não esteja no CRM. O registo não cria um cliente.
+                      </p>
                     </div>
                   </div>
                   <DialogFooter>
                     <Button type="button" disabled={createManual.isPending || !sellerId || !amount} onClick={() => {
-                      createManual.mutate({ userId: sellerId, amountText: amount, clientId: clientId || null }, {
+                      const client = resolveManualChargebackClient(clientName, clients);
+                      createManual.mutate({ userId: sellerId, amountText: amount, ...client }, {
                         onSuccess: () => {
                           setManualOpen(false);
-                          setSellerId(''); setAmount(''); setClientId('');
+                          setSellerId(''); setAmount(''); setClientName('');
                         },
                       });
                     }}>Registar por confirmar</Button>
@@ -180,8 +189,8 @@ export function ChargebacksTab() {
                     <TableRow key={cb.id}>
                       <TableCell className="text-sm">
                         <span className="font-medium">{cb.reason === 'manual' ? 'Manual' : (cb.sale?.code ?? '—')}</span>
-                        {cb.reason === 'manual' && cb.client?.name && (
-                          <span className="ml-2 text-xs text-muted-foreground">{cb.client.name}</span>
+                        {cb.reason === 'manual' && (cb.client_name || cb.client?.name) && (
+                          <span className="ml-2 text-xs text-muted-foreground">{cb.client_name || cb.client?.name}</span>
                         )}
                         {cb.sale?.sale_date && (
                           <span className="ml-2 text-xs text-muted-foreground">

@@ -232,12 +232,31 @@ export function CommissionSplitRow({
           absent means the seller gets the extra, as before. */}
       {extraCards && (
         <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label="Cartões extra">
-          <div className="flex h-8 items-center">
+          <div className="flex h-8 items-center gap-2">
             <Switch
               checked={split.extra_cards !== false}
               onCheckedChange={(on) => onChange({ extra_cards: on ? undefined : false }, true)}
               aria-label="Recebe a comissão dos cartões extra"
             />
+            {/* This person's own € per extra card; empty = the product's. */}
+            {split.extra_cards !== false && (
+              <Input
+                type="number"
+                min={0}
+                step="0.5"
+                inputMode="decimal"
+                value={split.extra_card_value ?? ''}
+                placeholder="Produto"
+                title="€ por cartão extra para esta pessoa. Vazio = o valor do produto."
+                aria-label="Euros por cartão extra para esta pessoa"
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  const value = raw === '' ? undefined : Number(raw);
+                  onChange({ extra_card_value: value != null && Number.isFinite(value) && value >= 0 ? value : undefined }, true);
+                }}
+                className="h-8 w-20 text-xs"
+              />
+            )}
           </div>
         </TonedField>
       )}

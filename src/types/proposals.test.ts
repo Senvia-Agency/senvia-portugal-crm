@@ -28,8 +28,8 @@ describe('getSaleLineCommission', () => {
     expect(commission).toEqual({ gross: 30, seller: 30, org: 0 });
   });
 
-  // BDS, 4P: the operator pays 200, the seller's rate is 150, each card over
-  // the included one pays the seller 10 — out of the org's margin.
+  // BDS, 4P: the operator pays 200, the seller's rate is 150. Each extra
+  // card adds 5 to operator gross and 10 to seller payout.
   const fourP = (sellerSplit: Partial<CommissionSplit> = {}): CatalogProduct => ({
     name: '4P',
     price: 55,
@@ -38,12 +38,18 @@ describe('getSaleLineCommission', () => {
     operator_pays: 200,
     included_cards: 1,
     extra_card_commission: 10,
+    extra_card_operator_pays: 5,
     splits: [{ kind: 'user', user_id: 'seller-1', type: 'fixed', value: 150, ...sellerSplit }],
   });
 
-  test('pays an extra card to the seller out of the organization margin', () => {
+  test('adds 5 euros per extra card to operator gross and 10 euros to seller payout', () => {
     const commission = getSaleLineCommission(fourP(), 1, { total: 2 }, 'seller-1', undefined, 'fibra');
-    expect(commission).toEqual({ gross: 200, seller: 160, org: 40 });
+    expect(commission).toEqual({ gross: 205, seller: 160, org: 45 });
+  });
+
+  test('adds both card rates for every card beyond the included count', () => {
+    const commission = getSaleLineCommission(fourP(), 1, { total: 3 }, 'seller-1', undefined, 'fibra');
+    expect(commission).toEqual({ gross: 210, seller: 170, org: 40 });
   });
 
   test('without extra cards the organization keeps the whole margin', () => {
@@ -54,6 +60,6 @@ describe('getSaleLineCommission', () => {
   test('a seller marked extra_cards: false gets no extra-card money', () => {
     const product = fourP({ value: 200, extra_cards: false });
     const commission = getSaleLineCommission(product, 1, { total: 3 }, 'seller-1', undefined, 'fibra');
-    expect(commission).toEqual({ gross: 200, seller: 200, org: 0 });
+    expect(commission).toEqual({ gross: 210, seller: 200, org: 10 });
   });
 });

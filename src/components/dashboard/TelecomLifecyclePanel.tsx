@@ -14,8 +14,9 @@ import { formatOperationalUnits, sumOperationalSaleUnits } from '@/lib/sale-unit
 import { useDashboardPeriod, formatPeriodLabel } from '@/stores/useDashboardPeriod';
 import {
   TELECOM_VIEW_LABELS,
+  isTelecomUndatedInstall,
   isTelecomViewPeriodScoped,
-  matchesTelecomView,
+  matchesTelecomViewInPeriod,
   type TelecomViewKey,
 } from '@/lib/telecom-sale-views';
 
@@ -48,8 +49,8 @@ export function TelecomLifecyclePanel() {
     const end = to ? new Date(to) : null;
     const reference = start ?? new Date();
 
-    // The period picks WHICH sales are in play (by sale date); the lifecycle
-    // counts below are then the state those sales are in right now.
+    // Sold in the period — still the right window for the money below and
+    // for the cards that have no date of their own.
     const inPeriod = sales.filter((s) => {
       if (!start || !end) return true;
       if (!s.sale_date) return false;
@@ -67,18 +68,14 @@ export function TelecomLifecyclePanel() {
     const linkTo = (view: TelecomViewKey) =>
       `/sales?telecom=${view}${isTelecomViewPeriodScoped(view) ? periodQuery : ''}`;
 
-    const count = (view: TelecomViewKey) => {
-      // "Próximo mês" looks forward, so it is never limited to the period.
-      const pool = isTelecomViewPeriodScoped(view) ? inPeriod : sales;
-      return sumOperationalSaleUnits(pool.filter((s) => matchesTelecomView(s, view, reference)));
-    };
+    // Each card places a sale in the period by its own date — installed by the
+    // installation date, active by the activation date (lib/telecom-sale-views).
+    const count = (view: TelecomViewKey) =>
+      sumOperationalSaleUnits(sales.filter((s) => matchesTelecomViewInPeriod(s, view, start, end)));
 
     // Still to install and with no date agreed — the number that would
     // silently disappear if we only ever counted scheduled months.
-    const semData = sumOperationalSaleUnits(inPeriod.filter(
-      (s) => !s.scheduled_install_date &&
-        (s.telecom_status === 'pendente' || s.telecom_status === 'em_instalacao'),
-    ));
+    const semData = sumOperationalSaleUnits(inPeriod.filter(isTelecomUndatedInstall));
 
     const metrics: Metric[] = [
       { key: 'instalados', hint: 'Fechadas', value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },

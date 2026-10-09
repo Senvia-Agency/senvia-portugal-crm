@@ -13,6 +13,7 @@ export interface SaleChargeback {
   organization_id: string;
   sale_id: string | null;
   client_id: string | null;
+  client_name?: string | null;
   user_id: string;
   amount: number;
   reason: string;
@@ -69,7 +70,13 @@ export function useSaleChargebacks() {
           : { data: [], error: null };
         if (manualClientsError) throw manualClientsError;
         const clientNames = new Map((manualClients ?? []).map((client) => [client.id, client.name]));
-        rows = [...rows, ...manualChargebacks.map((row) => ({ ...row, sale: null, client: row.client_id ? { name: clientNames.get(row.client_id) ?? 'Cliente' } : null }))]
+        rows = [...rows, ...(manualRows ?? []).map((row) => ({
+          ...row,
+          sale: null,
+          client: row.client_name || row.client_id
+            ? { name: row.client_name ?? clientNames.get(row.client_id ?? '') ?? 'Cliente' }
+            : null,
+        }))]
           .sort((a, b) => b.created_at.localeCompare(a.created_at));
       }
       const userIds = [...new Set(rows.map(r => r.user_id))];
@@ -126,7 +133,12 @@ export function useCreateManualChargeback() {
   const { organization } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ userId, amountText, clientId }: { userId: string; amountText: string; clientId: string | null }) => {
+    mutationFn: async ({ userId, amountText, clientId, clientName }: {
+      userId: string;
+      amountText: string;
+      clientId: string | null;
+      clientName: string | null;
+    }) => {
       if (!organization?.id || !isBdsOrganization(organization.name)) throw new Error('Chargeback manual disponível apenas para a BDS.');
       const amount = parseChargebackAmount(amountText);
       if (!amount) throw new Error('Indica um valor superior a 0 €.');
@@ -136,6 +148,7 @@ export function useCreateManualChargeback() {
         .insert({
           organization_id: organization.id,
           client_id: clientId || null,
+          client_name: clientName,
           user_id: userId,
           amount,
           reason: 'manual',

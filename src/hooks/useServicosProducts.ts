@@ -27,6 +27,7 @@ interface CatalogConfigFromDB {
   operator_id?: string;
   quantity_tiers?: QuantityTier[];
   extra_card_commission?: number;
+  extra_card_operator_pays?: number;
   included_cards?: number;
   operator_pays?: number;
   operator_pays_fibra?: number;
@@ -81,6 +82,7 @@ export function useServicosProducts() {
         operator_id: c.operator_id,
         quantity_tiers: c.quantity_tiers,
         extra_card_commission: c.extra_card_commission,
+        extra_card_operator_pays: c.extra_card_operator_pays,
         included_cards: c.included_cards,
         operator_pays: c.operator_pays,
         operator_pays_fibra: c.operator_pays_fibra,

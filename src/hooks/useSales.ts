@@ -476,6 +476,7 @@ export function useUpdateSale() {
         recurring_status?: 'active' | 'cancelled' |'pending' |  'paused' | null;
         // Data de ativação
         activation_date?: string | null;
+        commission_month_override?: string | null;
         // Telecom-only lifecycle
         telecom_status?: TelecomStatus | null;
         scheduled_install_date?: string | null;

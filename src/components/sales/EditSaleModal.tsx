@@ -172,6 +172,7 @@ export function EditSaleModal({
   // not money anyone in this org ever sees.
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
   const [activationDate, setActivationDate] = useState<string>("");
+  const [commissionMonthOverride, setCommissionMonthOverride] = useState<string>("");
   const [telecomStatus, setTelecomStatus] = useState<TelecomStatus | "">("");
   // Reassigning the sale: null keeps it with whoever created it.
   const [sellerId, setSellerId] = useState<string | null>(null);
@@ -222,6 +223,7 @@ export function EditSaleModal({
       setServicosDetails((sale as any).servicos_details || {});
       setManualTotalValue(sale.total_value?.toString() || "0");
       setActivationDate(sale.activation_date || "");
+      setCommissionMonthOverride(sale.commission_month_override?.slice(0, 7) || "");
       setFidelizacaoEnd((sale as any).fidelizacao_end || "");
       setTelecomStatus((sale.telecom_status as TelecomStatus) || "");
       // Show the sale's real owner — the person it was created by, unless it
@@ -533,6 +535,7 @@ export function EditSaleModal({
             : null,
           ...(isTelecom ? {
             activation_date: activationDate || ((telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : null),
+            commission_month_override: commissionMonthOverride ? `${commissionMonthOverride}-01` : null,
             telecom_status: telecomStatus || null,
             scheduled_install_date: scheduledInstallDate
               ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
@@ -757,6 +760,32 @@ export function EditSaleModal({
 
                         {isTelecom && (
                           <>
+                            <div className="space-y-1.5 col-span-1 sm:col-span-3">
+                              <Label htmlFor="edit-sale-activation-date" className="text-xs text-muted-foreground">Data de Ativação</Label>
+                              <Input
+                                id="edit-sale-activation-date"
+                                type="date"
+                                value={activationDate}
+                                onChange={(e) => setActivationDate(e.target.value)}
+                                className="h-9 w-auto"
+                                disabled={isDeliveredLocked}
+                              />
+                              <p className="text-[11px] text-muted-foreground">Data real em que o serviço ficou ativo; usada para calcular o mês da comissão.</p>
+                            </div>
+
+                            <div className="space-y-1.5 col-span-1 sm:col-span-3">
+                              <Label htmlFor="edit-sale-commission-month" className="text-xs text-muted-foreground">Mês da Comissão (exceção)</Label>
+                              <Input
+                                id="edit-sale-commission-month"
+                                type="month"
+                                value={commissionMonthOverride}
+                                onChange={(e) => setCommissionMonthOverride(e.target.value)}
+                                className="h-9 w-auto"
+                                disabled={isDeliveredLocked}
+                              />
+                              <p className="text-[11px] text-muted-foreground">Opcional. Vazio segue o prazo normal da operadora; preenchido fixa o mês desta venda.</p>
+                            </div>
+
                             {/* Full row: the date plus its "das X às Y" window
                                 never fits one third of the grid. */}
                             <div className="space-y-1.5 col-span-1 sm:col-span-3">
