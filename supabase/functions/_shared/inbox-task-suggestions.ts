@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@3.25.76';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
+import { classifyOllamaTask, OllamaTaskError } from './ollama-tasks.ts';
 import { isLeadVerificationMessage } from './lead-verification.ts';
 
 const decisionSchema = z.object({
@@ -48,6 +49,15 @@ export async function hasVerifiedServiceAccess(client: SupabaseClient): Promise<
 
 async function classify(message: z.infer<typeof messageSchema>, key: string): Promise<TaskDecision | null> {
   const now = Date.now();
+  if (Deno.env.get('INBOX_TASK_AI_PROVIDER') === 'ollama') {
+    try {
+      const decision = await classifyOllamaTask({ sender: message.direction === 'incoming' ? 'CLIENTE' : 'COMERCIAL', message: message.content ?? '', messageDate: message.sent_at ?? message.created_at }, Deno.env.get('OLLAMA_TASK_GATEWAY_URL') ?? '', key);
+      return parseTaskDecision(decision, now);
+    } catch (error) {
+      if (error instanceof OllamaTaskError) throw new SuggestionError(error.code);
+      throw error;
+    }
+  }
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
     method: 'POST', signal: AbortSignal.timeout(20_000),
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -77,7 +87,8 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
   const channel = z.object({ channel_type: z.string(), status: z.string(), archived_at: z.string().nullable(), metadata: z.object({ ai_tasks_enabled: z.boolean().optional() }).passthrough().nullable() }).safeParse(channelResult.data);
   if (!channel.success) throw new SuggestionError('CHANNEL_NOT_FOUND', 404);
   if (channel.data.channel_type !== 'whatsapp' || channel.data.status !== 'connected' || channel.data.archived_at || channel.data.metadata?.ai_tasks_enabled === false || !/^\d{9,15}$/.test(conversation.contact_ref)) return { ok: true, analyzed: 0, suggested: 0, disabled: true };
-  const key = Deno.env.get('GEMINI_API_KEY');
+  const local = Deno.env.get('INBOX_TASK_AI_PROVIDER') === 'ollama';
+  const key = Deno.env.get(local ? 'OLLAMA_TASK_GATEWAY_KEY' : 'GEMINI_API_KEY');
   if (!key) throw new SuggestionError('AI_NOT_CONFIGURED', 503);
   const open = await admin.from('inbox_tasks').select('id', { count: 'exact', head: true }).eq('organization_id', conversation.organization_id).eq('phone_key', conversation.contact_ref.slice(-9)).eq('suggested', true).is('done_at', null);
   if (open.error) throw new SuggestionError('TASK_READ_FAILED', 500);
@@ -89,7 +100,8 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
   const messages = z.array(messageSchema).safeParse(messagesResult.data);
   if (!messages.success) throw new SuggestionError('MESSAGE_INVALID', 500);
   let analyzed = 0, suggested = 0;
-  for (const message of messages.data.filter(message => eligibleMessage(message, now)).slice(0, 5).reverse()) {
+  const candidates = messages.data.filter(message => eligibleMessage(message, now)).slice(0, 5);
+  for (const message of local ? candidates : candidates.reverse()) {
     const claim = await admin.rpc('claim_inbox_task_analysis', { p_message_id: message.id, p_organization_id: conversation.organization_id });
     if (claim.error) throw new SuggestionError('ANALYSIS_CLAIM_FAILED', 500);
     if (claim.data === null) continue;
@@ -101,6 +113,7 @@ export async function analyzeConversation(admin: SupabaseClient, conversation: C
       if (finish.error) throw new SuggestionError('SUGGESTION_WRITE_FAILED', 500);
       analyzed++;
       if (finish.data === true) suggested++;
+      if (local) break;
       if ((open.count ?? 0) + suggested >= 3) break;
     } catch (error) {
       const release = await admin.from('inbox_task_analysis').delete().eq('message_id', message.id).eq('lease_token', token.data).eq('status', 'processing');

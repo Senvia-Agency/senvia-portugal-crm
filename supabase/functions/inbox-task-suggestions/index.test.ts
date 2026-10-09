@@ -83,3 +83,37 @@ Deno.test('rejects anonymous credentials when the private service permission che
   const { response, paths } = await alternateServiceRequest('anonymous-jwt', false);
   if (response.status !== 401 || paths.some(path => path === '/rest/v1/meta_conversations')) throw new Error('Anonymous request reached privileged data');
 });
+
+Deno.test('configured local provider analyzes only one message and never calls Google', async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  let localCalls = 0, finalized = 0;
+  const server = Deno.serve({ hostname: '127.0.0.1', port: 0, signal: controller.signal, onListen() {} }, req => {
+    const path = new URL(req.url).pathname;
+    const body = path === '/rest/v1/meta_conversations' ? { id: conversationId, organization_id: '11111111-1111-4111-8111-111111111111', channel_id: '22222222-2222-4222-8222-222222222222', contact_ref: '351912345678', contact_name: null }
+      : path === '/rest/v1/messaging_channels' ? { channel_type: 'whatsapp', status: 'connected', archived_at: null, metadata: { ai_tasks_enabled: true } }
+      : path === '/rest/v1/meta_messages' ? [1, 2].map(number => ({ id: `${number}1111111-1111-4111-8111-111111111111`, content: 'Podes enviar o orçamento amanhã?', direction: 'incoming', is_deleted: false, created_at: new Date().toISOString(), sent_at: null }))
+      : path === '/rest/v1/rpc/claim_inbox_task_analysis' ? '44444444-4444-4444-8444-444444444444'
+      : path === '/rest/v1/rpc/finish_inbox_task_analysis' ? true : null;
+    if (path === '/rest/v1/rpc/finish_inbox_task_analysis') finalized++;
+    return new Response(req.method === 'HEAD' ? null : JSON.stringify(body), { headers: { 'Content-Type': 'application/json', 'Content-Range': '0-0/0' } });
+  });
+  const names = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'INBOX_TASK_AI_PROVIDER', 'OLLAMA_TASK_GATEWAY_URL', 'OLLAMA_TASK_GATEWAY_KEY'] as const;
+  const previous = names.map(name => Deno.env.get(name));
+  Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${server.addr.port}`); Deno.env.set('SUPABASE_ANON_KEY', 'anon'); Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service-key');
+  Deno.env.set('INBOX_TASK_AI_PROVIDER', 'ollama'); Deno.env.set('OLLAMA_TASK_GATEWAY_URL', 'https://mcp.senvia.pt/senvia-tasks/v1/classify'); Deno.env.set('OLLAMA_TASK_GATEWAY_KEY', 'gateway-key');
+  globalThis.fetch = (input, init) => {
+    if (String(input).includes('googleapis.com')) throw new Error('Local provider called Google');
+    if (String(input) === 'https://mcp.senvia.pt/senvia-tasks/v1/classify') { localCalls++; return Promise.resolve(Response.json({ tarefa: true, titulo: 'Enviar orçamento', confianca: .9, prazo_texto: 'amanhã', prazo_explicito: true })); }
+    return originalFetch(input, init);
+  };
+  try {
+    const result = await handleRequest(new Request('http://localhost/inbox-task-suggestions', { method: 'POST', headers: { Authorization: 'Bearer service-key', 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: conversationId }) }));
+    const body: unknown = await result.json();
+    if (result.status !== 200 || localCalls !== 1 || finalized !== 1 || JSON.stringify(body) !== JSON.stringify({ ok: true, analyzed: 1, suggested: 1 })) throw new Error(`Local analysis failed: ${result.status}, calls=${localCalls}, finalized=${finalized}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    names.forEach((name, index) => { const value = previous[index]; if (value === undefined) Deno.env.delete(name); else Deno.env.set(name, value); });
+    controller.abort(); await server.finished;
+  }
+});

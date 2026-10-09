@@ -1,0 +1,25 @@
+[Unit]
+Description=Senvia local task suggestions gateway
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/senvia-task-ai/environment
+ExecStart=/usr/bin/node --max-old-space-size=96 /opt/senvia-task-ai/server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=192M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

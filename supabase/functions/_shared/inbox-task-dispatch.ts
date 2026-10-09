@@ -9,7 +9,7 @@ export async function requestInboxTaskSuggestions(conversationId: string): Promi
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ conversation_id: conversationId }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(110_000),
     });
     if (!response.ok) console.error('[inbox-task-suggestions] dispatch failed', { status: response.status });
   } catch (error) {
