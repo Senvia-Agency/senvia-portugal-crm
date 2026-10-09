@@ -24,3 +24,9 @@ Deno.test('calls authenticated local provider and validates the model decision',
 Deno.test('resolves an explicit weekday and clock time in Lisbon', () => {
   if (resolveExplicitDeadline('segunda-feira às 10:30', '2026-10-09T12:00:00Z') !== '2026-10-12T09:30:00.000Z') throw new Error('Explicit weekday time was lost');
 });
+Deno.test('preserves a clock time before the autumn Lisbon DST transition', () => {
+  if (resolveExplicitDeadline('25/10/2026 às 00:30', '2026-10-09T12:00:00Z') !== '2026-10-24T23:30:00.000Z') throw new Error('Wrong offset before clock change');
+});
+Deno.test('does not invent a nonexistent spring-transition clock time', () => {
+  if (resolveExplicitDeadline('28/03/2027 às 01:30', '2026-10-09T12:00:00Z') !== null) throw new Error('Nonexistent local time accepted');
+});

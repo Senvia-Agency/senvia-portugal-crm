@@ -33,11 +33,22 @@ export function resolveExplicitDeadline(text: string | null, messageDate: string
     const difference = (weekday - civil.getUTCDay() + 7) % 7;
     civil.setUTCDate(civil.getUTCDate() + (difference === 0 && /^proxima?/.test(value) ? 7 : difference));
   }
-  const offsetText = new Intl.DateTimeFormat('en', { timeZone: 'Europe/Lisbon', timeZoneName: 'shortOffset' }).formatToParts(civil).find(part => part.type === 'timeZoneName')?.value;
-  const offset = offsetText?.match(/^GMT(?:([+-])(\d{1,2})(?::(\d{2}))?)?$/);
-  if (!offset) return null;
-  const minutes = (Number(offset[2] ?? 0) * 60 + Number(offset[3] ?? 0)) * (offset[1] === '-' ? -1 : 1);
-  return new Date(Date.UTC(civil.getUTCFullYear(), civil.getUTCMonth(), civil.getUTCDate(), hour, minute) - minutes * 60000).toISOString();
+  const wallTime = Date.UTC(civil.getUTCFullYear(), civil.getUTCMonth(), civil.getUTCDate(), hour, minute);
+  const formatter = new Intl.DateTimeFormat('en', { timeZone: 'Europe/Lisbon', timeZoneName: 'shortOffset', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  let instant = wallTime;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const values = formatter.formatToParts(new Date(instant));
+    const offset = values.find(part => part.type === 'timeZoneName')?.value.match(/^GMT(?:([+-])(\d{1,2})(?::(\d{2}))?)?$/);
+    if (!offset) return null;
+    const minutes = (Number(offset[2] ?? 0) * 60 + Number(offset[3] ?? 0)) * (offset[1] === '-' ? -1 : 1);
+    const next = wallTime - minutes * 60000;
+    if (next === instant) break;
+    instant = next;
+  }
+  const local = formatter.formatToParts(new Date(instant));
+  const part = (name: string) => Number(local.find(value => value.type === name)?.value);
+  if (part('year') !== civil.getUTCFullYear() || part('month') !== civil.getUTCMonth() + 1 || part('day') !== civil.getUTCDate() || part('hour') !== hour || part('minute') !== minute) return null;
+  return new Date(instant).toISOString();
 }
 
 export async function classifyOllamaTask(input: Input, endpoint: string, key: string) {
