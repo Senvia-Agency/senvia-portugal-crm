@@ -1,3 +1,4 @@
+import { decodeMediaBase64 } from "./decode-media.ts";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 // meta-media — serve um ficheiro recebido pelo WhatsApp.
 //
@@ -184,7 +185,7 @@ Deno.serve(async (req) => {
           error: "O ficheiro já não está disponível no WhatsApp desta caixa.",
         }, 404);
       }
-      const bytes = Uint8Array.from(atob(String(evo.base64)), (c) => c.charCodeAt(0));
+      const bytes = decodeMediaBase64(String(evo.base64));
       const tipo = String(evo.mimetype ?? anexo.mime ?? "application/octet-stream");
       log("ficheiro servido (QR)", { media_id, tipo, bytes: bytes.length });
       return new Response(bytes, {

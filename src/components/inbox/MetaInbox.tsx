@@ -21,6 +21,8 @@ import { MediaViewer, type MediaItem } from './MediaViewer';
 import { createMetaMessageSendPlan } from '@/lib/meta-message-send-plan';
 import { MessageText } from './MessageText';
 import { FileTypeIcon } from './FileTypeIcon';
+import { PdfDocumentCard } from './PdfDocumentCard';
+import { isPdfDocument } from './pdf-rendering';
 import { ContactNotes } from '@/components/contacts/ContactNotes';
 import { ConversationTasks } from '@/components/inbox/ConversationTasks';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
@@ -1229,6 +1231,22 @@ function CartaoDocumento({ url, filename, size, outgoing }: {
   const nome = filename || nomeDoLink(url) || 'Documento';
   const ext = nome.includes('.') ? nome.split('.').pop()!.toLowerCase() : '';
   const detalhe = [ext ? ext.toUpperCase() : null, size ? tamanhoLegivel(size) : null].filter(Boolean).join(' · ');
+  const [mime, setMime] = useState('');
+  useEffect(() => {
+    setMime('');
+    if (!url.startsWith('blob:') || isPdfDocument(nome)) return;
+    const controller = new AbortController();
+    void fetch(url, { signal: controller.signal }).then(response => {
+      setMime(response.headers.get('content-type') ?? '');
+      void response.body?.cancel();
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.name !== 'AbortError') setMime('');
+    });
+    return () => controller.abort();
+  }, [url, nome]);
+  if (isPdfDocument(nome, mime)) {
+    return <PdfDocumentCard url={url} filename={nome} detail={detalhe} outgoing={outgoing} />;
+  }
   return (
     <a
       href={url}
