@@ -55,7 +55,7 @@ All functions live in `supabase/functions/{name}/index.ts` (Deno runtime). Deplo
 | `check-renewal-automations` | Finds sales due for renewal today/in 2 days, triggers email automations. |
 | `check-reminders` | Processes due reminders and sends notifications. |
 | `check-fidelization-alerts` | Checks client fidelization period expiry. |
-| `generate-recurring-expenses` | Creates monthly copies of recurring expenses. |
+| `generate-recurring-expenses` | Books copies of recurring expenses (weekly/monthly/quarterly/yearly) for every due period, next date from `expense_recurrence_next()`. Deploy with `verify_jwt = false` (the cron authenticates with `x-automation-secret`). |
 
 ## Subscriptions & Trials
 
@@ -124,6 +124,6 @@ These functions are called periodically via `pg_cron` + `pg_net`:
 - `cleanup-expired-trials` — daily cleanup
 - `process-automation-queue` — frequent, processes scheduled automations
 - `process-scheduled-campaigns` — frequent, sends due campaigns
-- `generate-recurring-expenses` — daily at 06:00, generates monthly recurring expenses
+- `generate-recurring-expenses` — daily at 06:00, books the recurring expenses that fell due
 - `sync-email-statuses` — periodic, syncs Brevo delivery statuses
 - `keyinvoice-fiscal-worker` — issue every 5 minutes, PDF email offset by 2 minutes, reconciliation daily at 04:50 UTC (installed by migration `20260924120000`)

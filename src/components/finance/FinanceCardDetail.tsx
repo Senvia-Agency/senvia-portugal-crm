@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search, X } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search, X, RefreshCw, PauseCircle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -34,6 +34,9 @@ import { MinhasComissoesContent } from "@/components/finance/MinhasComissoesCont
 import { TeamCommissionsTab } from "@/components/finance/TeamCommissionsTab";
 import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { EditExpenseModal } from "@/components/finance/EditExpenseModal";
+import { RecurringExpensesTable, useRecurringExpenseCount } from "@/components/finance/RecurringExpensesTable";
+import { describeSchedule, pausedScheduleOf, scheduleOf } from "@/lib/expense-recurrence";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { SaleDetailsModal } from "@/components/sales/SaleDetailsModal";
 import type { Expense } from "@/types/expenses";
 import { useAuth } from "@/contexts/AuthContext";
@@ -598,6 +601,19 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
                 <TableCell className="whitespace-nowrap">{fmtDate(e.expense_date)}</TableCell>
                 <TableCell>
                   <div>{e.description}</div>
+                  {scheduleOf(e) && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <RefreshCw className="h-3 w-3" />
+                      {describeSchedule(scheduleOf(e)!)}
+                      {e.next_recurrence_date && ` · próximo ${fmtDate(e.next_recurrence_date)}`}
+                    </div>
+                  )}
+                  {pausedScheduleOf(e) && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <PauseCircle className="h-3 w-3" />
+                      Em pausa · {describeSchedule(pausedScheduleOf(e)!)}
+                    </div>
+                  )}
                   {e.stripe_invoice_id && (
                     <div className="text-xs text-muted-foreground">
                       {stripePaymentOrigins[e.stripe_invoice_id] || "Pagamento Stripe"}
@@ -693,6 +709,9 @@ function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: Dat
 
 export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, searchTerm, commissionFilters, onBack, showBack = true }: FinanceCardDetailProps) {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  // Expenses: every one booked in the period, or the recurring schedules.
+  const [expensesView, setExpensesView] = usePersistedState<"all" | "recurring">("finance-expenses-view-v1", "all");
+  const recurringCount = useRecurringExpenseCount();
   // A caller that brings its own search box (the generic dashboard, for
   // expenses) keeps it; otherwise each list gets one here.
   const [ownSearch, setOwnSearch] = useState("");
@@ -779,6 +798,28 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
 
       {type === "expenses" && <AddExpenseModal open={addExpenseOpen} onOpenChange={setAddExpenseOpen} />}
 
+      {type === "expenses" && (
+        <div className="inline-flex rounded-lg border border-border bg-card p-1">
+          {([
+            ["all", "Todas as despesas"],
+            ["recurring", `Recorrentes (${recurringCount})`],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setExpensesView(key)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                expensesView === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {key === "recurring" && <RefreshCw className="h-3.5 w-3.5" />}
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {type === "faturado" && (
         <SalesDetailTable dateRange={dateRange} renewals={renewals} commissionFilters={commissionFilters}
           telecomStatuses={orgIsTelecom ? TELECOM_EARNED_STATUSES : undefined}
@@ -805,7 +846,8 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "pending" && <PaymentsDetailTable payments={pending.filter(paymentMatches)} allowMarkPaid due />}
       {type === "overdue" && <PaymentsDetailTable payments={overdue.filter(paymentMatches)} allowMarkPaid due />}
       {type === "dueSoon" && <PaymentsDetailTable payments={dueSoonPayments.filter(paymentMatches)} due />}
-      {type === "expenses" && <ExpensesDetailTable dateRange={dateRange} searchTerm={search} />}
+      {type === "expenses" && expensesView === "all" && <ExpensesDetailTable dateRange={dateRange} searchTerm={search} />}
+      {type === "expenses" && expensesView === "recurring" && <RecurringExpensesTable searchTerm={search} />}
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} userId={commissionFilters?.userId} />}
       {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}

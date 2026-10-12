@@ -2892,6 +2892,9 @@ export type Database = {
           notes: string | null
           organization_id: string
           receipt_file_url: string | null
+          recurrence_day: number | null
+          recurrence_frequency: string | null
+          recurrence_month: number | null
           stripe_invoice_id: string | null
           updated_at: string | null
         }
@@ -2909,6 +2912,9 @@ export type Database = {
           notes?: string | null
           organization_id: string
           receipt_file_url?: string | null
+          recurrence_day?: number | null
+          recurrence_frequency?: string | null
+          recurrence_month?: number | null
           stripe_invoice_id?: string | null
           updated_at?: string | null
         }
@@ -2926,6 +2932,9 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           receipt_file_url?: string | null
+          recurrence_day?: number | null
+          recurrence_frequency?: string | null
+          recurrence_month?: number | null
           stripe_invoice_id?: string | null
           updated_at?: string | null
         }

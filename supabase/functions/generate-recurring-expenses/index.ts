@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Most periods booked for one expense in a single run.
+const MAX_CATCH_UP = 24;
+
 serve(async (req: Request): Promise<Response> => {
   const denied = await internalJobGuard(req);
   if (denied) return denied;
@@ -39,41 +42,55 @@ serve(async (req: Request): Promise<Response> => {
     let generated = 0;
 
     for (const expense of expenses) {
-      // Create new expense record for this month
-      const { error: insertErr } = await supabase
-        .from("expenses")
-        .insert({
-          organization_id: expense.organization_id,
-          category_id: expense.category_id,
-          description: expense.description,
-          amount: expense.amount,
-          expense_date: expense.next_recurrence_date,
-          is_recurring: false, // Generated copy is not recurring itself
-          notes: expense.notes,
-          created_by: expense.created_by,
-          bank_account_id: expense.bank_account_id,
+      // Book every period that has fallen due, not just one: after a missed
+      // run a weekly expense can owe several. Capped so a schedule dated far
+      // in the past cannot flood the books in one go.
+      let due: string | null = expense.next_recurrence_date;
+      for (let booked = 0; due && due <= today && booked < MAX_CATCH_UP; booked++) {
+        const { error: insertErr } = await supabase
+          .from("expenses")
+          .insert({
+            organization_id: expense.organization_id,
+            category_id: expense.category_id,
+            description: expense.description,
+            amount: expense.amount,
+            expense_date: due,
+            is_recurring: false, // Generated copy is not recurring itself
+            notes: expense.notes,
+            created_by: expense.created_by,
+            bank_account_id: expense.bank_account_id,
+          });
+
+        if (insertErr) {
+          console.error(`Error generating expense for ${expense.id}:`, insertErr);
+          break;
+        }
+        generated++;
+
+        // The schedule (weekly/monthly/quarterly/yearly, due day) lives in
+        // the database: expense_recurrence_next is the one place that knows it.
+        const { data: next, error: nextErr } = await supabase.rpc("expense_recurrence_next", {
+          p_after: due,
+          p_frequency: expense.recurrence_frequency ?? "monthly",
+          p_day: expense.recurrence_day,
+          p_month: expense.recurrence_month,
         });
+        if (nextErr || !next) {
+          console.error(`Error computing next date for ${expense.id}:`, nextErr);
+          break;
+        }
 
-      if (insertErr) {
-        console.error(`Error generating expense for ${expense.id}:`, insertErr);
-        continue;
+        // Saved after each copy, so a failure halfway never books one twice.
+        const { error: updateErr } = await supabase
+          .from("expenses")
+          .update({ next_recurrence_date: next })
+          .eq("id", expense.id);
+        if (updateErr) {
+          console.error(`Error updating next_recurrence_date for ${expense.id}:`, updateErr);
+          break;
+        }
+        due = next as string;
       }
-
-      // Advance next_recurrence_date by 1 month
-      const nextDate = new Date(expense.next_recurrence_date + "T00:00:00");
-      nextDate.setMonth(nextDate.getMonth() + 1);
-      const nextDateStr = nextDate.toISOString().split("T")[0];
-
-      const { error: updateErr } = await supabase
-        .from("expenses")
-        .update({ next_recurrence_date: nextDateStr })
-        .eq("id", expense.id);
-
-      if (updateErr) {
-        console.error(`Error updating next_recurrence_date for ${expense.id}:`, updateErr);
-      }
-
-      generated++;
     }
 
     return new Response(JSON.stringify({ success: true, generated }), {

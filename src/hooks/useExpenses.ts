@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesUpdate } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense, ExpenseCategory } from '@/types/expenses';
+import type { RecurrenceSchedule } from '@/lib/expense-recurrence';
 
 interface ExpenseWithCategory extends Expense {
   expense_categories: ExpenseCategory | null;
@@ -46,9 +48,25 @@ interface CreateExpenseData {
   amount: number;
   expense_date: string;
   is_recurring?: boolean;
+  /** How it repeats. On update: undefined leaves the saved schedule alone (a
+   * pause keeps it), null removes it, a schedule replaces it. */
+  recurrence?: RecurrenceSchedule | null;
   notes?: string | null;
   receipt_file_url?: string | null;
   bank_account_id?: string | null;
+}
+
+/** The schedule columns to save. The next date is the database's job: a
+ * trigger works it out from these (expense_recurrence_next). */
+function recurrenceColumns(isRecurring: boolean | undefined, schedule: RecurrenceSchedule | null | undefined) {
+  if (!isRecurring || !schedule) {
+    return { recurrence_frequency: null, recurrence_day: null, recurrence_month: null };
+  }
+  return {
+    recurrence_frequency: schedule.frequency,
+    recurrence_day: schedule.day,
+    recurrence_month: schedule.frequency === 'yearly' ? schedule.month : null,
+  };
 }
 
 export function useCreateExpense() {
@@ -59,14 +77,6 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: async (data: CreateExpenseData) => {
       if (!organization?.id) throw new Error('No organization');
-
-      // Calculate next_recurrence_date if recurring
-      let nextRecurrenceDate: string | null = null;
-      if (data.is_recurring) {
-        const d = new Date(data.expense_date + 'T00:00:00');
-        d.setMonth(d.getMonth() + 1);
-        nextRecurrenceDate = d.toISOString().split('T')[0];
-      }
 
       const { error } = await supabase.from('expenses').insert({
         organization_id: organization.id,
@@ -79,7 +89,7 @@ export function useCreateExpense() {
         receipt_file_url: data.receipt_file_url || null,
         created_by: session?.user?.id || null,
         bank_account_id: data.bank_account_id || null,
-        ...(nextRecurrenceDate ? { next_recurrence_date: nextRecurrenceDate } : {}),
+        ...recurrenceColumns(data.is_recurring, data.recurrence),
       });
 
       if (error) throw error;
@@ -110,16 +120,13 @@ export function useUpdateExpense() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, ...data }: UpdateExpenseData) => {
-      // Recalculate next_recurrence_date when toggling recurring
-      const updates: Record<string, unknown> = { ...data };
-      if (data.is_recurring && data.expense_date) {
-        const d = new Date(data.expense_date + 'T00:00:00');
-        d.setMonth(d.getMonth() + 1);
-        updates.next_recurrence_date = d.toISOString().split('T')[0];
-      } else if (data.is_recurring === false) {
-        updates.next_recurrence_date = null;
-      }
+    mutationFn: async ({ id, recurrence, ...data }: UpdateExpenseData) => {
+      // Pausing or resuming only flips is_recurring and keeps the schedule;
+      // the database moves the next date to match either way.
+      const updates: TablesUpdate<'expenses'> = {
+        ...data,
+        ...(recurrence !== undefined ? recurrenceColumns(data.is_recurring ?? true, recurrence) : {}),
+      };
 
       const { error } = await supabase
         .from('expenses')

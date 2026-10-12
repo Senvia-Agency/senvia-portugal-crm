@@ -38,7 +38,7 @@ Telecom commission timing: `operators.commission_payment_month_offset` configure
 
 | Table | Purpose |
 |-------|---------|
-| `expenses` | Expense records. Has `category_id`, `is_recurring`, `next_recurrence_date`, `bank_account_id`. |
+| `expenses` | Expense records. Has `category_id`, `is_recurring`, `bank_account_id`. A recurring expense stores its schedule in `recurrence_frequency` (weekly/monthly/quarterly/yearly), `recurrence_day` (ISO weekday 1–7 when weekly, else 1–31, clamped to short months) and `recurrence_month` (yearly only); the trigger `expenses_recurrence_schedule` keeps `next_recurrence_date` from `expense_recurrence_next()` — browser saves cannot move it, only the service role (the generator). A schedule that starts (new, or switched back on) goes to its first due date on or after today (`expense_recurrence_upcoming`), so it never re-books past periods. |
 | `expense_categories` | Org-level categories with `name`, `color`. |
 | `bank_accounts` | Bank accounts for expense tracking. |
 | `invoices` | Fiscal documents from InvoiceXpress, KeyInvoice or Vendus (after the local provider migrations are applied). |

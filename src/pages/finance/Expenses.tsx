@@ -16,6 +16,9 @@ import { useExpenseCategories } from '@/hooks/useExpenseCategories';
 import { AddExpenseModal } from '@/components/finance/AddExpenseModal';
 import { EditExpenseModal } from '@/components/finance/EditExpenseModal';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { describeSchedule, scheduleOf } from '@/lib/expense-recurrence';
+import { RecurringExpensesTable, useRecurringExpenseCount } from '@/components/finance/RecurringExpensesTable';
+import { cn } from '@/lib/utils';
 import { parseISO, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -41,6 +44,9 @@ export default function Expenses() {
   const [showAdd, setShowAdd] = useState(false);
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // "all" = every expense booked; "recurring" = the schedules themselves.
+  const [view, setView] = usePersistedState<'all' | 'recurring'>('expenses-view-v1', 'all');
 
   // Filters
   const [search, setSearch] = usePersistedState('expenses-search-v1', '');
@@ -89,6 +95,10 @@ export default function Expenses() {
     return filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   }, [filteredExpenses]);
 
+  const recurringCount = useRecurringExpenseCount();
+
+  const deleting = expenses?.find((e) => e.id === deleteId);
+
   const hasFilters = search || dateRange?.from || categoryFilter !== 'all';
 
   const clearFilters = () => {
@@ -103,6 +113,7 @@ export default function Expenses() {
       setDeleteId(null);
     }
   };
+
 
   return (
     <>
@@ -127,6 +138,27 @@ export default function Expenses() {
           </Button>
         </div>
 
+        {/* View */}
+        <div className="inline-flex rounded-lg border border-border bg-card p-1">
+          {([
+            ['all', 'Todas as despesas'],
+            ['recurring', `Recorrentes (${recurringCount})`],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                view === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {key === 'recurring' && <RefreshCw className="h-3.5 w-3.5" />}
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Filters */}
         <Card>
           <CardContent className="pt-6">
@@ -140,13 +172,15 @@ export default function Expenses() {
                   className="pl-9"
                 />
               </div>
-              
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                placeholder="Período"
-                className="w-full sm:w-auto"
-              />
+
+              {view === 'all' && (
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  placeholder="Período"
+                  className="w-full sm:w-auto"
+                />
+              )}
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-full sm:w-[180px]">
@@ -177,6 +211,7 @@ export default function Expenses() {
         </Card>
 
         {/* Table */}
+        {view === 'all' ? (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">
@@ -207,7 +242,9 @@ export default function Expenses() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredExpenses.map((expense) => (
+                    {filteredExpenses.map((expense) => {
+                      const schedule = scheduleOf(expense);
+                      return (
                       <TableRow key={expense.id}>
                         <TableCell className="whitespace-nowrap">
                           {formatDate(expense.expense_date)}
@@ -215,7 +252,15 @@ export default function Expenses() {
                             <RefreshCw className="inline ml-1 h-3 w-3 text-muted-foreground" />
                           )}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate">{expense.description}</TableCell>
+                        <TableCell className="max-w-[260px]">
+                          <div className="truncate">{expense.description}</div>
+                          {schedule && (
+                            <div className="truncate text-xs text-muted-foreground">
+                              {describeSchedule(schedule)}
+                              {expense.next_recurrence_date && ` · próximo ${formatDate(expense.next_recurrence_date)}`}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {expense.category ? (
                             <Badge
@@ -242,13 +287,21 @@ export default function Expenses() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
             )}
           </CardContent>
         </Card>
+        ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <RecurringExpensesTable searchTerm={search} categoryFilter={categoryFilter} />
+          </CardContent>
+        </Card>
+        )}
       </div>
 
       <AddExpenseModal open={showAdd} onOpenChange={setShowAdd} />
@@ -266,7 +319,9 @@ export default function Expenses() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar despesa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é irreversível. A despesa será permanentemente removida.
+              {deleting?.is_recurring
+                ? `Remove a despesa de ${formatDate(deleting.expense_date)} e deixa de lançar as próximas. As despesas que a recorrência já lançou ficam. Para só deixar de lançar, usa «Parar recorrência».`
+                : 'Esta ação é irreversível. A despesa será permanentemente removida.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

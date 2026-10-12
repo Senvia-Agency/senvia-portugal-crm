@@ -17,6 +17,12 @@ export interface Expense {
   amount: number;
   expense_date: string;
   is_recurring: boolean;
+  // Schedule of a recurring expense (see src/lib/expense-recurrence.ts);
+  // NULL when it does not recur. The database keeps next_recurrence_date.
+  recurrence_frequency?: string | null;
+  recurrence_day?: number | null;
+  recurrence_month?: number | null;
+  next_recurrence_date?: string | null;
   notes: string | null;
   receipt_file_url: string | null;
   stripe_invoice_id?: string | null;
