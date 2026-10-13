@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardPeriod } from "@/stores/useDashboardPeriod";
+import { telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { format } from "date-fns";
 
 export interface CommissionSaleDetail {
@@ -31,6 +32,7 @@ interface SalesSettings {
 export function useCommissionsDetail() {
   const { organization } = useAuth();
   const orgId = organization?.id;
+  const isTelecom = organization?.niche === 'telecom';
   const { from, to } = useDashboardPeriod();
 
   const salesSettings = (organization?.sales_settings as SalesSettings) || {};
@@ -44,7 +46,7 @@ export function useCommissionsDetail() {
   const monthEnd = to ? format(to, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
   return useQuery({
-    queryKey: ["commissions-detail", orgId, commissionsEnabled, monthStart, monthEnd],
+    queryKey: ["commissions-detail", orgId, commissionsEnabled, monthStart, monthEnd, isTelecom],
     queryFn: async (): Promise<{ byUser: CommissionByUser[]; grandTotal: number }> => {
       if (!orgId || !commissionsEnabled) return { byUser: [], grandTotal: 0 };
 
@@ -52,18 +54,20 @@ export function useCommissionsDetail() {
       // (same rule as the other commission views). Fetch sales whose activation
       // OR sale date falls in the month, then keep the ones whose effective date
       // (activation || sale) is in range.
-      const { data: salesRaw, error: salesError } = await supabase
+      let salesQuery = supabase
         .from("sales")
-        .select("id, code, sale_date, activation_date, total_value, created_by")
+        .select("id, code, sale_date, activation_date, scheduled_install_date, total_value, created_by")
         .eq("organization_id", orgId)
-        .in("status", ["fulfilled", "delivered"])
-        .or(
-          `and(activation_date.gte.${monthStart},activation_date.lte.${monthEnd}),and(sale_date.gte.${monthStart},sale_date.lte.${monthEnd})`,
-        );
+        .in("status", ["fulfilled", "delivered"]);
+      if (!isTelecom) salesQuery = salesQuery.or(
+        `and(activation_date.gte.${monthStart},activation_date.lte.${monthEnd}),and(sale_date.gte.${monthStart},sale_date.lte.${monthEnd})`,
+      );
+      const { data: salesRaw, error: salesError } = await salesQuery;
 
       if (salesError) throw salesError;
 
       const sales = (salesRaw || []).filter((s) => {
+        if (isTelecom) return telecomCommissionInPeriod(s, { from: new Date(`${monthStart}T00:00:00`), to: new Date(`${monthEnd}T00:00:00`) });
         const ref = s.activation_date || s.sale_date;
         return ref != null && ref >= monthStart && ref <= monthEnd;
       });

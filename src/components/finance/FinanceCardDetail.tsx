@@ -394,7 +394,7 @@ function SalesDetailTable({
             <>
               {shown.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && (s.commission_payment_month_offset ?? 0) > 0 && telecomCommissionDate(s)
+                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && telecomCommissionDate(s)
                     ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: pt })
                     : fmtDate(dateBasis === 'activation' ? telecomCommissionDate(s) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>

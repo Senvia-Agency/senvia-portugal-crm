@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSplitsBySale } from '@/hooks/useCommissionSplits';
 import { useTeamMembers } from '@/hooks/useTeam';
+import { telecomCommissionDate } from '@/lib/telecom-finance';
 import { startOfMonth, endOfMonth } from 'date-fns';
 
 export interface TeamCommissionSale {
@@ -43,9 +44,10 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
   const { organization } = useAuth();
   const { data: members } = useTeamMembers();
   const organizationId = organization?.id;
+  const isTelecom = organization?.niche === 'telecom';
 
   return useQuery<TeamCommissionsData>({
-    queryKey: ['team-commissions', organizationId, selectedMonth, members?.length],
+    queryKey: ['team-commissions', organizationId, selectedMonth, members?.length, isTelecom],
     queryFn: async () => {
       const empty: TeamCommissionsData = { commercials: [], totalCommission: 0, salesCount: 0 };
       if (!organizationId || !selectedMonth) return empty;
@@ -55,7 +57,7 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
 
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date')
+        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date, scheduled_install_date')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
 
@@ -64,7 +66,7 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
 
       // Filter to the selected month using activation_date if set, else sale_date
       const inMonth = sales.filter(s => {
-        const ref = s.activation_date || s.sale_date;
+        const ref = isTelecom ? telecomCommissionDate(s) : s.activation_date || s.sale_date;
         if (!ref) return false;
         const d = new Date(ref);
         return d >= monthStart && d <= monthEnd;
@@ -144,7 +146,7 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
             saleCode: (sale.code as string) || null,
             clientName: getClientName(sale),
             saleDate: sale.sale_date as string | null,
-            activationDate: sale.activation_date as string | null,
+            activationDate: isTelecom ? telecomCommissionDate(sale) : sale.activation_date as string | null,
             totalValue: Number(sale.total_value || 0),
             comissao: share.amount,
           });

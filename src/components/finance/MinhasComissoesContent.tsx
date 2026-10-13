@@ -47,8 +47,8 @@ function badgeMeta(s: CommissionSale): { label: string; className: string } {
 export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: DateRange; userId?: string | null }) {
   const { organization } = useAuth();
   const isTelecom = organization?.niche === 'telecom';
-  const dateOf = (s: Parameters<typeof telecomCommissionDate>[0]) =>
-    isTelecom ? telecomCommissionDate(s) : s.sale_date;
+  const dateOf = (s: Parameters<typeof telecomCommissionDate>[0] & { kind?: 'direct' | 'recurring' }) =>
+    isTelecom && s.kind !== 'recurring' ? telecomCommissionDate(s) : s.sale_date;
   const { data: allSales = [], isLoading } = useMyCommissions(userId);
   const [filter, setFilter] = useState<StatusFilter>('pending');
 
@@ -66,7 +66,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
   // one until settled — but never earlier than the sale itself (a July sale must
   // not show up when filtering June). Settled commissions show only in their period.
   const sales = useMemo(() => {
-    if (isTelecom) return allSales.filter(s => telecomCommissionInPeriod(s, dateRange));
+    if (isTelecom) return allSales.filter(s => s.kind === 'recurring' ? inPeriod(s.sale_date) : telecomCommissionInPeriod(s, dateRange));
     if (!dateRange?.from) return allSales;
     const periodEnd = endOfDay(dateRange.to ?? dateRange.from);
     return allSales.filter((s) => {
@@ -96,7 +96,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
       }
       // Confirmed amounts count only within their own period, so a pending sale
       // carried forward from an earlier month never inflates this period's totals.
-      if (confirmed > EPS && (isTelecom ? telecomCommissionInPeriod(s, dateRange) : inPeriod(dateOf(s)))) {
+      if (confirmed > EPS && (isTelecom && s.kind !== 'recurring' ? telecomCommissionInPeriod(s, dateRange) : inPeriod(dateOf(s)))) {
         confirmedTotal += confirmed;
         confirmedCount++;
         const ref = isTelecom ? (dateOf(s) ? new Date(dateOf(s)!) : null) : s.approved_at
@@ -203,7 +203,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
                     <TableRow key={s.id}>
                       <TableCell className="text-sm">
                         {dateOf(s)
-                          ? format(new Date(dateOf(s)!), isTelecom && (s.commission_payment_month_offset ?? 0) > 0 ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })
+                          ? format(new Date(dateOf(s)!), isTelecom ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })
                           : '-'}
                       </TableCell>
                       <TableCell>

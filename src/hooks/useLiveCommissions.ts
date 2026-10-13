@@ -9,6 +9,7 @@ import {
   type EnergyCommissionConfig,
   type EnergyVolumeTier,
 } from '@/hooks/useCommissionMatrix';
+import { telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { format, endOfMonth } from 'date-fns';
 
 const NEGOTIATION_TYPE_LABELS: Record<string, string> = {
@@ -74,6 +75,7 @@ export function useLiveCommissions(selectedMonth: string, effectiveUserIds?: str
   const { data: org } = useOrganization();
   const { data: members } = useTeamMembers();
   const organizationId = organization?.id;
+  const isTelecom = organization?.niche === 'telecom';
 
   const energyConfig: EnergyCommissionConfig | null = (org as any)?.commission_matrix?.ee_gas ?? null;
 
@@ -84,7 +86,7 @@ export function useLiveCommissions(selectedMonth: string, effectiveUserIds?: str
   };
 
   return useQuery<LiveCommissionsData>({
-    queryKey: ['commissions-live', organizationId, selectedMonth, members?.length, energyConfig?.bands?.length],
+    queryKey: ['commissions-live', organizationId, selectedMonth, members?.length, energyConfig?.bands?.length, isTelecom],
     queryFn: async (): Promise<LiveCommissionsData> => {
       const emptyResult: LiveCommissionsData = { commercials: [], globalMwh: 0, globalTier: 'low', totalCommission: 0, globalEnergyCommission: 0, globalServicosCommission: 0, globalServicosKwp: 0 };
       if (!organizationId) return emptyResult;
@@ -93,13 +95,16 @@ export function useLiveCommissions(selectedMonth: string, effectiveUserIds?: str
       const monthEnd = format(endOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd');
 
       // Get delivered sales filtered by activation_date
-      const { data: sales, error: salesError } = await supabase
+      let salesQuery = supabase
         .from('sales')
-        .select('id, code, lead_id, client_id, activation_date, status, proposal_id')
+        .select('id, code, lead_id, client_id, activation_date, scheduled_install_date, status, proposal_id')
         .eq('organization_id', organizationId)
-        .in('status', ['delivered', 'fulfilled'])
-        .gte('activation_date', monthStart)
-        .lte('activation_date', monthEnd);
+        .in('status', ['delivered', 'fulfilled']);
+      if (!isTelecom) salesQuery = salesQuery.gte('activation_date', monthStart).lte('activation_date', monthEnd);
+      const { data: salesRaw, error: salesError } = await salesQuery;
+      const sales = isTelecom ? salesRaw?.filter(s => telecomCommissionInPeriod(s, {
+        from: new Date(`${monthStart}T00:00:00`), to: new Date(`${monthEnd}T00:00:00`),
+      })) : salesRaw;
 
       if (salesError) throw salesError;
       if (!sales?.length) return emptyResult;

@@ -254,7 +254,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   // The install IS the activation: when a sale goes live, its activation
   // date is the booked install day. Nobody is asked for a second date.
   const installDay = sale.scheduled_install_date ? sale.scheduled_install_date.slice(0, 10) : null;
-  const defaultActivation = () => sale.activation_date || installDay || new Date().toISOString().split('T')[0];
+  const defaultActivation = () => isTelecom ? installDay || '' : sale.activation_date || new Date().toISOString().split('T')[0];
 
   const handleStatusChange = (newStatus: SaleStatus) => {
     if (isTelecom) {
@@ -523,22 +523,6 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             <p className="text-sm font-medium font-mono">{(sale as any).edp_proposal_number}</p>
                           </div>
                         )}
-                        {isTelecom && sale.activation_date && sale.activation_date !== installDay && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Data de Ativação</p>
-                            <p className="text-sm font-medium">
-                              {format(new Date(sale.activation_date), "d MMM yyyy", { locale: pt })}
-                            </p>
-                          </div>
-                        )}
-                        {isTelecom && (sale.commission_payment_month_offset ?? 0) > 0 && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Mês previsto da comissão · M+{sale.commission_payment_month_offset}</p>
-                            <p className="text-sm font-medium">
-                              {sale.commission_expected_date ? format(new Date(`${sale.commission_expected_date}T12:00:00`), 'MMMM yyyy', { locale: pt }) : 'Aguarda ativação ou instalação'}
-                            </p>
-                          </div>
-                        )}
                         {/* Always shown in telecom: the booked install slot is the
                             single most asked-about field on a sale. */}
                         {isTelecom && (
@@ -800,7 +784,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                             {TELECOM_TECHNOLOGY_LABELS[detail.tecnologia]}
                                           </Badge>
                                         )}
-                                        {detail?.activation_date && (
+                                        {!isTelecom && detail?.activation_date && (
                                           <Badge variant="outline" className="text-[11px]">
                                             Ativação: {format(new Date(`${detail.activation_date}T12:00:00`), 'dd/MM/yyyy')}
                                           </Badge>
@@ -1370,7 +1354,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             <AlertDialogTitle>{pendingTelecomStatus === 'instalado' ? 'Marcar como Instalada' : 'Concluir Venda'}</AlertDialogTitle>
             <AlertDialogDescription>
               Ao concluir esta venda, ela não poderá mais ser editada (exceto por administradores).
-              {installDay ? ` A ativação fica com a data de instalação (${installDay.split('-').reverse().join('/')}).` : ' Sem data de instalação marcada, a ativação fica com a data de hoje.'}
+              {isTelecom && (installDay ? ' A comissão conta no mês seguinte à instalação.' : ' Sem data de instalação, a comissão fica sem mês definido.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1392,7 +1376,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                 : (pendingTelecomStatus === 'ativo' ? 'Marcar como Ativa' : 'Marcar como Entregue')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {installDay ? `A ativação fica com a data de instalação (${installDay.split('-').reverse().join('/')}).` : 'Sem data de instalação marcada, a ativação fica com a data de hoje.'}
+              {isTelecom ? (installDay ? 'A comissão conta no mês seguinte à instalação.' : 'Sem data de instalação, a comissão fica sem mês definido.') : 'Confirma a alteração do estado da venda.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

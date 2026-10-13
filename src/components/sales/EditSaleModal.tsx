@@ -171,8 +171,6 @@ export function EditSaleModal({
   // summary shows: the client pays the operator, so the sale's own value is
   // not money anyone in this org ever sees.
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
-  const [activationDate, setActivationDate] = useState<string>("");
-  const [commissionMonthOverride, setCommissionMonthOverride] = useState<string>("");
   const [telecomStatus, setTelecomStatus] = useState<TelecomStatus | "">("");
   // Reassigning the sale: null keeps it with whoever created it.
   const [sellerId, setSellerId] = useState<string | null>(null);
@@ -222,8 +220,6 @@ export function EditSaleModal({
       setServicosProdutos(sale.servicos_produtos || []);
       setServicosDetails((sale as any).servicos_details || {});
       setManualTotalValue(sale.total_value?.toString() || "0");
-      setActivationDate(sale.activation_date || "");
-      setCommissionMonthOverride(sale.commission_month_override?.slice(0, 7) || "");
       setFidelizacaoEnd((sale as any).fidelizacao_end || "");
       setTelecomStatus((sale.telecom_status as TelecomStatus) || "");
       // Show the sale's real owner — the person it was created by, unless it
@@ -494,10 +490,10 @@ export function EditSaleModal({
         return;
       }
     }
-    if (isTelecom && activationDate) {
+    if (isTelecom && scheduledInstallDate) {
       const fims = editableCpes.map((c) => c.contrato_fim).filter(Boolean) as string[];
-      if (fims.length > 0 && activationDate > fims.reduce((a, b) => (a > b ? a : b))) {
-        toast.error("A data de ativação é posterior ao fim do contrato.");
+      if (fims.length > 0 && scheduledInstallDate > fims.reduce((a, b) => (a > b ? a : b))) {
+        toast.error("A data de instalação é posterior ao fim do contrato.");
         return;
       }
     }
@@ -525,17 +521,9 @@ export function EditSaleModal({
           modelo_servico: (modeloServico as ModeloServico) || null,
           kwp: parseFloat(kwp) || null,
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : null,
-          servicos_details: Object.keys(servicosDetails).length > 0
-            ? isTelecom && isAdmin
-              ? Object.fromEntries(servicosProdutos.map(product => [product, {
-                  ...servicosDetails[product],
-                  activation_date: servicosDetails[product]?.activation_date ?? sale.activation_date ?? '',
-                }]))
-              : servicosDetails
-            : null,
+          servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : null,
           ...(isTelecom ? {
-            activation_date: activationDate || ((telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : null),
-            commission_month_override: commissionMonthOverride ? `${commissionMonthOverride}-01` : null,
+            activation_date: (telecomStatus === 'ativo' || telecomStatus === 'instalado') ? scheduledInstallDate || null : sale.activation_date,
             telecom_status: telecomStatus || null,
             scheduled_install_date: scheduledInstallDate
               ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
@@ -760,38 +748,13 @@ export function EditSaleModal({
 
                         {isTelecom && (
                           <>
-                            <div className="space-y-1.5 col-span-1 sm:col-span-3">
-                              <Label htmlFor="edit-sale-activation-date" className="text-xs text-muted-foreground">Data de Ativação</Label>
-                              <Input
-                                id="edit-sale-activation-date"
-                                type="date"
-                                value={activationDate}
-                                onChange={(e) => setActivationDate(e.target.value)}
-                                className="h-9 w-auto"
-                                disabled={isDeliveredLocked}
-                              />
-                              <p className="text-[11px] text-muted-foreground">Data real em que o serviço ficou ativo; usada para calcular o mês da comissão.</p>
-                            </div>
-
-                            <div className="space-y-1.5 col-span-1 sm:col-span-3">
-                              <Label htmlFor="edit-sale-commission-month" className="text-xs text-muted-foreground">Mês da Comissão (exceção)</Label>
-                              <Input
-                                id="edit-sale-commission-month"
-                                type="month"
-                                value={commissionMonthOverride}
-                                onChange={(e) => setCommissionMonthOverride(e.target.value)}
-                                className="h-9 w-auto"
-                                disabled={isDeliveredLocked}
-                              />
-                              <p className="text-[11px] text-muted-foreground">Opcional. Vazio segue o prazo normal da operadora; preenchido fixa o mês desta venda.</p>
-                            </div>
-
                             {/* Full row: the date plus its "das X às Y" window
                                 never fits one third of the grid. */}
                             <div className="space-y-1.5 col-span-1 sm:col-span-3">
-                              <Label className="text-xs text-muted-foreground">Data de Instalação</Label>
+                              <Label htmlFor="edit-sale-installation-date" className="text-xs text-muted-foreground">Data de Instalação</Label>
                               <div className="flex flex-wrap items-center gap-2">
                                 <Input
+                                  id="edit-sale-installation-date"
                                   type="date"
                                   value={scheduledInstallDate}
                                   onChange={(e) => setScheduledInstallDate(e.target.value)}
@@ -820,7 +783,7 @@ export function EditSaleModal({
                                   </>
                                 )}
                               </div>
-                              <p className="text-[11px] text-muted-foreground">Opcional — sem data conta como "sem data marcada".</p>
+                              <p className="text-[11px] text-muted-foreground">A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.</p>
                             </div>
 
                             <div className="col-span-1 sm:col-span-3 space-y-1.5">
@@ -833,14 +796,14 @@ export function EditSaleModal({
                                   className="h-9 w-auto"
                                   disabled={isDeliveredLocked}
                                 />
-                                {(activationDate || scheduledInstallDate) && !fidelizacaoEnd && !isDeliveredLocked && (
+                                {scheduledInstallDate && !fidelizacaoEnd && !isDeliveredLocked && (
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
                                     className="h-9 text-xs"
                                     onClick={() => {
-                                      const base = new Date(activationDate || scheduledInstallDate);
+                                      const base = new Date(scheduledInstallDate);
                                       base.setFullYear(base.getFullYear() + 2);
                                       setFidelizacaoEnd(format(base, "yyyy-MM-dd"));
                                     }}
@@ -1020,27 +983,7 @@ export function EditSaleModal({
                             setServicosDetails(prev => ({ ...prev, [product]: detail }));
                           }}
                         />
-                        {isAdmin && servicosProdutos.length > 0 && (
-                          <div className="mt-4 space-y-3">
-                            <p className="text-sm font-medium">Ativação por produto</p>
-                            <p className="text-xs text-muted-foreground">Cada produto entra na comissão do mês da sua ativação. Produto sem data ainda não conta.</p>
-                            {servicosProdutos.map(product => (
-                              <div key={product} className="flex flex-wrap items-center gap-3">
-                                <Label className="min-w-40 text-xs">{product}</Label>
-                                <Input
-                                  type="date"
-                                  aria-label={`Data de ativação de ${product}`}
-                                  className="h-9 w-auto"
-                                  value={servicosDetails[product]?.activation_date ?? sale.activation_date ?? ''}
-                                  onChange={event => setServicosDetails(prev => ({
-                                    ...prev,
-                                    [product]: { ...prev[product], activation_date: event.target.value },
-                                  }))}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
+
                       </CardContent>
                     </Card>
                   )}

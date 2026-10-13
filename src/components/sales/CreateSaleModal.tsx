@@ -257,7 +257,6 @@ export function CreateSaleModal({
   // Sale status
   const [saleStatus, setSaleStatus] = useState<SaleStatus>("fulfilled");
   const [edpProposalNumber, setEdpProposalNumber] = useState("");
-  const [activationDate, setActivationDate] = useState<Date | undefined>(undefined);
 
   // Draft payments state
   const [draftPayments, setDraftPayments] = useState<DraftPayment[]>([]);
@@ -375,7 +374,6 @@ export function CreateSaleModal({
       // Para telecom, quando vem de proposta, estado padrão = fulfilled (Entregue)
       setSaleStatus('fulfilled');
       setEdpProposalNumber("");
-      setActivationDate(undefined);
       setItems([]);
       setDiscount("0");
       setDraftPayments([]);
@@ -808,11 +806,11 @@ export function CreateSaleModal({
         return;
       }
     }
-    if (isTelecom && activationDate) {
-      const activationStr = format(activationDate, 'yyyy-MM-dd');
+    if (isTelecom && scheduledInstallDate) {
+      const activationStr = scheduledInstallDate;
       const fims = proposalCpes.map((c) => c.contrato_fim).filter(Boolean) as string[];
       if (fims.length > 0 && activationStr > fims.reduce((a, b) => (a > b ? a : b))) {
-        toast.error("A data de ativação é posterior ao fim do contrato.");
+        toast.error("A data de instalação é posterior ao fim do contrato.");
         return;
       }
     }
@@ -892,15 +890,7 @@ export function CreateSaleModal({
           comissao: parseFloat(comissao) || undefined,
           negotiation_type: negotiationType || undefined,
           servicos_produtos: servicosProdutos.length > 0 ? servicosProdutos : undefined,
-          servicos_details: Object.keys(servicosDetails).length > 0
-            ? isAdmin && servicosProdutos.length > 0
-              ? Object.fromEntries(servicosProdutos.map(product => [product, {
-                  ...servicosDetails[product],
-                  activation_date: servicosDetails[product]?.activation_date
-                    ?? (activationDate ? format(activationDate, 'yyyy-MM-dd') : scheduledInstallDate || ''),
-                }]))
-              : servicosDetails
-            : undefined,
+          servicos_details: Object.keys(servicosDetails).length > 0 ? servicosDetails : undefined,
           telecom_status: telecomStatus || undefined,
           scheduled_install_date: scheduledInstallDate
             ? `${scheduledInstallDate}T${scheduledInstallTime || '00:00'}:00`
@@ -914,9 +904,7 @@ export function CreateSaleModal({
         ...(showEnergy && saleFields?.edp_proposal_number?.visible ? { edp_proposal_number: edpProposalNumber.trim() || undefined } : {}),
         // The install is the activation: a sale that is already live takes
         // its booked install day as activation date, nobody types a second one.
-        activation_date: activationDate
-          ? format(activationDate, 'yyyy-MM-dd')
-          : (isTelecom && (telecomStatus === 'ativo' || telecomStatus === 'instalado') && scheduledInstallDate ? scheduledInstallDate : undefined),
+        activation_date: isTelecom && (telecomStatus === 'ativo' || telecomStatus === 'instalado') ? scheduledInstallDate || undefined : undefined,
         has_recurring: hasRecurring || false,
         recurring_value: recurringValue,
         recurring_status: isPlanSale ? 'pending' : (hasRecurring ? 'active' : undefined),
@@ -1312,7 +1300,7 @@ export function CreateSaleModal({
                                 />
                               </div>
                             )}
-                            <p className="text-[11px] text-muted-foreground">Opcional — pode ficar por marcar.</p>
+                            <p className="text-[11px] text-muted-foreground">A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.</p>
                           </div>
 
                           {/* Every telecom contract carries a loyalty period; its end is
@@ -1326,14 +1314,14 @@ export function CreateSaleModal({
                                 onChange={(e) => setFidelizacaoEnd(e.target.value)}
                                 className="h-9 w-auto"
                               />
-                              {(activationDate || scheduledInstallDate) && !fidelizacaoEnd && (
+                              {scheduledInstallDate && !fidelizacaoEnd && (
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   className="h-9 text-xs"
                                   onClick={() => {
-                                    const base = activationDate ? new Date(activationDate) : new Date(scheduledInstallDate);
+                                    const base = new Date(scheduledInstallDate);
                                     base.setFullYear(base.getFullYear() + 2);
                                     setFidelizacaoEnd(format(base, "yyyy-MM-dd"));
                                   }}
@@ -1575,28 +1563,7 @@ export function CreateSaleModal({
                           setServicosDetails(prev => ({ ...prev, [product]: detail }));
                         }}
                       />
-                      {isAdmin && servicosProdutos.length > 0 && (
-                        <div className="mt-4 space-y-3">
-                          <p className="text-sm font-medium">Ativação por produto</p>
-                          <p className="text-xs text-muted-foreground">Cada produto entra na comissão do mês da sua ativação. Produto sem data ainda não conta.</p>
-                          {servicosProdutos.map(product => (
-                            <div key={product} className="flex flex-wrap items-center gap-3">
-                              <Label className="min-w-40 text-xs">{product}</Label>
-                              <Input
-                                type="date"
-                                aria-label={`Data de ativação de ${product}`}
-                                className="h-9 w-auto"
-                                value={servicosDetails[product]?.activation_date
-                                  ?? (activationDate ? format(activationDate, 'yyyy-MM-dd') : scheduledInstallDate || '')}
-                                onChange={event => setServicosDetails(prev => ({
-                                  ...prev,
-                                  [product]: { ...prev[product], activation_date: event.target.value },
-                                }))}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
+
                     </CardContent>
                   </Card>
                 )}

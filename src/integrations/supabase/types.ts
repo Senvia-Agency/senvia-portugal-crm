@@ -7162,6 +7162,7 @@ export type Database = {
           recurring_status: string | null
           recurring_value: number | null
           sale_date: string | null
+          scheduled_install_date: string | null
           servicos_details: Json | null
           servicos_produtos: string[] | null
           status: string
@@ -7217,6 +7218,7 @@ export type Database = {
           recurring_status?: string | null
           recurring_value?: number | null
           sale_date?: string | null
+          scheduled_install_date?: string | null
           servicos_details?: Json | null
           servicos_produtos?: string[] | null
           status?: string
@@ -7272,6 +7274,7 @@ export type Database = {
           recurring_status?: string | null
           recurring_value?: number | null
           sale_date?: string | null
+          scheduled_install_date?: string | null
           servicos_details?: Json | null
           servicos_produtos?: string[] | null
           status?: string

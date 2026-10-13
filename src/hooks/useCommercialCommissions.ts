@@ -90,7 +90,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // that once took the product catalog down.
       const { data: sales, error: salesErr } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
+        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, scheduled_install_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesErr) throw salesErr;
@@ -365,7 +365,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
             saleValue: Number(s.total_value || 0),
             paid,
             proportional: mi.proportional,
-            expectedMonth: isTelecom && Number(s.commission_payment_month_offset || 0) > 0,
+            expectedMonth: isTelecom,
           });
           e.total += share.amount;
           if (paid) e.totalPaid += share.amount;
@@ -495,7 +495,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
 
       const { data: sales, error: salesError } = await (supabase as any)
         .from('sales')
-        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, payment_status, telecom_status, total_cartoes, commission_paid_at, seller_id, created_by, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
+        .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, scheduled_install_date, payment_status, telecom_status, total_cartoes, commission_paid_at, seller_id, created_by, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
         .eq('organization_id', orgId)
         .in('status', ['delivered', 'fulfilled']);
       if (salesError) throw salesError;
@@ -636,7 +636,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               clientName: s.client?.name || s.lead?.name || '—',
               products: parts.filter(part => part.product !== null).map(part => part.product as string),
               date: parts[0]?.date ?? telecomCommissionDate(s),
-              deferred: Number(s.commission_payment_month_offset || 0) > 0,
+              deferred: true,
               telecomStatus: s.telecom_status,
               amount: org,
             });
