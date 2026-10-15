@@ -15,13 +15,23 @@ import { useSidebarStore } from "@/stores/useSidebarStore";
 import { useInboxImmersiveStore } from "@/stores/useInboxImmersiveStore";
 import { cn } from "@/lib/utils";
 
+import { useAuth } from '@/contexts/AuthContext';
+import { InboxWorkspaceProvider } from '@/components/inbox/workspace/InboxWorkspaceProvider';
+import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 interface AppLayoutProps {
   children: ReactNode;
   userName?: string;
   organizationName?: string;
 }
 
-export function AppLayout({ children, userName, organizationName }: AppLayoutProps) {
+export function AppLayout(props: AppLayoutProps) {
+  const { user, organization } = useAuth();
+  const scope = [user?.id ?? 'signed-out', organization?.id ?? 'no-org'].join(':');
+  return <InboxWorkspaceProvider key={scope} scope={scope}><AppLayoutContent {...props} /></InboxWorkspaceProvider>;
+}
+function AppLayoutContent({ children, userName, organizationName }: AppLayoutProps) {
+  const workspace = useInboxWorkspace();
+  const docked = workspace?.enabled && workspace.pinned && !workspace.onInbox && !workspace.minimized && !workspace.popup;
   const isMobile = useIsMobile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { subscriptionStatus, hasChecked } = useStripeSubscription();
@@ -76,7 +86,7 @@ export function AppLayout({ children, userName, organizationName }: AppLayoutPro
           </div>
         </main>
         {!immersive && !hideNav && <MobileBottomNav />}
-        {!immersive && <OttoFAB />}
+        {!immersive && !docked && <OttoFAB />}
         <OttoOnboardingUI />
         {!immersive && <ModuleOnboardingPeek />}
       </div>
@@ -87,7 +97,7 @@ export function AppLayout({ children, userName, organizationName }: AppLayoutPro
   return (
     <div className="min-h-dvh bg-background">
       <AppSidebar userName={userName} organizationName={organizationName} />
-      <main className={cn("transition-[padding] duration-200", sidebarCollapsed ? "pl-16" : "pl-64")}>
+      <main className={cn("transition-[padding] duration-200", sidebarCollapsed ? "pl-16" : "pl-64", docked && "pr-[28rem]")}>
         {showTrialBanner && <TrialBanner daysRemaining={subscriptionStatus!.days_remaining!} />}
         {showOverdueBanner && <PaymentOverdueBanner daysUntilBlock={subscriptionStatus!.days_until_block ?? 0} blockAt={subscriptionStatus!.block_at} />}
         <SuperAdminVisitBanner />
@@ -95,7 +105,7 @@ export function AppLayout({ children, userName, organizationName }: AppLayoutPro
           {children}
         </div>
       </main>
-      <OttoFAB />
+      {!docked && <OttoFAB />}
       <OttoOnboardingUI />
       <ModuleOnboardingPeek />
     </div>

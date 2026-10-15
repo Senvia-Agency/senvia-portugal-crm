@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useDialogContainer } from "./portal-container";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/lib/utils";
@@ -8,7 +9,10 @@ const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
-const AlertDialogPortal = AlertDialogPrimitive.Portal;
+const AlertDialogPortal = ({ container, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) => {
+  const defaultContainer = useDialogContainer();
+  return <AlertDialogPrimitive.Portal container={container ?? defaultContainer} {...props} />;
+};
 
 const AlertDialogOverlay = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
@@ -33,6 +37,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       ref={ref}
+      data-workspace-dialog-content="alert"
       className={cn(
         "fixed left-1/2 -translate-x-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-md h-auto overflow-y-auto gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg top-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)] bottom-auto max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-2rem)] sm:top-[50%] sm:-translate-y-[50%] sm:max-h-[calc(100dvh-2rem)]",
         className,

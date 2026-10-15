@@ -1,9 +1,8 @@
 import { Component, type ReactNode } from "react";
+import { toast } from "sonner";
 
-// Errors thrown when a lazily-loaded chunk no longer exists on the server
-// (typical after a new deploy while an old tab is still open).
-// NOTE: "Failed to fetch" alone is intentionally excluded — it also matches
-// Supabase/API network errors that must NOT trigger an auto-reload loop.
+// Lazy chunks can disappear after a deployment while an older tab stays open.
+// Ordinary API/network errors must not be treated as a missing app chunk.
 const CHUNK_ERROR_RE =
   /Loading chunk|dynamically imported module|module script failed|ChunkLoadError|Failed to fetch dynamically imported module/i;
 
@@ -12,62 +11,42 @@ export function isChunkError(error: unknown): boolean {
   return CHUNK_ERROR_RE.test(msg);
 }
 
-// Reloads the page at most once per 10s window, so a persistently failing
-// chunk doesn't cause an infinite reload loop. Returns true if it reloaded.
-export function reloadOnce(): boolean {
-  try {
-    const KEY = "app:lastChunkReload";
-    const now = Date.now();
-    const last = Number(sessionStorage.getItem(KEY) || 0);
-    if (now - last > 10000) {
-      sessionStorage.setItem(KEY, String(now));
-      window.location.reload();
-      return true;
-    }
-  } catch {
-    window.location.reload();
-    return true;
-  }
-  return false;
+export function handlePreloadError(event: Event): void {
+  // Suppress Vite's default throw; a preload failure must never force a reload.
+  event.preventDefault();
+  toast.warning("Não foi possível carregar esta página", {
+    id: "app-chunk-update",
+    description: "Guarda o que estás a escrever antes de atualizar o sistema.",
+    duration: Infinity,
+    action: { label: "Atualizar agora", onClick: () => window.location.reload() },
+  });
 }
 
-type Phase = "ok" | "reloading" | "error";
+type Phase = "ok" | "update" | "error";
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, { phase: Phase }> {
   state: { phase: Phase } = { phase: "ok" };
 
-  static getDerivedStateFromError(error: unknown) {
-    return { phase: isChunkError(error) ? ("reloading" as Phase) : ("error" as Phase) };
+  static getDerivedStateFromError(error: unknown): { phase: Phase } {
+    return { phase: isChunkError(error) ? "update" : "error" };
   }
 
   componentDidCatch(error: unknown) {
     console.error("[ErrorBoundary]", error);
-    if (isChunkError(error)) {
-      const reloaded = reloadOnce();
-      if (!reloaded) this.setState({ phase: "error" });
-    }
   }
 
   render() {
-    if (this.state.phase === "reloading") {
-      return (
-        <div className="min-h-dvh flex items-center justify-center bg-background text-muted-foreground text-sm">
-          A atualizar…
-        </div>
-      );
-    }
-    if (this.state.phase === "error") {
+    if (this.state.phase !== "ok") {
       return (
         <div className="min-h-dvh flex flex-col items-center justify-center gap-4 bg-background text-center p-6">
-          <h1 className="text-xl font-semibold">Ocorreu um erro</h1>
+          <h1 className="text-xl font-semibold">
+            {this.state.phase === "update" ? "É necessário atualizar o sistema" : "Ocorreu um erro"}
+          </h1>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Algo correu mal ao carregar a página. Tenta recarregar.
+            Não foi possível carregar esta página. O sistema não será recarregado automaticamente.
           </p>
           <button
-            onClick={() => {
-              try { sessionStorage.removeItem("app:lastChunkReload"); } catch { /* noop */ }
-              window.location.reload();
-            }}
+            onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium"
           >
             Recarregar

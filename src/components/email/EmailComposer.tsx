@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, useId } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, useId, useLayoutEffect } from 'react';
 import {
   Loader2, Send, X, Paperclip, FileText, Bold, Italic, Underline,
   List, ListOrdered, Minus, BookmarkCheck, Trash2,
@@ -17,7 +17,10 @@ import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { cn } from '@/lib/utils';
 import type { EmailAttachment } from '@/hooks/useEmail';
 import { insertEmailPaste, quoteEmailHtml as quoteHtml, sanitizeEmailHtml, toEditorHtml } from '@/lib/email-html';
+import { writeEmailRecovery, removeEmailRecovery, type EmailRecovery } from '@/lib/inbox-drafts';
 import { resolveEmailSignatureHtml } from '@/lib/email-signature';
+
+import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 
 interface Attached { filename: string; contentType: string; b64: string; size: number; }
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
@@ -187,9 +190,11 @@ function EmailChipInput({
 // (0 = rightmost, 1 = one step left, etc.) so multiple windows stack visually.
 // ─────────────────────────────────────────────────────────────────────────────
 export function EmailComposer({
-  onClose, channelId, folderId, mode, original, selfAddress, initialDraft, stackIndex,
+  onClose, channelId, folderId, mode, original, selfAddress, initialDraft, stackIndex, recoveryId, recovered,
   originalAttachments, resolveAttachment,
 }: {
+  recoveryId: string;
+  recovered?: EmailRecovery;
   onClose: () => void;
   channelId: string | null;
   folderId: string | null;
@@ -205,7 +210,7 @@ export function EmailComposer({
   resolveAttachment?: (attachmentId: string) => Promise<{ data_b64: string; content_type: string | null } | null>;
 }) {
   const { toast } = useToast();
-  const { organization, profile } = useAuth();
+  const { organization, profile, user } = useAuth();
   const actions = useEmailActions(channelId, folderId);
   const { data: caixas = [] } = useEmailChannels();
   const caixa = channelId ? caixas.find((c) => c.id === channelId) : undefined;
@@ -218,7 +223,7 @@ export function EmailComposer({
   const [isDragging, setIsDragging] = useState(false);
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
-  const [draftId, setDraftId] = useState<string | null>(initialDraft?.id ?? null);
+  const [draftId, setDraftId] = useState<string | null>(recovered?.savedDraftId ?? initialDraft?.id ?? null);
   const draftOperation = useRef<Promise<unknown>>(Promise.resolve());
   const closingRef = useRef(false);
   const sendLock = useRef(false);
@@ -231,6 +236,38 @@ export function EmailComposer({
   const [subject, setSubject] = useState('');
   const [attachments, setAttachments] = useState<Attached[]>([]);
 
+  const recoveryScope = user && organization ? `${user.id}:${organization.id}` : null;
+  const recoveryReady = useRef(false);
+  const recoveryProtected = useRef(false);
+  const autosaveWarningShown = useRef(false);
+  const storageWarningShown = useRef(false);
+  const checkpointRef = useRef<() => void>(() => undefined);
+  const checkpoint = () => {
+    if (!recoveryReady.current || closingRef.current || !recoveryScope || !channelId) return;
+    const protectedDraft = writeEmailRecovery(recoveryScope, channelId, {
+      id: recoveryId, savedDraftId: draftId,
+      to, cc: showCc ? cc : [], bcc: showBcc ? bcc : [], subject,
+      bodyHtml: sanitizeEmailHtml(editorRef.current?.innerHTML || ''),
+      inReplyTo: (mode === 'reply' || mode === 'replyAll') ? original?.message_id ?? initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null : initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null,
+      replyMessageId: (mode === 'reply' || mode === 'replyAll') ? original?.id ?? initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null : initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null,
+    });
+    recoveryProtected.current = protectedDraft;
+    if (!protectedDraft && !storageWarningShown.current) {
+      storageWarningShown.current = true;
+      toast({ title: 'Não foi possível proteger o rascunho neste navegador', description: 'Guarda o texto antes de sair.', variant: 'destructive' });
+    }
+  };
+  useLayoutEffect(() => { checkpointRef.current = checkpoint; checkpoint(); });
+  useEffect(() => {
+    const protect = () => checkpointRef.current();
+    window.addEventListener('pagehide', protect);
+    window.addEventListener('beforeunload', protect);
+    return () => { protect(); window.removeEventListener('pagehide', protect); window.removeEventListener('beforeunload', protect); };
+  }, []);
+  const clearRecovery = () => {
+    if (recoveryScope && channelId) removeEmailRecovery(recoveryScope, channelId, recoveryId);
+  };
+
   const signatureHtml = useMemo(() => {
     return resolveEmailSignatureHtml({
       mode,
@@ -241,6 +278,10 @@ export function EmailComposer({
 
   // Compute initial field values once on mount.
   const initial = useMemo(() => {
+    if (recovered) {
+      return { to: recovered.to, cc: recovered.cc, bcc: recovered.bcc, subject: recovered.subject,
+        bodyHtml: toEditorHtml(recovered.bodyHtml), attachments: (initialDraft?.attachments ?? []).map(a => ({ ...a, size: a.size ?? Math.floor(a.b64.length * 3 / 4) })) };
+    }
     if (initialDraft) {
       // A saved draft already carries its own signature (or the user removed
       // it on purpose) — never re-inject one.
@@ -278,9 +319,11 @@ export function EmailComposer({
     setAttachments(initial.attachments);
     setShowCc(initial.cc.length > 0);
     setShowBcc(initial.bcc.length > 0);
-    setDraftId(initialDraft?.id ?? null);
+    setDraftId(recovered?.savedDraftId ?? initialDraft?.id ?? null);
     requestAnimationFrame(() => {
       if (editorRef.current) editorRef.current.innerHTML = sanitizeEmailHtml(initial.bodyHtml);
+      recoveryReady.current = true;
+      checkpointRef.current();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -340,12 +383,19 @@ export function EmailComposer({
           id: draftIdRef.current,
           to, cc: showCc ? cc : [], bcc: showBcc ? bcc : [],
           subject, bodyHtml: sanitizeEmailHtml(editorRef.current?.innerHTML || ''),
-          inReplyTo: original?.message_id ?? initialDraft?.in_reply_to ?? null,
-          replyMessageId: (mode === 'reply' || mode === 'replyAll') ? original?.id ?? initialDraft?.reply_message_id ?? null : initialDraft?.reply_message_id ?? null,
+          inReplyTo: original?.message_id ?? initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null,
+          replyMessageId: (mode === 'reply' || mode === 'replyAll') ? original?.id ?? initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null : initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null,
           attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, b64: a.b64 })),
         });
         setDraftId(result.id);
-      } catch { /* silent */ }
+        autosaveWarningShown.current = false;
+      } catch (error) {
+        if (!autosaveWarningShown.current) {
+          autosaveWarningShown.current = true;
+          toast({ title: 'Não foi possível sincronizar o rascunho', description: recoveryProtected.current ? 'O texto está protegido neste separador. Mantém o separador aberto até guardar no servidor.' : 'Copia o texto antes de sair desta página.', variant: 'destructive' });
+        }
+        console.warn('[Email draft] Server save failed', error instanceof Error ? error.name : 'unknown');
+      }
     }, 4000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,6 +405,8 @@ export function EmailComposer({
     const editor = editorRef.current;
     if (!editor) return;
     editor.focus();
+    const document = editorRef.current?.ownerDocument ?? globalThis.document;
+    const window = document.defaultView ?? globalThis.window;
     const supported = typeof document.queryCommandSupported === 'function' && document.queryCommandSupported(cmd);
     if (supported) {
       document.execCommand(cmd, false, undefined);
@@ -379,6 +431,7 @@ export function EmailComposer({
     await draftOperation.current.catch(() => undefined);
     const idToDelete = draftIdRef.current ?? initialDraft?.id ?? null;
     if (idToDelete) { try { await actions.deleteDraft(idToDelete); } catch { /* non-critical */ } }
+    clearRecovery();
     onClose();
   };
 
@@ -388,8 +441,8 @@ export function EmailComposer({
       const result = await persistDraft({
         id: draftId, to, cc: showCc ? cc : [], bcc: showBcc ? bcc : [],
         subject, bodyHtml: sanitizeEmailHtml(editorRef.current?.innerHTML || ''),
-        inReplyTo: original?.message_id ?? initialDraft?.in_reply_to ?? null,
-        replyMessageId: (mode === 'reply' || mode === 'replyAll') ? original?.id ?? initialDraft?.reply_message_id ?? null : initialDraft?.reply_message_id ?? null,
+        inReplyTo: original?.message_id ?? initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null,
+        replyMessageId: (mode === 'reply' || mode === 'replyAll') ? original?.id ?? initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null : initialDraft?.reply_message_id ?? recovered?.replyMessageId ?? null,
         attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, b64: a.b64 })),
       });
       setDraftId(result.id);
@@ -416,7 +469,7 @@ export function EmailComposer({
       await actions.send({
         to, cc: showCc ? cc : [], bcc: showBcc ? bcc : [],
         subject, text, html,
-        inReplyTo: mode === 'reply' || mode === 'replyAll' ? original?.message_id ?? initialDraft?.in_reply_to ?? null : initialDraft?.in_reply_to ?? null,
+        inReplyTo: mode === 'reply' || mode === 'replyAll' ? original?.message_id ?? initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null : initialDraft?.in_reply_to ?? recovered?.inReplyTo ?? null,
         references: refs,
         attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, b64: a.b64 })),
       });
@@ -424,6 +477,7 @@ export function EmailComposer({
       await draftOperation.current.catch(() => undefined);
       const idToDelete = draftIdRef.current ?? initialDraft?.id ?? null;
       if (idToDelete) { try { await actions.deleteDraft(idToDelete); } catch { /* non-critical */ } }
+      clearRecovery();
       toast({ title: 'Email colocado na fila de envio', description: 'O estado do envio será atualizado na caixa de entrada.' });
       onClose();
     } catch (e) {
@@ -458,6 +512,8 @@ export function EmailComposer({
     : 'Nova mensagem';
   const title = subject.trim() || baseTitle;
 
+  const workspace = useInboxWorkspace();
+  const compact = workspace?.compact ?? false;
   const rightPx = 24 + stackIndex * (COMPOSER_W + COMPOSER_GAP);
   const isMobile = useIsMobile();
   const viewport = useVisualViewport();
@@ -478,7 +534,7 @@ export function EmailComposer({
       role="dialog"
       aria-label={baseTitle}
       className="fixed bottom-0 z-50 flex max-h-[100dvh] flex-col shadow-2xl inset-x-0 md:inset-x-auto"
-      style={isMobile ? { top: minimized ? undefined : viewport.offsetTop, height: minimized ? undefined : viewport.height, bottom: minimized ? 0 : undefined } : { width: COMPOSER_W, right: rightPx }}
+      style={compact ? { width: "100%", right: 0, bottom: 0, maxHeight: "calc(100% - 5rem)" } : isMobile ? { top: minimized ? undefined : viewport.offsetTop, height: minimized ? undefined : viewport.height, bottom: minimized ? 0 : undefined } : { width: COMPOSER_W, right: rightPx }}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -539,8 +595,8 @@ export function EmailComposer({
             contentEditable
             suppressContentEditableWarning
             tabIndex={0}
-            onInput={() => setBodyVersion((v) => v + 1)}
-            onPaste={(event) => { insertEmailPaste(event); setBodyVersion((v) => v + 1); }}
+            onInput={() => { checkpointRef.current(); setBodyVersion((v) => v + 1); }}
+            onPaste={(event) => { insertEmailPaste(event); checkpointRef.current(); setBodyVersion((v) => v + 1); }}
             role="textbox"
             aria-label="Corpo da mensagem"
             aria-multiline="true"

@@ -7,6 +7,8 @@
 // - Keyboard: Esc to close, ArrowLeft/Right to navigate, +/- to zoom
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { useDialogContainer } from '@/components/ui/portal-container';
 import { cn } from '@/lib/utils';
 
 export interface MediaItem {
@@ -35,6 +37,9 @@ export const MediaViewer = memo(function MediaViewer({
   onDownload?: (item: MediaItem) => void;
 }) {
   const item = items[index];
+  const portalContainer = useDialogContainer();
+  const ownerDocument = portalContainer?.ownerDocument ?? document;
+  const viewerWindow = ownerDocument.defaultView ?? window;
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [showControls, setShowControls] = useState(true);
@@ -52,15 +57,17 @@ export const MediaViewer = memo(function MediaViewer({
 
   const showControlsBriefly = useCallback(() => {
     setShowControls(true);
-    if (controlsTimer.current) window.clearTimeout(controlsTimer.current);
-    controlsTimer.current = window.setTimeout(() => setShowControls(false), 3000);
-  }, []);
+    if (controlsTimer.current) viewerWindow.clearTimeout(controlsTimer.current);
+    controlsTimer.current = viewerWindow.setTimeout(() => setShowControls(false), 3000);
+  }, [viewerWindow]);
 
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'Escape':
+          e.preventDefault();
+          e.stopPropagation();
           onClose();
           break;
         case 'ArrowLeft':
@@ -81,16 +88,16 @@ export const MediaViewer = memo(function MediaViewer({
           break;
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [index, items.length, onClose, onNavigate, resetZoom]);
+    viewerWindow.addEventListener('keydown', onKey, true);
+    return () => viewerWindow.removeEventListener('keydown', onKey, true);
+  }, [index, items.length, onClose, onNavigate, resetZoom, viewerWindow]);
 
   // Lock body scroll while open
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+    const prev = ownerDocument.body.style.overflow;
+    ownerDocument.body.style.overflow = 'hidden';
+    return () => { ownerDocument.body.style.overflow = prev; };
+  }, [ownerDocument]);
 
   // Reset zoom when item changes
   useEffect(() => { resetZoom(); setImgLoaded(false); }, [index, resetZoom]);
@@ -163,10 +170,13 @@ export const MediaViewer = memo(function MediaViewer({
   const prevItem = index > 0 ? items[index - 1] : null;
   const nextItem = index < items.length - 1 ? items[index + 1] : null;
 
-  return (
+  return createPortal(
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
+      data-inbox-workspace-control
+      role="dialog"
+      aria-label="Pré-visualização de ficheiro"
+      className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
       onMouseMove={showControlsBriefly}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -236,13 +246,14 @@ export const MediaViewer = memo(function MediaViewer({
         </button>
       )}
 
-      {/* Media content */}
+      {/* Fit media to the actual portal area, including a docked page or popup. */}
+      <div className={cn("absolute inset-x-0 top-20 flex items-center justify-center px-4", item?.caption ? (items.length > 1 ? "bottom-64" : "bottom-48") : (items.length > 1 ? "bottom-32" : "bottom-20"))}>
       {item?.type === 'video' ? (
         <video
           src={item.url}
           controls
           autoPlay
-          className="max-h-[90dvh] max-w-[95vw] rounded-xl"
+          className="max-h-full max-w-full rounded-xl"
         />
       ) : item ? (
         <div
@@ -270,7 +281,7 @@ export const MediaViewer = memo(function MediaViewer({
             onLoad={() => setImgLoaded(true)}
             className={cn(
               // Room above for the sender bar and below for the caption and zoom.
-              'max-h-[calc(100dvh-10rem)] max-w-[92vw] select-none rounded-xl object-contain transition-opacity duration-200',
+              'max-h-full max-w-full select-none rounded-xl object-contain transition-opacity duration-200',
               imgLoaded ? 'opacity-100' : 'opacity-0',
             )}
             style={{
@@ -280,6 +291,7 @@ export const MediaViewer = memo(function MediaViewer({
           />
         </div>
       ) : null}
+      </div>
 
       {/* Bottom: thumbnails, caption, zoom — stacked so they never overlap.
           The caption stays put; the controls fade with the rest. */}
@@ -356,6 +368,7 @@ export const MediaViewer = memo(function MediaViewer({
         </div>
       )}
       </div>
-    </div>
+    </div>,
+    portalContainer ?? ownerDocument.body,
   );
 });

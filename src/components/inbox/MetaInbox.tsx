@@ -18,6 +18,8 @@ import {
 } from '@/hooks/useMetaInbox';
 import { ListStatusTicks } from './StatusTicks';
 import { MediaViewer, type MediaItem } from './MediaViewer';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDraft } from '@/hooks/useMessageDraft';
 import { createMetaMessageSendPlan } from '@/lib/meta-message-send-plan';
 import { MessageText } from './MessageText';
 import { FileTypeIcon } from './FileTypeIcon';
@@ -48,6 +50,8 @@ export function MetaInbox({
   channelType,
   caixas,
   onOpenRail,
+  compact = false,
+  active = true,
 }: {
   /** Uma caixa, ou várias na vista "Todas as conversas". */
   channelId: string | string[];
@@ -63,6 +67,8 @@ export function MetaInbox({
     archived_at?: string | null;
   }>;
   onOpenRail?: () => void;
+  compact?: boolean;
+  active?: boolean;
 }) {
   const { data: conversations = [], isLoading, isError, refetch } = useMetaConversations(channelId);
   // Fotos de WhatsApp que faltam: o servidor vai buscá-las, uma vez por sessão.
@@ -101,7 +107,7 @@ export function MetaInbox({
   };
 
   const openContactPanel = () => {
-    if (window.innerWidth >= 1024) {
+    if (!compact && window.innerWidth >= 1024) {
       setPanelOpen(true);
       localStorage.setItem('inbox-panel-v1', '1');
       return;
@@ -119,7 +125,7 @@ export function MetaInbox({
 
   const requestTaskPrefill = (text: string) => {
     if (!selected) return;
-    setTaskPrefill({ conversationId: selected.id, text, surface: window.innerWidth >= 1024 ? 'desktop' : 'sheet' });
+    setTaskPrefill({ conversationId: selected.id, text, surface: !compact && window.innerWidth >= 1024 ? 'desktop' : 'sheet' });
     openContactPanel();
   };
   const consumeTaskPrefill = () => {
@@ -130,8 +136,8 @@ export function MetaInbox({
     <div className="flex min-h-0 flex-1 overflow-hidden">
       {/* Lista */}
       <aside className={cn(
-        'w-full flex-col border-r lg:flex lg:w-96',
-        selectedId ? 'hidden lg:flex' : 'flex',
+        'w-full flex-col border-r',
+        compact ? (selectedId ? 'hidden' : 'flex') : selectedId ? 'hidden lg:flex lg:w-96' : 'flex lg:w-96',
       )}>
         <div className="flex items-center gap-2 border-b p-3">
           {onOpenRail && (
@@ -224,6 +230,8 @@ export function MetaInbox({
           // aparecem por baixo do cabeçalho da nova durante um instante.
           key={selected.id}
           conversation={selected}
+          compact={compact}
+          active={active}
           // Na vista de várias caixas o tipo vem da conversa, não da página:
           // reagir numa conversa de Messenger tem mais emojis do que numa de
           // Instagram, e usar o tipo errado oferecia botões que iam falhar.
@@ -242,7 +250,7 @@ export function MetaInbox({
           </p>
         </div>
       )}
-      {selected && panelOpen && (
+      {selected && panelOpen && !compact && (
         <aside className="hidden w-80 shrink-0 border-l lg:block">
           <MetaContactPanel
             key={selected.id}
@@ -536,6 +544,8 @@ function MetaThread({
   onBack,
   onOpenContact,
   onCreateTask,
+  active = true,
+  compact = false,
 }: {
   conversation: MetaConversation;
   channelType?: string;
@@ -543,13 +553,16 @@ function MetaThread({
   onBack: () => void;
   onOpenContact: () => void;
   onCreateTask?: (text: string) => void;
+  compact?: boolean;
+  active?: boolean;
 }) {
   const { data: messages = [], isLoading, isError, refetch } = useMetaMessages(conversation.id);
   const send = useSendMetaMessage();
   const markRead = useMarkMetaRead();
   const act = useMetaAction();
   const sendFile = useSendMetaAttachment();
-  const [draft, setDraft] = useState('');
+  const { user, organization } = useAuth();
+  const [draft, setDraft] = useMessageDraft(`${user?.id ?? ''}:${organization?.id ?? ''}`, conversation.id);
   // Mensagem a que se está a responder. Guarda-se a mensagem inteira, não só o
   // id, para mostrar a citação sem a ir procurar outra vez à lista.
   const [replyTo, setReplyTo] = useState<MetaMessage | null>(null);
@@ -610,9 +623,10 @@ function MetaThread({
   const messageListRef = useRef<HTMLDivElement>(null);
   const positionedConversationRef = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const typingRef = useRef<number | null>(null);
 
-  useEffect(() => { setDraft(''); setReplyTo(null); }, [conversation.id]);
+  useEffect(() => { setReplyTo(null); }, [conversation.id]);
   useLayoutEffect(() => {
     const viewport = messageListRef.current;
     if (!viewport || isLoading || isError) return;
@@ -644,20 +658,20 @@ function MetaThread({
   useEffect(() => {
     // Numa caixa arquivada já não há token nenhum para falar com a Meta — o
     // "visto" ia falhar em todas as conversas que se abrissem.
-    if (windowExpired || arquivada) return;
+    if (!active || windowExpired || arquivada) return;
     act.mutate({ conversationId: conversation.id, action: 'mark_seen' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversation.id]);
+  }, [conversation.id, active]);
 
   // Mensagens que cheguem com a conversa ABERTA também contam como lidas. Sem
   // isto, o contador subia na conversa que o agente está literalmente a ler, e
   // só descia ao sair e voltar a entrar.
   useEffect(() => {
-    if (conversation.unread_count > 0) {
+    if (active && conversation.unread_count > 0) {
       markRead.mutate({ conversationId: conversation.id, seen: conversation.unread_count });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, conversation.unread_count]);
+  }, [messages.length, conversation.unread_count, active]);
 
   /**
    * "A escrever…" no Instagram da pessoa.
@@ -794,7 +808,7 @@ function MetaThread({
     <VisualizadorContext.Provider value={contextoVisualizador}>
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center gap-2 border-b p-3">
-        <Button variant="ghost" size="sm" className="lg:hidden" onClick={onBack}>Voltar</Button>
+        <Button variant="ghost" size="sm" className={compact ? undefined : "lg:hidden"} onClick={onBack}>Voltar</Button>
         <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
@@ -841,7 +855,7 @@ function MetaThread({
                   — sem external_id não há a que reagir do lado dela. */}
               {m.direction === 'outgoing' && m.external_id && (
                 <>
-                  <ReplyButton onClick={() => setReplyTo(m)} />
+                  <ReplyButton onClick={() => { setReplyTo(m); composerRef.current?.focus({ preventScroll: true }); }} />
                   <ReactionPicker
                     channelType={channelType}
                     current={m.reaction}
@@ -943,7 +957,7 @@ function MetaThread({
                       reaction: emoji ?? undefined,
                     })}
                   />
-                  <ReplyButton onClick={() => setReplyTo(m)} />
+                  <ReplyButton onClick={() => { setReplyTo(m); composerRef.current?.focus({ preventScroll: true }); }} />
                 </>
               )}
             </div>
@@ -1096,6 +1110,7 @@ function MetaThread({
               <Paperclip className="h-4 w-4" />
             </Button>
             <Textarea
+              ref={composerRef}
               value={draft}
               onChange={(e) => { setDraft(e.target.value); sinalizarEscrita(); }}
               onKeyDown={(e) => {

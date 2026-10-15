@@ -1,18 +1,15 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { ErrorBoundary, reloadOnce } from "./components/ErrorBoundary";
+import { ErrorBoundary, handlePreloadError } from "./components/ErrorBoundary";
 import { PaidTrafficFilterProvider } from "@/contexts/PaidTrafficFilterContext";
 import { loadSenviaPixel } from "@/lib/senvia-pixel";
 
 // When a lazily-loaded chunk fails to preload (e.g. a new deploy replaced the
 // hashed files while this tab was open), Vite fires `vite:preloadError`.
-// Auto-reload (once) instead of leaving the user on a blank screen.
+// Offer an explicit update instead of forcing a reload during editing.
 if (typeof window !== "undefined") {
-  window.addEventListener("vite:preloadError", (e) => {
-    e.preventDefault();
-    reloadOnce();
-  });
+  window.addEventListener("vite:preloadError", handlePreloadError);
 
   // Log unhandled async errors to console AND localStorage so they survive a
   // browser freeze (console is inaccessible when the tab hangs).

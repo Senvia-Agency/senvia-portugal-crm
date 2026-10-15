@@ -23,6 +23,9 @@ import {
 import { useEmailChannels } from '@/hooks/useEmailChannels';
 import { useEmailActions } from '@/hooks/useEmailActions';
 import { useEmailImageSenders } from '@/hooks/useEmailImageSenders';
+import { useAuth } from '@/contexts/AuthContext';
+import { readEmailRecoveries, type EmailRecovery } from '@/lib/inbox-drafts';
+import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 import { EmailComposer, type ComposeMode } from './EmailComposer';
 import { initials, fmtListDate, fmtFullDate, fmtSize, addrText, folderLabel, ROLE_META } from './emailShared';
 
@@ -193,14 +196,14 @@ function EmailBody({
 }
 
 // Trigger a browser download from base64 content.
-function triggerB64Download(filename: string, contentType: string | null, b64: string) {
+function triggerB64Download(target: { readonly filename: string; readonly document: Document }, contentType: string | null, b64: string) {
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   const blob = new Blob([arr], { type: contentType || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename || 'anexo'; a.click();
+  const a = target.document.createElement('a');
+  a.href = url; a.download = target.filename || 'anexo'; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -246,7 +249,10 @@ const MIN_LIST_W = 240;
 const MAX_LIST_W = 640;
 
 // Message list + reader for one folder. The folder rail lives in the caixa rail.
-export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId: string | null; folderId: string | null; onOpenRail?: () => void }) {
+export function EmailListReader({ channelId, folderId, onOpenRail, compact = false }: { channelId: string | null; folderId: string | null; onOpenRail?: () => void; compact?: boolean }) {
+  const workspace = useInboxWorkspace();
+  const browserWindow = workspace?.popup ?? window;
+  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
   const [messageId, setMessageId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -273,9 +279,9 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
       dragRef.current = null;
       localStorage.setItem('email-list-width-v1', String(listWidthRef.current));
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    browserWindow.addEventListener('mousemove', onMove);
+    browserWindow.addEventListener('mouseup', onUp);
+    return () => { browserWindow.removeEventListener('mousemove', onMove); browserWindow.removeEventListener('mouseup', onUp); };
   }, []);
   // ───────────────────────────────────────────────────────────────────────────
   useEffect(() => { setMessageId(null); }, [folderId, channelId]);
@@ -465,26 +471,34 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     mode: ComposeMode;
     original: EmailMessage | null;
     initialDraft: EmailDraft | null;
+    recovered?: EmailRecovery;
     // Forward-only: the original message's attachments, so the composer can
     // re-attach them (see EmailComposer's originalAttachments prop).
     originalAttachments: EmailAttachment[];
   }
+  const { user, organization } = useAuth();
+  const recoveryScope = user && organization ? `${user.id}:${organization.id}` : null;
   const [composes, setComposes] = useState<ComposeInstance[]>([]);
+  useEffect(() => {
+    setComposes(recoveryScope && channelId ? readEmailRecoveries(recoveryScope, channelId).map(recovered => ({
+      id: recovered.id, mode: 'new', original: null, initialDraft: null, originalAttachments: [], recovered,
+    })) : []);
+  }, [recoveryScope, channelId]);
   const addCompose = (
     mode: ComposeMode,
     original: EmailMessage | null = null,
     initialDraft: EmailDraft | null = null,
     originalAttachments: EmailAttachment[] = [],
   ) => {
-    setComposes((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, mode, original, initialDraft, originalAttachments }]);
+    setComposes((prev) => initialDraft && prev.some(c => c.initialDraft?.id === initialDraft.id || c.recovered?.savedDraftId === initialDraft.id) ? prev : [...prev, { id: `${Date.now()}-${Math.random()}`, mode, original, initialDraft, originalAttachments }]);
   };
   const closeCompose = (id: string) => setComposes((prev) => prev.filter((c) => c.id !== id));
 
   // Auto-mark-read when opening an unread message (standard email behaviour).
   useEffect(() => {
-    if (opened?.message && !opened.message.seen) actions.setRead(opened.message.id, true);
+    if (readerActive && opened?.message && !opened.message.seen) actions.setRead(opened.message.id, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened?.message?.id]);
+  }, [opened?.message?.id, readerActive]);
 
   const act = (fn: () => void) => { fn(); setMessageId(null); };
 
@@ -493,6 +507,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
+      if (!readerActive || (workspace && !workspace.onInbox && !target.closest('[data-inbox-email-reader]'))) return;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') return;
       const idx = messages.findIndex((m) => m.id === messageId);
       if (e.key === 'j' || e.key === 'ArrowDown') {
@@ -518,10 +533,10 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
         setMessageId(null);
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    browserWindow.addEventListener('keydown', handler);
+    return () => browserWindow.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, messageId, opened, isDraftsFolder, isTrashFolder, selectedIds]);
+  }, [messages, messageId, opened, isDraftsFolder, isTrashFolder, selectedIds, browserWindow, readerActive, workspace?.onInbox]);
   // ───────────────────────────────────────────────────────────────────────────
 
   const [dlId, setDlId] = useState<string | null>(null);
@@ -549,7 +564,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     try {
       const resolved = await resolveAttachment(a.id);
       if (!resolved) throw new Error('Tempo esgotado a obter o anexo');
-      triggerB64Download(a.filename || 'anexo', resolved.content_type || a.content_type, resolved.data_b64);
+      triggerB64Download({ filename: a.filename || 'anexo', document: browserWindow.document }, resolved.content_type || a.content_type, resolved.data_b64);
     } catch (e) {
       toast({ title: 'Falha ao descarregar', description: (e as Error).message, variant: 'destructive' });
     } finally {
@@ -563,16 +578,17 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
     <>
       {/* Message list — full-width single column on mobile; resizable side column on md+ */}
       <section
+        data-inbox-email-reader
         className={cn(
           'relative w-full flex-col border-r lg:shrink-0',
-          messageId ? 'hidden lg:flex' : 'flex',
+          compact ? (messageId ? 'hidden' : 'flex') : messageId ? 'hidden lg:flex' : 'flex',
         )}
-        style={isMobile ? undefined : { width: listWidth }}
+        style={isMobile || compact ? undefined : { width: listWidth }}
       >
         {/* Drag handle (desktop only) */}
         <div
           onMouseDown={onResizeStart}
-          className="absolute inset-y-0 right-0 z-10 hidden w-[4px] cursor-col-resize transition-colors hover:bg-primary/40 active:bg-primary/60 lg:block"
+          className={compact ? "hidden" : "absolute inset-y-0 right-0 z-10 hidden w-[4px] cursor-col-resize transition-colors hover:bg-primary/40 active:bg-primary/60 lg:block"}
         />
         <header className="border-b px-4 pt-5 pb-3 space-y-2">
           {hasSelection ? (
@@ -763,7 +779,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
               </div>
             ) : (
               drafts.map((d) => (
-                <DraftRow key={d.id} draft={d} active={composes.some((c) => c.initialDraft?.id === d.id)} onClick={() => addCompose('new', null, d)} />
+                <DraftRow key={d.id} draft={d} active={composes.some((c) => c.initialDraft?.id === d.id || c.recovered?.savedDraftId === d.id)} onClick={() => addCompose('new', null, d)} />
               ))
             )
           ) : messages.length === 0 ? (
@@ -897,7 +913,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
       </section>
 
       {/* Reader — full-width on mobile (shown when a message is open), side column on md+ */}
-      <section className={cn('min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : 'hidden lg:flex')}>
+      <section data-inbox-email-reader className={cn('min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : compact ? 'hidden' : 'hidden lg:flex')}>
         {isDraftsFolder ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <FileEdit className="h-10 w-10 opacity-20" />
@@ -924,7 +940,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
         ) : (
           <>
             <div className="flex items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
-              <Button size="sm" variant="outline" className="px-2 lg:hidden" onClick={() => setMessageId(null)}>
+              <Button size="sm" variant="outline" className={compact ? "px-2" : "px-2 lg:hidden"} onClick={() => setMessageId(null)}>
                 <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
               </Button>
               <Button size="sm" onClick={() => addCompose('reply', opened.message)}>
@@ -1074,6 +1090,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail }: { channelId
           original={c.original}
           selfAddress={selfAddress}
           initialDraft={c.initialDraft}
+          recoveryId={c.id}
+          recovered={c.recovered}
           stackIndex={i}
           originalAttachments={c.originalAttachments}
           resolveAttachment={resolveAttachment}

@@ -8,6 +8,10 @@ import { useMetaUnreadTotals } from "@/hooks/useMetaInbox";
 import { InboxCaixaRail } from "@/components/inbox/InboxCaixaRail";
 import { MetaInbox } from "@/components/inbox/MetaInbox";
 
+import { InboxPageSlot } from '@/components/inbox/workspace/InboxWorkspaceSurface';
+import { InboxWorkspaceToolbar } from '@/components/inbox/workspace/InboxWorkspaceToolbar';
+import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
+export default InboxPageSlot;
 const EmailListReader = lazy(() =>
   import("@/components/email/EmailListReader").then((m) => ({ default: m.EmailListReader })));
 
@@ -27,7 +31,10 @@ const EmailListReader = lazy(() =>
  * `chatwoot_archive_conversations` / `chatwoot_archive_messages`. Está guardado,
  * mas ainda não tem ecrã — é a peça que falta.
  */
-export default function Inbox() {
+export function InboxContent() {
+  const workspace = useInboxWorkspace();
+  const compact = workspace?.compact ?? false;
+  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
   const isMobile = useIsMobile();
   const { data: caixas = [] } = useMessagingChannels();
   const { data: metaUnread } = useMetaUnreadTotals();
@@ -104,12 +111,13 @@ export default function Inbox() {
       // No telemóvel a barra de baixo está escondida nesta página: só o
       // cabeçalho (3.5rem + área segura) fica por cima. `dvh` acompanha o
       // crescer e encolher da barra do browser.
-      isMobile
+      compact ? "h-full" : isMobile
         ? "h-[calc(100dvh-3.5rem-var(--safe-area-top,0px)-var(--safe-area-bottom,0px))]"
         : "h-dvh",
     )}>
+      <InboxWorkspaceToolbar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <InboxCaixaRail {...railProps} />
+        {!compact && <InboxCaixaRail {...railProps} />}
 
         {/* No telemóvel o mesmo carril vive numa gaveta — o de cima está
             escondido abaixo de lg (1024px). */}
@@ -125,6 +133,8 @@ export default function Inbox() {
         {todasConversas ? (
           <MetaInbox
             channelId={caixasMensagens.map((c) => c.id)}
+            active={readerActive}
+            compact={compact}
             channelLabel="as tuas contas"
             caixas={caixasMensagens}
             onOpenRail={() => setRailSheetOpen(true)}
@@ -132,6 +142,8 @@ export default function Inbox() {
         ) : metaChannelId ? (
           <MetaInbox
             channelId={metaChannelId}
+            active={readerActive}
+            compact={compact}
             channelLabel={aberta?.label ?? "esta caixa"}
             channelType={aberta?.channel_type}
             caixas={caixasMensagens}
@@ -144,6 +156,7 @@ export default function Inbox() {
             </div>
           }>
             <EmailListReader
+              compact={compact}
               channelId={emailChannelId}
               folderId={emailFolderId}
               onOpenRail={() => setRailSheetOpen(true)}

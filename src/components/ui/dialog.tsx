@@ -1,15 +1,29 @@
 import * as React from "react";
+import { useDialogContainer, useDialogPresentation, useWorkspaceModalMode, DialogPresentationContext } from "./portal-container";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-const Dialog = DialogPrimitive.Root;
+const Dialog = ({ modal = true, open, defaultOpen = false, onOpenChange, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) => {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen);
+  const isOpen = open ?? internalOpen;
+  const docked = useWorkspaceModalMode(isOpen);
+  return <DialogPresentationContext.Provider value={docked}><DialogPrimitive.Root open={isOpen} modal={docked ? false : modal}
+    onOpenChange={(next) => { setInternalOpen(next); onOpenChange?.(next); }} {...props} /></DialogPresentationContext.Provider>;
+};
 const DialogTrigger = DialogPrimitive.Trigger;
-const DialogPortal = DialogPrimitive.Portal;
+const DialogPortal = ({ container, ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) => {
+  const defaultContainer = useDialogContainer();
+  return <DialogPrimitive.Portal container={container ?? defaultContainer} {...props} />;
+};
 const DialogClose = DialogPrimitive.Close;
 const DialogOverlay = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Overlay>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>>(({
   className,
   ...props
-}, ref) => <DialogPrimitive.Overlay ref={ref} className={cn("fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0", className)} {...props} />);
+}, ref) => {
+  const docked = useDialogPresentation();
+  if (docked) return <div ref={ref} className={cn("pointer-events-auto fixed inset-0 z-50 bg-black/80", className)} />;
+  return <DialogPrimitive.Overlay ref={ref} className={cn("fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0", className)} {...props} />;
+});
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const dialogContentVariants = {
   default: "pointer-events-auto fixed left-1/2 -translate-x-1/2 z-50 grid w-full max-w-[calc(100vw-2rem)] sm:max-w-lg h-auto overflow-y-auto gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg top-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)] bottom-auto max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-2rem)] sm:top-[50%] sm:-translate-y-[50%] sm:max-h-[calc(100dvh-2rem)]",
@@ -24,11 +38,17 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
   className,
   children,
   variant = "default",
+  onInteractOutside,
   ...props
 }, ref) => <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content 
       ref={ref} 
+      data-workspace-dialog-content={variant}
+      onInteractOutside={(e) => {
+        onInteractOutside?.(e);
+        if (e.target instanceof Element && e.target.closest('[aria-label="Inbox lateral"], [data-inbox-workspace-control]')) e.preventDefault();
+      }}
       onOpenAutoFocus={(e) => {
         if (window.matchMedia('(max-width: 768px)').matches) {
           e.preventDefault();
