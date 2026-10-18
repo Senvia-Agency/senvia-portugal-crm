@@ -133,7 +133,7 @@ export function MetaInbox({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {/* Lista */}
       <aside className={cn(
         'w-full flex-col border-r',
@@ -806,7 +806,7 @@ function MetaThread({
 
   return (
     <VisualizadorContext.Provider value={contextoVisualizador}>
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex items-center gap-2 border-b p-3">
         <Button variant="ghost" size="sm" className={compact ? undefined : "lg:hidden"} onClick={onBack}>Voltar</Button>
         <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
@@ -827,7 +827,7 @@ function MetaThread({
         </Button>
       </header>
 
-      <div ref={messageListRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+      <div ref={messageListRef} className="min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4">
         {isLoading ? (
           [...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-2/3 rounded-lg" />)
         ) : isError ? (
@@ -1008,7 +1008,7 @@ function MetaThread({
 
       </div>
 
-      <footer className="border-t p-3">
+      <footer className="min-w-0 border-t p-3">
         {arquivada ? (
           <p className="flex items-start gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
             <Archive className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -1035,11 +1035,11 @@ function MetaThread({
             </p>
           )
         ) : (
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
           {replyTo && (
-            <div className="flex items-start gap-2 rounded-lg border-l-2 border-primary bg-muted/60 px-2 py-1.5">
+            <div className="flex min-w-0 items-start gap-2 overflow-hidden rounded-lg border-l-2 border-primary bg-muted/60 px-2 py-1.5">
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-primary">
+                <p className="truncate text-[11px] font-semibold text-primary">
                   Responder a {replyTo.direction === 'outgoing' ? 'ti' : (conversation.contact_name || 'contacto')}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
@@ -1083,7 +1083,7 @@ function MetaThread({
               </p>
             </div>
           )}
-          <div className="flex items-end gap-2">
+          <div className="flex min-w-0 items-end gap-2">
             <input
               ref={fileRef}
               type="file"
@@ -1119,7 +1119,7 @@ function MetaThread({
               onPaste={(e) => { if (colar(e.clipboardData)) e.preventDefault(); }}
               placeholder="Escreve a resposta… ou cola uma imagem"
               rows={1}
-              className="max-h-32 min-h-[40px] resize-none"
+              className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none"
             />
             {/* Como no Instagram: sem texto escrito, o botão grava voz; com
                 texto, envia. Um só lugar para "responder", em vez de tratar a
