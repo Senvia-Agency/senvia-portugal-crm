@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, Settings, LogOut, Shield, Calendar, FileText, ShoppingBag, Store, UserCheck, Mail, Wallet, Lock, Search, Building2, MessageSquare, PanelLeftClose, PanelLeftOpen, Percent, Workflow } from "lucide-react";
+import { LogOut, Shield, Lock, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
-import { useModules, EnabledModules } from "@/hooks/useModules";
+import { useModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useActivationProgress } from "@/hooks/useActivationProgress";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -16,29 +16,7 @@ import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
-
-interface NavItem {
-  to: string;
-  icon: React.ElementType;
-  label: string;
-  moduleKey?: keyof EnabledModules;
-  ottoTarget?: string;
-}
-
-const allNavItems: NavItem[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Painel" },
-  { to: "/leads", icon: Users, label: "Leads", ottoTarget: "sidebar-leads" },
-  { to: "/inbox", icon: MessageSquare, label: "Caixa de Entrada", moduleKey: 'inbox' },
-  { to: "/clients", icon: UserCheck, label: "Clientes", moduleKey: 'clients' },
-  { to: "/proposals", icon: FileText, label: "Propostas", moduleKey: 'proposals' },
-  { to: "/sales", icon: ShoppingBag, label: "Vendas", moduleKey: 'sales' },
-  { to: "/financeiro", icon: Wallet, label: "Financeiro", moduleKey: 'finance' },
-  { to: "/calendar", icon: Calendar, label: "Agenda", moduleKey: 'calendar' },
-  { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
-  { to: "/automacoes", icon: Workflow, label: "Automações" },
-  { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/settings", icon: Settings, label: "Definições", ottoTarget: "sidebar-settings" },
-];
+import { workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
 
 // Hover tooltip shown only when the sidebar is collapsed (parent must be `group`).
 function CollapsedTooltip({ label }: { label: string }) {
@@ -59,17 +37,19 @@ const getRoleLabel = (roles: AppRole[]): string => {
 interface AppSidebarProps {
   userName?: string;
   organizationName?: string;
+  forceCollapsed?: boolean;
 }
 
 export function AppSidebar({
   userName = "Utilizador",
-  organizationName = "A Minha Empresa"
+  organizationName = "A Minha Empresa",
+  forceCollapsed = false,
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, roles, isSuperAdmin, organization, organizations } = useAuth();
   const { setOpen: setOttoOpen } = useOttoStore();
-  const collapsed = useSidebarStore((s) => s.collapsed);
+  const collapsed = useSidebarStore((s) => s.collapsed) || forceCollapsed;
   const toggleCollapsed = useSidebarStore((s) => s.toggle);
   const { modules } = useModules();
   const { canViewModule } = usePermissions();
@@ -86,7 +66,7 @@ export function AppSidebar({
     open: false, feature: '', plan: ''
   });
 
-  const navItems = allNavItems.filter(item => {
+  const navItems = workspaceNavigation.filter(item => {
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return true;
     if (!modules[item.moduleKey]) return false;
@@ -99,7 +79,7 @@ export function AppSidebar({
     navigate('/');
   };
 
-  const handleLockedClick = (e: React.MouseEvent, item: NavItem) => {
+  const handleLockedClick = (e: React.MouseEvent, item: WorkspaceNavItem) => {
     if (item.moduleKey && isModuleLocked(item.moduleKey)) {
       e.preventDefault();
       setUpgradeModal({
@@ -113,19 +93,19 @@ export function AppSidebar({
   return (
     <>
       <aside className={cn(
-        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-sidebar-border transition-[width] duration-200",
+        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
         collapsed ? "w-16" : "w-64",
       )}>
         <div className="flex h-full flex-col">
-          <div className={cn("flex h-16 items-center border-b border-sidebar-border", collapsed ? "justify-center px-2" : "justify-between px-4")}>
+          <div className={cn("flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
             {!collapsed && (
-              <img
-                alt={organization?.name || "SENVIA"}
-                className="h-10 w-40 object-contain"
-                src={organization?.logo_url || "/lovable-uploads/a73ec7d1-f1a3-458c-8d12-82bca71d2d34.png"}
-              />
+              <div className="flex items-center gap-2.5" aria-label="Senvia OS">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#3778f6] text-base font-black text-white shadow-[0_6px_18px_rgba(55,120,246,.35)]">S</span>
+                <span className="flex flex-col leading-none"><strong className="text-[17px] tracking-[-0.04em] text-white">senvia</strong><span className="mt-1 text-[9px] font-bold uppercase tracking-[0.24em] text-[#8fa7d5]">workspace</span></span>
+              </div>
             )}
-            <div className="flex items-center gap-0.5">
+            {forceCollapsed && <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#3778f6] text-base font-black text-white">S</span>}
+            {!forceCollapsed && <div className="flex items-center gap-0.5">
               {!collapsed && <WhatsNewButton variant="sidebar" />}
               <button
                 type="button"
@@ -135,7 +115,7 @@ export function AppSidebar({
               >
                 {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
               </button>
-            </div>
+            </div>}
           </div>
 
           {!collapsed && (
@@ -144,8 +124,11 @@ export function AppSidebar({
             </div>
           )}
 
-          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-            {navItems.map(item => {
+          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
+            {(['Visão geral', 'Comercial', 'Operação'] as const).map(group => (
+              <div key={group} className="space-y-1">
+                {!collapsed && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
+                {navItems.filter(item => item.group === group).map(item => {
               const locked = item.moduleKey ? isModuleLocked(item.moduleKey) : false;
               const isActive = location.pathname === item.to || item.to !== "/dashboard" && location.pathname.startsWith(item.to);
 
@@ -157,13 +140,13 @@ export function AppSidebar({
                   onClick={(e) => handleLockedClick(e, item)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors duration-150",
                     collapsed && "justify-center",
                     locked
                       ? "cursor-pointer text-sidebar-muted/50 hover:bg-sidebar-accent/30"
                       : isActive
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        ? "bg-[#243453] text-white shadow-[inset_3px_0_0_#5c9aff]"
+                        : "text-[#a9b4ca] hover:bg-white/[.07] hover:text-white"
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
@@ -186,7 +169,9 @@ export function AppSidebar({
                   {collapsed && <CollapsedTooltip label={item.label} />}
                 </NavLink>
               );
-            })}
+                })}
+              </div>
+            ))}
 
             {/* Otto support chat — opens the assistant window (no route) */}
             <button

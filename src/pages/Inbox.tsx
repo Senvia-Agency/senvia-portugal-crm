@@ -11,6 +11,7 @@ import { MetaInbox } from "@/components/inbox/MetaInbox";
 import { InboxPageSlot } from '@/components/inbox/workspace/InboxWorkspaceSurface';
 import { InboxWorkspaceToolbar } from '@/components/inbox/workspace/InboxWorkspaceToolbar';
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
+import { useInboxImmersiveStore } from '@/stores/useInboxImmersiveStore';
 export default InboxPageSlot;
 const EmailListReader = lazy(() =>
   import("@/components/email/EmailListReader").then((m) => ({ default: m.EmailListReader })));
@@ -36,6 +37,7 @@ export function InboxContent() {
   const compact = workspace?.compact ?? false;
   const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
   const isMobile = useIsMobile();
+  const immersive = useInboxImmersiveStore((state) => state.immersive);
   const { data: caixas = [] } = useMessagingChannels();
   const { data: metaUnread } = useMetaUnreadTotals();
 
@@ -112,8 +114,8 @@ export function InboxContent() {
       // cabeçalho (3.5rem + área segura) fica por cima. `dvh` acompanha o
       // crescer e encolher da barra do browser.
       compact ? "h-full" : isMobile
-        ? "h-[calc(100dvh-3.5rem-var(--safe-area-top,0px)-var(--safe-area-bottom,0px))]"
-        : "h-dvh",
+        ? immersive ? "h-dvh" : "h-[calc(100dvh-6.5rem-var(--safe-area-top,0px)-var(--safe-area-bottom,0px))] md:h-[calc(100dvh-7rem)]"
+        : "h-[calc(100dvh-7rem)]",
     )}>
       <InboxWorkspaceToolbar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
