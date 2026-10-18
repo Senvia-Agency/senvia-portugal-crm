@@ -27,7 +27,7 @@ function nodes(tree) {
   return result;
 }
 const conversation = id => ({ id, channel_id: 'whatsapp', contact_name: id, contact_ref: '351912345678', unread_count: 0 });
-function inbox(width) {
+function inbox(width, channelType = 'whatsapp', contactRef = '351912345678') {
   const state = [];
   let index = 0;
   const context = {
@@ -37,7 +37,7 @@ function inbox(width) {
       return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value; }];
     },
     useEffect: () => {}, useMemo: callback => callback(),
-    useMetaConversations: () => ({ data: [conversation('a'), conversation('b')] }),
+    useMetaConversations: () => ({ data: [conversation('a'), conversation('b')].map(c => ({ ...c, contact_ref: contactRef })) }),
     useFillContactAvatars: () => {}, useMarkMetaRead: () => ({ mutate: () => {} }),
     localStorage: { getItem: () => '0', setItem: () => {} }, window: { innerWidth: width },
     cn: (...args) => args.filter(Boolean).join(' '),
@@ -45,9 +45,23 @@ function inbox(width) {
     MetaContactPanel: 'panel', Sheet: 'sheet', SheetContent: 'sheet-content', SheetTitle: 'sheet-title',
   };
   const { MetaInbox } = evaluate(declaration('MetaInbox').getText(ast), context);
-  const render = () => { index = 0; return nodes(MetaInbox({ channelId: 'whatsapp', channelLabel: 'WhatsApp', channelType: 'whatsapp' })); };
+  const render = () => { index = 0; return nodes(MetaInbox({ channelId: 'whatsapp', channelLabel: 'WhatsApp', channelType })); };
   return { render };
 }
+
+test('task action follows a valid contact number even when channel metadata is missing', () => {
+  const app = inbox(1280, null);
+  app.render().find(node => node.type === 'button' && node.props.onClick).props.onClick();
+  assert.equal(typeof app.render().find(node => node.type === 'thread').props.onCreateTask, 'function');
+
+  const anonymous = inbox(1280, null, '1249691473@lid');
+  anonymous.render().find(node => node.type === 'button' && node.props.onClick).props.onClick();
+  assert.equal(anonymous.render().find(node => node.type === 'thread').props.onCreateTask, undefined);
+
+  const instagram = inbox(1280, 'instagram');
+  instagram.render().find(node => node.type === 'button' && node.props.onClick).props.onClick();
+  assert.equal(instagram.render().find(node => node.type === 'thread').props.onCreateTask, undefined);
+});
 
 for (const width of [375, 1280]) {
   test(`message action opens the task form on the correct surface at ${width}px`, () => {

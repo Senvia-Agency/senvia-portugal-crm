@@ -100,6 +100,7 @@ export function MetaInbox({
   }, [conversations, search]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  const selectedChannelType = selected ? (caixaDe(selected.channel_id)?.channel_type ?? channelType) : channelType;
 
   const openConversation = (c: MetaConversation) => {
     setSelectedId(c.id);
@@ -235,13 +236,13 @@ export function MetaInbox({
           // Na vista de várias caixas o tipo vem da conversa, não da página:
           // reagir numa conversa de Messenger tem mais emojis do que numa de
           // Instagram, e usar o tipo errado oferecia botões que iam falhar.
-          channelType={caixaDe(selected.channel_id)?.channel_type ?? channelType}
+          channelType={selectedChannelType}
           // Uma caixa arquivada continua a mostrar tudo o que lá está — é para
           // isso que se arquiva em vez de apagar — mas não se responde por ela.
           arquivada={!!caixaDe(selected.channel_id)?.archived_at}
           onBack={() => setSelectedId(null)}
           onOpenContact={openContactPanel}
-          onCreateTask={(caixaDe(selected.channel_id)?.channel_type ?? channelType) === 'whatsapp' && /^[0-9]{9,15}$/.test(selected.contact_ref) ? requestTaskPrefill : undefined}
+          onCreateTask={(!selectedChannelType || selectedChannelType === 'whatsapp') && /^[0-9]{9,15}$/.test(selected.contact_ref) ? requestTaskPrefill : undefined}
         />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-8 text-center lg:flex">
