@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -132,6 +132,34 @@ export function useMetaConversations(channelId: string | string[] | null) {
   });
 }
 
+/** Webhook changes appear promptly in the open inbox; polling remains a fallback. */
+export function useMetaInboxRealtime() {
+  const { organization } = useAuth();
+  const queryClient = useQueryClient();
+  const organizationId = organization?.id;
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ['meta-conversations', organizationId] });
+        void queryClient.invalidateQueries({ queryKey: ['meta-messages'] });
+        void queryClient.invalidateQueries({ queryKey: ['meta-unread-totals', organizationId] });
+      }, 250);
+    };
+    const channel = supabase.channel(`meta-inbox-${organizationId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meta_conversations', filter: `organization_id=eq.${organizationId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meta_messages', filter: `organization_id=eq.${organizationId}` }, refresh)
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient]);
+}
+
 /**
  * Fotos de contacto que faltam (WhatsApp por QR): pede-as ao servidor, que as
  * vai buscar ao WhatsApp. Cada conversa é pedida uma vez por sessão do browser,
@@ -177,9 +205,10 @@ export const META_PAGINA = 200;
  * erro nenhum. O agente via uma conversa parada e o envio parecia não fazer nada.
  */
 export function useMetaMessages(conversationId: string | null) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: ['meta-messages', conversationId],
-    queryFn: async (): Promise<MetaMessage[]> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<MetaMessage[]> => {
       if (!conversationId) return [];
       const { data, error } = await db
         .from('meta_messages')
@@ -187,13 +216,32 @@ export function useMetaMessages(conversationId: string | null) {
         .eq('conversation_id', conversationId)
         .order('sent_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
-        .limit(META_PAGINA);
+        .order('id', { ascending: false })
+        .range(pageParam * META_PAGINA, (pageParam + 1) * META_PAGINA - 1);
       if (error) throw error;
-      return ((data || []) as MetaMessage[]).slice().reverse();
+      return (data || []) as MetaMessage[];
     },
+    getNextPageParam: (lastPage, pages) => lastPage.length === META_PAGINA ? pages.length : undefined,
     enabled: !!conversationId,
     refetchInterval: 10_000,
   });
+
+  const data = useMemo(() => {
+    const unique = new Map<string, MetaMessage>();
+    for (const page of query.data?.pages ?? []) {
+      for (const message of page) unique.set(message.id, message);
+    }
+    return [...unique.values()].sort((a, b) => {
+      if (!a.sent_at && b.sent_at) return -1;
+      if (a.sent_at && !b.sent_at) return 1;
+      const sent = (a.sent_at ?? a.created_at).localeCompare(b.sent_at ?? b.created_at);
+      if (sent) return sent;
+      const created = a.created_at.localeCompare(b.created_at);
+      return created || a.id.localeCompare(b.id);
+    });
+  }, [query.data]);
+
+  return { ...query, data };
 }
 
 /**

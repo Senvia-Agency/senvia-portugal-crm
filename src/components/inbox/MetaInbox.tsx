@@ -11,7 +11,7 @@ import { formatRelativeTime, formatDateTime } from '@/lib/format';
 import { shouldDeliverVoiceRecording } from '@/lib/voice-recording';
 import { toast } from 'sonner';
 import {
-  useMetaConversations, useMetaMessages, useSendMetaMessage, useMarkMetaRead,
+  useMetaConversations, useMetaMessages, useMetaInboxRealtime, useSendMetaMessage, useMarkMetaRead,
   useMetaAction, useSendMetaAttachment, useMetaMedia, useFillContactAvatars,
   useWhatsAppTemplates, useSyncWhatsAppTemplates, useSendWhatsAppTemplate,
   type MetaConversation, type MetaMessage, type WhatsAppTemplate,
@@ -71,6 +71,7 @@ export function MetaInbox({
   active?: boolean;
 }) {
   const { data: conversations = [], isLoading, isError, refetch } = useMetaConversations(channelId);
+  useMetaInboxRealtime();
   // Fotos de WhatsApp que faltam: o servidor vai buscá-las, uma vez por sessão.
   useFillContactAvatars(conversations);
   // Com várias caixas, cada linha tem de dizer a que caixa pertence — senão duas
@@ -557,7 +558,7 @@ function MetaThread({
   compact?: boolean;
   active?: boolean;
 }) {
-  const { data: messages = [], isLoading, isError, refetch } = useMetaMessages(conversation.id);
+  const { data: messages = [], isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useMetaMessages(conversation.id);
   const send = useSendMetaMessage();
   const markRead = useMarkMetaRead();
   const act = useMetaAction();
@@ -623,21 +624,43 @@ function MetaThread({
   const queryClient = useQueryClient();
   const messageListRef = useRef<HTMLDivElement>(null);
   const positionedConversationRef = useRef<string | null>(null);
+  const nearBottomRef = useRef(true);
+  const scrollBeforeHistoryRef = useRef<{ height: number; top: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const typingRef = useRef<number | null>(null);
 
   useEffect(() => { setReplyTo(null); }, [conversation.id]);
+  useEffect(() => {
+    nearBottomRef.current = true;
+    scrollBeforeHistoryRef.current = null;
+  }, [conversation.id]);
   useLayoutEffect(() => {
     const viewport = messageListRef.current;
     if (!viewport || isLoading || isError) return;
+    if (scrollBeforeHistoryRef.current && isFetchingNextPage) return;
+    if (scrollBeforeHistoryRef.current) {
+      const previous = scrollBeforeHistoryRef.current;
+      viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
+      scrollBeforeHistoryRef.current = null;
+      return;
+    }
     const isOpening = positionedConversationRef.current !== conversation.id;
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior: isOpening ? 'instant' : 'smooth',
-    });
+    if (isOpening || nearBottomRef.current) viewport.scrollTop = viewport.scrollHeight;
     positionedConversationRef.current = conversation.id;
-  }, [conversation.id, isLoading, isError, messages.length, pendentes.length]);
+  }, [conversation.id, isLoading, isError, isFetchingNextPage, messages, pendentes.length]);
+
+  const loadOlderMessages = async () => {
+    const viewport = messageListRef.current;
+    if (!viewport || !hasNextPage || isFetchingNextPage) return;
+    scrollBeforeHistoryRef.current = { height: viewport.scrollHeight, top: viewport.scrollTop };
+    try {
+      const result = await fetchNextPage();
+      if (result.isError) scrollBeforeHistoryRef.current = null;
+    } catch {
+      scrollBeforeHistoryRef.current = null;
+    }
+  };
 
   // Os endereços locais das pré-visualizações ficam presos à memória do
   // browser até serem largados à mão.
@@ -828,7 +851,14 @@ function MetaThread({
         </Button>
       </header>
 
-      <div ref={messageListRef} className="min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4">
+      <div
+        ref={messageListRef}
+        onScroll={(event) => {
+          const viewport = event.currentTarget;
+          nearBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+        }}
+        className="min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4"
+      >
         {isLoading ? (
           [...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-2/3 rounded-lg" />)
         ) : isError ? (
@@ -845,7 +875,16 @@ function MetaThread({
         ) : messages.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">Sem mensagens nesta conversa.</p>
         ) : (
-          messages.map((m) => {
+          <>
+          {hasNextPage && (
+            <div className="flex justify-center pb-2">
+              <Button variant="outline" size="sm" disabled={isFetchingNextPage} onClick={() => void loadOlderMessages()}>
+                {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Mensagens anteriores
+              </Button>
+            </div>
+          )}
+          {messages.map((m) => {
             const taskText = m.is_deleted ? '' : m.content?.trim();
             return (
             <div key={m.id} className={cn('group/msg flex items-center gap-1', m.direction === 'outgoing' ? 'justify-end' : 'justify-start')}>
@@ -870,7 +909,7 @@ function MetaThread({
                 </>
               )}
               <div className={cn(
-                'relative min-w-0 max-w-[75%] rounded-2xl px-3 py-2 text-sm',
+                'relative min-w-0 max-w-[65%] rounded-2xl px-3 py-2 text-sm md:max-w-[75%]',
                 m.direction === 'outgoing'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-foreground',
@@ -963,7 +1002,8 @@ function MetaThread({
               )}
             </div>
             );
-          })
+          })}
+          </>
         )}
 
         {/* Já escritas, ainda por confirmar. Ficam esbatidas até a Meta aceitar
@@ -1670,9 +1710,10 @@ function ReactionPicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Reagir"
+        aria-label="Reagir a esta mensagem"
         className={cn(
           'rounded-full p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground',
-          open ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100',
+          open ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover/msg:opacity-100 focus-visible:opacity-100',
         )}
       >
         <SmilePlus className="h-3.5 w-3.5" />
@@ -1912,7 +1953,8 @@ function ReplyButton({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       title="Responder a esta mensagem"
-      className="shrink-0 rounded-full p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/msg:opacity-100"
+      aria-label="Responder a esta mensagem"
+      className="shrink-0 rounded-full p-1 text-muted-foreground opacity-100 transition-opacity hover:bg-accent hover:text-foreground md:opacity-0 md:group-hover/msg:opacity-100 focus-visible:opacity-100"
     >
       <Reply className="h-3.5 w-3.5" />
     </button>

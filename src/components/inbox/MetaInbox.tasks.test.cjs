@@ -38,6 +38,7 @@ function inbox(width, channelType = 'whatsapp', contactRef = '351912345678') {
     },
     useEffect: () => {}, useMemo: callback => callback(),
     useMetaConversations: () => ({ data: [conversation('a'), conversation('b')].map(c => ({ ...c, contact_ref: contactRef })) }),
+    useMetaInboxRealtime: () => {},
     useFillContactAvatars: () => {}, useMarkMetaRead: () => ({ mutate: () => {} }),
     localStorage: { getItem: () => '0', setItem: () => {} }, window: { innerWidth: width },
     cn: (...args) => args.filter(Boolean).join(' '),
