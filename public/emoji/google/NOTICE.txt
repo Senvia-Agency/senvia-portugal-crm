@@ -1,0 +1,5 @@
+Google Noto Emoji artwork, copyright Google and contributors.
+Source: https://github.com/googlefonts/noto-emoji
+Distributed sprite: emoji-datasource-google 15.0.1, unmodified.
+Source URL: https://cdn.jsdelivr.net/npm/emoji-datasource-google@15.0.1/img/google/sheets-256/64.png
+Licensed under Apache License 2.0; see LICENSE.

@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { EmojiGlyph } from './EmojiGlyph';
 
 /**
  * A chat message's text the way WhatsApp Web shows it: links you can click,
@@ -29,13 +30,7 @@ function withEmoji(text: string, key: string): ReactNode[] {
     const at = match.index ?? 0;
     if (at > last) out.push(text.slice(last, at));
     out.push(
-      <span
-        key={`${key}-e${at}`}
-        className="inline-block align-[-0.12em] text-[1.3em] leading-none"
-        style={{ fontFamily: EMOJI_FONT }}
-      >
-        {match[0]}
-      </span>,
+      <EmojiGlyph key={`${key}-e${at}`} emoji={match[0]} />,
     );
     last = at + match[0].length;
   }
@@ -75,7 +70,7 @@ export function MessageText({ text, outgoing, className }: {
   if (ONLY_EMOJI_RE.test(text)) {
     return (
       <p className={cn('text-4xl leading-tight', className)} style={{ fontFamily: EMOJI_FONT }}>
-        {text.trim()}
+        {withEmoji(text.trim(), "only")}
       </p>
     );
   }

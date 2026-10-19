@@ -4,6 +4,7 @@ import { ArrowDown, ArrowLeft, Loader2, MessageCircle, Send, PanelLeft, PanelRig
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { EmojiComposer } from './EmojiComposer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
@@ -1178,10 +1179,10 @@ function MetaThread({
             >
               <Paperclip className="h-4 w-4" />
             </Button>
-            <Textarea
-              ref={composerRef}
+            <EmojiComposer
+              composerRef={composerRef}
               value={draft}
-              onChange={(e) => { setDraft(e.target.value); sinalizarEscrita(); }}
+              onValueChange={(value) => { setDraft(value); sinalizarEscrita(); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
