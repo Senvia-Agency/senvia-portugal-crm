@@ -12,6 +12,7 @@ import { APP_VERSION } from "@/lib/constants";
 import type { AppRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
+import { ModuleNavIcon } from './ModuleNavIcon';
 
 // Same set as the desktop sidebar so the mobile menu is never missing pages.
 const allNavItems: { to: string; icon: React.ElementType; label: string; moduleKey?: keyof EnabledModules }[] = [
@@ -77,10 +78,10 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-40 bg-background animate-in slide-in-from-left duration-200">
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-background animate-in slide-in-from-left duration-200">
       {/* Close button area - respects safe area */}
       <div className="flex items-center justify-end px-4" style={{ paddingTop: 'calc(clamp(20px, env(safe-area-inset-top, 0px), 50px) + 0.5rem)', minHeight: '3.5rem' }}>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label="Fechar menu" onClick={onClose}>
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -110,13 +111,13 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               to={item.to}
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <ModuleNavIcon icon={item.icon} to={item.to} />
               {item.label}
             </NavLink>
           ))}
@@ -126,13 +127,13 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               to="/portal-total-link"
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Building2 className="h-5 w-5" />
+              <ModuleNavIcon icon={Building2} to="/portal-total-link" />
               Portal Total Link
             </NavLink>
           )}
@@ -142,13 +143,13 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               to="/system-admin"
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Shield className="h-5 w-5" />
+              <ModuleNavIcon icon={Shield} to="/system-admin" />
               System Admin
             </NavLink>
           )}

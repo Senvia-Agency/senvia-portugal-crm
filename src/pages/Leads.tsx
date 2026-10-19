@@ -6,6 +6,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 import { ResponsiveKanban } from "@/components/leads/ResponsiveKanban";
 import { LeadsTableView } from "@/components/leads/LeadsTableView";
+import { LeadsToolbar } from '@/components/leads/LeadsToolbar';
 import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
 import { ImportLeadsDialog } from "@/components/leads/ImportLeadsDialog";
@@ -39,9 +40,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Users, Loader2, X, Plus, LayoutGrid, List, Zap, BarChart3, Upload, History, Archive, Layers, CheckSquare } from "lucide-react";
+import { Search, Users, Loader2, X, Plus, LayoutGrid, Zap, BarChart3, Upload } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format, endOfDay, startOfDay } from "date-fns";
 import { matchesSearch } from "@/lib/utils";
 import { mapLeadsForExport, exportToCsv, exportToExcel } from "@/lib/export";
@@ -706,11 +706,11 @@ export default function Leads() {
   );
 
   return (
-    <div className="p-4 lg:p-8">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pipeline' | 'report')} className="space-y-4">
+    <div className="leads-page">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pipeline' | 'report')} className="leads-content space-y-4">
         <div className="space-y-4 border-b border-border/70 bg-background pb-4">
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
+          <header className="leads-header flex flex-col gap-4">
+            <div className="leads-heading min-w-0">
               <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">Leads</h1>
@@ -722,25 +722,10 @@ export default function Leads() {
               <p className="mt-1 text-sm text-muted-foreground">Gira os contactos e acompanha o progresso do seu pipeline.</p>
             </div>
             {activeTab === 'pipeline' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="hidden items-center rounded-lg border border-border bg-background p-1 sm:flex">
-                  <Button variant={viewMode === 'kanban' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('kanban')} aria-label="Vista Kanban"><LayoutGrid className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === 'table' ? 'secondary' : 'ghost'} size="icon" className="h-7 w-7" onClick={() => setViewMode('table')} aria-label="Vista de tabela"><List className="h-4 w-4" /></Button>
-                </div>
-                <Button variant="outline" data-otto-target="leads-import-btn" onClick={() => setIsImportModalOpen(true)} className="h-9 lg:h-10"><Upload className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Importar</span></Button>
-                <Button variant="outline" onClick={() => setIsImportsHistoryOpen(true)} className="h-9 lg:h-10" title="Histórico de importações"><History className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Histórico</span></Button>
-                <Button onClick={() => setIsAddModalOpen(true)} className="h-9 lg:h-10"><Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Adicionar</span></Button>
-                {!showArchived && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="outline" className="h-9 lg:h-10" title="Arquivar leads"><Archive className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Arquivar</span></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => setIsArchiveByStageOpen(true)}><Layers className="mr-2 h-4 w-4" />Arquivar leads de um estado</DropdownMenuItem>
-                      <DropdownMenuItem disabled={selectedIds.length === 0} onClick={handleBulkArchive}><CheckSquare className="mr-2 h-4 w-4" />Arquivar leads selecionados{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                <Button variant={showArchived ? 'secondary' : 'outline'} onClick={() => setShowArchived(v => !v)} className="h-9 lg:h-10" title={showArchived ? 'Voltar às leads ativas' : 'Ver leads arquivadas'}><Archive className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">{showArchived ? 'Ver ativas' : 'Arquivadas'}</span></Button>
-              </div>
+              <LeadsToolbar viewMode={viewMode} onViewChange={setViewMode}
+                onAdd={() => setIsAddModalOpen(true)} onImport={() => setIsImportModalOpen(true)} onHistory={() => setIsImportsHistoryOpen(true)}
+                onArchiveByStage={() => setIsArchiveByStageOpen(true)} onArchiveSelected={handleBulkArchive}
+                selectedCount={selectedIds.length} archived={showArchived} onToggleArchived={() => setShowArchived(v => !v)} />
             )}
           </header>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -759,13 +744,13 @@ export default function Leads() {
         )}
 
         <TabsContent value="pipeline" className="mt-0">
-          <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[252px_minmax(0,1fr)]">
+          <div className="leads-layout grid min-w-0 items-start gap-4">
             <div className="space-y-3">
-              <aside className="hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+              <aside className="leads-sidebar-filters rounded-xl border border-border/70 bg-card p-3">
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros</h2>
                 {leadFilterControls}
               </aside>
-              <div className="lg:hidden">
+              <div className="leads-inline-filters">
                 <Accordion type="single" collapsible value={leadsFiltersOpen ? 'lead-filters' : ''} onValueChange={(value) => setLeadsFiltersOpen(!!value)} className="rounded-xl border border-border/70 bg-card px-3">
                   <AccordionItem value="lead-filters" className="border-0">
                     <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline"><span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros{hasActiveFilters ? ' •' : ''}</span></AccordionTrigger>

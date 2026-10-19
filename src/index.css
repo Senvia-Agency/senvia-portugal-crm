@@ -4,6 +4,39 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .app-shell[data-interface='classic'] {
+    background: hsl(var(--background));
+  }
+  .app-shell[data-interface='classic'] .workspace-tab-strip,
+  .app-shell[data-interface='classic'] .workspace-tabs-holder,
+  .app-shell[data-interface='classic'] [data-workspace-search],
+  .app-shell[data-interface='classic'] [data-workspace-user] {
+    display: none;
+  }
+  .app-shell[data-interface='classic'] .workspace-topbar {
+    height: 3rem;
+    justify-content: flex-end;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  .app-shell[data-interface='classic'] main {
+    border-radius: 0;
+    box-shadow: none;
+    background: hsl(var(--background));
+  }
+  .app-shell[data-interface='classic'] .module-nav-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+  }
+}
+
 @layer base {
   :root {
     /* Senvia OS Design System - Premium CRM */
@@ -19,6 +52,12 @@
     /* Senvia Blue - Electric accent */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
+    --action: 221 83% 45%;
+    --nav-communication: 221 83% 45%;
+    --nav-commercial: 263 70% 48%;
+    --nav-finance: 158 75% 28%;
+    --nav-calendar: 25 85% 37%;
+    --nav-neutral: 215 25% 40%;
 
     --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
@@ -89,6 +128,12 @@
 
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
+    --action: 213 94% 78%;
+    --nav-communication: 213 94% 78%;
+    --nav-commercial: 263 85% 78%;
+    --nav-finance: 158 65% 64%;
+    --nav-calendar: 32 95% 70%;
+    --nav-neutral: 215 25% 72%;
 
     --secondary: 222 47% 14%;
     --secondary-foreground: 220 14% 96%;
@@ -121,6 +166,64 @@
     --sidebar-border: 222 47% 12%;
     --sidebar-ring: 217 91% 60%;
     --sidebar-muted: 220 9% 50%;
+  }
+}
+
+@layer components {
+  .module-nav-icon {
+    color: hsl(var(--module-nav-tone));
+    background-color: hsl(var(--module-nav-tone) / 0.12);
+    border-color: hsl(var(--module-nav-tone) / 0.2);
+  }
+
+  .module-nav-icon[data-nav-tone="communication"] { --module-nav-tone: var(--nav-communication); }
+  .module-nav-icon[data-nav-tone="commercial"] { --module-nav-tone: var(--nav-commercial); }
+  .module-nav-icon[data-nav-tone="finance"] { --module-nav-tone: var(--nav-finance); }
+  .module-nav-icon[data-nav-tone="calendar"] { --module-nav-tone: var(--nav-calendar); }
+  .module-nav-icon[data-nav-tone="neutral"] { --module-nav-tone: var(--nav-neutral); }
+
+  .module-nav-icon--sidebar {
+    --nav-communication: 213 94% 78%;
+    --nav-commercial: 263 85% 78%;
+    --nav-finance: 158 65% 64%;
+    --nav-calendar: 32 95% 70%;
+    --nav-neutral: 215 25% 72%;
+  }
+
+  a[aria-current="page"] .module-nav-icon {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.55);
+  }
+
+  .leads-page { container: leads / inline-size; }
+  .leads-content { padding: 1rem; }
+  .leads-sidebar-filters, .leads-page .leads-wide-action { display: none; }
+
+  @container leads (min-width: 600px) {
+    .leads-content { padding: 1.5rem; }
+    .leads-page .leads-header { flex-direction: row; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; }
+    .leads-heading { flex: 1 1 17rem; }
+    .leads-actions { flex: 0 0 auto; }
+  }
+
+  @container leads (min-width: 1100px) {
+    .leads-content { padding: 2rem; }
+    .leads-layout { grid-template-columns: 232px minmax(0, 1fr); }
+    .leads-sidebar-filters { display: block; position: sticky; top: 1rem; max-height: calc(100dvh - 2rem); overflow-y: auto; }
+    .leads-inline-filters, .leads-page .leads-compact-action { display: none; }
+    .leads-page .leads-wide-action { display: inline-flex; }
+  }
+
+  @container leads (max-width: 1099px) {
+    .leads-page .leads-column-secondary, .leads-page .leads-column-email { display: none; }
+    .leads-page .leads-table th, .leads-page .leads-table td { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .leads-page .leads-status { width: 7rem; }
+  }
+
+  @container leads (max-width: 519px) {
+    .leads-page .leads-column-phone { display: none; }
+    .leads-page .leads-table th, .leads-page .leads-table td { padding-left: 0.25rem; padding-right: 0.25rem; }
+    .leads-name span { max-width: 6rem; }
+    .leads-page .leads-status { width: 6rem; }
   }
 }
 

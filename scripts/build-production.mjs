@@ -7,10 +7,10 @@ import { checkOrganizationQuery, checkProductionSource } from './production-depl
 
 const organizationFields = checkOrganizationQuery(readFileSync('src/contexts/AuthContext.tsx', 'utf8'));
 const source = checkProductionSource(process.env);
-const gitSha = process.env.VERCEL_GIT_COMMIT_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const gitSha = process.env.VERCEL_GIT_COMMIT_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim();
 const require = createRequire(import.meta.url);
 const viteCli = path.join(path.dirname(require.resolve('vite/package.json')), 'bin', 'vite.js');
-const result = spawnSync(process.execPath, [viteCli, 'build'], { stdio: 'inherit' });
+const result = spawnSync(process.execPath, [viteCli, 'build'], { stdio: 'inherit', windowsHide: true });
 if (result.status !== 0) process.exit(result.status ?? 1);
 
 const html = readFileSync('dist/index.html', 'utf8');

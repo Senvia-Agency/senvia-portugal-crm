@@ -11,11 +11,21 @@ export function InboxWorkspaceProvider({ children, scope }: { readonly children:
   const [enabled, setEnabled] = useState(() => localStorage.getItem(preferenceKey) !== 'off');
   const [pinned, setPinned] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [whatsappSelected, setWhatsAppSelected] = useState(false);
+  const [dockEligible, setDockEligible] = useState(() => window.matchMedia('(min-width: 1440px)').matches);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const { popup, open, close } = useInboxWindow();
   const location = useLocation();
   const navigate = useNavigate();
   const onInbox = location.pathname === '/inbox' || location.pathname === '/inbox/';
+  const docked = dockEligible && enabled && pinned && whatsappSelected && !onInbox && !minimized && !popup;
+  useLayoutEffect(() => {
+    const query = window.matchMedia('(min-width: 1440px)');
+    const change = () => setDockEligible(query.matches);
+    query.addEventListener('change', change);
+    change();
+    return () => query.removeEventListener('change', change);
+  }, []);
   useLayoutEffect(() => { if (enabled && onInbox) setPinned(true); }, [enabled, onInbox]);
   const returnToInbox = useCallback(() => {
     close();
@@ -35,14 +45,14 @@ export function InboxWorkspaceProvider({ children, scope }: { readonly children:
     }
   }, [enabled, preferenceKey, close, navigate]);
   const value = useMemo(() => ({
-    enabled, pinned, minimized, onInbox, popup, slot, setSlot,
-    compact: !!popup || (enabled && pinned && !onInbox),
+    enabled, pinned, minimized, onInbox, popup, slot, setSlot, docked, whatsappSelected, setWhatsAppSelected,
+    compact: !!popup || docked,
     pin: () => { setPinned(true); setMinimized(false); },
     minimize: () => { close(); setPinned(true); setMinimized(true); },
-    restore: () => { close(); setMinimized(false); },
+    restore: () => { close(); setMinimized(false); if (!dockEligible) navigate('/inbox'); },
     returnToInbox, toggleEnabled,
     openWindow: () => { setPinned(true); setMinimized(false); open(); },
-  }), [enabled, pinned, minimized, onInbox, popup, slot, close, open, returnToInbox, toggleEnabled]);
+  }), [enabled, pinned, minimized, onInbox, popup, slot, docked, dockEligible, whatsappSelected, navigate, close, open, returnToInbox, toggleEnabled]);
   return <InboxWorkspaceContext.Provider value={value}>
     <InboxDialogBoundary>{children}<InboxWorkspaceSurface /></InboxDialogBoundary>
   </InboxWorkspaceContext.Provider>;

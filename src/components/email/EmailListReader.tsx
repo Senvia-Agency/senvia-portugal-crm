@@ -252,7 +252,7 @@ const MAX_LIST_W = 640;
 export function EmailListReader({ channelId, folderId, onOpenRail, compact = false }: { channelId: string | null; folderId: string | null; onOpenRail?: () => void; compact?: boolean }) {
   const workspace = useInboxWorkspace();
   const browserWindow = workspace?.popup ?? window;
-  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
+  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || workspace.docked));
   const [messageId, setMessageId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const isMobile = useIsMobile();

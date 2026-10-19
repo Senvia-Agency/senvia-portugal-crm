@@ -20,7 +20,7 @@ export function InboxWorkspaceSurface() {
   const parkingRef = useRef<HTMLDivElement>(null);
   const visited = useRef(false);
   if (workspace?.onInbox) visited.current = true;
-  const visiblePanel = !!workspace?.enabled && workspace.pinned && !workspace.onInbox && !workspace.popup && !workspace.minimized;
+  const visiblePanel = !!workspace?.docked;
   useLayoutEffect(() => {
     if (!workspace) return;
     const target = workspace.popup?.document.body
@@ -32,9 +32,9 @@ export function InboxWorkspaceSurface() {
   return <>
     <div ref={parkingRef} hidden />
     <aside aria-label="Inbox lateral" className={visiblePanel
-      ? 'fixed inset-x-0 bottom-20 top-14 z-40 border-l bg-card shadow-lg lg:bottom-0 lg:left-auto lg:top-0 lg:w-[28rem]'
+      ? 'fixed bottom-0 right-0 top-0 z-40 w-[28rem] border-l bg-card shadow-lg'
       : 'hidden'} ref={dockRef} />
-    {workspace.enabled && ((workspace.pinned && !workspace.onInbox) || workspace.minimized || workspace.popup) && !visiblePanel &&
+    {workspace.enabled && workspace.whatsappSelected && ((workspace.pinned && !workspace.onInbox) || workspace.minimized || workspace.popup) && !visiblePanel &&
       <div data-inbox-workspace-control className="fixed bottom-24 right-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-1 rounded-xl border bg-card p-2 shadow-lg">
         <Button variant="ghost" size="sm" onClick={workspace.restore}><MessageSquare className="mr-2 h-4 w-4" />{workspace.popup ? 'Trazer Inbox para aqui' : 'Retomar Inbox'}</Button>
         <Button variant="ghost" size="icon" aria-label="Voltar ao Inbox" onClick={workspace.returnToInbox}><Maximize2 className="h-4 w-4" /></Button>
@@ -45,7 +45,7 @@ export function InboxWorkspaceSurface() {
 
 export function InboxPageSlot() {
   const workspace = useInboxWorkspace();
-  return <div className="h-dvh min-h-0" ref={workspace?.setSlot}>
+  return <div className="h-full min-h-0" ref={workspace?.setSlot}>
     {(workspace?.popup || workspace?.minimized) && <p className="p-6 text-sm text-muted-foreground">O Inbox continua aberto. Usa “Retomar Inbox” para voltar.</p>}
   </div>;
 }

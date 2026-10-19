@@ -11,6 +11,7 @@ import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { ModuleNavIcon } from './ModuleNavIcon';
 
 interface NavItem {
   to: string;
@@ -105,7 +106,7 @@ export function MobileBottomNav() {
                 to={locked ? "#" : item.to}
                 onClick={(e) => 'moduleKey' in item ? handleLockedClick(e, item as NavItem) : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[64px] relative",
+                  "flex flex-col items-center justify-center gap-1 px-3 py-1 rounded-xl transition-all min-w-[64px] relative",
                   locked
                     ? "text-muted-foreground/40"
                     : isActive
@@ -114,7 +115,7 @@ export function MobileBottomNav() {
                 )}
               >
                 <div className="relative">
-                  <item.icon className={cn("h-5 w-5", isActive && !locked && "text-primary")} />
+                  <ModuleNavIcon icon={item.icon} to={item.to} locked={locked} />
                   {locked && (
                     <Lock className="h-2.5 w-2.5 absolute -top-1 -right-1.5 text-muted-foreground/60" />
                   )}

@@ -4,7 +4,10 @@ export interface InboxWorkspaceState {
   readonly enabled: boolean;
   readonly pinned: boolean;
   readonly minimized: boolean;
+  readonly docked: boolean;
   readonly compact: boolean;
+  readonly whatsappSelected: boolean;
+  readonly setWhatsAppSelected: (selected: boolean) => void;
   readonly onInbox: boolean;
   readonly popup: Window | null;
   readonly slot: HTMLElement | null;

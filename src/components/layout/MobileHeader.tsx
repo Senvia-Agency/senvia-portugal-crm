@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
+import { InterfaceVersionSwitch } from './InterfaceVersionSwitch';
 
 interface MobileHeaderProps {
   onMenuToggle?: () => void;
@@ -26,7 +27,8 @@ export function MobileHeader({
           className="h-7 w-24 object-contain" 
           src={organization?.logo_url || "/lovable-uploads/7d06b8aa-41ca-4a96-a4b1-699608629148.png"} 
         />
-        <div className="flex w-10 justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <InterfaceVersionSwitch />
           <WhatsNewButton variant="header" />
         </div>
       </div>

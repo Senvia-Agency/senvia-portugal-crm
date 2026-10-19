@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature, ClipboardList } from 'lucide-react';
+import { ArrowDown, ArrowLeft, Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -625,6 +625,7 @@ function MetaThread({
   const messageListRef = useRef<HTMLDivElement>(null);
   const positionedConversationRef = useRef<string | null>(null);
   const nearBottomRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const scrollBeforeHistoryRef = useRef<{ height: number; top: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -661,6 +662,27 @@ function MetaThread({
       scrollBeforeHistoryRef.current = null;
     }
   };
+
+  const goToLatest = () => {
+    const viewport = messageListRef.current;
+    if (!viewport) return;
+    scrollBeforeHistoryRef.current = null;
+    nearBottomRef.current = true;
+    viewport.scrollTop = viewport.scrollHeight;
+    setShowJumpToLatest(false);
+  };
+
+  useEffect(() => {
+    const viewport = messageListRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => {
+      if (!viewport.clientHeight) return;
+      nearBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+      setShowJumpToLatest(!nearBottomRef.current);
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   // Os endereços locais das pré-visualizações ficam presos à memória do
   // browser até serem largados à mão.
@@ -832,7 +854,7 @@ function MetaThread({
     <VisualizadorContext.Provider value={contextoVisualizador}>
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex items-center gap-2 border-b p-3">
-        <Button variant="ghost" size="sm" className={compact ? undefined : "lg:hidden"} onClick={onBack}>Voltar</Button>
+        <Button variant="outline" size="sm" className={cn('h-10 shrink-0', !compact && 'lg:hidden')} onClick={onBack}><ArrowLeft className="h-4 w-4" />Voltar</Button>
         <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
@@ -846,16 +868,18 @@ function MetaThread({
           )}
         </div>
         <div className="flex-1" />
-        <Button variant="ghost" size="icon" title="Painel do contacto" onClick={onOpenContact}>
+        <Button variant="outline" size="icon" className="shrink-0" aria-label="Painel do contacto" title="Painel do contacto" onClick={onOpenContact}>
           <PanelRight className="h-4 w-4" />
         </Button>
       </header>
 
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={messageListRef}
         onScroll={(event) => {
           const viewport = event.currentTarget;
           nearBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+          setShowJumpToLatest(!nearBottomRef.current);
         }}
         className="min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4"
       >
@@ -1047,6 +1071,10 @@ function MetaThread({
           </div>
         ))}
 
+      </div>
+      {showJumpToLatest && <Button variant="outline" size="icon" className="absolute bottom-3 right-3 h-11 w-11 rounded-full bg-card shadow-md" aria-label="Ir para a última mensagem" title="Ir para a última mensagem" onClick={goToLatest}>
+        <ArrowDown className="h-5 w-5" />
+      </Button>}
       </div>
 
       <footer className="min-w-0 border-t p-3">

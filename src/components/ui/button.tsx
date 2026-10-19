@@ -11,8 +11,8 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
-        outline: "border-2 border-border bg-background hover:bg-accent hover:text-accent-foreground shadow-sm",
-        secondary: "bg-muted text-foreground border border-border hover:bg-accent shadow-sm",
+        outline: "border border-primary bg-primary/5 text-action hover:bg-primary/10 hover:border-action shadow-sm",
+        secondary: "bg-primary/10 text-action border border-primary/40 hover:bg-primary/20 hover:border-primary shadow-sm",
         ghost: "text-muted-foreground hover:bg-accent hover:text-accent-foreground border border-transparent hover:border-border",
         link: "text-primary underline-offset-4 hover:underline",
         // Senvia Custom Variants

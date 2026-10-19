@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, Settings, LogOut, Shield, Calendar, FileText, ShoppingBag, Store, UserCheck, Mail, Wallet, Lock, Search, Building2, MessageSquare, PanelLeftClose, PanelLeftOpen, Percent, Workflow } from "lucide-react";
+import { LogOut, Shield, Lock, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
-import { useModules, EnabledModules } from "@/hooks/useModules";
+import { useModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useActivationProgress } from "@/hooks/useActivationProgress";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -16,29 +16,8 @@ import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
-
-interface NavItem {
-  to: string;
-  icon: React.ElementType;
-  label: string;
-  moduleKey?: keyof EnabledModules;
-  ottoTarget?: string;
-}
-
-const allNavItems: NavItem[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Painel" },
-  { to: "/leads", icon: Users, label: "Leads", ottoTarget: "sidebar-leads" },
-  { to: "/inbox", icon: MessageSquare, label: "Caixa de Entrada", moduleKey: 'inbox' },
-  { to: "/clients", icon: UserCheck, label: "Clientes", moduleKey: 'clients' },
-  { to: "/proposals", icon: FileText, label: "Propostas", moduleKey: 'proposals' },
-  { to: "/sales", icon: ShoppingBag, label: "Vendas", moduleKey: 'sales' },
-  { to: "/financeiro", icon: Wallet, label: "Financeiro", moduleKey: 'finance' },
-  { to: "/calendar", icon: Calendar, label: "Agenda", moduleKey: 'calendar' },
-  { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
-  { to: "/automacoes", icon: Workflow, label: "Automações" },
-  { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/settings", icon: Settings, label: "Definições", ottoTarget: "sidebar-settings" },
-];
+import { workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
+import { ModuleNavIcon } from './ModuleNavIcon';
 
 // Hover tooltip shown only when the sidebar is collapsed (parent must be `group`).
 function CollapsedTooltip({ label }: { label: string }) {
@@ -57,19 +36,32 @@ const getRoleLabel = (roles: AppRole[]): string => {
 };
 
 interface AppSidebarProps {
+  legacy?: boolean;
   userName?: string;
   organizationName?: string;
+  forceCollapsed?: boolean;
+  expanded?: boolean;
+  onExpand?: () => void;
+  onCollapse?: () => void;
+  onNavigate?: () => void;
 }
 
 export function AppSidebar({
   userName = "Utilizador",
-  organizationName = "A Minha Empresa"
+  organizationName = "A Minha Empresa",
+  forceCollapsed = false,
+  expanded = false,
+  onExpand,
+  onCollapse,
+  onNavigate,
+  legacy = false,
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, roles, isSuperAdmin, organization, organizations } = useAuth();
   const { setOpen: setOttoOpen } = useOttoStore();
-  const collapsed = useSidebarStore((s) => s.collapsed);
+  const savedCollapsed = useSidebarStore((s) => s.collapsed);
+  const collapsed = !expanded && (savedCollapsed || forceCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggle);
   const { modules } = useModules();
   const { canViewModule } = usePermissions();
@@ -86,20 +78,24 @@ export function AppSidebar({
     open: false, feature: '', plan: ''
   });
 
-  const navItems = allNavItems.filter(item => {
+  const navItems = workspaceNavigation.filter(item => {
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return true;
     if (!modules[item.moduleKey]) return false;
     if (!canViewModule(item.moduleKey)) return false;
     return true;
   });
+  if (legacy) {
+    const order = ['/dashboard', '/leads', '/inbox', '/clients', '/proposals', '/sales', '/financeiro', '/calendar', '/marketing', '/automacoes', '/prospects', '/settings'];
+    navItems.sort((a, b) => order.indexOf(a.to) - order.indexOf(b.to));
+  }
 
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
 
-  const handleLockedClick = (e: React.MouseEvent, item: NavItem) => {
+  const handleLockedClick = (e: React.MouseEvent, item: WorkspaceNavItem) => {
     if (item.moduleKey && isModuleLocked(item.moduleKey)) {
       e.preventDefault();
       setUpgradeModal({
@@ -113,25 +109,25 @@ export function AppSidebar({
   return (
     <>
       <aside className={cn(
-        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-sidebar-border transition-[width] duration-200",
+        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
         collapsed ? "w-16" : "w-64",
       )}>
         <div className="flex h-full flex-col">
-          <div className={cn("flex h-16 items-center border-b border-sidebar-border", collapsed ? "justify-center px-2" : "justify-between px-4")}>
+          <div className={cn("flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
             {!collapsed && (
-              <img
-                alt={organization?.name || "SENVIA"}
-                className="h-10 w-40 object-contain"
-                src={organization?.logo_url || "/lovable-uploads/a73ec7d1-f1a3-458c-8d12-82bca71d2d34.png"}
-              />
+              <div className="flex items-center gap-2.5" aria-label="Senvia OS">
+                <img src="/senvia-logo-white.png" alt="Senvia" width={112} height={39} className="h-auto w-28 shrink-0 object-contain" />
+              </div>
             )}
             <div className="flex items-center gap-0.5">
               {!collapsed && <WhatsNewButton variant="sidebar" />}
               <button
                 type="button"
-                onClick={toggleCollapsed}
+                onClick={collapsed ? onExpand ?? toggleCollapsed : onCollapse ?? toggleCollapsed}
                 title={collapsed ? "Expandir menu" : "Recolher menu"}
-                className="rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+                aria-expanded={!collapsed}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
               </button>
@@ -144,8 +140,11 @@ export function AppSidebar({
             </div>
           )}
 
-          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-            {navItems.map(item => {
+          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
+            {(legacy ? ['Navegação'] : ['Visão geral', 'Comercial', 'Operação']).map(group => (
+              <div key={group} className="space-y-1">
+                {!collapsed && !legacy && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
+                {navItems.filter(item => legacy || item.group === group).map(item => {
               const locked = item.moduleKey ? isModuleLocked(item.moduleKey) : false;
               const isActive = location.pathname === item.to || item.to !== "/dashboard" && location.pathname.startsWith(item.to);
 
@@ -154,19 +153,19 @@ export function AppSidebar({
                   key={item.to}
                   to={locked ? "#" : item.to}
                   data-otto-target={item.ottoTarget}
-                  onClick={(e) => handleLockedClick(e, item)}
+                  onClick={(e) => { handleLockedClick(e, item); if (!e.defaultPrevented) onNavigate?.(); }}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    collapsed && "justify-center",
+                    "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors duration-150",
+                    collapsed && "justify-center px-0",
                     locked
                       ? "cursor-pointer text-sidebar-muted/50 hover:bg-sidebar-accent/30"
                       : isActive
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        ? "bg-[#243453] text-white shadow-[inset_3px_0_0_#5c9aff]"
+                        : "text-[#a9b4ca] hover:bg-white/[.07] hover:text-white"
                   )}
                 >
-                  <item.icon className="h-5 w-5 shrink-0" />
+                  <ModuleNavIcon icon={item.icon} to={item.to} sidebar locked={locked} />
                   {!collapsed && <span className="flex-1">{item.label}</span>}
                   {item.to === "/inbox" && !locked && (
                     <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
@@ -186,7 +185,9 @@ export function AppSidebar({
                   {collapsed && <CollapsedTooltip label={item.label} />}
                 </NavLink>
               );
-            })}
+                })}
+              </div>
+            ))}
 
             {/* Otto support chat — opens the assistant window (no route) */}
             <button
@@ -206,6 +207,7 @@ export function AppSidebar({
             {hasPerfect2GetherModuleAccess && (
               <NavLink
                 to="/portal-total-link"
+                onClick={onNavigate}
                 title={collapsed ? "Portal Total Link" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
@@ -215,7 +217,7 @@ export function AppSidebar({
                     : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Building2 className="h-5 w-5 shrink-0" />
+                <ModuleNavIcon icon={Building2} to="/portal-total-link" sidebar />
                 {!collapsed && "Portal Total Link"}
                 {collapsed && <CollapsedTooltip label="Portal Total Link" />}
               </NavLink>
@@ -224,6 +226,7 @@ export function AppSidebar({
             {isSuperAdmin && (
               <NavLink
                 to="/system-admin"
+                onClick={onNavigate}
                 title={collapsed ? "System Admin" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
@@ -233,7 +236,7 @@ export function AppSidebar({
                     : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Shield className="h-5 w-5 shrink-0" />
+                <ModuleNavIcon icon={Shield} to="/system-admin" sidebar />
                 {!collapsed && "System Admin"}
                 {collapsed && <CollapsedTooltip label="System Admin" />}
               </NavLink>
@@ -271,6 +274,7 @@ export function AppSidebar({
             <div className="px-4 py-2 text-center leading-tight">
               <NavLink
                 to="/novidades"
+                onClick={onNavigate}
                 className="block text-[10px] text-sidebar-muted/60 transition-colors hover:text-sidebar-muted"
               >
                 Senvia OS v{APP_VERSION}

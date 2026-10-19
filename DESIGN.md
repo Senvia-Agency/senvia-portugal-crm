@@ -14,6 +14,7 @@ The canonical tokens live in `src/index.css` and are consumed through Tailwind s
 | Primary text | `--foreground` | Headings and body text |
 | Elevated surface | `--card`, `--popover` | Cards, dialogs and menus |
 | Primary action | `--primary` | Buttons, links and focus rings |
+| Secondary action text | `--action` | Accessible blue text and icons on tinted secondary controls; 221 83% 45% in light mode, 213 94% 78% in dark mode |
 | Secondary surface | `--secondary`, `--muted` | Quiet controls and supporting regions |
 | Supporting text | `--muted-foreground` | Descriptions and metadata |
 | Dividers | `--border` | Surface separation |
@@ -21,6 +22,7 @@ The canonical tokens live in `src/index.css` and are consumed through Tailwind s
 | Success | `--success` | Completed and protected states |
 | Error | `--destructive` | Blocking errors and destructive actions |
 | Shell | `--sidebar-*` | Desktop and mobile navigation chrome |
+| Navigation areas | `--nav-communication`, `--nav-commercial`, `--nav-finance`, `--nav-calendar`, `--nav-neutral` | Blue communication/overview, violet commercial, green finance, orange calendar, slate utilities; brighter tones on the navy sidebar and in dark mode |
 
 Colors must use semantic utilities such as `bg-card`, `text-primary`, `bg-warning/10` and `border-border`. New raw color values require a token first.
 
@@ -54,6 +56,7 @@ The application shell uses `min-h-dvh`. The page owns vertical scrolling; dialog
 - **States**: default, hover, active, focus-visible, disabled and loading.
 - **Accessibility**: visible focus ring, descriptive label and native keyboard activation.
 - **Motion**: existing 200ms color transition only.
+- **Secondary actions**: outline buttons use a primary-blue border, primary/5 background and action-colored text; secondary buttons use primary/10 background and action-colored text. Hover deepens the tint and border, focus keeps the shared ring, and disabled controls retain reduced opacity. Primary and destructive variants keep their established hierarchy. Quiet ghost actions remain unfilled; important Inbox navigation and toolbar controls use outline so their clickable bounds remain visible without hover.
 
 ### Dialog
 
@@ -73,6 +76,14 @@ The application shell uses `min-h-dvh`. The page owns vertical scrolling; dialog
 - **Accessibility**: headings preserve document order; interactive cards expose a semantic control.
 
 ### Application shell
+
+- A labelled “Versão antiga” switch in desktop/tablet and mobile headers selects the classic shell. New interface is the default; selection persists in this browser. Classic hides workspace tabs/search, restores flat page surfaces and plain navigation icons. Both modes share the same mounted routes and Inbox provider; toggling must not reload the document or remount composers. Fiscal fixes and data are common to both modes.
+
+- The expanded sidebar uses the existing white Senvia logo asset, not a recreated initial or wordmark. Its footprint stays within the available header space beside announcements and the collapse control.
+
+- Module icons use a shared 32px rounded tile with an 18px Lucide icon, a soft tinted background and a subtle matching border. Communication and overview are blue, commercial modules and automations violet, finance green, calendar orange, and settings/admin/portal slate. Labels stay neutral; the active page retains its blue row highlight and gains a blue tile ring. Expanded, collapsed and mobile menus use the same route-to-color mapping. Locked modules remain muted and expose the existing lock indicator. No gradients or decorative animation are added.
+
+- The sidebar always exposes a labelled 40px expand/collapse control, including when temporarily collapsed by the responsive layout. On tablets, expansion overlays the page with a dismissible backdrop and closes after navigation; it does not change the saved desktop preference. On desktop, a docked Inbox respects the saved sidebar preference: both can stay open, and manual menu expansion never minimizes the Inbox.
 
 - **Structure**: persistent navigation with a responsive main content region.
 - **Variants**: desktop sidebar and mobile header/bottom navigation.
@@ -103,12 +114,28 @@ Accepted limitation: canvas content is not selectable text. The original PDF rem
 
 ### Inbox message task actions
 
+When the conversation is scrolled away from the latest messages, a labelled 44px circular “Ir para a última mensagem” button appears at the bottom right of the message viewport, above the composer. Activating it moves only that conversation to the bottom immediately and hides the button, without changing the draft or reply. Reading older messages must not trigger automatic jumping.
+
 Task actions remain visible beside their source message: after incoming bubbles and before outgoing bubbles. They use the existing ghost icon button, accessible label and touch target. A bounded AI batch may expose the existing link button to continue pending analysis; loading disables continuation. Drafts remain scoped to the selected contact and box.
 
 ## 10. Persistent inbox workspace
 
-The optional inbox workspace uses existing background/card/border/primary tokens and Lucide icons. Desktop uses a 28rem right panel and reserves that width in the main content; mobile uses a full-width panel above safe-area navigation. The header always exposes labelled controls to minimize, restore, return to Inbox, open a separate window and disable the feature. Minimization hides the entire workspace, including email composers. A stable portal host preserves reader, draft, reply and attachment state across navigation and window moves. Only the enabled preference is stored locally, scoped by user and organization; message content is not persisted by this feature. Organization/logout changes unmount and close detached content. Detached windows require the original CRM tab to remain open. Turning the feature off restores ordinary page navigation without deleting the current in-memory draft.
+### Pages beside the Inbox
 
-The workspace pins automatically on the first Inbox visit unless explicitly disabled. At desktop widths (1024px+), a stable dialog portal occupies the main page region between the existing sidebar (16rem expanded, 4rem collapsed) and the 28rem Inbox column. Dialogs and Sheets in this mode permit interaction with the Inbox and ignore Inbox clicks as outside dismissal. Minimize, pop-out and disable restore the full dialog area without remounting forms. Destructive AlertDialogs retain their confirmation focus trap; their visual overlay still respects the reserved column. Mobile retains the existing full-screen modal behavior.
+Leads responds to its own available width through the named `leads` container. Below 1100px of page width, filters move above the results into an accordion, secondary toolbar actions move into a labelled “Mais” menu, and the table prioritizes name, phone, status and actions. Below 520px phone moves out of the table; the complete contact remains accessible through its details. Essential actions and the grid/list toggle remain visible. Above 1100px the sidebar filters and full toolbar return. No resize may reset filters, selections, drafts or view preference.
+
+### Responsive workspace navigation
+
+The persistent workspace is WhatsApp-only. Compact mailbox selection lists only WhatsApp channels. Email and other channels remain available on the full Inbox page; selecting them parks the reader when leaving and shows no persistent panel or restore control. The WhatsApp pin preference remains enabled, and hidden readers retain their drafts without read receipts. WhatsApp is the default channel when one is available.
+
+The Inbox keeps a stable reader and draft owner at every size. Below 1440px, leaving the Inbox parks it in the background and exposes a labelled “Retomar Inbox” control; restoring opens the Inbox page. It must not cover the destination page. On phones and tablets the Inbox page keeps the application header, hides workspace tabs and bottom navigation, and fills the remaining dynamic viewport. Its own lists and message reader own scrolling.
+
+At 1440px and above, the pinned 28rem panel reserves its column while the application sidebar keeps its saved width (16rem expanded or 4rem collapsed). Page dialogs use these same boundaries. Minimize, restore, resize and moving the reader must not remount the draft owner.
+
+The Inbox toolbar stays in one row with a visible “Caixas” control on narrow and compact surfaces, the current box name, a 40px minimize button and a labelled options popover. Window, full-page and enable/disable actions remain in that popover. Mailbox selection is available while reading a message as well as in the list. No primary action may depend on a viewport-only breakpoint inside the compact panel. Mailbox Sheets stay above the mobile application header.
+
+The optional inbox workspace uses existing background/card/border/primary tokens and Lucide icons. Wide desktop uses a 28rem right panel and reserves that width in the main content; narrower screens keep it parked when navigating away. The toolbar and options expose labelled controls to minimize, restore, return to Inbox, open a separate window and disable the feature. Minimization hides the entire workspace, including email composers. A stable portal host preserves reader, draft, reply and attachment state across navigation and window moves. Only the enabled preference is stored locally, scoped by user and organization; message content is not persisted by this feature. Organization/logout changes unmount and close detached content. Detached windows require the original CRM tab to remain open. Turning the feature off restores ordinary page navigation without deleting the current in-memory draft.
+
+The workspace pins automatically on the first Inbox visit unless explicitly disabled. While docked at desktop widths (1440px+), a stable dialog portal occupies the main page region between the sidebar (16rem expanded or 4rem collapsed) and the 28rem Inbox column. Dialogs and Sheets in this mode permit interaction with the Inbox and ignore Inbox clicks as outside dismissal. Minimize, pop-out and disable restore the full dialog area without remounting forms. Destructive AlertDialogs retain their confirmation focus trap; their visual overlay still respects the reserved column. Mobile retains the existing full-screen modal behavior.
 
 Inbox media previews use the shared modal portal (or detached window body), outside the narrow transformed Inbox host. Fit uses the actual available content width and height, with room for sender, caption, thumbnails and zoom controls. Media clicks are Inbox workspace interactions and do not dismiss an open client form. Escape closes the preview before background dialogs.

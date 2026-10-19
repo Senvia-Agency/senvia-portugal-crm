@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Loader2, Inbox as InboxIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DialogContainerContext } from '@/components/ui/portal-container';
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMessagingChannels, type MessagingChannel } from "@/hooks/useMessagingChannels";
@@ -34,7 +35,7 @@ const EmailListReader = lazy(() =>
 export function InboxContent() {
   const workspace = useInboxWorkspace();
   const compact = workspace?.compact ?? false;
-  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
+  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || workspace.docked));
   const isMobile = useIsMobile();
   const { data: caixas = [] } = useMessagingChannels();
   const { data: metaUnread } = useMetaUnreadTotals();
@@ -49,16 +50,23 @@ export function InboxContent() {
   // não uma lista de conversas.
   const [todasConversas, setTodasConversas] = useState(false);
   const [railSheetOpen, setRailSheetOpen] = useState(false);
+  const caixasVisiveis = useMemo(
+    () => compact ? caixas.filter((c) => c.channel_type === 'whatsapp') : caixas,
+    [caixas, compact],
+  );
 
   const caixasMensagens = useMemo(
-    () => caixas.filter((c) => c.channel_type !== 'email'),
-    [caixas],
+    () => caixasVisiveis.filter((c) => c.channel_type !== 'email'),
+    [caixasVisiveis],
   );
+  const caixasMensagensIds = useMemo(() => caixasMensagens.map((c) => c.id), [caixasMensagens]);
 
   // Abre a primeira caixa sozinha: com uma só, obrigar a escolhê-la é um passo
   // a mais para chegar ao mesmo sítio.
   useEffect(() => {
     if (emailChannelId || metaChannelId || todasConversas || caixas.length === 0) return;
+    const whatsapp = caixas.find((c) => c.channel_type === 'whatsapp');
+    if (whatsapp) { setMetaChannelId(whatsapp.id); return; }
     const email = caixas.find((c) => c.channel_type === "email");
     if (email) setEmailChannelId(email.id);
     else setMetaChannelId(caixas[0].id);
@@ -68,6 +76,10 @@ export function InboxContent() {
     () => caixas.find((c) => c.id === (metaChannelId ?? emailChannelId)) ?? null,
     [caixas, metaChannelId, emailChannelId],
   );
+  const whatsappSelecionado = aberta?.channel_type === 'whatsapp'
+    || (todasConversas && caixasMensagens.length > 0 && caixasMensagens.every((c) => c.channel_type === 'whatsapp'));
+  const setWhatsAppSelected = workspace?.setWhatsAppSelected;
+  useEffect(() => { setWhatsAppSelected?.(whatsappSelecionado); }, [setWhatsAppSelected, whatsappSelecionado]);
 
   const escolherMensagens = (ch: MessagingChannel) => {
     setTodasConversas(false);
@@ -90,7 +102,7 @@ export function InboxContent() {
   };
 
   const railProps = {
-    caixas,
+    caixas: caixasVisiveis,
     caixaFilter: null,
     metaChannelId,
     todasConversas,
@@ -108,36 +120,32 @@ export function InboxContent() {
   return (
     <div className={cn(
       "flex flex-col overflow-hidden",
-      // No telemóvel a barra de baixo está escondida nesta página: só o
-      // cabeçalho (3.5rem + área segura) fica por cima. `dvh` acompanha o
-      // crescer e encolher da barra do browser.
-      compact ? "h-full" : isMobile
-        ? "h-[calc(100dvh-3.5rem-var(--safe-area-top,0px)-var(--safe-area-bottom,0px))]"
-        : "h-dvh",
+      compact || isMobile ? "h-full" : "h-[calc(100dvh-7rem)]",
     )}>
-      <InboxWorkspaceToolbar />
+      <InboxWorkspaceToolbar onOpenCaixas={() => setRailSheetOpen(true)} channelLabel={todasConversas ? 'Todas as conversas' : aberta?.label ?? 'Inbox'} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {!compact && <InboxCaixaRail {...railProps} />}
 
         {/* No telemóvel o mesmo carril vive numa gaveta — o de cima está
             escondido abaixo de lg (1024px). */}
+        <DialogContainerContext.Provider value={workspace?.popup?.document.body ?? document.body}>
         <Sheet open={railSheetOpen} onOpenChange={setRailSheetOpen}>
-          <SheetContent side="left" className="w-72 p-0">
+          <SheetContent data-inbox-workspace-control side="left" className="z-[70] flex w-72 flex-col p-0 [&>button]:right-2 [&>button]:top-2 [&>button]:h-10 [&>button]:w-10 [&>button]:translate-y-0" aria-describedby={undefined}>
             <SheetHeader className="border-b p-4 pb-3">
               <SheetTitle>Caixas</SheetTitle>
             </SheetHeader>
-            <InboxCaixaRail {...railProps} className="flex w-full border-r-0" />
+            <InboxCaixaRail {...railProps} className="flex min-h-0 w-full flex-1 border-r-0" />
           </SheetContent>
         </Sheet>
+        </DialogContainerContext.Provider>
 
         {todasConversas ? (
           <MetaInbox
-            channelId={caixasMensagens.map((c) => c.id)}
+            channelId={caixasMensagensIds}
             active={readerActive}
             compact={compact}
             channelLabel="as tuas contas"
             caixas={caixasMensagens}
-            onOpenRail={() => setRailSheetOpen(true)}
           />
         ) : metaChannelId ? (
           <MetaInbox
@@ -147,7 +155,6 @@ export function InboxContent() {
             channelLabel={aberta?.label ?? "esta caixa"}
             channelType={aberta?.channel_type}
             caixas={caixasMensagens}
-            onOpenRail={() => setRailSheetOpen(true)}
           />
         ) : emailChannelId ? (
           <Suspense fallback={
@@ -159,7 +166,6 @@ export function InboxContent() {
               compact={compact}
               channelId={emailChannelId}
               folderId={emailFolderId}
-              onOpenRail={() => setRailSheetOpen(true)}
             />
           </Suspense>
         ) : (

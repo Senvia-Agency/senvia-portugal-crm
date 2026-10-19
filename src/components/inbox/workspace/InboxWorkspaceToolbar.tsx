@@ -1,23 +1,37 @@
-import { ArrowLeft, ExternalLink, Minimize2, PanelRight, Power } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, ExternalLink, Mailbox, Minimize2, MoreHorizontal, PanelRight, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { useInboxWorkspace } from './InboxWorkspaceContext';
 
-export function InboxWorkspaceToolbar() {
+export function InboxWorkspaceToolbar({ onOpenCaixas, channelLabel }: {
+  readonly onOpenCaixas?: () => void;
+  readonly channelLabel?: string;
+}) {
   const workspace = useInboxWorkspace();
+  const [optionsOpen, setOptionsOpen] = useState(false);
   if (!workspace) return null;
-  return <header className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-card px-3 py-2">
-    <p className="mr-auto text-sm font-medium">{workspace.popup ? 'Inbox noutra janela' : workspace.pinned ? 'Inbox mantido aberto' : 'Inbox'}</p>
-    {workspace.enabled && <>
-      {!workspace.pinned && <Button variant="outline" size="sm" onClick={workspace.pin}>
-        <PanelRight className="mr-1 h-4 w-4" /> Manter aberto
-      </Button>}
-      {(workspace.compact || workspace.minimized) && <Button variant="ghost" size="icon" title="Voltar ao Inbox" aria-label="Voltar ao Inbox" onClick={workspace.returnToInbox}><ArrowLeft className="h-4 w-4" /></Button>}
-      <Button variant="ghost" size="icon" title="Minimizar Inbox" aria-label="Minimizar Inbox" onClick={workspace.minimize}><Minimize2 className="h-4 w-4" /></Button>
-      <Button variant="ghost" size="icon" title="Abrir Inbox noutra janela" aria-label="Abrir Inbox noutra janela" onClick={workspace.openWindow}><ExternalLink className="h-4 w-4" /></Button>
-    </>}
-    <Button variant="ghost" size="sm" title="Voltar ao comportamento original sem apagar rascunhos" onClick={workspace.toggleEnabled}>
-      <Power className="mr-1 h-4 w-4" /> {workspace.enabled ? 'Desativar painel' : 'Ativar painel lateral'}
-    </Button>
-    {workspace.popup && <p className="w-full text-xs text-muted-foreground">Mantém o separador original do Senvia aberto.</p>}
+  const run = (action: () => void) => { setOptionsOpen(false); action(); };
+  return <header data-inbox-toolbar className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3">
+    {onOpenCaixas && <Button variant="outline" size="sm" className={cn('h-10 shrink-0', !workspace.compact && 'lg:hidden')} onClick={onOpenCaixas}>
+      <Mailbox className="mr-1.5 h-4 w-4" /> Caixas
+    </Button>}
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-medium" title={channelLabel}>{channelLabel ?? 'Inbox'}</p>
+      <p className="truncate text-xs text-muted-foreground">{workspace.popup ? 'Mantém o Senvia original aberto' : workspace.enabled && workspace.pinned && workspace.whatsappSelected ? 'Inbox mantido aberto' : 'Inbox'}</p>
+    </div>
+    {workspace.enabled && workspace.whatsappSelected && <Button variant="outline" size="icon" className="shrink-0" title="Minimizar Inbox" aria-label="Minimizar Inbox" onClick={workspace.minimize}><Minimize2 className="h-4 w-4" /></Button>}
+    <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
+      <PopoverTrigger asChild><Button variant="outline" size="icon" className="shrink-0" title="Opções do Inbox" aria-label="Opções do Inbox"><MoreHorizontal className="h-4 w-4" /></Button></PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-1">
+        {workspace.enabled && workspace.whatsappSelected && <>
+          {!workspace.pinned && <Button variant="ghost" className="w-full justify-start" onClick={() => run(workspace.pin)}><PanelRight className="mr-2 h-4 w-4" />Manter aberto</Button>}
+          {workspace.compact && <Button variant="ghost" className="w-full justify-start" onClick={() => run(workspace.returnToInbox)}><ArrowLeft className="mr-2 h-4 w-4" />Voltar ao Inbox</Button>}
+          <Button variant="ghost" className="w-full justify-start" onClick={() => run(workspace.openWindow)}><ExternalLink className="mr-2 h-4 w-4" />Abrir Inbox noutra janela</Button>
+        </>}
+        <Button variant="ghost" className="w-full justify-start" title="Sem apagar rascunhos" onClick={() => run(workspace.toggleEnabled)}><Power className="mr-2 h-4 w-4" />{workspace.enabled ? 'Desativar painel' : 'Ativar painel lateral'}</Button>
+      </PopoverContent>
+    </Popover>
   </header>;
 }

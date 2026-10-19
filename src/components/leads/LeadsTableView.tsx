@@ -234,7 +234,7 @@ export function LeadsTableView({
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="leads-table">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               {onSelectionChange && (
@@ -254,32 +254,32 @@ export function LeadsTableView({
               <TableHead className="w-[200px]">
                 <SortableHeader field="name">Nome</SortableHeader>
               </TableHead>
-              <TableHead className="hidden md:table-cell">
+              <TableHead className="leads-column-email hidden md:table-cell">
                 <SortableHeader field="email">Email</SortableHeader>
               </TableHead>
-              <TableHead>Telefone</TableHead>
+              <TableHead className="leads-column-phone">Telefone</TableHead>
               <TableHead>
                 <SortableHeader field="status">Status</SortableHeader>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">
+              <TableHead className="leads-column-secondary hidden sm:table-cell">
                 <SortableHeader field="temperature">Temp.</SortableHeader>
               </TableHead>
               {showEnergy && (
-                <TableHead className="hidden sm:table-cell">
+                <TableHead className="leads-column-secondary hidden sm:table-cell">
                   <SortableHeader field="tipologia">Tipologia</SortableHeader>
                 </TableHead>
               )}
-              <TableHead className="hidden lg:table-cell">
+              <TableHead className="leads-column-secondary hidden lg:table-cell">
                 {showEnergy ? (
                   <SortableHeader field="consumo_anual">Consumo (kWh)</SortableHeader>
                 ) : (
                   <SortableHeader field="value">Valor</SortableHeader>
                 )}
               </TableHead>
-              <TableHead className="hidden lg:table-cell">
+              <TableHead className="leads-column-secondary hidden lg:table-cell">
                 <SortableHeader field="source">Fonte</SortableHeader>
               </TableHead>
-              <TableHead className="hidden lg:table-cell">
+              <TableHead className="leads-column-secondary hidden lg:table-cell">
                 <SortableHeader field="created_at">Criado</SortableHeader>
               </TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -325,7 +325,7 @@ export function LeadsTableView({
                       </TableCell>
                     )}
                     <TableCell>
-                      <div>
+                      <div className="leads-name">
                         <span className="font-medium truncate max-w-[150px] block">
                           {isTelecom ? (lead.company_name || lead.name) : lead.name}
                         </span>
@@ -340,12 +340,12 @@ export function LeadsTableView({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="leads-column-email hidden md:table-cell">
                       <span className="text-muted-foreground truncate max-w-[180px] block">
                         {isPlaceholderEmail(lead.email) ? '—' : lead.email}
                       </span>
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="leads-column-phone" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -366,7 +366,7 @@ export function LeadsTableView({
                         onValueChange={(value) => onStatusChange(lead.id, value)}
                         disabled={isLocked}
                       >
-                        <SelectTrigger className="w-[130px] h-8 border-0 bg-transparent p-0">
+                        <SelectTrigger className="leads-status w-[130px] h-8 border-0 bg-transparent p-0">
                           <span
                             className="inline-flex h-[26px] items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold"
                             style={currentStage ? getStatusBadgeStyle(currentStage.color) : undefined}
@@ -392,7 +392,7 @@ export function LeadsTableView({
                         );
                       })()}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="leads-column-secondary hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={lead.temperature || 'warm'}
                         onValueChange={(value) => onTemperatureChange(lead.id, value as LeadTemperature)}
@@ -416,7 +416,7 @@ export function LeadsTableView({
                     </TableCell>
                     {/* Tipologia column - Only for Telecom */}
                     {showEnergy && (
-                      <TableCell className="hidden sm:table-cell">
+                      <TableCell className="leads-column-secondary hidden sm:table-cell">
                         {lead.tipologia && TIPOLOGIA_STYLES[lead.tipologia] ? (
                           <Badge
                             variant="outline"
@@ -431,7 +431,7 @@ export function LeadsTableView({
                       </TableCell>
                     )}
                     {/* Conditional: Consumo for Telecom, Value for others */}
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="leads-column-secondary hidden lg:table-cell">
                       {showEnergy ? (
                         lead.consumo_anual ? (
                           <span className="font-medium text-primary">
@@ -456,12 +456,12 @@ export function LeadsTableView({
                         })()
                       )}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="leads-column-secondary hidden lg:table-cell">
                       <span className="text-muted-foreground text-sm">
                         {lead.source || '-'}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="leads-column-secondary hidden lg:table-cell">
                       <span className="text-muted-foreground text-sm">
                         {lead.created_at
                           ? format(new Date(lead.created_at), 'dd MMM yyyy', { locale: pt })
