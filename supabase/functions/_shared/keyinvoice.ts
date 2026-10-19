@@ -861,29 +861,35 @@ export async function issueKeyInvoiceReceipt(
     original: KeyInvoiceDocumentIdentity
     amount: number
     clientId?: string | null
-    client?: { name: string; address?: string | null; postalCode?: string | null; locality?: string | null; countryCode?: string | null }
+    client?: { name: string; vatin?: string | null; address?: string | null; postalCode?: string | null; locality?: string | null; countryCode?: string | null }
   },
   fetcher?: typeof fetch,
 ): Promise<KeyInvoiceDocumentIdentity> {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw manualReviewRequired('O valor do recibo tem de ser superior a zero')
   }
+  const clientId = input.clientId || (input.client?.vatin
+    ? await resolveKeyInvoiceClient(session, {
+      name: input.client.name,
+      vatin: input.client.vatin,
+      address: input.client.address,
+      postalCode: input.client.postalCode,
+      locality: input.client.locality,
+      country: input.client.countryCode,
+    }, fetcher)
+    : null)
+  if (!clientId) {
+    throw manualReviewRequired('O recibo exige o cliente fiscal da Fatura identificado no KeyInvoice')
+  }
   const payload: Record<string, unknown> = {
     method: 'insertReceipt',
+    IdClient: clientId,
     DocLines: [{
       DocType: input.original.docType,
       ...(input.original.docSeries ? { DocSeries: input.original.docSeries } : {}),
       DocNum: input.original.docNum,
       SettleValue: input.amount.toFixed(2),
     }],
-  }
-  if (input.clientId) payload.IdClient = input.clientId
-  else if (input.client) {
-    payload.Name = input.client.name
-    if (input.client.address) payload.Address = input.client.address
-    if (input.client.postalCode) payload.PostalCode = input.client.postalCode
-    if (input.client.locality) payload.Locality = input.client.locality
-    payload.CountryCode = normalizeCountryCode(input.client.countryCode)
   }
   const result = await callKeyInvoice<Record<string, unknown>>(
     session.apiUrl,
