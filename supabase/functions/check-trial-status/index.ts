@@ -36,6 +36,7 @@ serve(async (req) => {
       .from("organizations")
       .select("id, name, trial_ends_at, plan, trial_reminders_sent, contact_phone")
       .eq("billing_exempt", false)
+      .eq("wa_nudge_optout", false)
       .not("trial_ends_at", "is", null);
 
     if (error) throw new Error(`Failed to fetch orgs: ${error.message}`);
