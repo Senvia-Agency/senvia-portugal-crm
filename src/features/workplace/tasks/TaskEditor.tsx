@@ -71,8 +71,8 @@ export function TaskEditor({ initial, draftKey, members, onClose, onSave, saveEr
   if (editingFields) return <Dialog open onOpenChange={open => !open && close()}><DialogContent className="work-task-editor work-task-edit-dialog">
     <DialogHeader><DialogTitle>{initial.title && !startEditing ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle><DialogDescription className="sr-only">Define os detalhes da tarefa. O rascunho é preservado até guardar.</DialogDescription></DialogHeader>
     <form className="work-task-edit-form" onSubmit={e => { e.preventDefault(); void submit(); }}><fieldset disabled={submitting} className="space-y-4">
-      <label className="work-field work-main-field"><span className="sr-only">Título</span><Input autoFocus required maxLength={200} value={task.title} onChange={e => change({ title: e.target.value })} placeholder="O que precisa de ser feito?" /></label>
-      <label className="work-field work-main-field"><span className="sr-only">Descrição</span><Textarea rows={3} maxLength={10000} value={task.description} onChange={e => change({ description: e.target.value })} placeholder="Descrição (opcional)" /></label>
+      <label className="work-field work-main-field"><span>Título</span><Textarea className="work-task-title-input" rows={2} autoFocus required maxLength={200} value={task.title} onChange={e => change({ title: e.target.value })} placeholder="O que precisa de ser feito?" /></label>
+      <label className="work-field work-main-field"><span>Descrição</span><Textarea className="work-task-description-input" rows={8} maxLength={10000} value={task.description} onChange={e => change({ description: e.target.value })} placeholder="Descrição (opcional)" /></label>
       <TaskPeople task={task} members={members} onChange={change} />
       <div className="work-edit-schedule">
       <label className="work-field">Prazo<Input type="datetime-local" value={inputDate(task.dueAt)} onChange={e => change({ dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
