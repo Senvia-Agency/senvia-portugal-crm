@@ -1,9 +1,11 @@
+import type { CSSProperties, DragEvent } from 'react';
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature, ClipboardList } from 'lucide-react';
+import { ArrowDown, ArrowLeft, Loader2, MessageCircle, Send, PanelLeft, PanelRight, Clock, Paperclip, SmilePlus, Mic, X, Reply, Archive, FileText, RefreshCw, Download, ImageOff, Copy, Phone, ExternalLink, UserPlus, ChevronRight, Briefcase, FileSignature, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { EmojiComposer } from './EmojiComposer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
@@ -80,6 +82,7 @@ export function MetaInbox({
   const caixaDe = (id: string) => caixas?.find((c) => c.id === id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem('inbox-panel-v1') !== '0');
   const [panelSheetOpen, setPanelSheetOpen] = useState(false);
   const [taskPrefill, setTaskPrefill] = useState<{
@@ -94,11 +97,10 @@ export function MetaInbox({
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return conversations;
-    return conversations.filter((c) =>
-      (c.contact_name ?? '').toLowerCase().includes(term)
-      || (c.last_message ?? '').toLowerCase().includes(term));
-  }, [conversations, search]);
+    return conversations.filter((c) => (!unreadOnly || c.unread_count > 0) && (!term
+      || (c.contact_name ?? '').toLowerCase().includes(term)
+      || (c.last_message ?? '').toLowerCase().includes(term)));
+  }, [conversations, search, unreadOnly]);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
   const selectedChannelType = selected ? (caixaDe(selected.channel_id)?.channel_type ?? channelType) : channelType;
@@ -138,10 +140,11 @@ export function MetaInbox({
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {/* Lista */}
       <aside className={cn(
-        'w-full flex-col border-r',
+        'inbox-conversations w-full flex-col border-r',
         compact ? (selectedId ? 'hidden' : 'flex') : selectedId ? 'hidden lg:flex lg:w-96' : 'flex lg:w-96',
       )}>
-        <div className="flex items-center gap-2 border-b p-3">
+        <div className="inbox-conversation-search flex items-center gap-2 border-b p-3">
+          <h2 className="inbox-list-title">Mensagens</h2>
           {onOpenRail && (
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 lg:hidden" onClick={onOpenRail}>
               <PanelLeft className="h-4 w-4" />
@@ -153,6 +156,10 @@ export function MetaInbox({
             placeholder="Procurar conversa…"
             className="h-9"
           />
+          <div className="inbox-list-filters" aria-label="Filtrar conversas">
+            <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>Todas</button>
+            <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>Não lidas</button>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -184,7 +191,7 @@ export function MetaInbox({
                 key={c.id}
                 onClick={() => openConversation(c)}
                 className={cn(
-                  'flex w-full items-start gap-3 border-b p-3 text-left transition-colors hover:bg-accent/50',
+                  'inbox-conversation-row flex w-full items-start gap-3 border-b p-3 text-left transition-colors hover:bg-accent/50',
                   selectedId === c.id && 'bg-primary/5',
                 )}
               >
@@ -246,9 +253,11 @@ export function MetaInbox({
           onCreateTask={(!selectedChannelType || selectedChannelType === 'whatsapp') && /^[0-9]{9,15}$/.test(selected.contact_ref) ? requestTaskPrefill : undefined}
         />
       ) : (
-        <div className="hidden flex-1 items-center justify-center p-8 text-center lg:flex">
+        <div className="inbox-empty hidden flex-1 flex-col items-center justify-center gap-4 p-8 text-center lg:flex">
+          <div className="inbox-empty-icon"><MessageCircle aria-hidden="true" /></div>
+          <h2>Selecione uma conversa</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Escolhe uma conversa para a ler e responder.
+            As tuas conversas, clientes e equipa, num só lugar. Escolhe uma conversa para ler e responder.
           </p>
         </div>
       )}
@@ -321,7 +330,7 @@ function MetaContactPanel({ conversation, channelType, onClose, taskPrefill, onP
   };
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+    <section className="inbox-contact-panel flex h-full min-h-0 flex-col overflow-y-auto bg-background">
       <header className="flex items-start gap-3 border-b p-4">
         <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
         <div className="min-w-0 flex-1">
@@ -581,6 +590,8 @@ function MetaThread({
   // como no WhatsApp Web. Um colar sem querer não pode chegar ao cliente.
   const [colados, setColados] = useState<Colado[]>([]);
   const coladosRef = useRef<Colado[]>([]);
+  const [draggingFiles, setDraggingFiles] = useState(false);
+  const dragDepth = useRef(0);
   coladosRef.current = colados;
 
   // Visualizador de imagens. As mensagens vão por ref para o contexto ficar
@@ -625,6 +636,7 @@ function MetaThread({
   const messageListRef = useRef<HTMLDivElement>(null);
   const positionedConversationRef = useRef<string | null>(null);
   const nearBottomRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const scrollBeforeHistoryRef = useRef<{ height: number; top: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -661,6 +673,27 @@ function MetaThread({
       scrollBeforeHistoryRef.current = null;
     }
   };
+
+  const goToLatest = () => {
+    const viewport = messageListRef.current;
+    if (!viewport) return;
+    scrollBeforeHistoryRef.current = null;
+    nearBottomRef.current = true;
+    viewport.scrollTop = viewport.scrollHeight;
+    setShowJumpToLatest(false);
+  };
+
+  useEffect(() => {
+    const viewport = messageListRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => {
+      if (!viewport.clientHeight) return;
+      nearBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+      setShowJumpToLatest(!nearBottomRef.current);
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   // Os endereços locais das pré-visualizações ficam presos à memória do
   // browser até serem largados à mão.
@@ -793,7 +826,7 @@ function MetaThread({
 
   /** Os mesmos formatos que o clipe deixa escolher (ver `accept` abaixo). */
   const aceitaFicheiro = (file: File) =>
-    file.type === 'image/png' || file.type === 'image/jpeg'
+    channelType === 'whatsapp' || file.type === 'image/png' || file.type === 'image/jpeg'
     || file.type.startsWith('video/') || file.type.startsWith('audio/')
     || (channelType === 'facebook' && file.type === 'application/pdf');
 
@@ -822,6 +855,20 @@ function MetaThread({
     return true;
   };
 
+  const handleFileDrop = (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = 0;
+    setDraggingFiles(false);
+    if (arquivada || windowExpired) {
+      toast.error('Esta conversa não permite enviar anexos neste momento.');
+      return;
+    }
+    colar(event.dataTransfer);
+    composerRef.current?.focus({ preventScroll: true });
+  };
+
   const tirarColado = (id: string) => {
     const colado = colados.find((c) => c.id === id);
     if (colado) URL.revokeObjectURL(colado.previewUrl);
@@ -830,9 +877,29 @@ function MetaThread({
 
   return (
     <VisualizadorContext.Provider value={contextoVisualizador}>
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header className="flex items-center gap-2 border-b p-3">
-        <Button variant="ghost" size="sm" className={compact ? undefined : "lg:hidden"} onClick={onBack}>Voltar</Button>
+    <section className="inbox-thread relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        dragDepth.current += 1;
+        setDraggingFiles(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = arquivada || windowExpired ? 'none' : 'copy';
+      }}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDraggingFiles(false);
+      }}
+      onDrop={handleFileDrop}
+    >
+      {draggingFiles && <div role="status" className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-background/95 p-6 text-center text-sm font-medium text-primary">
+        {arquivada || windowExpired ? 'Esta conversa não permite enviar anexos neste momento.' : 'Larga os ficheiros aqui para pré-visualizar. Só serão enviados quando confirmares.'}
+      </div>}
+      <header className="inbox-thread-header flex items-center gap-2 border-b p-3">
+        <Button variant="outline" size="sm" className={cn('h-10 shrink-0', !compact && 'lg:hidden')} onClick={onBack}><ArrowLeft className="h-4 w-4" />Voltar</Button>
         <ContactAvatar name={conversation.contact_name} url={conversation.contact_avatar_url} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
@@ -846,18 +913,20 @@ function MetaThread({
           )}
         </div>
         <div className="flex-1" />
-        <Button variant="ghost" size="icon" title="Painel do contacto" onClick={onOpenContact}>
+        <Button variant="outline" size="icon" className="shrink-0" aria-label="Painel do contacto" title="Painel do contacto" onClick={onOpenContact}>
           <PanelRight className="h-4 w-4" />
         </Button>
       </header>
 
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={messageListRef}
         onScroll={(event) => {
           const viewport = event.currentTarget;
           nearBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120;
+          setShowJumpToLatest(!nearBottomRef.current);
         }}
-        className="min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4"
+        className="inbox-message-viewport min-h-0 min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4"
       >
         {isLoading ? (
           [...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-2/3 rounded-lg" />)
@@ -909,7 +978,7 @@ function MetaThread({
                 </>
               )}
               <div className={cn(
-                'relative min-w-0 max-w-[65%] rounded-2xl px-3 py-2 text-sm md:max-w-[75%]',
+                'inbox-message-bubble relative min-w-0 max-w-[65%] rounded-2xl px-3 py-2 text-sm md:max-w-[75%]',
                 m.direction === 'outgoing'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-foreground',
@@ -1048,8 +1117,12 @@ function MetaThread({
         ))}
 
       </div>
+      {showJumpToLatest && <Button variant="outline" size="icon" className="absolute bottom-3 right-3 h-11 w-11 rounded-full bg-card shadow-md" aria-label="Ir para a última mensagem" title="Ir para a última mensagem" onClick={goToLatest}>
+        <ArrowDown className="h-5 w-5" />
+      </Button>}
+      </div>
 
-      <footer className="min-w-0 border-t p-3">
+      <footer className="inbox-composer min-w-0 border-t p-3">
         {arquivada ? (
           <p className="flex items-start gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
             <Archive className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -1124,7 +1197,7 @@ function MetaThread({
               </p>
             </div>
           )}
-          <div className="flex min-w-0 items-end gap-2">
+          <div className="inbox-compose-bar flex min-w-0 items-end gap-2">
             <input
               ref={fileRef}
               type="file"
@@ -1132,7 +1205,7 @@ function MetaThread({
               // A Meta documenta, para o Instagram, apenas imagem (PNG/JPEG),
               // áudio e vídeo. O PDF é do Messenger — oferecê-lo no Instagram
               // era um botão que dá erro da Meta depois de escolher o ficheiro.
-              accept={channelType === 'facebook'
+              accept={channelType === 'whatsapp' ? '*/*' : channelType === 'facebook'
                 ? 'image/png,image/jpeg,video/*,audio/*,application/pdf'
                 : 'image/png,image/jpeg,video/*,audio/*'}
               onChange={(e) => {
@@ -1150,10 +1223,10 @@ function MetaThread({
             >
               <Paperclip className="h-4 w-4" />
             </Button>
-            <Textarea
-              ref={composerRef}
+            <EmojiComposer
+              composerRef={composerRef}
               value={draft}
-              onChange={(e) => { setDraft(e.target.value); sinalizarEscrita(); }}
+              onValueChange={(value) => { setDraft(value); sinalizarEscrita(); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
@@ -1223,7 +1296,7 @@ function ContactAvatar({ name, url }: { name: string | null; url: string | null 
     );
   }
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+    <span style={{ '--inbox-avatar-hue': [...label].reduce((h, character) => (h * 31 + character.charCodeAt(0)) % 360, 0) } as CSSProperties} className="inbox-contact-initials flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
       {initials}
     </span>
   );
@@ -1685,6 +1758,7 @@ function ModelosWhatsApp({ conversationId, channelId, contacto }: {
 // No Messenger existem mesmo todas.
 const REACOES_MESSENGER = ['❤️', '😂', '😮', '😢', '😡', '👍'];
 const REACOES_INSTAGRAM = ['❤️'];
+const REACOES_WHATSAPP = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 /**
  * Escolher (ou tirar) a reação a uma mensagem.
@@ -1702,7 +1776,8 @@ function ReactionPicker({
   onPick: (emoji: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const reacoes = channelType === 'facebook' ? REACOES_MESSENGER : REACOES_INSTAGRAM;
+  const reacoes = channelType === 'whatsapp' ? REACOES_WHATSAPP
+    : channelType === 'facebook' ? REACOES_MESSENGER : REACOES_INSTAGRAM;
 
   return (
     <div className="relative shrink-0">

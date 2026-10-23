@@ -1,0 +1,45 @@
+.app-shell[data-interface='workspace'] .workspace-topbar {
+  background: hsl(var(--workplace-shell, 240 12% 4%));
+  gap: 1rem;
+}
+:is(.workspace-topbar, .workplace-mobile-controls) .workplace-header-icon,
+:is(.workspace-topbar, .workplace-mobile-controls) .workplace-account-trigger {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: hsl(220 15% 78%);
+  border: 1px solid hsl(0 0% 100% / .1);
+  background: hsl(0 0% 100% / .035);
+}
+:is(.workspace-topbar, .workplace-mobile-controls) .workplace-account-trigger { width: 2.5rem; padding: 2px; border-color: hsl(0 0% 100% / .2); }
+:is(.workspace-topbar, .workplace-mobile-controls) .workplace-time-preview,
+:is(.workspace-topbar, .workplace-mobile-controls) .workplace-admin-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  height: 2.25rem;
+  padding: 0 .75rem;
+  border: 1px solid hsl(0 0% 100% / .12);
+  border-radius: 999px;
+  color: hsl(220 15% 85%);
+  font-size: .75rem;
+  font-weight: 500;
+  background: hsl(0 0% 100% / .045);
+}
+.workplace-time-dot { width: .375rem; height: .375rem; border-radius: 50%; background: hsl(38 80% 65%); }
+.workplace-time-separator { height: .875rem; width: 1px; background: hsl(0 0% 100% / .2); }
+:is(.workspace-topbar, .workplace-mobile-controls) :is(.workplace-header-icon, .workplace-time-preview, .workplace-admin-link, .workplace-account-trigger):hover { background: hsl(0 0% 100% / .1); }
+:is(.workspace-topbar, .workplace-mobile-controls) :is(.workplace-header-icon, .workplace-time-preview, .workplace-admin-link, .workplace-account-trigger):focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.app-shell[data-interface='classic'] :is(.workspace-topbar, .workplace-mobile-controls) .workplace-header-actions { color: hsl(var(--foreground)); }
+.app-shell[data-interface='classic'] :is(.workspace-topbar, .workplace-mobile-controls) :is(.workplace-header-icon, .workplace-time-preview, .workplace-admin-link, .workplace-account-trigger) { color: inherit; border-color: hsl(var(--border)); background: hsl(var(--background)); }
+@media (max-width: 1100px) {
+  :is(.workspace-topbar, .workplace-mobile-controls) .workplace-admin-link span { display: none; }
+  :is(.workspace-topbar, .workplace-mobile-controls) .workplace-admin-link { width: 2.25rem; padding: 0; }
+  :is(.workspace-topbar, .workplace-mobile-controls) .workplace-time-dot { display: none; }
+  :is(.workspace-topbar, .workplace-mobile-controls) .workplace-time-preview { padding-inline: .625rem; gap: .375rem; }
+}

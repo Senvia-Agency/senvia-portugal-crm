@@ -138,7 +138,7 @@ export default function Automations() {
         title="Automações"
         subtitle="Fluxos automáticos de WhatsApp, email e ações no CRM"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => openFolderDialog()}>
               <Folder className="mr-2 h-4 w-4" />
               Nova pasta

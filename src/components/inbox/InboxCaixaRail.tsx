@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mailbox, Inbox as InboxIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Mailbox, Inbox as InboxIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MESSAGING_CHANNELS_ENABLED, isChannelEnabled } from '@/lib/constants';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -133,7 +133,7 @@ export function InboxCaixaRail({
   const totalUnread = messaging.reduce((s, ch) => s + unreadFor(ch), 0);
 
   return (
-    <aside className={cn("hidden w-56 shrink-0 flex-col border-r bg-muted/20 lg:flex", className)}>
+    <aside data-email-open={Boolean(emailChannelId) || openEmails.length > 0} className={cn("inbox-caixa-rail hidden w-56 shrink-0 flex-col border-r bg-muted/20 lg:flex", className)}>
       <div className="flex items-center justify-between border-b px-3 py-3">
         <h1 className="px-1 text-sm font-semibold text-muted-foreground">Caixas</h1>
         {visibleCaixas.length > 1 && (
@@ -201,9 +201,9 @@ export function InboxCaixaRail({
               )}
             >
               <span
-                className={cn('h-2.5 w-2.5 shrink-0 rounded-full', ch.archived_at && 'opacity-40')}
+                className={cn('inbox-channel-icon h-2.5 w-2.5 shrink-0 rounded-full', ch.archived_at && 'opacity-40')}
                 style={{ background: dotColor(ch) }}
-              />
+              ><MessageCircle className="inbox-channel-glyph" aria-hidden="true" /></span>
               <span className={cn(
                 'min-w-0 flex-1 truncate text-left',
                 // Arquivada: continua na lista, porque as conversas continuam lá

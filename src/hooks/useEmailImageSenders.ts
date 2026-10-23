@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const normalize = (address: string) => address.trim().toLowerCase();
 
@@ -26,26 +27,35 @@ export function useEmailImageSenders() {
         .eq('id', user!.id)
         .single();
       if (error) throw error;
-      return (data?.email_image_senders ?? []) as string[];
+      return (data?.email_image_senders ?? []).map(normalize);
     },
   });
 
   const save = useMutation({
     mutationFn: async (next: string[]) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ email_image_senders: next })
-        .eq('id', user!.id);
+        .eq('id', user!.id)
+        .select('email_image_senders')
+        .single();
       if (error) throw error;
+      if (!data) throw new Error('Preferência não foi gravada');
+      return data.email_image_senders.map(normalize);
     },
-    // Images show the moment the button is pressed, not after the round trip.
-    onMutate: (next) => { qc.setQueryData(key, next); },
-    onError: () => { void qc.invalidateQueries({ queryKey: key }); },
+    // Stop an older read from replacing a newly saved preference.
+    onMutate: async () => { await qc.cancelQueries({ queryKey: key }); },
+    onSuccess: (persisted) => { qc.setQueryData(key, persisted); },
+    onError: () => {
+      toast.error('Não foi possível guardar a preferência das imagens. Tenta novamente.');
+      void qc.invalidateQueries({ queryKey: key });
+    },
   });
 
   return {
     /** Still reading the list: keep images blocked until it is known. */
     loading: isLoading,
+    saving: save.isPending,
     trusts: (address: string | null | undefined) => !!address && senders.includes(normalize(address)),
     trust: (address: string) => save.mutate([...new Set([...senders, normalize(address)])]),
     untrust: (address: string) => save.mutate(senders.filter((s) => s !== normalize(address))),

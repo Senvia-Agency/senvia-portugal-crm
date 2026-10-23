@@ -15,6 +15,8 @@ const PWAUpdateBanner = lazy(() => import("@/components/pwa/PWAUpdateBanner").th
 import Login from "./pages/Login";
 
 // Lazy: All other pages
+const WorkplaceFeed = lazy(() => import("./pages/WorkplaceFeed"));
+const WorkplaceTasks = lazy(() => import("./pages/WorkplaceTasks"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Novidades = lazy(() => import("./pages/Novidades"));
 const NovidadeDetail = lazy(() => import("./pages/NovidadeDetail"));
@@ -126,6 +128,8 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
 
                 {/* Protected Routes (Persistent Layout) */}
                 <Route element={<ProtectedLayoutRoute />}>
+                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/feed" element={<WorkplaceFeed />} />}
+                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/tasks" element={<WorkplaceTasks />} />}
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/novidades" element={<Novidades />} />
                   <Route path="/novidades/:id" element={<NovidadeDetail />} />

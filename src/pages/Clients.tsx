@@ -285,7 +285,7 @@ export default function Clients() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="workplace-client-metrics grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           <Card className="rounded-xl border-border/70 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">

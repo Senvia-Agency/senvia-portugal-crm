@@ -3136,6 +3136,7 @@ export type Database = {
       }
       inbox_tasks: {
         Row: {
+          participant_ids: string[]
           assigned_to: string | null
           client_id: string | null
           contact_name: string | null
@@ -3155,8 +3156,12 @@ export type Database = {
           source_message: string | null
           suggested: boolean
           title: string
+          workplace_status: string
+          workplace_version: number
+          priority: string
         }
         Insert: {
+          participant_ids?: string[]
           assigned_to?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -3176,8 +3181,12 @@ export type Database = {
           source_message?: string | null
           suggested?: boolean
           title: string
+          workplace_status?: string
+          workplace_version?: number
+          priority?: string
         }
         Update: {
+          participant_ids?: string[]
           assigned_to?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -3197,6 +3206,9 @@ export type Database = {
           source_message?: string | null
           suggested?: boolean
           title?: string
+          workplace_status?: string
+          workplace_version?: number
+          priority?: string
         }
         Relationships: [
           {
@@ -8034,6 +8046,181 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      workplace_posts: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          organization_id: string
+          pinned: boolean
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id: string
+          pinned?: boolean
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id?: string
+          pinned?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      workplace_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          organization_id: string
+          post_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          post_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_post_id_organization_id_fkey"
+            columns: ["post_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "workplace_posts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      workplace_reactions: {
+        Row: {
+          created_at: string
+          organization_id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_post_id_organization_id_fkey"
+            columns: ["post_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "workplace_posts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
       }
     }
     Views: {

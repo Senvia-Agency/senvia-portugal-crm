@@ -16,7 +16,8 @@ import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
-import { workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
+import { workspaceNavigationGroups, workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
+import { ModuleNavIcon } from './ModuleNavIcon';
 
 // Hover tooltip shown only when the sidebar is collapsed (parent must be `group`).
 function CollapsedTooltip({ label }: { label: string }) {
@@ -35,21 +36,32 @@ const getRoleLabel = (roles: AppRole[]): string => {
 };
 
 interface AppSidebarProps {
+  legacy?: boolean;
   userName?: string;
   organizationName?: string;
   forceCollapsed?: boolean;
+  expanded?: boolean;
+  onExpand?: () => void;
+  onCollapse?: () => void;
+  onNavigate?: () => void;
 }
 
 export function AppSidebar({
   userName = "Utilizador",
   organizationName = "A Minha Empresa",
   forceCollapsed = false,
+  expanded = false,
+  onExpand,
+  onCollapse,
+  onNavigate,
+  legacy = false,
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, roles, isSuperAdmin, organization, organizations } = useAuth();
   const { setOpen: setOttoOpen } = useOttoStore();
-  const collapsed = useSidebarStore((s) => s.collapsed) || forceCollapsed;
+  const savedCollapsed = useSidebarStore((s) => s.collapsed);
+  const collapsed = !expanded && (savedCollapsed || forceCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggle);
   const { modules } = useModules();
   const { canViewModule } = usePermissions();
@@ -73,6 +85,10 @@ export function AppSidebar({
     if (!canViewModule(item.moduleKey)) return false;
     return true;
   });
+  if (legacy) {
+    const order = ['/dashboard', '/leads', '/inbox', '/clients', '/proposals', '/sales', '/financeiro', '/calendar', '/marketing', '/automacoes', '/prospects', '/settings'];
+    navItems.sort((a, b) => order.indexOf(a.to) - order.indexOf(b.to));
+  }
 
   const handleLogout = async () => {
     await signOut();
@@ -93,42 +109,42 @@ export function AppSidebar({
   return (
     <>
       <aside className={cn(
-        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
+        "workspace-sidebar fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
         collapsed ? "w-16" : "w-64",
       )}>
         <div className="flex h-full flex-col">
-          <div className={cn("flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
+          <div className={cn("workspace-sidebar-brand flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
             {!collapsed && (
               <div className="flex items-center gap-2.5" aria-label="Senvia OS">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#3778f6] text-base font-black text-white shadow-[0_6px_18px_rgba(55,120,246,.35)]">S</span>
-                <span className="flex flex-col leading-none"><strong className="text-[17px] tracking-[-0.04em] text-white">senvia</strong><span className="mt-1 text-[9px] font-bold uppercase tracking-[0.24em] text-[#8fa7d5]">workspace</span></span>
+                <img src="/senvia-logo-white.png" alt="Senvia" width={112} height={39} className="h-auto w-28 shrink-0 object-contain" /><span className="workplace-brand-caption">WORKPLACE</span>
               </div>
             )}
-            {forceCollapsed && <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#3778f6] text-base font-black text-white">S</span>}
-            {!forceCollapsed && <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5">
               {!collapsed && <WhatsNewButton variant="sidebar" />}
               <button
                 type="button"
-                onClick={toggleCollapsed}
+                onClick={collapsed ? onExpand ?? toggleCollapsed : onCollapse ?? toggleCollapsed}
                 title={collapsed ? "Expandir menu" : "Recolher menu"}
-                className="rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+                aria-expanded={!collapsed}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
               </button>
-            </div>}
+            </div>
           </div>
 
           {!collapsed && (
-            <div className="border-b border-sidebar-border px-3 py-3">
+            <div className="workspace-sidebar-org border-b border-sidebar-border px-3 py-3">
               <OrganizationSwitcher />
             </div>
           )}
 
-          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
-            {(['Visão geral', 'Comercial', 'Operação'] as const).map(group => (
+          <nav className="workspace-sidebar-nav flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
+            {(legacy ? ['Navegação'] : workspaceNavigationGroups).map(group => (
               <div key={group} className="space-y-1">
-                {!collapsed && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
-                {navItems.filter(item => item.group === group).map(item => {
+                {!collapsed && !legacy && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
+                {navItems.filter(item => legacy || item.group === group).map(item => {
               const locked = item.moduleKey ? isModuleLocked(item.moduleKey) : false;
               const isActive = location.pathname === item.to || item.to !== "/dashboard" && location.pathname.startsWith(item.to);
 
@@ -137,11 +153,11 @@ export function AppSidebar({
                   key={item.to}
                   to={locked ? "#" : item.to}
                   data-otto-target={item.ottoTarget}
-                  onClick={(e) => handleLockedClick(e, item)}
+                  onClick={(e) => { handleLockedClick(e, item); if (!e.defaultPrevented) onNavigate?.(); }}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors duration-150",
-                    collapsed && "justify-center",
+                    "workspace-sidebar-link group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors duration-150",
+                    collapsed && "justify-center px-0",
                     locked
                       ? "cursor-pointer text-sidebar-muted/50 hover:bg-sidebar-accent/30"
                       : isActive
@@ -149,7 +165,7 @@ export function AppSidebar({
                         : "text-[#a9b4ca] hover:bg-white/[.07] hover:text-white"
                   )}
                 >
-                  <item.icon className="h-5 w-5 shrink-0" />
+                  <ModuleNavIcon icon={item.icon} to={item.to} sidebar locked={locked} />
                   {!collapsed && <span className="flex-1">{item.label}</span>}
                   {item.to === "/inbox" && !locked && (
                     <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
@@ -191,6 +207,7 @@ export function AppSidebar({
             {hasPerfect2GetherModuleAccess && (
               <NavLink
                 to="/portal-total-link"
+                onClick={onNavigate}
                 title={collapsed ? "Portal Total Link" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
@@ -200,7 +217,7 @@ export function AppSidebar({
                     : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Building2 className="h-5 w-5 shrink-0" />
+                <ModuleNavIcon icon={Building2} to="/portal-total-link" sidebar />
                 {!collapsed && "Portal Total Link"}
                 {collapsed && <CollapsedTooltip label="Portal Total Link" />}
               </NavLink>
@@ -209,6 +226,7 @@ export function AppSidebar({
             {isSuperAdmin && (
               <NavLink
                 to="/system-admin"
+                onClick={onNavigate}
                 title={collapsed ? "System Admin" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
@@ -218,14 +236,14 @@ export function AppSidebar({
                     : "text-sidebar-muted hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
-                <Shield className="h-5 w-5 shrink-0" />
+                <ModuleNavIcon icon={Shield} to="/system-admin" sidebar />
                 {!collapsed && "System Admin"}
                 {collapsed && <CollapsedTooltip label="System Admin" />}
               </NavLink>
             )}
           </nav>
 
-          <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-4")}>
+          <div className={cn("workspace-sidebar-account border-t border-sidebar-border", collapsed ? "p-2" : "p-4")}>
             <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground">
                 {userName.charAt(0).toUpperCase()}
@@ -256,6 +274,7 @@ export function AppSidebar({
             <div className="px-4 py-2 text-center leading-tight">
               <NavLink
                 to="/novidades"
+                onClick={onNavigate}
                 className="block text-[10px] text-sidebar-muted/60 transition-colors hover:text-sidebar-muted"
               >
                 Senvia OS v{APP_VERSION}

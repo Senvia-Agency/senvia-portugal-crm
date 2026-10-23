@@ -1,3 +1,4 @@
+import './workplace.css';
 import { ReactNode, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { MobileHeader } from "./MobileHeader";
@@ -20,6 +21,7 @@ import { InboxWorkspaceProvider } from '@/components/inbox/workspace/InboxWorksp
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 import { WorkspaceTopbar } from './WorkspaceTopbar';
 import { WorkspaceTabStrip } from './WorkspaceTabStrip';
+import { useInterfaceStore } from '@/stores/useInterfaceStore';
 interface AppLayoutProps {
   children: ReactNode;
   userName?: string;
@@ -33,7 +35,8 @@ export function AppLayout(props: AppLayoutProps) {
 }
 function AppLayoutContent({ children, userName, organizationName, scope }: AppLayoutProps & { scope: string }) {
   const workspace = useInboxWorkspace();
-  const docked = workspace?.enabled && workspace.pinned && !workspace.onInbox && !workspace.minimized && !workspace.popup;
+  const legacy = useInterfaceStore(state => state.legacy);
+  const docked = !!workspace?.docked;
   const isMobile = useIsMobile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { subscriptionStatus, hasChecked } = useStripeSubscription();
@@ -42,6 +45,7 @@ function AppLayoutContent({ children, userName, organizationName, scope }: AppLa
   // bottom nav. `immersive`: a conversation is open → also hide header + FAB.
   const immersive = useInboxImmersiveStore((s) => s.immersive);
   const hideNav = useInboxImmersiveStore((s) => s.hideNav);
+  const mobileInbox = isMobile && !!workspace?.onInbox;
 
   const showTrialBanner = hasChecked && subscriptionStatus?.on_trial && !subscriptionStatus?.billing_exempt && (subscriptionStatus?.days_remaining ?? 0) > 0;
   // Paying customer overdue but still inside the grace window → warn (don't block).
@@ -55,8 +59,12 @@ function AppLayoutContent({ children, userName, organizationName, scope }: AppLa
   // Mobile layout
   if (isMobile) {
     return (
-      <div className="min-h-dvh bg-background md:bg-[#0d1422]">
-        {!immersive && <div className="hidden md:block"><AppSidebar userName={userName} organizationName={organizationName} forceCollapsed /></div>}
+      <div data-interface={legacy ? 'classic' : 'workspace'} className={cn("app-shell min-h-dvh bg-background md:bg-[#0d1422]", mobileInbox && "flex h-dvh flex-col overflow-hidden")}>
+        {!immersive && <div className="hidden md:block">
+          {isMobileMenuOpen && <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-30 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />}
+          <AppSidebar userName={userName} organizationName={organizationName} legacy={legacy} forceCollapsed expanded={isMobileMenuOpen}
+            onExpand={() => setIsMobileMenuOpen(true)} onCollapse={() => setIsMobileMenuOpen(false)} onNavigate={() => setIsMobileMenuOpen(false)} />
+        </div>}
         {!immersive && (
           <>
             <div className="md:hidden"><MobileHeader
@@ -65,13 +73,13 @@ function AppLayoutContent({ children, userName, organizationName, scope }: AppLa
               organizationName={organizationName}
             /></div>
             <div className="hidden pl-16 md:block"><WorkspaceTopbar organizationName={organizationName} userName={userName} /></div>
-            {!isMobileMenuOpen && <div className="fixed left-0 right-0 top-[calc(3.5rem+var(--safe-area-top))] z-50 md:static md:ml-16">
+            {!mobileInbox && !isMobileMenuOpen && <div className="workspace-tabs-holder fixed left-0 right-0 top-[calc(3.5rem+var(--safe-area-top))] z-50 md:static md:ml-16">
               <WorkspaceTabStrip scope={scope} />
             </div>}
           </>
         )}
         {!immersive && showBanner && (
-          <div className="pt-[calc(6.5rem+var(--safe-area-top))] md:pl-16 md:pt-0">
+          <div className={cn("md:pl-16 md:pt-0", mobileInbox || legacy ? "pt-[calc(3.5rem+var(--safe-area-top))]" : "pt-[calc(6.5rem+var(--safe-area-top))]")}>
             {showTrialBanner
               ? <TrialBanner daysRemaining={subscriptionStatus!.days_remaining!} totalDays={14} />
               : <PaymentOverdueBanner daysUntilBlock={subscriptionStatus!.days_until_block ?? 0} blockAt={subscriptionStatus!.block_at} />}
@@ -88,17 +96,18 @@ function AppLayoutContent({ children, userName, organizationName, scope }: AppLa
         <main
           className={cn(
             !immersive && 'md:ml-16 md:rounded-tl-[26px] md:bg-background',
-            !immersive && !showBanner && 'pt-[calc(6.5rem+var(--safe-area-top))] md:pt-0',
-            !immersive && !hideNav && 'pb-20 md:pb-0',
+            !immersive && !showBanner && (mobileInbox || legacy ? 'pt-[calc(3.5rem+var(--safe-area-top))] md:pt-0' : 'pt-[calc(6.5rem+var(--safe-area-top))] md:pt-0'),
+            !immersive && !hideNav && !mobileInbox && 'pb-20 md:pb-0',
+            mobileInbox && 'flex min-h-0 flex-1 flex-col overflow-hidden',
           )}
         >
           {!immersive && <SuperAdminVisitBanner />}
-          <div className={immersive || hideNav ? undefined : "min-h-[calc(100dvh-8.5rem)]"}>
+          <div className={mobileInbox ? "min-h-0 flex-1 overflow-hidden" : immersive || hideNav ? undefined : "min-h-[calc(100dvh-8.5rem)]"}>
             {children}
           </div>
         </main>
-        {!immersive && !hideNav && <div className="md:hidden"><MobileBottomNav /></div>}
-        {!immersive && !docked && <OttoFAB />}
+        {!immersive && !hideNav && !mobileInbox && <div className="md:hidden"><MobileBottomNav /></div>}
+        {!immersive && !docked && !mobileInbox && <OttoFAB />}
         <OttoOnboardingUI />
         {!immersive && <ModuleOnboardingPeek />}
       </div>
@@ -107,11 +116,11 @@ function AppLayoutContent({ children, userName, organizationName, scope }: AppLa
 
   // Desktop layout
   return (
-    <div className="min-h-dvh bg-[#0d1422]">
-      <AppSidebar userName={userName} organizationName={organizationName} />
+    <div data-interface={legacy ? 'classic' : 'workspace'} className="app-shell min-h-dvh bg-[#0d1422]">
+      <AppSidebar userName={userName} organizationName={organizationName} legacy={legacy} />
       <div className={cn("transition-[padding] duration-200", sidebarCollapsed ? "pl-16" : "pl-64", docked && "pr-[28rem]")}>
         <WorkspaceTopbar organizationName={organizationName} userName={userName} />
-        <main className="min-h-[calc(100dvh-4rem)] overflow-hidden rounded-tl-[26px] bg-[#f6f8fc] shadow-[-8px_-6px_28px_rgba(0,0,0,.08)]">
+        <main className="workspace-main min-h-[calc(100dvh-4rem)] overflow-hidden rounded-tl-[26px] bg-[#f6f8fc] shadow-[-8px_-6px_28px_rgba(0,0,0,.08)]">
           <WorkspaceTabStrip scope={scope} />
           {showTrialBanner && <TrialBanner daysRemaining={subscriptionStatus!.days_remaining!} />}
           {showOverdueBanner && <PaymentOverdueBanner daysUntilBlock={subscriptionStatus!.days_until_block ?? 0} blockAt={subscriptionStatus!.block_at} />}

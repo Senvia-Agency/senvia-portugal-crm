@@ -1,8 +1,9 @@
-// Full emoji picker (all ~1800 emojis) using the device's native emoji font,
+// Full emoji picker using the locally hosted Google Noto graphics,
 // with search, categories and skin tones. Thin wrapper around emoji-mart so
 // the inbox only depends on our own small surface. Lazy-loaded by the composer.
 import Picker from "@emoji-mart/react";
-import data from "@emoji-mart/data";
+import data from "@emoji-mart/data/sets/15/google.json";
+import { EMOJI_SHEET } from "./EmojiGlyph";
 
 // pt-PT labels for the picker chrome (emoji-mart defaults to English).
 const I18N_PT = {
@@ -38,7 +39,8 @@ export function EmojiPicker({ onSelect }: { onSelect: (native: string) => void }
   return (
     <Picker
       data={data}
-      set="native"
+      set="google"
+      getSpritesheetURL={() => EMOJI_SHEET}
       theme="auto"
       i18n={I18N_PT}
       previewPosition="none"

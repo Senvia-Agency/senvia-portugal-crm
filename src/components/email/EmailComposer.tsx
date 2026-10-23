@@ -518,15 +518,28 @@ export function EmailComposer({
   const isMobile = useIsMobile();
   const viewport = useVisualViewport();
 
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragging(true);
+  };
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    setIsDragging(true);
+  };
   const handleDragLeave = (e: React.DragEvent) => {
     if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
   };
   const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer?.files?.length) onFiles(e.dataTransfer.files);
+    setMinimized(false);
+    if (e.dataTransfer.files.length) void onFiles(e.dataTransfer.files);
   };
 
   return (
@@ -538,7 +551,7 @@ export function EmailComposer({
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDropCapture={handleDrop}
     >
       {/* Header */}
       <div
@@ -658,7 +671,7 @@ export function EmailComposer({
 
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center rounded-b-xl border-2 border-dashed border-primary bg-background/90">
+        <div role="status" className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-b-xl border-2 border-dashed border-primary bg-background/90">
           <div className="flex flex-col items-center gap-2 text-primary">
             <Paperclip className="h-8 w-8" />
             <span className="text-sm font-medium">Solte os ficheiros aqui para anexar</span>

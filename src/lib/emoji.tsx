@@ -1,23 +1,13 @@
-// Emoji rendering shared across the inbox. We render emojis with the native
-// set (via emoji-mart) so they use the device's own emoji font — no CDN
-// dependency, every emoji always renders. On iOS/Mac this gives Apple-style
-// emojis (same as WhatsApp on iPhone); on Android, Google-style; on Windows,
-// Segoe UI Emoji.
-//
-// NOTE: the dataset used to be loaded via a dynamic import() to split it out of
-// the Inbox bundle — that introduced a new chunk shared between this eagerly-
-// loaded module and the lazily-loaded EmojiPicker, which triggered a Rollup
-// manualChunks TDZ bug in production ("Cannot access 'cn' before initialization").
-// Reverted to a static import until that's root-caused; see git history for the
-// dynamic version.
-import data from "@emoji-mart/data";
+// Shared emoji search index, including Google artwork coordinates for the Inbox picker.
+// Legacy renderWithEmoji callers retain native glyphs; the current Inbox uses EmojiGlyph.
+import data from "@emoji-mart/data/sets/15/google.json";
 import { init, SearchIndex } from "emoji-mart";
 import emojiRegex from "emoji-regex";
 import React from "react";
 
 // Register the emoji data + native set once. This powers both the <em-emoji>
 // web component and the picker. Safe to import from anywhere — runs a single time.
-init({ data, set: "native" });
+init({ data, set: "google" });
 
 // Portuguese aliases for the ":" shortcut. emoji-mart's own search index is
 // keyworded in ENGLISH, so a pt-PT user typing ":sol" / ":lua" / ":coracao"

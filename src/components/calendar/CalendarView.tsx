@@ -149,9 +149,9 @@ export function CalendarView() {
       />
 
       {/* Calendar on the left, the selected day's events in a narrow column
-          beside it. Stacks back to one column below lg, where 320px of side
+          beside it. Stacks back to one column below lg, where 240px of side
           panel would leave the grid itself unusable. */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
         <div className="min-w-0">
           {view === 'month' && (
             <MonthView

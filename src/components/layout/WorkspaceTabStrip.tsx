@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ModuleNavIcon } from './ModuleNavIcon';
 import { getWorkspacePage } from './workspaceNavigation';
 
 interface WorkspaceTab { key: string; label: string; path: string }
@@ -52,21 +53,24 @@ export function WorkspaceTabStrip({ scope }: { scope: string }) {
     ? tabs : [...tabs, { key: current.key, label: current.label, path: currentPath }];
 
   return (
-    <nav aria-label="Separadores abertos" className="flex h-12 min-w-0 items-end gap-1 overflow-x-auto bg-[#e9edf5] px-2 pt-1.5 sm:px-4">
+    <nav aria-label="Separadores abertos" className="workspace-tab-strip flex h-12 min-w-0 items-end gap-1 overflow-x-auto bg-[#e9edf5] px-2 pt-1.5 sm:px-4">
       {visibleTabs.map((tab) => {
         const page = getWorkspacePage(tab.path);
         const active = tab.key === current.key;
         return <div key={tab.key} className={cn(
-          'group flex h-10 min-w-[132px] max-w-[210px] shrink-0 items-center gap-2 rounded-t-xl px-3 text-xs transition-colors',
-          active ? 'bg-[#f6f8fc] font-semibold text-[#19243a] shadow-[0_-2px_14px_rgba(16,30,62,.05)]' : 'text-[#68758d] hover:bg-white/50',
+          'workspace-tab group flex h-10 min-w-[160px] max-w-[240px] shrink-0 items-center gap-2 rounded-t-xl px-3 text-xs transition-colors',
+          active ? 'workspace-tab--active bg-[#f6f8fc] font-semibold text-[#19243a] shadow-[0_-2px_14px_rgba(16,30,62,.05)]' : 'text-[#68758d] hover:bg-white/50',
         )}>
-          <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg', active ? 'bg-[#e1ebff] text-[#3778f6]' : 'bg-white/70 text-[#72809a]')}>
-            <page.icon className="h-3.5 w-3.5" />
-          </span>
+          <ModuleNavIcon icon={page.icon} to={page.key} />
           <button type="button" onClick={() => navigate(tab.path)} aria-current={active ? 'page' : undefined} title={tab.label}
             className="min-w-0 flex-1 truncate text-left outline-none focus-visible:ring-2 focus-visible:ring-[#3778f6]">
             {tab.label}
           </button>
+          <a href={tab.path} target="_blank" rel="noopener noreferrer"
+            aria-label={`Abrir ${tab.label} numa nova aba`} title={`Abrir ${tab.label} numa nova aba`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
           <button type="button" onClick={() => close(tab.key)} aria-label={`Fechar ${tab.label}`} title={`Fechar ${tab.label}`}
             className="rounded-md p-0.5 text-[#8793a7] hover:bg-[#dbe3f1] hover:text-[#23324c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3778f6]">
             <X className="h-3.5 w-3.5" />

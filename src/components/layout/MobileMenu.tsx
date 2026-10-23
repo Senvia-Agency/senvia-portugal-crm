@@ -1,33 +1,19 @@
+import { workspaceNavigation, workspaceNavigationGroups } from './workspaceNavigation';
 import { NavLink, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard, Users, Settings, LogOut, Shield, X, Building2,
-  Calendar, FileText, ShoppingBag, Store, UserCheck, Mail, Wallet, Search, MessageSquare, Workflow,
-} from "lucide-react";
+import { LogOut, Shield, X, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { useModules, EnabledModules } from "@/hooks/useModules";
+import { useModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscription } from "@/hooks/useSubscription";
 import { APP_VERSION } from "@/lib/constants";
 import type { AppRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
+import { ModuleNavIcon } from './ModuleNavIcon';
 
-// Same set as the desktop sidebar so the mobile menu is never missing pages.
-const allNavItems: { to: string; icon: React.ElementType; label: string; moduleKey?: keyof EnabledModules }[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Painel" },
-  { to: "/leads", icon: Users, label: "Leads" },
-  { to: "/inbox", icon: MessageSquare, label: "Caixa de Entrada", moduleKey: 'inbox' },
-  { to: "/clients", icon: UserCheck, label: "Clientes", moduleKey: 'clients' },
-  { to: "/proposals", icon: FileText, label: "Propostas", moduleKey: 'proposals' },
-  { to: "/sales", icon: ShoppingBag, label: "Vendas", moduleKey: 'sales' },
-  { to: "/financeiro", icon: Wallet, label: "Financeiro", moduleKey: 'finance' },
-  { to: "/calendar", icon: Calendar, label: "Agenda", moduleKey: 'calendar' },
-  { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
-  { to: "/automacoes", icon: Workflow, label: "Automações" },
-  { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/settings", icon: Settings, label: "Definições" },
-];
+const allNavItems = workspaceNavigation;
+
 
 const getRoleLabel = (roles: AppRole[]): string => {
   if (roles.includes('super_admin')) return 'Super Admin';
@@ -77,10 +63,10 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-40 bg-background animate-in slide-in-from-left duration-200">
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-background animate-in slide-in-from-left duration-200">
       {/* Close button area - respects safe area */}
       <div className="flex items-center justify-end px-4" style={{ paddingTop: 'calc(clamp(20px, env(safe-area-inset-top, 0px), 50px) + 0.5rem)', minHeight: '3.5rem' }}>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label="Fechar menu" onClick={onClose}>
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -104,35 +90,37 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
 
         {/* Navigation */}
         <nav className="flex-1 py-6 space-y-2">
-          {navItems.map((item) => (
+          {workspaceNavigationGroups.map(group => <div key={group} className="space-y-1 pb-3">
+            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group}</p>
+            {navItems.filter(item => item.group === group).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <ModuleNavIcon icon={item.icon} to={item.to} />
               {item.label}
             </NavLink>
-          ))}
+          ))}</div>)}
           
           {hasPerfect2GetherModuleAccess && (
             <NavLink
               to="/portal-total-link"
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Building2 className="h-5 w-5" />
+              <ModuleNavIcon icon={Building2} to="/portal-total-link" />
               Portal Total Link
             </NavLink>
           )}
@@ -142,13 +130,13 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               to="/system-admin"
               onClick={handleNavClick}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 rounded-xl px-4 py-3.5 text-base font-medium transition-colors",
+                "flex items-center gap-4 rounded-xl px-4 py-2 text-base font-medium transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Shield className="h-5 w-5" />
+              <ModuleNavIcon icon={Shield} to="/system-admin" />
               System Admin
             </NavLink>
           )}

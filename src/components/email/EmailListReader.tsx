@@ -22,7 +22,6 @@ import {
 } from '@/hooks/useEmail';
 import { useEmailChannels } from '@/hooks/useEmailChannels';
 import { useEmailActions } from '@/hooks/useEmailActions';
-import { useEmailImageSenders } from '@/hooks/useEmailImageSenders';
 import { useAuth } from '@/contexts/AuthContext';
 import { readEmailRecoveries, type EmailRecovery } from '@/lib/inbox-drafts';
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
@@ -35,44 +34,17 @@ const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABA
 
 // Matches an <img ...> tag's src attribute value (double or single quoted).
 const IMG_SRC_RE = /(<img\b[^>]*?\ssrc=)(["'])(.*?)\2/gi;
-// Standalone (non-global) check for "does this body have at least one remote
-// <img>" — used only to decide whether to show the unblock banner at all.
-function hasRemoteImage(html: string): boolean {
-  // Não chega procurar `<img src>`: com a política de segurança a bloquear tudo
-  // o que vem de fora, um email que só rastreie por CSS (`background:url(...)`)
-  // também fica bloqueado — e sem isto não aparecia o botão para o desbloquear.
-  return /<img\b[^>]*\ssrc=["']https?:\/\//i.test(html)
-    || /url\(\s*["']?https?:\/\//i.test(html)
-    || /\bsrcset=["'][^"']*https?:\/\//i.test(html)
-    || /\bbackground=["']https?:\/\//i.test(html)
-    || /<video\b[^>]*\sposter=["']https?:\/\//i.test(html);
-}
-
-// HTML body in a sandboxed, auto-sized iframe (consistent fonts). Blocks remote
-// images by default (Gmail/Outlook-style anti-tracking-pixel behaviour — a
-// sender can otherwise tell you opened the email the instant it loads) and
-// resolves `cid:` embedded images (logos, signatures) from the message's own
-// inline attachments, which the browser can never fetch directly.
+// The sandboxed reader loads HTTPS images automatically and resolves inline CID images.
 function EmailBody({
-  html, text, inlineAttachments, resolveAttachment, sender,
+  html, text, inlineAttachments, resolveAttachment,
 }: {
   html: string | null;
   text: string | null;
   inlineAttachments: EmailAttachment[];
   resolveAttachment: (id: string) => Promise<{ data_b64: string; content_type: string | null } | null>;
-  /** From address — senders the user trusts get their images shown straight away. */
-  sender?: string | null;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  // Blocked by default per message view (EmailListReader remounts this with a
-  // `key` per message id, so a freshly opened email always starts blocked),
-  // unless the user chose "Mostrar sempre" for this sender before.
-  const remetentes = useEmailImageSenders();
-  const [showOnce, setShowOnce] = useState(false);
-  const trusted = remetentes.trusts(sender);
-  const imagesBlocked = !(showOnce || trusted);
   const [cidUrls, setCidUrls] = useState<Record<string, string>>({});
-  const hadRemoteImages = useMemo(() => (html ? hasRemoteImage(html) : false), [html]);
 
   // Resolve every cid: reference actually used in this body, once, from the
   // message's own inline attachments (never a network fetch to a 3rd party).
@@ -106,27 +78,13 @@ function EmailBody({
           const url = cidUrls[cidMatch[1].toLowerCase()];
           return `${prefix}${quote}${url || BLANK_PIXEL}${quote}`;
         }
-        if (/^https?:\/\//i.test(src) && imagesBlocked) {
-          return `${prefix}${quote}${BLANK_PIXEL}${quote} data-original-src=${quote}${src}${quote}`;
-        }
         return full;
       });
     } else {
       body = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
-    // A política de segurança é o que fecha mesmo o rastreio.
-    //
-    // A reescrita acima só toca em `<img src>`. Um email pode ir buscar ao
-    // servidor do remetente por CSS (`background:url(...)`), por `srcset`, por
-    // `background=`, por `<video poster>` — e 188 dos 368 emails desta caixa
-    // têm blocos `<style>`. O aviso dizia "imagens bloqueadas" e o pixel de
-    // rastreio passava à mesma.
-    //
-    // Aqui é o browser que recusa TODAS as ligações para fora, sejam quais
-    // forem. Ao carregar em "Mostrar imagens" abre-se só o necessário.
-    const csp = imagesBlocked
-      ? "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:"
-      : "default-src 'none'; img-src data: https:; style-src 'unsafe-inline' https:; font-src data: https:";
+    // Images load automatically by user choice; scripts remain blocked.
+    const csp = "default-src 'none'; img-src data: https:; style-src 'unsafe-inline' https:; font-src data: https:";
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
       <meta http-equiv="Content-Security-Policy" content="${csp}">
@@ -136,46 +94,10 @@ function EmailBody({
       a{color:#2563eb}img{max-width:100%;height:auto}
       blockquote{margin:0 0 0 12px;padding-left:12px;border-left:3px solid #e5e7eb;color:#6b7280}
     </style></head><body>${body}</body></html>`;
-  }, [html, text, cidUrls, imagesBlocked]);
+  }, [html, text, cidUrls]);
 
   return (
     <div>
-      {hadRemoteImages && imagesBlocked && (
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-          <span>Imagens externas bloqueadas (proteção contra rastreio).</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowOnce(true)}
-              className="shrink-0 rounded-md bg-amber-200/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200"
-            >
-              Mostrar imagens
-            </button>
-            {sender && (
-              <button
-                type="button"
-                onClick={() => remetentes.trust(sender)}
-                title={`As imagens dos emails de ${sender} passam a abrir sozinhas`}
-                className="shrink-0 rounded-md border border-amber-300/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-500/30 dark:text-amber-200 dark:hover:bg-amber-500/10"
-              >
-                Mostrar sempre de {sender}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {hadRemoteImages && trusted && sender && (
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          As imagens de {sender} abrem sempre.{' '}
-          <button
-            type="button"
-            onClick={() => { remetentes.untrust(sender); setShowOnce(false); }}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Deixar de mostrar
-          </button>
-        </p>
-      )}
       <iframe
         ref={ref}
         srcDoc={srcDoc}
@@ -252,7 +174,7 @@ const MAX_LIST_W = 640;
 export function EmailListReader({ channelId, folderId, onOpenRail, compact = false }: { channelId: string | null; folderId: string | null; onOpenRail?: () => void; compact?: boolean }) {
   const workspace = useInboxWorkspace();
   const browserWindow = workspace?.popup ?? window;
-  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || (workspace.enabled && workspace.pinned)));
+  const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || workspace.docked));
   const [messageId, setMessageId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -580,7 +502,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
       <section
         data-inbox-email-reader
         className={cn(
-          'relative w-full flex-col border-r lg:shrink-0',
+          'inbox-email-list relative w-full flex-col border-r lg:shrink-0',
           compact ? (messageId ? 'hidden' : 'flex') : messageId ? 'hidden lg:flex' : 'flex',
         )}
         style={isMobile || compact ? undefined : { width: listWidth }}
@@ -591,6 +513,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           className={compact ? "hidden" : "absolute inset-y-0 right-0 z-10 hidden w-[4px] cursor-col-resize transition-colors hover:bg-primary/40 active:bg-primary/60 lg:block"}
         />
         <header className="border-b px-4 pt-5 pb-3 space-y-2">
+          <h2 className="inbox-list-title">Webmail</h2>
           {hasSelection ? (
             /* Batch action bar */
             <div className="flex items-center gap-1.5">
@@ -806,7 +729,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                   onClick={() => setMessageId(m.id)}
                   onKeyDown={(e) => e.key === 'Enter' && setMessageId(m.id)}
                   className={cn(
-                    'group flex w-full cursor-pointer items-start border-b text-left transition-colors',
+                    'inbox-email-row group flex w-full cursor-pointer items-start border-b text-left transition-colors',
                     active ? 'bg-accent' : 'hover:bg-accent/50',
                     !m.seen && !active && 'bg-primary/[0.03]',
                     selected && 'bg-primary/10',
@@ -913,7 +836,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
       </section>
 
       {/* Reader — full-width on mobile (shown when a message is open), side column on md+ */}
-      <section data-inbox-email-reader className={cn('min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : compact ? 'hidden' : 'hidden lg:flex')}>
+      <section data-inbox-email-reader className={cn('inbox-email-reading min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : compact ? 'hidden' : 'hidden lg:flex')}>
         {isDraftsFolder ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <FileEdit className="h-10 w-10 opacity-20" />
@@ -926,7 +849,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
               <span className="text-sm">A abrir email...</span>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <div className="inbox-email-empty flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
                 <Mail className="h-8 w-8 text-primary" />
               </div>
@@ -939,7 +862,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           )
         ) : (
           <>
-            <div className="flex items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
+            <div className="inbox-email-actions flex items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
               <Button size="sm" variant="outline" className={compact ? "px-2" : "px-2 lg:hidden"} onClick={() => setMessageId(null)}>
                 <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
               </Button>
@@ -1017,7 +940,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
               </Popover>
             </div>
         <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl p-6">
+            <div className="inbox-email-document mx-auto max-w-3xl p-6">
               <h1 className="mb-4 text-xl font-semibold leading-snug">{opened.message.subject || '(sem assunto)'}</h1>
               <div className="mb-4 flex items-start gap-3 border-b pb-4">
                 <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold', avatarColor(opened.message.from_name || opened.message.from_address || '?'))}>
@@ -1058,7 +981,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 </div>
               )}
 
-              <div className="rounded-lg border bg-white p-4 dark:bg-card">
+              <div className="inbox-email-body rounded-lg border bg-white p-4 dark:bg-card">
                 {opened.message.body_fetched
                   ? (
                     <EmailBody
@@ -1067,7 +990,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       text={opened.message.text_body}
                       inlineAttachments={opened.attachments.filter((a) => a.inline)}
                       resolveAttachment={resolveAttachment}
-                      sender={opened.message.from_address}
                     />
                   )
                   : failedBodyCommand || bodyRequestError
