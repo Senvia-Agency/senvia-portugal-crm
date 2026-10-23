@@ -71,8 +71,7 @@
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble.bg-muted { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); box-shadow: 0 1px 2px hsl(var(--foreground) / .025); }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble.bg-primary { border: 1px solid hsl(var(--primary) / .12); }
 /* Webmail shares the workspace language without changing mail HTML or editors. */
-:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-list > header { padding: 22px 18px 16px; }
-:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-list .inbox-list-title { margin-bottom: 16px; }
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-list > header { padding: 12px 18px; }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-list input:not([type='checkbox']) { height: 42px; border-color: transparent; border-radius: 14px; background: var(--inbox-canvas); }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-row { position: relative; width: calc(100% - 16px); margin: 4px 8px; border: 0; border-radius: 16px; min-height: 92px; align-items: center; }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-email-row:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
@@ -153,3 +152,6 @@
 .inbox-workplace[data-interface='workspace'] .inbox-email-document { width: 100%; max-width: none; margin: 0; padding: 28px 32px; border: 0; border-radius: 0; box-shadow: none; }
 .inbox-workplace[data-interface='workspace'] .inbox-email-body { padding: 0; border: 0; border-radius: 0; box-shadow: none; }
 @media(max-width:640px) { .inbox-workplace[data-interface='workspace'] .inbox-email-document { padding: 20px 16px; } }
+
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface="workspace"] .inbox-email-list .inbox-email-search input { height:44px; border:1px solid hsl(var(--primary)/.35); border-radius:16px; background:hsl(var(--primary)/.055); padding-inline:40px; box-shadow:0 1px 3px hsl(var(--foreground)/.04); }
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface="workspace"] .inbox-email-list .inbox-email-search input:focus-visible { border-color:hsl(var(--primary)); box-shadow:0 0 0 3px hsl(var(--primary)/.12); }

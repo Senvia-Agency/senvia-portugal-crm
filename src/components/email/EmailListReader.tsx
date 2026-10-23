@@ -513,7 +513,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           className={compact ? "hidden" : "absolute inset-y-0 right-0 z-10 hidden w-[4px] cursor-col-resize transition-colors hover:bg-primary/40 active:bg-primary/60 lg:block"}
         />
         <header className="border-b px-4 pt-5 pb-3 space-y-2">
-          <h2 className="inbox-list-title">Webmail</h2>
           {hasSelection ? (
             /* Batch action bar */
             <div className="flex items-center gap-1.5">
@@ -616,17 +615,18 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
             </div>
           )}
           {!isDraftsFolder && (
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="inbox-email-search relative">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Procurar emails"
                 placeholder="Procurar emails..."
                 autoComplete="new-password"
-                className="h-8 pl-8 pr-8 text-sm"
+                className="h-11 rounded-2xl border-primary/30 bg-primary/5 pl-10 pr-10 text-sm placeholder:text-muted-foreground focus-visible:ring-primary/25"
               />
               {search && (
-                <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button type="button" aria-label="Limpar pesquisa de emails" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
