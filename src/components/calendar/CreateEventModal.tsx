@@ -30,13 +30,15 @@ const EVENT_TYPE_ICONS: Record<EventType, React.ReactNode> = {
 interface CreateEventModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTitle?: string;
+  initialDescription?: string;
   selectedDate?: Date;
   event?: CalendarEvent | null;
   preselectedLeadId?: string;
   onSuccess?: () => void;
 }
 
-export function CreateEventModal({ open, onOpenChange, selectedDate, event, preselectedLeadId, onSuccess }: CreateEventModalProps) {
+export function CreateEventModal({ open, onOpenChange, selectedDate, event, preselectedLeadId, onSuccess, initialTitle = '', initialDescription = '' }: CreateEventModalProps) {
   const { data: leads = [] } = useLeads();
   const { organization } = useAuth();
   const createEvent = useCreateEvent();
@@ -76,8 +78,8 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
     fetchSettings();
   }, [organization?.id]);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
   const [eventType, setEventType] = useState<EventType>('task');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');

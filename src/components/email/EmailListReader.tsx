@@ -25,6 +25,7 @@ import { useEmailActions } from '@/hooks/useEmailActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { readEmailRecoveries, type EmailRecovery } from '@/lib/inbox-drafts';
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
+import { EmailWorkflowActions } from './EmailWorkflowActions';
 import { EmailComposer, type ComposeMode } from './EmailComposer';
 import { initials, fmtListDate, fmtFullDate, fmtSize, addrText, folderLabel, ROLE_META } from './emailShared';
 
@@ -862,16 +863,19 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           )
         ) : (
           <>
-            <div className="inbox-email-actions flex items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
+            <div className="inbox-email-actions flex flex-wrap items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
               <Button size="sm" variant="outline" className={compact ? "px-2" : "px-2 lg:hidden"} onClick={() => setMessageId(null)}>
                 <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
               </Button>
-              <Button size="sm" onClick={() => addCompose('reply', opened.message)}>
+              <Button size="sm" variant="ghost" onClick={() => addCompose('reply', opened.message)}>
                 <Reply className="mr-1.5 h-4 w-4" /> Responder
               </Button>
-              <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => addCompose('forward', opened.message, null, opened.attachments)}>
+              <Button size="sm" variant="ghost" onClick={() => addCompose('forward', opened.message, null, opened.attachments)}>
                 <Forward className="mr-1.5 h-4 w-4" /> Reencaminhar
               </Button>
+              <Button size="sm" variant="ghost" onClick={() => addCompose('replyAll', opened.message)}><ReplyAll className="mr-1.5 h-4 w-4" />Responder a todos</Button>
+              <EmailWorkflowActions key={opened.message.id} message={opened.message} />
+              <Button size="sm" variant="ghost" onClick={() => act(() => actions.setRead(opened.message.id, false))}><MailOpen className="mr-1.5 h-4 w-4" />Marcar como não lido</Button>
               <div className="flex-1" />
               {/* Star: common toggle, kept one tap away */}
               <Button
@@ -889,9 +893,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-56 p-1">
                   {([
-                    { icon: ReplyAll, label: 'Responder a todos', run: () => addCompose('replyAll', opened.message) },
-                    { icon: Forward, label: 'Reencaminhar', run: () => addCompose('forward', opened.message, null, opened.attachments), mobileOnly: true },
-                    { icon: MailOpen, label: 'Marcar como não lida', run: () => act(() => actions.setRead(opened.message.id, false)) },
                     { icon: Archive, label: 'Arquivar', run: () => act(() => actions.archive(opened.message.id)) },
                     { icon: ShieldAlert, label: 'Marcar como spam', run: () => act(() => actions.spam(opened.message.id)) },
                   ]).map((it) => (
@@ -900,7 +901,6 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       onClick={() => { it.run(); setActionsOpen(false); }}
                       className={cn(
                         'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-accent',
-                        it.mobileOnly && 'sm:hidden',
                       )}
                     >
                       <it.icon className="h-4 w-4 shrink-0 text-muted-foreground" />

@@ -12,7 +12,7 @@ import type { TeamMember } from '@/hooks/useTeam';
 import { priorities, priorityLabels, statuses, statusLabels, taskSchema, type WorkTask } from './model';
 
 interface Props {
-  readonly initial: WorkTask; readonly draftKey: string; readonly members: readonly TeamMember[];
+  readonly startEditing?: boolean; readonly initial: WorkTask; readonly draftKey: string; readonly members: readonly TeamMember[];
   readonly onClose: () => void; readonly onSave: (task: WorkTask) => Promise<boolean>; readonly saveError?: string | null;
 }
 function readDraft(key: string, fallback: WorkTask): { task: WorkTask; error: string | null } {
@@ -37,10 +37,10 @@ function inputDate(value: string | null) {
   const date = new Date(value);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
-export function TaskEditor({ initial, draftKey, members, onClose, onSave, saveError }: Props) {
+export function TaskEditor({ initial, draftKey, members, onClose, onSave, saveError, startEditing = false }: Props) {
   const [recovered] = useState(() => readDraft(draftKey, initial));
   const [task, setTask] = useState(recovered.task);
-  const [editingFields, setEditingFields] = useState(!initial.title || taskChanged(recovered.task, initial));
+  const [editingFields, setEditingFields] = useState(startEditing || !initial.title || taskChanged(recovered.task, initial));
   const [error, setError] = useState(recovered.error);
   const [submitting, setSubmitting] = useState(false);
   const change = (patch: Partial<WorkTask>) => {
@@ -69,7 +69,7 @@ export function TaskEditor({ initial, draftKey, members, onClose, onSave, saveEr
   };
   const close = () => { if (!submitting) onClose(); };
   if (editingFields) return <Dialog open onOpenChange={open => !open && close()}><DialogContent className="work-task-editor work-task-edit-dialog">
-    <DialogHeader><DialogTitle>{initial.title ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle><DialogDescription className="sr-only">Define os detalhes da tarefa. O rascunho é preservado até guardar.</DialogDescription></DialogHeader>
+    <DialogHeader><DialogTitle>{initial.title && !startEditing ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle><DialogDescription className="sr-only">Define os detalhes da tarefa. O rascunho é preservado até guardar.</DialogDescription></DialogHeader>
     <form className="work-task-edit-form" onSubmit={e => { e.preventDefault(); void submit(); }}><fieldset disabled={submitting} className="space-y-4">
       <label className="work-field work-main-field"><span className="sr-only">Título</span><Input autoFocus required maxLength={200} value={task.title} onChange={e => change({ title: e.target.value })} placeholder="O que precisa de ser feito?" /></label>
       <label className="work-field work-main-field"><span className="sr-only">Descrição</span><Textarea rows={3} maxLength={10000} value={task.description} onChange={e => change({ description: e.target.value })} placeholder="Descrição (opcional)" /></label>
