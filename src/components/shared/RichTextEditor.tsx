@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRef, useEffect, useState } from 'react';
 import {
   Bold, Italic, Underline, Link as LinkIcon, Image as ImageIcon,
@@ -27,6 +28,7 @@ export function RichTextEditor({
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const layoutFileRef = useRef<HTMLInputElement>(null);
+  const fontSelection = useRef<Range | null>(null);
   const colorRef = useRef<HTMLInputElement>(null);
   const selectedImg = useRef<HTMLImageElement | null>(null);
   const [imgSelected, setImgSelected] = useState(false);
@@ -159,19 +161,7 @@ export function RichTextEditor({
     <div className="rounded-md border bg-background">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5">
-        <select
-          title="Tamanho"
-          onMouseDown={(e) => e.stopPropagation()}
-          onChange={(e) => { exec('fontSize', e.target.value); e.target.selectedIndex = 0; }}
-          className="mr-1 h-7 rounded border bg-background px-1 text-xs"
-          defaultValue=""
-        >
-          <option value="" disabled>Tamanho</option>
-          <option value="2">Pequeno</option>
-          <option value="3">Normal</option>
-          <option value="5">Grande</option>
-          <option value="6">Enorme</option>
-        </select>
+        <Select value="" onOpenChange={open => { if (open) { const selection = window.getSelection(); fontSelection.current = selection?.rangeCount && ref.current?.contains(selection.anchorNode) ? selection.getRangeAt(0).cloneRange() : null; } }} onValueChange={size => { ref.current?.focus(); if (fontSelection.current) { const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(fontSelection.current); } exec('fontSize', size); }}><SelectTrigger aria-label="Tamanho do texto" className="mr-1 h-7 w-28 px-2 text-xs"><SelectValue placeholder="Tamanho" /></SelectTrigger><SelectContent onCloseAutoFocus={event => { event.preventDefault(); ref.current?.focus(); }}><SelectItem value="2">Pequeno</SelectItem><SelectItem value="3">Normal</SelectItem><SelectItem value="5">Grande</SelectItem><SelectItem value="6">Enorme</SelectItem></SelectContent></Select>
         <Btn title="Negrito" onClick={() => exec('bold')}><Bold className="h-3.5 w-3.5" /></Btn>
         <Btn title="Itálico" onClick={() => exec('italic')}><Italic className="h-3.5 w-3.5" /></Btn>
         <Btn title="Sublinhado" onClick={() => exec('underline')}><Underline className="h-3.5 w-3.5" /></Btn>

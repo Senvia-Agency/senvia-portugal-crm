@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { z } from 'zod';
 import { TaskPeople } from './TaskPeople';
 import { TaskDetails } from './TaskDetails';
@@ -76,7 +77,7 @@ export function TaskEditor({ initial, draftKey, members, onClose, onSave, saveEr
       <div className="work-edit-schedule">
       <label className="work-field">Prazo<Input type="datetime-local" value={inputDate(task.dueAt)} onChange={e => change({ dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
       <div className="work-edit-state">
-        <label className="work-field">Estado<select value={task.status} onChange={e => { const s = taskSchema.shape.status.safeParse(e.target.value); if (s.success) change({ status: s.data }); }}>{statuses.map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></label>
+        <div className="work-field"><span id="task-state-label">Estado</span><Select value={task.status} disabled={submitting} onValueChange={value => { const state = taskSchema.shape.status.safeParse(value); if (state.success) change({ status: state.data }); }}><SelectTrigger aria-labelledby="task-state-label"><SelectValue /></SelectTrigger><SelectContent>{statuses.map(status => <SelectItem key={status} value={status}>{statusLabels[status]}</SelectItem>)}</SelectContent></Select></div>
 
       </div>
       </div>

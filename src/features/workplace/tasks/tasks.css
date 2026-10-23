@@ -170,3 +170,5 @@
 .workplace-portal[data-interface="workspace"] .work-edit-schedule { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:12px; align-items:end; }
 .workplace-portal[data-interface="workspace"] .work-edit-schedule input,.workplace-portal[data-interface="workspace"] .work-edit-schedule select { width:100%; min-width:0; }
 @media(max-width:400px) { .workplace-portal[data-interface="workspace"] .work-edit-schedule { grid-template-columns:1fr; } }
+
+.workplace-portal[data-interface="workspace"] .work-task-edit-dialog .work-field [role="combobox"] { min-height:48px; border:0; border-radius:18px; background:hsl(var(--workplace-canvas,var(--muted))); box-shadow:none; padding:12px 16px; }

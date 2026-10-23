@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarDays, MessageSquare, ArrowUpRight, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -35,9 +36,7 @@ export function TaskCard({ task, assignee, compact, busy = false, onOpen, onStat
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><span className="work-avatar">{assignee.slice(0, 1)}</span>{assignee}</span>
-        <select disabled={busy} aria-label={`Estado de ${task.title}`} value={task.status} className="work-status-select" onChange={e => { const status = e.target.value; if (status === 'todo' || status === 'doing' || status === 'done') onStatus(task, status); }}>
-          {Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        <Select disabled={busy} value={task.status} onValueChange={status => { if (status === 'todo' || status === 'doing' || status === 'done') onStatus(task, status); }}><SelectTrigger aria-label={`Estado de ${task.title}`} className="work-status-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(statusLabels).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select>
       </div>
       {task.phone && <Link className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary" to={`/inbox?phone=${encodeURIComponent(task.phone)}`}>Abrir conversa <ArrowUpRight size={13} /></Link>}
     </div>

@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, AlertTriangle, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
@@ -200,19 +201,11 @@ export function ImportChargebacksDialog({ open, onOpenChange }: ImportChargeback
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="cpe-col" className="text-sm">Coluna do CPE</Label>
-                    <select id="cpe-col" value={selectedCpeColumn} onChange={(e) => setSelectedCpeColumn(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                      <option value="">— escolher —</option>
-                      {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                    </select>
+                    <Select value={selectedCpeColumn || '__no_column__'} onValueChange={value => setSelectedCpeColumn(value === '__no_column__' ? '' : value)}><SelectTrigger id="cpe-col"><SelectValue placeholder="— escolher —" /></SelectTrigger><SelectContent><SelectItem value="__no_column__">— escolher —</SelectItem>{headers.filter(Boolean).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="amount-col" className="text-sm">Coluna do valor (estorno)</Label>
-                    <select id="amount-col" value={selectedAmountColumn} onChange={(e) => setSelectedAmountColumn(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                      <option value="">— escolher —</option>
-                      {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                    </select>
+                    <Select value={selectedAmountColumn || '__no_column__'} onValueChange={value => setSelectedAmountColumn(value === '__no_column__' ? '' : value)}><SelectTrigger id="amount-col"><SelectValue placeholder="— escolher —" /></SelectTrigger><SelectContent><SelectItem value="__no_column__">— escolher —</SelectItem>{headers.filter(Boolean).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select>
                   </div>
                 </div>
               </section>

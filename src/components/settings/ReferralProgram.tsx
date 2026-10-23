@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Copy, Gift, Loader2, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
@@ -65,10 +66,7 @@ function ReferralProgramContent() {
         </div>
         <p className="mt-2 text-sm text-muted-foreground">Estás a ver o painel como uma organização cliente. A tua isenção mantém-se. Os pagamentos e bónus abaixo são exemplos; não são efetuadas cobranças.</p>
         <label htmlFor="referral-preview-scenario" className="mb-1 mt-4 block text-sm font-medium">Cenário de teste</label>
-        <select id="referral-preview-scenario" value={scenario!} onChange={e => setScenario(e.target.value as ReferralPreviewScenario)}
-          className="min-h-10 w-full rounded-md border bg-background px-3 py-2 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:max-w-md md:text-sm">
-          {REFERRAL_PREVIEW_SCENARIOS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
+        <Select value={scenario ?? undefined} onValueChange={value => { const option = REFERRAL_PREVIEW_SCENARIOS.find(([key]) => key === value); if (option) setScenario(option[0]); }}><SelectTrigger id="referral-preview-scenario" className="sm:max-w-md"><SelectValue /></SelectTrigger><SelectContent>{REFERRAL_PREVIEW_SCENARIOS.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
       </> : <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="text-sm font-semibold">Testes do administrador do sistema</p><p className="mt-1 text-sm text-muted-foreground">Vê os pagamentos e bónus de uma organização pagante, mesmo que a tua esteja isenta.</p></div>
         <Button onClick={() => setScenario('earned')}>Testar como organização pagante</Button>
