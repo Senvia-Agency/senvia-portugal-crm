@@ -264,6 +264,7 @@ async function issueReceipt(
     amount,
     client: {
       name: clientName || 'Cliente',
+      vatin: snapshot.client.vatin ?? snapshot.client.nif,
       address: snapshot.client.address,
       postalCode: snapshot.client.postalCode ?? snapshot.client.postal_code,
       locality: snapshot.client.locality,

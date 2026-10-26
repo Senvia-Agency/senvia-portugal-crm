@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { invoiceClientName } from '@/lib/invoice-display';
 
 export interface InvoiceRow {
   id: string;
@@ -53,7 +54,7 @@ export function useInvoices() {
         reference: row.reference,
         document_type: row.document_type || 'invoice',
         status: row.status,
-        client_name: row.client_name,
+        client_name: invoiceClientName(row),
         total: Number(row.total || 0),
         date: row.date,
         due_date: row.due_date,
