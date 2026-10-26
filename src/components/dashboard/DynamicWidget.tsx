@@ -172,17 +172,17 @@ export function DynamicWidget({ widgetType, niche = 'generic', className }: Dyna
 
   return (
     <div className={cn(
-      "rounded-xl border bg-card p-4 flex flex-col justify-between min-h-[140px] transition-all hover:shadow-md",
+      "dashboard-metric rounded-xl border bg-card p-4 flex flex-col justify-between min-h-[140px] transition-all hover:shadow-md",
       className
     )}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-            {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
+            {Icon && <Icon className="dashboard-metric-icon h-4 w-4 flex-shrink-0" />}
             <span className="truncate">{title}</span>
           </div>
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl font-bold text-foreground">{data.value}</span>
+            <span className="dashboard-metric-value text-2xl font-bold text-foreground">{data.value}</span>
             {data.trend && (
               <span className={cn(
                 "flex items-center text-xs font-medium",

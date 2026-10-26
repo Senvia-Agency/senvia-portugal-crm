@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Mailbox, Inbox as InboxIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mailbox, Inbox as InboxIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, MessageCircle, MessagesSquare, AtSign, ArrowUpRight } from 'lucide-react';
+import { ChatUnreadBadge } from '@/features/workplace/chat/ChatUnreadBadge';
 import { cn } from '@/lib/utils';
 import { MESSAGING_CHANNELS_ENABLED, isChannelEnabled } from '@/lib/constants';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -61,6 +63,8 @@ export function InboxCaixaRail({
   onSelectMessaging,
   onSelectEmail,
   onSelectFolder,
+  teamChat,
+  webmailLink = false,
   className,
 }: {
   caixas: MessagingChannel[];
@@ -76,6 +80,10 @@ export function InboxCaixaRail({
   onSelectMessaging: (ch: MessagingChannel) => void;
   onSelectEmail: (ch: MessagingChannel) => void;
   onSelectFolder: (folderId: string) => void;
+  /** Internal team messages, shown as their own box (Workplace preview). */
+  teamChat?: { active: boolean; onSelect: () => void };
+  /** Emails moved to the WebMail: the rail points there instead of listing email caixas. */
+  webmailLink?: boolean;
   // Override the root layout (e.g. to render full-width inside a mobile Sheet).
   className?: string;
 }) {
@@ -164,23 +172,33 @@ export function InboxCaixaRail({
         )}
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+        {(MESSAGING_CHANNELS_ENABLED || teamChat) && (
+          <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Mensagens</p>
+        )}
         {/* Secção inteira escondida com os canais desligados: sem WhatsApp nem
             Instagram, "Todas as conversas" não teria nada para mostrar. */}
         {MESSAGING_CHANNELS_ENABLED && (
-          <>
-            <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Mensagens</p>
-            <button
-              onClick={onSelectAll}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
-                allActive ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground/80 hover:bg-accent',
-              )}
-            >
-              <InboxIcon className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">Todas as conversas</span>
-              <CountBadge n={totalUnread} active={allActive} />
-            </button>
-          </>
+          <button
+            onClick={onSelectAll}
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+              allActive ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground/80 hover:bg-accent',
+            )}
+          >
+            <InboxIcon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-left">Todas as conversas</span>
+            <CountBadge n={totalUnread} active={allActive} />
+          </button>
+        )}
+        {/* Internal team messages, right after "Todas as conversas". A direct child of nav, like the
+            other boxes, so the Workplace tile rail styles it the same. */}
+        {teamChat && (
+          <button type="button" onClick={teamChat.onSelect} aria-current={teamChat.active ? 'true' : undefined} data-team-chat
+            className={cn('flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors', teamChat.active ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground/80 hover:bg-accent')}>
+            <MessagesSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-left">Mensagens internas</span>
+            <ChatUnreadBadge className="h-[18px] min-w-[18px] px-1.5 text-[10px]" />
+          </button>
         )}
 
         {messaging.map((ch) => {
@@ -256,6 +274,14 @@ export function InboxCaixaRail({
               );
             })}
           </div>
+        )}
+        {webmailLink && <p className="mt-3 border-t px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">E-mails</p>}
+        {webmailLink && (
+          <Link to="/webmail" data-webmail-link className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/80 transition-colors hover:bg-accent">
+            <AtSign className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-left">Email</span>
+            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </Link>
         )}
       </nav>
     </aside>

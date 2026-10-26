@@ -1,0 +1,99 @@
+/* Agenda in the modern Workplace, after Realize's calendar: paper grid, today in a filled circle,
+   soft event chips by type. Scoped to the workspace shell, so Versão antiga keeps its look. */
+.app-shell[data-interface='workspace'] .workplace-agenda {
+  --agenda-line: var(--workplace-line, var(--border));
+  --agenda-depth: 0 1px 2px hsl(222 47% 20% / .06), 0 10px 28px -14px hsl(222 60% 30% / .22);
+}
+.dark .app-shell[data-interface='workspace'] .workplace-agenda {
+  --agenda-depth: 0 1px 2px hsl(0 0% 0% / .3), 0 10px 28px -14px hsl(0 0% 0% / .6);
+}
+
+/* The day list sits beside the grid only when both fit (1280px+); tablets get the full-width grid. */
+.app-shell[data-interface='workspace'] .workplace-agenda .agenda-layout { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+@media (min-width: 1280px) {
+  .app-shell[data-interface='workspace'] .workplace-agenda .agenda-layout { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+/* Event types carry one hue each: chips, blocks and the side-list tiles read it. */
+.app-shell[data-interface='workspace'] .workplace-agenda [data-type] { --chip: 217 91% 58%; }
+.app-shell[data-interface='workspace'] .workplace-agenda [data-type='call'] { --chip: 142 71% 40%; }
+.app-shell[data-interface='workspace'] .workplace-agenda [data-type='task'] { --chip: 38 92% 48%; }
+.app-shell[data-interface='workspace'] .workplace-agenda [data-type='follow_up'] { --chip: 271 76% 58%; }
+
+/* Paper surfaces. */
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-surface {
+  border-color: hsl(var(--agenda-line)); border-radius: 1.5rem; background: hsl(var(--card)); box-shadow: var(--agenda-depth);
+}
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-surface :is(.border-b, .border-r, .border-l) { border-color: hsl(var(--agenda-line)); }
+
+/* Month grid. */
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-weekdays { background: hsl(var(--workplace-canvas, var(--muted)) / .7); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-weekdays > div { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day { min-height: 64px; padding: 6px; transition: background-color .15s ease-out; }
+@media (min-width: 640px) { .app-shell[data-interface='workspace'] .workplace-agenda .calendar-day { min-height: 92px; } }
+@media (min-width: 768px) { .app-shell[data-interface='workspace'] .workplace-agenda .calendar-day { min-height: 112px; } }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day:hover { background: hsl(var(--primary) / .05); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day[data-outside] { background: hsl(var(--workplace-canvas, var(--muted)) / .55); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day[data-selected] { background: hsl(var(--primary) / .07); box-shadow: inset 0 0 0 2px hsl(var(--primary) / .45); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day-head { justify-content: flex-start; margin-bottom: 4px; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day-number { width: auto; min-width: 24px; height: 24px; padding: 0 5px; font-size: 12px; font-weight: 700; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-day[data-today] .calendar-day-number { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 4px 10px -4px hsl(var(--primary) / .6); }
+
+/* Event chips and time blocks: a soft tint with a coloured edge instead of solid fills. */
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-chip {
+  position: relative; border-radius: 8px; border-left: 3px solid hsl(var(--chip));
+  background: hsl(var(--chip) / .13); color: color-mix(in srgb, hsl(var(--chip)) 60%, hsl(var(--foreground)));
+  font-size: 11.5px; font-weight: 600; transition: background-color .15s ease-out;
+}
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-chip:hover { opacity: 1; background: hsl(var(--chip) / .22); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-chip:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-block { background: hsl(var(--chip) / .18); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-chip-meta { color: inherit; opacity: .75; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-chip-time { display: inline; font-weight: 700; opacity: .7; }
+
+/* Phones: chips become coloured dots (the day list below still names every event). */
+@media (max-width: 639px) {
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-day-events { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-day-events > * { margin-top: 0; }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-chip { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; background: hsl(var(--chip)); }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-chip > * { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-more { width: 100%; font-size: 10px; text-align: left; }
+}
+
+/* Side list of the selected day. */
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-side { border-color: hsl(var(--agenda-line)); border-radius: 1.6rem; padding: 1.1rem; box-shadow: var(--agenda-depth); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-side h3 { font-size: 15px; font-weight: 750; }
+@media (min-width: 1024px) {
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-side { top: 7.5rem; max-height: calc(100dvh - 8.5rem); }
+}
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-event { border-color: hsl(var(--agenda-line)); border-radius: 1rem; transition: background-color .15s ease-out, box-shadow .15s ease-out; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-event:hover { background: hsl(var(--primary) / .04); box-shadow: var(--agenda-depth); }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-event-icon {
+  border-radius: 12px; background: linear-gradient(145deg, hsl(var(--chip) / .8), hsl(var(--chip)));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .22), 0 4px 10px -4px hsl(var(--chip) / .55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-interface='workspace'] .workplace-agenda :is(.calendar-day, .calendar-chip, .calendar-event) { transition: none; }
+}
+
+/* Side column: Calendários panel and the day list, side by side on tablets, stacked beside the grid from 1280px. */
+.app-shell[data-interface='workspace'] .workplace-agenda .agenda-side { display: grid; gap: 1rem; align-content: start; }
+@media (min-width: 768px) and (max-width: 1279px) {
+  .app-shell[data-interface='workspace'] .workplace-agenda .agenda-side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-layers { border-color: hsl(var(--agenda-line)); box-shadow: var(--agenda-depth); }
+
+/* Holidays and deadlines follow the chip rules: tinted on the grid, dots on phones. */
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-marker { position: relative; border-radius: 8px; }
+.app-shell[data-interface='workspace'] .workplace-agenda .calendar-agenda-day { border-color: hsl(var(--agenda-line)); box-shadow: var(--agenda-depth); }
+@media (max-width: 639px) {
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-marker { width: 8px; height: 8px; padding: 0; border-radius: 999px; }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-marker[data-layer='holidays'] { background: hsl(351 95% 71%); }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-marker[data-layer='deadlines'] { background: hsl(32 95% 44%); }
+  .app-shell[data-interface='workspace'] .workplace-agenda .calendar-month .calendar-marker > * { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* Grid items default to min-width:auto, so one long deadline title would push the whole side column
+   past its 280px track. Let the column and its cards shrink; long titles truncate inside them. */
+.app-shell[data-interface='workspace'] .workplace-agenda :is(.agenda-side, .agenda-side > *, .calendar-side) { min-width: 0; }

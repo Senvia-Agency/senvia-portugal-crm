@@ -1,13 +1,15 @@
 import type { ElementType } from 'react';
 import { cn } from '@/lib/utils';
 
-type NavTone = 'overview' | 'communication' | 'commercial' | 'finance' | 'calendar' | 'feed' | 'tasks' | 'mail' | 'neutral';
+type NavTone = 'overview' | 'communication' | 'commercial' | 'finance' | 'calendar' | 'feed' | 'chat' | 'tasks' | 'mail' | 'webmail' | 'neutral';
 
 const routeTones: Readonly<Partial<Record<string, NavTone>>> = {
   '/dashboard': 'overview',
   '/feed': 'feed',
+  '/mensagens': 'chat',
   '/tasks': 'tasks',
   '/inbox': 'communication',
+  '/webmail': 'webmail',
   '/marketing': 'mail',
   '/leads': 'commercial',
   '/clients': 'commercial',

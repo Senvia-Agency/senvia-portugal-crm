@@ -1,9 +1,12 @@
 import {
-  CalendarDays, ListTodo, Newspaper, FileText, LayoutDashboard, Mail, MessageSquare,
-  Search, Settings, Shield, ShoppingBag, Building2, UserCheck, Users, Wallet, Workflow,
+  CalendarDays, ListTodo, MessagesSquare, Newspaper, FileText, LayoutDashboard, Mail, MessageSquare,
+  Search, Settings, Shield, ShoppingBag, Building2, UserCheck, Users, Wallet, Workflow, AtSign,
   type LucideIcon,
 } from 'lucide-react';
 import type { EnabledModules } from '@/hooks/useModules';
+
+/** The WebMail (/webmail) replaces the email section of the Inbox in development and local-preview builds. */
+export const WEBMAIL_ENABLED = import.meta.env.DEV || import.meta.env.MODE === 'local-preview';
 
 export interface WorkspaceNavItem {
   to: string;
@@ -20,6 +23,8 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
   ...((import.meta.env.DEV || import.meta.env.MODE === "local-preview") ? [{ to: '/feed', label: 'Feed', icon: Newspaper, group: 'Comunicação' as const }, { to: '/tasks', label: 'Tarefas', icon: ListTodo, group: 'Trabalho' as const }] : []),
   { to: '/dashboard', label: 'Painel', icon: LayoutDashboard, group: 'Visão geral' },
   { to: '/inbox', label: 'Caixa de entrada', icon: MessageSquare, group: 'Comunicação', moduleKey: 'inbox' },
+  // WebMail: the email caixas leave the Inbox (same preview gate as the Feed).
+  ...(WEBMAIL_ENABLED ? [{ to: '/webmail', label: 'Email', icon: AtSign, group: 'Comunicação' as const, moduleKey: 'inbox' as const }] : []),
   { to: '/calendar', label: 'Agenda', icon: CalendarDays, group: 'Trabalho', moduleKey: 'calendar' },
   { to: '/leads', label: 'Leads', icon: Users, group: 'Comercial', ottoTarget: 'sidebar-leads' },
   { to: '/clients', label: 'Clientes', icon: UserCheck, group: 'Comercial', moduleKey: 'clients' },
@@ -34,6 +39,8 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
 
 const extraPages: Record<string, Pick<WorkspaceNavItem, 'label' | 'icon'>> = {
   '/novidades': { label: 'Novidades', icon: MessageSquare },
+  // Internal messages live in the Inbox; the standalone page stays reachable for old links and tabs.
+  '/mensagens': { label: 'Mensagens', icon: MessagesSquare },
   '/portal-total-link': { label: 'Portal Total Link', icon: Building2 },
   '/system-admin': { label: 'Administração', icon: Shield },
 };

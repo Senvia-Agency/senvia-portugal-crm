@@ -1899,6 +1899,130 @@ export type Database = {
           },
         ]
       }
+      email_account_preferences: {
+        Row: {
+          channel_id: string
+          color: string | null
+          is_default: boolean
+          label: string | null
+          notify: boolean
+          organization_id: string
+          position: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          color?: string | null
+          is_default?: boolean
+          label?: string | null
+          notify?: boolean
+          organization_id: string
+          position?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          color?: string | null
+          is_default?: boolean
+          label?: string | null
+          notify?: boolean
+          organization_id?: string
+          position?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_account_preferences_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_account_preferences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_contact_lists: {
+        Row: {
+          created_at: string
+          id: string
+          members: Json
+          name: string
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          members?: Json
+          name: string
+          organization_id: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          members?: Json
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_contact_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_contacts: {
+        Row: {
+          email: string
+          last_used_at: string
+          name: string | null
+          organization_id: string
+          user_id: string
+          uses: number
+        }
+        Insert: {
+          email: string
+          last_used_at?: string
+          name?: string | null
+          organization_id: string
+          user_id?: string
+          uses?: number
+        }
+        Update: {
+          email?: string
+          last_used_at?: string
+          name?: string | null
+          organization_id?: string
+          user_id?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_attachments: {
         Row: {
           content_id: string | null
@@ -2637,6 +2761,60 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_signatures: {
+        Row: {
+          channel_id: string
+          created_at: string
+          html: string
+          id: string
+          is_default: boolean
+          name: string
+          organization_id: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          html?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          html?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_signatures_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -8047,8 +8225,180 @@ export type Database = {
         }
         Relationships: []
       }
+      workplace_chat_conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          direct_key: string | null
+          id: string
+          is_default: boolean
+          kind: string
+          last_message_at: string | null
+          last_message_id: string | null
+          organization_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          direct_key?: string | null
+          id?: string
+          is_default?: boolean
+          kind: string
+          last_message_at?: string | null
+          last_message_id?: string | null
+          organization_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          direct_key?: string | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          last_message_at?: string | null
+          last_message_id?: string | null
+          organization_id?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
+      workplace_chat_member_settings: {
+        Row: {
+          conversation_id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workplace_chat_members: {
+        Row: {
+          conversation_id: string
+          joined_at: string
+          last_read_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          joined_at?: string
+          last_read_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          joined_at?: string
+          last_read_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workplace_chat_messages: {
+        Row: {
+          attachment_mime: string | null
+          attachment_name: string | null
+          attachment_path: string | null
+          attachment_size: number | null
+          body: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          duration_sec: number | null
+          edited_at: string | null
+          forwarded: boolean
+          id: string
+          kind: string
+          organization_id: string
+          reply_to_id: string | null
+          sender_id: string | null
+        }
+        Insert: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id: string
+          created_at?: string
+          deleted_at?: string | null
+          duration_sec?: number | null
+          edited_at?: string | null
+          forwarded?: boolean
+          id?: string
+          kind?: string
+          organization_id?: string
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          duration_sec?: number | null
+          edited_at?: string | null
+          forwarded?: boolean
+          id?: string
+          kind?: string
+          organization_id?: string
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: []
+      }
+      workplace_chat_reactions: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          emoji?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       workplace_posts: {
         Row: {
+          attachments: Json
           author_id: string
           body: string
           created_at: string
@@ -8056,9 +8406,12 @@ export type Database = {
           kind: string
           organization_id: string
           pinned: boolean
+          recipient_id: string | null
+          recognition_type: string | null
           updated_at: string
         }
         Insert: {
+          attachments?: Json
           author_id: string
           body: string
           created_at?: string
@@ -8066,9 +8419,12 @@ export type Database = {
           kind?: string
           organization_id: string
           pinned?: boolean
+          recipient_id?: string | null
+          recognition_type?: string | null
           updated_at?: string
         }
         Update: {
+          attachments?: Json
           author_id?: string
           body?: string
           created_at?: string
@@ -8076,6 +8432,8 @@ export type Database = {
           kind?: string
           organization_id?: string
           pinned?: boolean
+          recipient_id?: string | null
+          recognition_type?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -8175,18 +8533,21 @@ export type Database = {
       workplace_reactions: {
         Row: {
           created_at: string
+          emoji: string
           organization_id: string
           post_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          emoji?: string
           organization_id: string
           post_id: string
           user_id: string
         }
         Update: {
           created_at?: string
+          emoji?: string
           organization_id?: string
           post_id?: string
           user_id?: string
@@ -8349,6 +8710,77 @@ export type Database = {
       }
     }
     Functions: {
+      email_save_signatures: {
+        Args: { _channel_id: string; _items: Json }
+        Returns: {
+            channel_id: string
+            created_at: string
+            html: string
+            id: string
+            is_default: boolean
+            name: string
+            organization_id: string
+            position: number
+            updated_at: string
+            user_id: string
+          }[]
+      }
+      email_remember_contacts: {
+        Args: { _organization_id: string; _items: Json }
+        Returns: undefined
+      }
+      workplace_chat_add_members: {
+        Args: { _conversation_id: string; _member_ids: string[] }
+        Returns: undefined
+      }
+      workplace_chat_bootstrap: { Args: { _organization_id: string }; Returns: string }
+      workplace_chat_create_group: {
+        Args: { _member_ids: string[]; _organization_id: string; _title: string }
+        Returns: string
+      }
+      workplace_chat_leave_group: { Args: { _conversation_id: string }; Returns: undefined }
+      workplace_chat_list_conversations: {
+        Args: { _organization_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_default: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          kind: string
+          last_attachment_name: string | null
+          last_body: string | null
+          last_deleted: boolean
+          last_kind: string | null
+          last_message_at: string | null
+          last_sender_id: string | null
+          member_count: number
+          my_role: string
+          peer_user_id: string | null
+          title: string | null
+          unread: number
+        }[]
+      }
+      workplace_chat_mark_read: { Args: { _conversation_id: string }; Returns: undefined }
+      workplace_chat_rename_group: {
+        Args: { _conversation_id: string; _title: string }
+        Returns: undefined
+      }
+      workplace_chat_search_messages: {
+        Args: { _limit?: number; _organization_id: string; _term: string }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string | null
+        }[]
+      }
+      workplace_chat_start_direct: {
+        Args: { _organization_id: string; _other_user_id: string }
+        Returns: string
+      }
       meets_mfa_policy: {
         Args: { _user_id: string }
         Returns: boolean

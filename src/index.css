@@ -340,6 +340,20 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Scroll strips fade on the side that still hides items (see useScrollEdges). */
+  .scroll-fade-x[data-fade-start='true'] { --fade-from: transparent; }
+  .scroll-fade-x[data-fade-end='true'] { --fade-to: transparent; }
+  .scroll-fade-x:is([data-fade-start='true'], [data-fade-end='true']) {
+    -webkit-mask-image: linear-gradient(to right, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+    mask-image: linear-gradient(to right, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+  }
+  .scroll-fade-y[data-fade-start='true'] { --fade-from: transparent; }
+  .scroll-fade-y[data-fade-end='true'] { --fade-to: transparent; }
+  .scroll-fade-y:is([data-fade-start='true'], [data-fade-end='true']) {
+    -webkit-mask-image: linear-gradient(to bottom, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+    mask-image: linear-gradient(to bottom, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+  }
 }
 
 @layer utilities {

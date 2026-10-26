@@ -12,7 +12,8 @@ function setup() {
   const store = { collapsed: false, toggle() { store.collapsed = !store.collapsed; } };
   const context = {
     exports: {}, require: () => jsx,
-    useState: value => [value, () => {}], useLocation: () => ({ pathname: '/dashboard' }), useNavigate: () => () => {},
+    useState: value => [value, () => {}], useRef: value => ({ current: value ?? null }), useScrollEdges: () => ({ start: false, end: false }),
+    useLocation: () => ({ pathname: '/dashboard' }), useNavigate: () => () => {},
     useAuth: () => ({ roles: [], organizations: [] }), useOttoStore: () => ({}),
     useSidebarStore: selector => selector(store), useModules: () => ({ modules: {} }),
     usePermissions: () => ({}), useSubscription: () => ({}), useActivationProgress: () => ({}),

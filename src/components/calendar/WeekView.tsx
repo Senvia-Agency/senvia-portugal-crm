@@ -4,6 +4,8 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, 
 import { pt } from 'date-fns/locale';
 import type { CalendarEvent } from '@/types/calendar';
 import { EVENT_TYPE_COLORS } from '@/types/calendar';
+import { CalendarMarkerChip } from './CalendarMarkerChip';
+import type { CalendarMarker } from './calendar-layers';
 
 interface WeekViewProps {
   currentDate: Date;
@@ -11,11 +13,14 @@ interface WeekViewProps {
   selectedDay?: Date;
   onDayClick: (date: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
+  /** Holidays and task deadlines, shown in the all-day row (Workplace only). */
+  markers?: readonly CalendarMarker[];
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function WeekView({ currentDate, events, selectedDay, onDayClick, onEventClick }: WeekViewProps) {
+export function WeekView({ currentDate, events, selectedDay, onDayClick, onEventClick, markers = [] }: WeekViewProps) {
+  const getMarkersForDay = (day: Date) => markers.filter((marker) => isSameDay(marker.date, day));
   const days = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -47,7 +52,7 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
   };
 
   return (
-    <div className="bg-card rounded-lg border overflow-hidden">
+    <div className="calendar-surface calendar-week bg-card rounded-lg border overflow-hidden">
       {/* Header with days */}
       <div className="grid grid-cols-8 border-b">
         <div className="py-3 text-center text-xs font-medium text-muted-foreground">
@@ -79,7 +84,7 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
       </div>
 
       {/* All-day events row */}
-      {days.some((day) => getAllDayEventsForDay(day).length > 0) && (
+      {days.some((day) => getAllDayEventsForDay(day).length > 0 || getMarkersForDay(day).length > 0) && (
         <div className="grid grid-cols-8 border-b">
           <div className="py-2 px-2 text-xs text-muted-foreground flex items-center justify-end">
             Dia inteiro
@@ -94,18 +99,20 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
                   isToday(day) && 'bg-primary/5'
                 )}
               >
+                {getMarkersForDay(day).map((marker) => <CalendarMarkerChip key={marker.key} marker={marker} className="mb-0.5 text-[10px]" />)}
                 {allDayEvents.map((event) => {
                   const colorClass = EVENT_TYPE_COLORS[event.event_type];
                   return (
                     <button
                       key={event.id}
+                      data-type={event.event_type}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDayClick(day);
                       onEventClick(event);
                     }}
                       className={cn(
-                        'w-full text-left rounded px-1 py-0.5 text-[10px] text-white font-medium truncate hover:opacity-90',
+                        'calendar-chip w-full text-left rounded px-1 py-0.5 text-[10px] text-white font-medium truncate hover:opacity-90',
                         colorClass
                       )}
                     >
@@ -159,13 +166,14 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
                 return (
                   <button
                     key={event.id}
+                      data-type={event.event_type}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDayClick(day);
                       onEventClick(event);
                     }}
                     className={cn(
-                      'absolute left-0.5 right-0.5 rounded px-1 py-0.5 text-[10px] text-white font-medium truncate cursor-pointer hover:opacity-90',
+                      'calendar-chip calendar-block absolute left-0.5 right-0.5 rounded px-1 py-0.5 text-[10px] text-white font-medium truncate cursor-pointer hover:opacity-90',
                       colorClass
                     )}
                     style={{ top: `${top}px`, height: `${height}px` }}

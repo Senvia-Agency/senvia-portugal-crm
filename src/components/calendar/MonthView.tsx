@@ -4,6 +4,8 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInte
 import { pt } from 'date-fns/locale';
 import type { CalendarEvent } from '@/types/calendar';
 import { EventCard } from './EventCard';
+import { CalendarMarkerChip } from './CalendarMarkerChip';
+import type { CalendarMarker } from './calendar-layers';
 
 interface MonthViewProps {
   currentDate: Date;
@@ -11,9 +13,11 @@ interface MonthViewProps {
   selectedDay?: Date;
   onDayClick: (date: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
+  /** Holidays and task deadlines (Workplace only). */
+  markers?: readonly CalendarMarker[];
 }
 
-export function MonthView({ currentDate, events, selectedDay, onDayClick, onEventClick }: MonthViewProps) {
+export function MonthView({ currentDate, events, selectedDay, onDayClick, onEventClick, markers }: MonthViewProps) {
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -30,9 +34,9 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
   };
 
   return (
-    <div className="bg-card rounded-lg border overflow-hidden">
+    <div className="calendar-surface calendar-month bg-card rounded-lg border overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-7 border-b">
+      <div className="calendar-weekdays grid grid-cols-7 border-b">
         {weekDays.map((day) => (
           <div
             key={day}
@@ -47,6 +51,12 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
       <div className="grid grid-cols-7">
         {days.map((day, index) => {
           const dayEvents = getEventsForDay(day);
+          // Markers come first (a holiday frames the day); the classic grid keeps its two events.
+          const limit = markers ? 3 : 2;
+          const dayMarkers = markers?.filter((marker) => isSameDay(marker.date, day)) ?? [];
+          const shownMarkers = dayMarkers.slice(0, limit);
+          const shownEvents = dayEvents.slice(0, limit - shownMarkers.length);
+          const hiddenCount = dayMarkers.length + dayEvents.length - shownMarkers.length - shownEvents.length;
           const isCurrentMonth = isSameMonth(day, currentDate);
           const isCurrentDay = isToday(day);
 
@@ -54,16 +64,19 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
             <div
               key={index}
               onClick={() => onDayClick(day)}
+              data-today={isCurrentDay || undefined}
+              data-outside={!isCurrentMonth || undefined}
+              data-selected={(selectedDay && isSameDay(day, selectedDay)) || undefined}
               className={cn(
-                'min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] border-b border-r p-1 cursor-pointer transition-colors hover:bg-accent/50',
+                'calendar-day min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] border-b border-r p-1 cursor-pointer transition-colors hover:bg-accent/50',
                 !isCurrentMonth && 'bg-muted/30',
                 selectedDay && isSameDay(day, selectedDay) && 'ring-2 ring-primary ring-inset bg-primary/5'
               )}
             >
-              <div className="flex items-center justify-center mb-1">
+              <div className="calendar-day-head flex items-center justify-center mb-1">
                 <span
                   className={cn(
-                    'flex items-center justify-center w-7 h-7 rounded-full text-sm',
+                    'calendar-day-number flex items-center justify-center w-7 h-7 rounded-full text-sm',
                     isCurrentDay && 'bg-primary text-primary-foreground font-semibold',
                     !isCurrentMonth && 'text-muted-foreground'
                   )}
@@ -71,8 +84,9 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
                   {format(day, 'd')}
                 </span>
               </div>
-              <div className="space-y-1">
-                {dayEvents.slice(0, 2).map((event) => (
+              <div className="calendar-day-events space-y-1">
+                {shownMarkers.map((marker) => <CalendarMarkerChip key={marker.key} marker={marker} />)}
+                {shownEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     event={event}
@@ -84,9 +98,9 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
                      }}
                   />
                 ))}
-                {dayEvents.length > 2 && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    +{dayEvents.length - 2} mais
+                {hiddenCount > 0 && (
+                  <p className="calendar-more text-xs text-muted-foreground text-center">
+                    +{hiddenCount} mais
                   </p>
                 )}
               </div>

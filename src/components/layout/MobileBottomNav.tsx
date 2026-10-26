@@ -1,5 +1,6 @@
 import { workspaceNavigation } from './workspaceNavigation';
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useScrollEdges } from './useScrollEdges';
 import { NavLink, useLocation } from "react-router-dom";
 import { Shield, Lock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
+import { WebmailUnreadBadge } from "@/features/webmail/WebmailUnreadBadge";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { ModuleNavIcon } from './ModuleNavIcon';
@@ -45,6 +47,30 @@ export function MobileBottomNav() {
   // a fixed bottom bar float up into the middle of the screen. Slide it out of
   // the way while the keyboard is open; it returns when the keyboard closes.
   const keyboardOpen = useKeyboardOpen();
+
+  // More modules than fit across a phone: the strip scrolls sideways, fades at the
+  // edges that hide items, and also follows a mouse wheel (desktop narrow windows).
+  const stripRef = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(stripRef, 'x');
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const atStart = strip.scrollLeft <= 0;
+      const atEnd = strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 1;
+      if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return;
+      event.preventDefault();
+      strip.scrollLeft += event.deltaY;
+    };
+    strip.addEventListener('wheel', onWheel, { passive: false });
+    return () => strip.removeEventListener('wheel', onWheel);
+  }, []);
+  // The current page's item must be visible, even when it sits past the screen edge.
+  useEffect(() => {
+    stripRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [location.pathname]);
 
   // Plan-locked items stay visible; admin-disabled or no-permission items are hidden
   const navItems = allNavItems.filter(item => {
@@ -84,7 +110,8 @@ export function MobileBottomNav() {
           keyboardOpen && "translate-y-full pointer-events-none",
         )}
       >
-          <div className="flex items-center h-16 px-2 overflow-x-auto no-scrollbar gap-2">
+          <div ref={stripRef} data-fade-start={edges.start} data-fade-end={edges.end}
+            className="scroll-fade-x flex items-center h-16 px-2 overflow-x-auto overscroll-x-contain no-scrollbar gap-2">
           {allItems.map((item) => {
             const locked = 'moduleKey' in item && item.moduleKey ? isModuleLocked(item.moduleKey) : false;
             const isActive = location.pathname === item.to || 
@@ -111,6 +138,9 @@ export function MobileBottomNav() {
                   )}
                   {item.to === "/inbox" && !locked && (
                     <InboxUnreadBadge className="absolute -right-2.5 -top-1.5 h-4 min-w-[16px] px-1 text-[9px]" />
+                  )}
+                  {item.to === "/webmail" && !locked && (
+                    <WebmailUnreadBadge className="absolute -right-2.5 -top-1.5 h-4 min-w-[16px] px-1 text-[9px]" />
                   )}
                 </div>
                 <span className={cn(

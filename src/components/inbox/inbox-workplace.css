@@ -155,3 +155,15 @@
 
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface="workspace"] .inbox-email-list .inbox-email-search input { height:44px; border:1px solid hsl(var(--primary)/.35); border-radius:16px; background:hsl(var(--primary)/.055); padding-inline:40px; box-shadow:0 1px 3px hsl(var(--foreground)/.04); }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface="workspace"] .inbox-email-list .inbox-email-search input:focus-visible { border-color:hsl(var(--primary)); box-shadow:0 0 0 3px hsl(var(--primary)/.12); }
+
+/* Internal messages tile: the chat tone, so team conversations read apart from client channels. */
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail nav button[data-team-chat] > svg:first-child { color: hsl(292 70% 55%); }
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav button[data-team-chat] > svg:first-child { background: hsl(316 80% 68% / .16); }
+
+/* Link to the WebMail (emails left the Inbox): an amber tile like the others, without the arrow. */
+@media (min-width:1024px) {
+  :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] { flex-direction: column; gap: 7px; min-height: 82px; padding: 10px 4px; margin-bottom: 6px; border-radius: 16px; }
+  :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] > span { width: 100%; white-space: normal; text-align: center; font-size: 10px; line-height: 14px; }
+  :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] > svg:first-child { width: 38px; height: 38px; padding: 9px; border-radius: 12px; background: hsl(38 96% 64% / .2); color: hsl(24 94% 50%); }
+  :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] > svg:last-child { display: none; }
+}

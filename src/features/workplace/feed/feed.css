@@ -1,4 +1,6 @@
 .workplace-feed {
+  --feed-depth: 0 1px 2px hsl(222 47% 20% / .06), 0 10px 28px -14px hsl(222 60% 30% / .24);
+  --feed-depth-hover: 0 2px 4px hsl(222 47% 20% / .07), 0 18px 38px -16px hsl(222 60% 30% / .3);
   container-type: inline-size;
   width: 100%;
   max-width: 1138px;
@@ -15,11 +17,12 @@
 .workplace-feed .feed-search input { min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; box-shadow: none; font-size: 13px; }
 .workplace-feed .feed-search:focus-within { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .workplace-feed .feed-search input:focus-visible { outline: none; box-shadow: none; }
-.workplace-feed .feed-paper { border: 1px solid hsl(var(--border)); border-radius: var(--workplace-card-radius, 1.75rem); background: hsl(var(--card)); box-shadow: 0 2px 2px hsl(var(--foreground) / .025), 0 8px 18px hsl(var(--foreground) / .035); }
+.workplace-feed .feed-paper { border: 1px solid hsl(var(--border)); border-radius: var(--workplace-card-radius, 1.75rem); background: hsl(var(--card)); box-shadow: var(--feed-depth); }
 .workplace-feed .feed-composer { padding: 20px; }
 .workplace-feed .feed-composer-body { display: flex; align-items: flex-start; gap: 12px; }
-.workplace-feed .feed-avatar { width: 44px; height: 44px; flex-shrink: 0; }
-.workplace-feed .feed-avatar > span { background: hsl(var(--primary) / .1); color: hsl(var(--action)); font-weight: 700; font-size: 13px; }
+:is(.workplace-feed, .recognition-dialog) .feed-avatar { width: 44px; height: 44px; flex-shrink: 0; }
+:is(.workplace-feed, .recognition-dialog) .feed-avatar { box-shadow: 0 0 0 2px hsl(var(--card)), 0 3px 8px hsl(222 47% 20% / .14); }
+:is(.workplace-feed, .recognition-dialog) .feed-avatar > span { background: linear-gradient(145deg, hsl(var(--feed-avatar-hue, 217) 85% 66%), hsl(calc(var(--feed-avatar-hue, 217) + 28) 78% 50%)); color: white; font-weight: 700; font-size: 13px; }
 .workplace-feed .feed-composer textarea { min-height: 70px; border: 0; border-radius: 18px; padding: 14px 16px; background: hsl(var(--muted) / .65); font-size: 14px; line-height: 1.6; resize: vertical; }
 .workplace-feed .feed-composer-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-left: 56px; }
 .workplace-feed .feed-composer-types { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
@@ -35,13 +38,47 @@
 .workplace-feed .feed-filter[aria-pressed='true'] { background: hsl(var(--sidebar-background)); border-color: hsl(var(--sidebar-background)); color: hsl(var(--sidebar-foreground)); }
 .workplace-feed .feed-filter:focus-visible, .workplace-feed .feed-text-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
 .workplace-feed .feed-timeline { display: flex; flex-direction: column; gap: 15px; }
-.workplace-feed .feed-post { padding: 20px; }
-.workplace-feed .feed-post-header { display: flex; align-items: flex-start; gap: 12px; }
-.workplace-feed .feed-post-header > div > p:first-child { font-size: 14px; font-weight: 650; }
-.workplace-feed .feed-post-header time { font-size: 11px; }
-.workplace-feed .feed-post-text { margin-block: 16px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.75; }
-.workplace-feed .feed-post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid hsl(var(--border) / .65); }
-.workplace-feed .feed-post .feed-post-actions button { border-radius: 999px; font-size: 12px; }
+.workplace-feed .feed-post { padding: 20px; transition: box-shadow .15s ease-out; animation: feed-rise .28s cubic-bezier(.2, .8, .2, 1) both; }
+.workplace-feed .feed-post:hover { box-shadow: var(--feed-depth-hover); }
+.workplace-feed .feed-post-header { display: flex; align-items: flex-start; gap: 14px; }
+.workplace-feed .feed-post-author { overflow-wrap: anywhere; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.workplace-feed .feed-post-headline { overflow-wrap: anywhere; font-size: 14.5px; line-height: 1.4; }
+.workplace-feed .feed-post-headline strong { font-weight: 700; }
+.workplace-feed .feed-post-kind { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 13px; font-weight: 650; color: color-mix(in srgb, hsl(var(--tile-end)) 72%, hsl(var(--foreground))); }
+.workplace-feed .feed-post-kind svg { width: 13px; height: 13px; }
+.workplace-feed .feed-post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; margin-top: 2px; font-size: 12.5px; color: hsl(var(--muted-foreground)); }
+.workplace-feed .feed-post-meta svg { width: 13px; height: 13px; }
+.workplace-feed .feed-post-text { margin-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.7; }
+.workplace-feed .feed-post-quote { margin: 12px 0 10px 70px; padding: 12px 15px; border: 1px solid hsl(var(--tile-start) / .3); border-radius: 18px; background: hsl(var(--card) / .82); }
+.workplace-feed .feed-post--recognition .feed-post-quote { font-style: italic; }
+.workplace-feed .feed-post--story { --tile-start: 37 97% 61%; --tile-end: 23 95% 49%; background: linear-gradient(135deg, hsl(var(--tile-start) / .16), transparent 48%, hsl(var(--tile-end) / .09)), hsl(var(--card)); }
+.workplace-feed .feed-post--story > .feed-post-meta,
+.workplace-feed .feed-post--story > .feed-post-actions { margin-left: 70px; }
+:is(.workplace-feed, .recognition-dialog) .feed-kind-tile { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; flex-shrink: 0; border-radius: 18px; color: white; background: linear-gradient(145deg, hsl(var(--tile-start, 37 97% 61%)), hsl(var(--tile-end, 23 95% 49%))); box-shadow: inset 0 1px 0 hsl(0 0% 100% / .25), 0 8px 16px -6px hsl(var(--tile-end, 23 95% 49%) / .5); }
+:is(.workplace-feed, .recognition-dialog) .feed-kind-tile::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, hsl(0 0% 100% / .32), transparent 62%); pointer-events: none; }
+:is(.workplace-feed, .recognition-dialog) .feed-kind-tile svg { position: relative; z-index: 1; width: 26px; height: 26px; stroke-width: 2.2; }
+.workplace-feed .feed-post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.workplace-feed .feed-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 13px; border: 1px solid hsl(var(--workplace-line, var(--border))); border-radius: 999px; background: hsl(var(--card)); color: hsl(var(--muted-foreground)); font-size: 13px; font-weight: 600; transition: background-color .15s ease-out, border-color .15s ease-out, color .15s ease-out; }
+.workplace-feed .feed-chip svg { width: 16px; height: 16px; }
+.workplace-feed .feed-chip:hover:not(:disabled) { background: hsl(var(--primary) / .06); color: hsl(var(--foreground)); }
+.workplace-feed .feed-chip:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.workplace-feed .feed-chip:disabled { cursor: not-allowed; opacity: .6; }
+.workplace-feed .feed-chip[aria-pressed='true'] { border-color: hsl(var(--primary) / .35); background: hsl(var(--primary) / .1); color: hsl(var(--action)); }
+.workplace-feed .feed-emoji { font-size: 17px; line-height: 1; }
+.workplace-feed .feed-chip[aria-pressed='true'] .feed-emoji { display: inline-block; animation: feed-like-pop .32s cubic-bezier(.2, .8, .2, 1); }
+.workplace-feed .feed-reaction-add { padding-inline: 9px; }
+.workplace-feed .feed-who { min-height: 34px; padding: 0 6px; border-radius: 999px; color: hsl(var(--muted-foreground)); font-size: 12.5px; font-weight: 600; }
+.workplace-feed .feed-who:hover { color: hsl(var(--foreground)); text-decoration: underline; text-underline-offset: 3px; }
+.workplace-feed .feed-who:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.workplace-feed .feed-comment-toggle { margin-left: auto; border-color: transparent; background: transparent; }
+.dark .workplace-feed { --feed-depth: 0 1px 2px hsl(0 0% 0% / .3), 0 10px 28px -14px hsl(0 0% 0% / .6); --feed-depth-hover: 0 2px 4px hsl(0 0% 0% / .35), 0 18px 38px -16px hsl(0 0% 0% / .7); }
+
+@keyframes feed-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes feed-like-pop { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .workplace-feed .feed-post, .workplace-feed .feed-chip[aria-pressed='true'] .feed-emoji { animation: none; }
+  .workplace-feed .feed-post, .workplace-feed .feed-chip { transition: none; }
+}
 .workplace-feed .feed-rail { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
 .workplace-feed .feed-rail-card { padding: 21px 20px; }
 .workplace-feed .feed-rail-title { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
@@ -78,6 +115,10 @@
   .workplace-feed .feed-composer, .workplace-feed .feed-post { padding: 16px; }
   .workplace-feed .feed-paper { border-radius: 24px; }
   .workplace-feed .feed-audience { white-space: normal; }
+  .workplace-feed .feed-post-quote,
+  .workplace-feed .feed-post--story > .feed-post-meta,
+  .workplace-feed .feed-post--story > .feed-post-actions { margin-left: 0; }
+  .workplace-feed .feed-kind-tile { width: 48px; height: 48px; border-radius: 16px; }
 }
 @media (max-width: 640px) { .workplace-feed { padding: 20px 14px 36px; } }
 
@@ -85,7 +126,22 @@
 .app-shell[data-interface='workspace'] .workplace-feed .workplace-button { border-radius:999px; box-shadow:none; }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-publish { border-radius:999px; box-shadow:0 5px 12px hsl(var(--primary)/.13); }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-paper { border-radius:28px; border-color:hsl(var(--workplace-line,var(--border))); }
+.app-shell[data-interface='workspace'] .workplace-feed .feed-post--story { border-color:hsl(var(--tile-start) / .35); }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-composer textarea { border-radius:20px; background:hsl(var(--workplace-canvas,var(--muted))); }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-rail-card { padding:21px 20px; }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-comment > div { border-radius:20px; background:hsl(var(--workplace-canvas,var(--muted))); }
 .app-shell[data-interface='workspace'] .workplace-feed .feed-comments textarea { border-radius:24px; background:hsl(var(--workplace-canvas,var(--muted))); }
+.recognition-dialog .feed-kind-tile--small { width: 48px; height: 48px; border-radius: 16px; }
+.recognition-dialog .feed-kind-tile--small svg { width: 22px; height: 22px; }
+.workplace-feed .feed-composer .feed-composer-types .feed-recognize { color: hsl(var(--action)); }
+.workplace-feed.workplace-feed--embedded { max-width: none; padding: 0; }
+.workplace-feed--embedded .feed-post { animation: none; }
+
+/* Attachments sit under the text; story cards indent them like the quote. */
+.workplace-feed .feed-post--story > .feed-attachments { margin-left: 70px; }
+@container (max-width: 560px) { .workplace-feed .feed-post--story > .feed-attachments { margin-left: 0; } }
+.workplace-feed .feed-composer[data-dragging='true'] { outline: 2px dashed hsl(var(--primary)); outline-offset: 4px; }
+.workplace-feed .feed-composer .feed-composer-types .feed-attach { color: hsl(var(--foreground)); }
+/* Files line up with the text, like the footer. */
+.workplace-feed .feed-composer-files { padding-left: 56px; }
+@container (max-width: 560px) { .workplace-feed .feed-composer-files { padding-left: 0; } }

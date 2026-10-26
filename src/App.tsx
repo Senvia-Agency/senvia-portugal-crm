@@ -17,6 +17,8 @@ import Login from "./pages/Login";
 // Lazy: All other pages
 const WorkplaceFeed = lazy(() => import("./pages/WorkplaceFeed"));
 const WorkplaceTasks = lazy(() => import("./pages/WorkplaceTasks"));
+const WorkplaceMessages = lazy(() => import("./pages/WorkplaceMessages"));
+const WebMail = lazy(() => import("./pages/WebMail"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Novidades = lazy(() => import("./pages/Novidades"));
 const NovidadeDetail = lazy(() => import("./pages/NovidadeDetail"));
@@ -130,6 +132,8 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                 <Route element={<ProtectedLayoutRoute />}>
                   {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/feed" element={<WorkplaceFeed />} />}
                   {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/tasks" element={<WorkplaceTasks />} />}
+                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/mensagens" element={<WorkplaceMessages />} />}
+                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/webmail" element={<WebMail />} />}
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/novidades" element={<Novidades />} />
                   <Route path="/novidades/:id" element={<NovidadeDetail />} />

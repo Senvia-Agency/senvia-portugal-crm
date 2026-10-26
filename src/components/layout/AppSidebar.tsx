@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useScrollEdges } from './useScrollEdges';
 import { LogOut, Shield, Lock, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +15,7 @@ import type { AppRole } from "@/types";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
+import { WebmailUnreadBadge } from "@/features/webmail/WebmailUnreadBadge";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { workspaceNavigationGroups, workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
@@ -64,6 +66,9 @@ export function AppSidebar({
   const collapsed = !expanded && (savedCollapsed || forceCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggle);
   const { modules } = useModules();
+  // Short screens (tablets) hide part of the list: fade the cut edge so it reads as scrollable.
+  const navRef = useRef<HTMLElement>(null);
+  const navEdges = useScrollEdges(navRef, 'y');
   const { canViewModule } = usePermissions();
   const { isModuleLocked, getRequiredPlan } = useSubscription();
   const activation = useActivationProgress();
@@ -140,7 +145,8 @@ export function AppSidebar({
             </div>
           )}
 
-          <nav className="workspace-sidebar-nav flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
+          <nav ref={navRef} data-fade-start={navEdges.start} data-fade-end={navEdges.end}
+            className="workspace-sidebar-nav scroll-fade-y min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5" aria-label="Navegação principal">
             {(legacy ? ['Navegação'] : workspaceNavigationGroups).map(group => (
               <div key={group} className="space-y-1">
                 {!collapsed && !legacy && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
@@ -170,6 +176,11 @@ export function AppSidebar({
                   {item.to === "/inbox" && !locked && (
                     <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
                       <InboxUnreadBadge />
+                    </span>
+                  )}
+                  {item.to === "/webmail" && !locked && (
+                    <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
+                      <WebmailUnreadBadge />
                     </span>
                   )}
                   {item.to === "/settings" && showSetupBadge && (
@@ -223,7 +234,8 @@ export function AppSidebar({
               </NavLink>
             )}
 
-            {isSuperAdmin && (
+            {/* Workplace reaches System Admin from the "Admin" button in the top bar. */}
+            {isSuperAdmin && legacy && (
               <NavLink
                 to="/system-admin"
                 onClick={onNavigate}

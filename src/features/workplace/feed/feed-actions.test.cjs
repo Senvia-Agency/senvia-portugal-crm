@@ -41,6 +41,14 @@ test('retrying an ID with changed content is rejected without replacing the orig
   await assert.rejects(api.publishPost(scope, { id: 'id', body: 'Alterado', kind: 'publication' }), /Não foi criado um duplicado/);
   assert.equal(api.writes.length, 1); assert.equal(api.rows.get('workplace_posts:id').body, 'Original');
 });
+test('recognition retry keeps recipient and type, and a changed recipient is never merged', async () => {
+  const api = load(); api.makeUncertain(); const scope = { organizationId: 'org', userId: 'user' };
+  const input = { id: 'rec-id', body: 'Fechou a proposta com um acompanhamento impecável.', kind: 'recognition', recipientId: 'ana', recognitionType: 'great_work' };
+  await api.publishPost(scope, input); await api.publishPost(scope, input);
+  assert.equal(api.writes.length, 1);
+  assert.equal(api.writes[0].row.recipient_id, 'ana'); assert.equal(api.writes[0].row.recognition_type, 'great_work');
+  await assert.rejects(api.publishPost(scope, { ...input, recipientId: 'rui' }), /Não foi criado um duplicado/);
+});
 test('uncertain comment commit is recovered without duplicate or cross-post replacement', async () => {
   const api = load(); api.makeUncertain(); const scope = { organizationId: 'org', userId: 'user' };
   const input = { id: 'comment-id', postId: 'post', body: 'Comentário' };

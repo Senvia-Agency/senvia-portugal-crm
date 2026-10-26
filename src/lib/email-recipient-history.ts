@@ -1,7 +1,10 @@
 export interface RecipientSuggestion {
   name: string;
   address: string;
-  source: 'crm' | 'recent' | 'sent';
+  /** WebMail adds the person's contacts, colleagues and contact lists to the suggestions. */
+  source: 'crm' | 'recent' | 'sent' | 'contact' | 'team' | 'list';
+  /** Contact lists only: choosing one adds every member. */
+  members?: ReadonlyArray<{ name: string; address: string }>;
 }
 
 interface SentRecipients {

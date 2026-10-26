@@ -3,6 +3,8 @@ import { useMessagingChannels } from "@/hooks/useMessagingChannels";
 import { useEmailFolders } from "@/hooks/useEmail";
 import { useMetaUnreadTotals } from "@/hooks/useMetaInbox";
 import { cn } from "@/lib/utils";
+import { useInterfaceStore } from "@/stores/useInterfaceStore";
+import { WEBMAIL_ENABLED } from "./workspaceNavigation";
 
 // Pastas que NAO contam para o total da caixa.
 //
@@ -59,6 +61,9 @@ export function InboxUnreadBadge({ className }: { className?: string }) {
     .reduce((s, [, n]) => s + n, 0);
   const totalEmail = Object.values(emailCounts).reduce((s, n) => s + n, 0);
   const total = totalMeta + totalEmail;
+  // With the WebMail, email has its own badge on "Email"; the tab title still counts everything.
+  const legacy = useInterfaceStore((state) => state.legacy);
+  const shown = WEBMAIL_ENABLED && !legacy ? totalMeta : total;
 
   useEffect(() => {
     const baseTitle = document.title.replace(/^\(\d+\)\s*/, "");
@@ -79,14 +84,14 @@ export function InboxUnreadBadge({ className }: { className?: string }) {
           onCount={(n) => setEmailCounts((prev) => (prev[c.id] === n ? prev : { ...prev, [c.id]: n }))}
         />
       ))}
-      {total > 0 && (
+      {shown > 0 && (
         <span
           className={cn(
             "flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-600 px-1.5 text-[10px] font-semibold text-white",
             className,
           )}
         >
-          {total > 99 ? "99+" : total}
+          {shown > 99 ? "99+" : shown}
         </span>
       )}
     </>

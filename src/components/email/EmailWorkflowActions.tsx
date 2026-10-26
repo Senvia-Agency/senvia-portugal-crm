@@ -56,12 +56,13 @@ function printEmail(message: EmailMessage, button: HTMLButtonElement) {
   button.ownerDocument.body.append(frame);
 }
 
-export function EmailWorkflowActions({ message }: { message: EmailMessage }) {
+/** `labelClassName` lets the WebMail show icons only on narrower screens (the name stays as aria-label). */
+export function EmailWorkflowActions({ message, labelClassName, buttonClassName }: { message: EmailMessage; labelClassName?: string; buttonClassName?: string }) {
   const [workflow, setWorkflow] = useState<'task' | 'event' | null>(null);
   return <>
-    <Button size="sm" variant="ghost" onClick={() => setWorkflow('task')}><ListTodo className="mr-1.5 h-4 w-4 text-emerald-600" />Criar tarefa</Button>
-    <Button size="sm" variant="ghost" onClick={() => setWorkflow('event')}><CalendarPlus className="mr-1.5 h-4 w-4 text-rose-500" />Criar evento</Button>
-    <Button size="sm" variant="ghost" disabled={!message.body_fetched} onClick={event => printEmail(message, event.currentTarget)}><Printer className="mr-1.5 h-4 w-4" />Imprimir</Button>
+    <Button size="sm" variant="ghost" className={buttonClassName} aria-label="Criar tarefa" title="Criar tarefa" onClick={() => setWorkflow('task')}><ListTodo className="mr-1.5 h-4 w-4 text-emerald-600" /><span className={labelClassName}>Criar tarefa</span></Button>
+    <Button size="sm" variant="ghost" className={buttonClassName} aria-label="Criar evento" title="Criar evento" onClick={() => setWorkflow('event')}><CalendarPlus className="mr-1.5 h-4 w-4 text-rose-500" /><span className={labelClassName}>Criar evento</span></Button>
+    <Button size="sm" variant="ghost" className={buttonClassName} aria-label="Imprimir" title="Imprimir" disabled={!message.body_fetched} onClick={event => printEmail(message, event.currentTarget)}><Printer className="mr-1.5 h-4 w-4" /><span className={labelClassName}>Imprimir</span></Button>
     {workflow === 'task' && <EmailTask message={message} onClose={() => setWorkflow(null)} />}
     {workflow === 'event' && <EmailEvent message={message} onClose={() => setWorkflow(null)} />}
   </>;

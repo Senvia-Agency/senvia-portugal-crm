@@ -5,16 +5,21 @@ import { pt } from 'date-fns/locale';
 import type { CalendarEvent } from '@/types/calendar';
 import { EVENT_TYPE_COLORS } from '@/types/calendar';
 import { EventCard } from './EventCard';
+import { CalendarMarkerChip } from './CalendarMarkerChip';
+import type { CalendarMarker } from './calendar-layers';
 
 interface DayViewProps {
   currentDate: Date;
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
+  /** Holidays and task deadlines, shown with the all-day items (Workplace only). */
+  markers?: readonly CalendarMarker[];
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function DayView({ currentDate, events, onEventClick }: DayViewProps) {
+export function DayView({ currentDate, events, onEventClick, markers = [] }: DayViewProps) {
+  const dayMarkers = markers.filter((marker) => isSameDay(marker.date, currentDate));
   const dayEvents = useMemo(() => {
     return events.filter((event) => isSameDay(new Date(event.start_time), currentDate));
   }, [events, currentDate]);
@@ -39,7 +44,7 @@ export function DayView({ currentDate, events, onEventClick }: DayViewProps) {
   };
 
   return (
-    <div className="bg-card rounded-lg border overflow-hidden">
+    <div className="calendar-surface calendar-dayview bg-card rounded-lg border overflow-hidden">
       {/* Header */}
       <div
         className={cn(
@@ -64,10 +69,11 @@ export function DayView({ currentDate, events, onEventClick }: DayViewProps) {
       </div>
 
       {/* All Day Events */}
-      {allDayEvents.length > 0 && (
+      {(allDayEvents.length > 0 || dayMarkers.length > 0) && (
         <div className="border-b p-3 bg-muted/30">
           <p className="text-xs font-medium text-muted-foreground mb-2">Dia Inteiro</p>
           <div className="space-y-2">
+            {dayMarkers.map((marker) => <CalendarMarkerChip key={marker.key} marker={marker} className="rounded-lg px-3 py-2 text-sm" />)}
             {allDayEvents.map((event) => (
               <EventCard key={event.id} event={event} onClick={() => onEventClick(event)} />
             ))}
@@ -95,9 +101,10 @@ export function DayView({ currentDate, events, onEventClick }: DayViewProps) {
             return (
               <button
                 key={event.id}
+                data-type={event.event_type}
                 onClick={() => onEventClick(event)}
                 className={cn(
-                  'absolute left-1 right-1 rounded p-2 text-white text-sm font-medium pointer-events-auto hover:opacity-90 transition-opacity text-left',
+                  'calendar-chip calendar-block absolute left-1 right-1 rounded p-2 text-white text-sm font-medium pointer-events-auto hover:opacity-90 transition-opacity text-left',
                   colorClass
                 )}
                 style={{ top: `${top}px`, minHeight: `${height}px` }}

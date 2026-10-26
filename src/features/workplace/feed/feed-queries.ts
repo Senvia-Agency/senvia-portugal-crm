@@ -18,7 +18,7 @@ async function allReactions(organizationId: string, postIds: string[]) {
   const rows: Tables<'workplace_reactions'>[] = [];
   for (let offset = 0; offset < postIds.length; offset += 100) {
     for (let from = 0; ; from += pageSize) {
-      const page = await supabase.from('workplace_reactions').select(reactionColumns).eq('organization_id', organizationId).in('post_id', postIds.slice(offset, offset + 100)).order('post_id').order('user_id').range(from, from + pageSize - 1);
+      const page = await supabase.from('workplace_reactions').select(reactionColumns).eq('organization_id', organizationId).in('post_id', postIds.slice(offset, offset + 100)).order('post_id').order('user_id').order('emoji').range(from, from + pageSize - 1);
       if (page.error) throw page.error;
       rows.push(...page.data);
       if (page.data.length < pageSize) break;

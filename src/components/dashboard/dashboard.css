@@ -1,0 +1,106 @@
+/* Painel in the modern Workplace: the same data, with the Feed's paper depth and dimensional tiles.
+   Scoped to the workspace shell, so Versão antiga keeps its flat surfaces. */
+.app-shell[data-interface='workspace'] .workplace-dashboard {
+  --dash-depth: 0 1px 2px hsl(222 47% 20% / .06), 0 10px 28px -14px hsl(222 60% 30% / .22);
+  --dash-depth-hover: 0 2px 4px hsl(222 47% 20% / .07), 0 18px 38px -16px hsl(222 60% 30% / .3);
+  --tile-start: 217 91% 64%;
+  --tile-end: 221 83% 51%;
+}
+.dark .app-shell[data-interface='workspace'] .workplace-dashboard,
+.app-shell.dark[data-interface='workspace'] .workplace-dashboard {
+  --dash-depth: 0 1px 2px hsl(0 0% 0% / .3), 0 10px 28px -14px hsl(0 0% 0% / .6);
+  --dash-depth-hover: 0 2px 4px hsl(0 0% 0% / .35), 0 18px 38px -16px hsl(0 0% 0% / .7);
+}
+
+/* Heading: the page icon becomes the Painel tile, the greeting gains weight. */
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-header {
+  border-bottom-color: transparent;
+  background: hsl(var(--workplace-canvas, var(--background)) / .94);
+}
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-page-header h1 { gap: .75rem; font-size: 1.75rem; font-weight: 800; letter-spacing: -.035em; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-page-header h1 > svg {
+  box-sizing: content-box; padding: 9px; border-radius: 14px; color: white;
+  background: linear-gradient(145deg, hsl(217 91% 64%), hsl(221 83% 51%));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .25), 0 8px 16px -6px hsl(221 83% 51% / .5);
+}
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-section-title { letter-spacing: .12em; font-size: .6875rem; }
+
+/* Paper cards: soft blue depth that deepens on hover, a short rise on entry. */
+.app-shell[data-interface='workspace'] .workplace-dashboard :is(.workplace-card, .dashboard-metric) {
+  border-color: hsl(var(--workplace-line, var(--border)));
+  border-radius: 1.5rem;
+  box-shadow: var(--dash-depth);
+  transition: box-shadow .15s ease-out;
+  animation: dashboard-rise .3s cubic-bezier(.2, .8, .2, 1) both;
+}
+.app-shell[data-interface='workspace'] .workplace-dashboard :is(.workplace-card, .dashboard-metric):hover { box-shadow: var(--dash-depth-hover); }
+
+/* Card title icons read as small dimensional tiles in the card's tone. */
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card :is(h3 > svg:first-child, h3 > span:first-child > svg:first-child, :has(> h3) > svg:first-child),
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metric-icon {
+  box-sizing: content-box; flex-shrink: 0; padding: 6px; border-radius: 10px; color: white;
+  background: linear-gradient(145deg, hsl(var(--tile-start)), hsl(var(--tile-end)));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .22), 0 4px 10px -4px hsl(var(--tile-end) / .5);
+}
+
+/* Each card takes its own tone, like the module tiles (calendar rose, tasks teal, team violet). */
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-alerts > :nth-child(3n+1) { --tile-start: 352 100% 75%; --tile-end: 352 91% 60%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-alerts > :nth-child(3n+2) { --tile-start: 163 66% 59%; --tile-end: 173 80% 37%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-alerts > :nth-child(3n) { --tile-start: 255 91% 72%; --tile-end: 252 79% 58%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card:has(table) { --tile-start: 255 91% 72%; --tile-end: 252 79% 58%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n+1) { --tile-start: 37 97% 61%; --tile-end: 23 95% 49%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n+2) { --tile-start: 217 91% 64%; --tile-end: 221 83% 51%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n+3) { --tile-start: 163 66% 59%; --tile-end: 173 80% 37%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n+4) { --tile-start: 255 91% 72%; --tile-end: 252 79% 58%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n+5) { --tile-start: 190 88% 51%; --tile-end: 204 88% 44%; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(6n) { --tile-start: 352 100% 75%; --tile-end: 352 91% 60%; }
+
+/* Metric tiles: the number leads, tinted by the tile tone. */
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metric {
+  padding: 1.125rem;
+  background: linear-gradient(160deg, hsl(var(--tile-start) / .09), transparent 46%), hsl(var(--card));
+}
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metric-icon { padding: 7px; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metric-value { font-size: 1.75rem; line-height: 1.15; font-weight: 800; letter-spacing: -.03em; }
+
+/* Tables keep every column; headers become quieter labels and rows respond to hover. */
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card thead th { font-size: .6875rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card tbody tr { transition: background-color .15s ease-out; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card tbody tr:hover { background: hsl(var(--primary) / .04); }
+
+/* Staggered entrance so the page settles in reading order. */
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(2) { animation-delay: 40ms; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(3) { animation-delay: 80ms; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(4) { animation-delay: 120ms; }
+.app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-metrics > :nth-child(n+5) { animation-delay: 160ms; }
+
+@keyframes dashboard-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-interface='workspace'] .workplace-dashboard :is(.workplace-card, .dashboard-metric) { animation: none; transition: none; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .workplace-card tbody tr { transition: none; }
+}
+
+/* Filters: one tidy row on desktop; below 1024px a fixed grid instead of a ragged wrap.
+   The header also stops being sticky there, so it never covers half a small screen. */
+.workplace-dashboard .dashboard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+@media (max-width: 1023px) {
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-header { position: static; margin-bottom: .75rem; padding-top: .5rem; background: transparent; backdrop-filter: none; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .workplace-page-header > :last-child { width: 100%; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-actions {
+    display: grid; width: 100%; gap: .5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "period period" "traffic team" "news edit";
+  }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-period { grid-area: period; min-width: 0; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-period > div { width: 100%; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-period > div > :first-child { flex: 1; min-width: 0; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-period > div > :first-child > button:first-child { flex: 1; min-width: 0; justify-content: flex-start; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-traffic { grid-area: traffic; width: 100%; height: 2.5rem; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-team { grid-area: team; width: 100%; height: 2.5rem; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard :is(.dashboard-traffic, .dashboard-team) > span { flex: 1; min-width: 0; text-align: left; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-news { grid-area: news; align-self: center; }
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-edit { grid-area: edit; justify-self: end; height: 2.5rem; }
+}
+@media (max-width: 479px) {
+  .app-shell[data-interface='workspace'] .workplace-dashboard .dashboard-actions { grid-template-areas: "period period" "traffic traffic" "team team" "news edit"; }
+}

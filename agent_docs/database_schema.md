@@ -294,3 +294,45 @@ Each confirmed referral reward can store a unique `stripe_coupon_id` in `organiz
 ### Telecom chargeback accounting month (20261007173000)
 
 `sale_chargebacks` and `bds_manual_chargebacks` retain `created_at` for audit and add `application_month` (the first day of the commission month chosen on confirmation) and `applied_at` (when the deduction is included in a commission payment). Confirmed chargebacks require an application month. Pending or dismissed chargebacks do not reduce commissions. Both tables remain isolated by organization RLS; the new indexes support organization, month and status lookups. Existing confirmed rows are initially assigned their creation month. The separate `20261007174000` data patch assigns the six reviewed BDS chargebacks to September 2026 only when the expected records match exactly.
+
+## Workplace Feed (20261023122606, 20261026120000)
+
+Organization feed for the Workplace preview. All tables carry `organization_id`; a restrictive `workplace_scope` policy requires `meets_mfa_policy` and active membership (or super_admin) for every operation, and a permissive SELECT lets members read everything in their organization. No client DELETE on posts or comments: publications and recognitions are permanent.
+
+- `workplace_posts`: `author_id` (profiles), `body`, `kind` (`publication` | `announcement` | `recognition`), `pinned`, `created_at`, `updated_at`. Members insert publications and recognitions unpinned; announcements and pinning require `is_org_admin`. The update trigger keeps id, organization, author, creation time, recipient and recognition type immutable.
+  - Recognitions add `recipient_id` (profiles, must be an active member and not the author) and `recognition_type` (`great_work`, `team_spirit`, `creativity`, `leadership`, `helpful`, `professional`, `innovation`, `dedication`, `congrats`, `thanks`); the body is the reason, 30–1000 characters. Both columns are NULL for other kinds. An insert trigger for authenticated clients fixes `created_at` to `now()` and limits each author to 3 recognitions per 24 hours per organization, and 1 per recipient per 24 hours. Partial indexes: `(organization_id, recipient_id, created_at DESC)` and `(organization_id, author_id, created_at DESC)` where `kind = 'recognition'`.
+- `workplace_comments`: `post_id` (composite FK with organization), `author_id`, `body` (1–2000). Members insert their own.
+- `workplace_reactions`: `post_id`, `user_id`, `emoji` (one of 👍 ❤️ 👏 🎉 😂 😮 😢 🙏; defaults to ❤️, which also covers likes made before emojis). Primary key `(post_id, user_id, emoji)`: a person may add several different emojis. Members insert and delete only their own rows.
+
+All three tables are in the `supabase_realtime` publication.
+
+## Workplace Mensagens (20261026150000)
+
+Internal conversations between members of the same organization. Only conversation members read messages; organization admins have no access to other people's conversations. Conversations and memberships are created only through SECURITY DEFINER functions that validate the organization (`workplace_chat_require_org`: active member and `meets_mfa_policy`). `workplace_chat_is_member(conversation)` (member + still an active organization member + MFA) gates every policy, the file bucket and the private realtime topic.
+
+- `workplace_chat_conversations`: `organization_id`, `kind` (`direct` | `group` | `channel`), `title` (required except 1:1), `direct_key` (`<org>:<smaller user>:<larger user>`, unique, one 1:1 per pair), `is_default` (one "Geral" channel per organization, partial unique index), `created_by`, `last_message_at`/`last_message_id`. Read-only for clients.
+- `workplace_chat_members`: `(conversation_id, user_id)` primary key, `role` (`owner` | `admin` | `member`), `joined_at`, `last_read_at` (visible to the other members: unread counts and "Visto"). Read-only for clients.
+- `workplace_chat_member_settings`: personal `is_pinned`, `is_muted`, `is_archived`, visible and writable only by their owner (FK to the membership, removed with it).
+- `workplace_chat_messages`: `conversation_id`, `organization_id` (set by trigger), `sender_id`, `kind` (`text` | `image` | `file` | `audio`), `body` (≤ 4000), attachment path/name/size (≤ 25 MB)/mime, `duration_sec`, `reply_to_id` (same conversation only), `forwarded`, `edited_at`, `deleted_at`. Clients may update only `body` (text edits) and `deleted_at`; deleting clears body and attachment fields and is final. No client DELETE. Index `(conversation_id, created_at DESC)` and `(organization_id, created_at DESC)`.
+- `workplace_chat_reactions`: `(message_id, user_id, emoji)` primary key, composite FK `(message_id, conversation_id)`; emoji one of 👍 ❤️ 👏 🎉 😂 😮 😢 🙏. Members add and remove their own.
+
+Functions (authenticated): `workplace_chat_bootstrap(org)` (creates/joins "Geral"), `workplace_chat_start_direct(org, user)`, `workplace_chat_create_group(org, title, members)` (1–99 colleagues, creator owner), `workplace_chat_add_members(conversation, members)` (group owner/admin), `workplace_chat_leave_group(conversation)` (oldest member becomes owner if none remains), `workplace_chat_rename_group(conversation, title)` (any member), `workplace_chat_mark_read(conversation)`, `workplace_chat_list_conversations(org)` (preferences, member count, unread, 1:1 peer, last message preview), `workplace_chat_search_messages(org, term, limit)` (accent/case-insensitive via `immutable_unaccent`, RLS applies).
+
+Storage: private bucket `workplace-chat-files` (25 MB; images, PDF, text/CSV, ZIP, Office, audio), paths `<conversation>/<file>`; members read and upload, the uploader deletes. Realtime: messages, members, settings and conversations are in `supabase_realtime`; typing and reaction nudges use the private broadcast topic `workplace-chat-<conversation>` (policies on `realtime.messages`).
+
+### Feed attachments (20261026170000)
+
+`workplace_posts.attachments` is a JSON array (max 4) of `{ path, name, size, mime }`; a trigger requires each `path` to start with `<post id>/`, a name of 1–255 characters, a numeric size up to 15 MB and a MIME type. Files live in the private bucket `workplace-feed-files` (15 MB; images, PDF, Word, Excel, PowerPoint) under `<post>/<file>`: organization members (or super admin) with MFA read them (`workplace_feed_can_see`), only the post's author uploads (`workplace_feed_is_author`, so the post is created first and its attachment list updated after the upload), and the uploader deletes.
+
+## WebMail (20261026190000)
+
+Personal layer of the WebMail on top of the email caixas (`messaging_channels` with `channel_type = 'email'`, still created by admins and synced by `email-gateway`). Every row belongs to one person and only they see it. Rows tied to a caixa also require `pode_aceder_caixa(auth.uid(), channel_id)`; contact rows require `is_org_member`. A trigger (`email_personal_row_org`) always copies `organization_id` from the caixa and refreshes `updated_at`.
+
+- `email_account_preferences`: primary key `(user_id, channel_id)`. Columns: `label` (the person's own name for the caixa, 1–60 characters; the admin's `messaging_channels.label` stays the shared name), `color` (`#rrggbb`), `notify` (new-mail push, default true), `is_default` (the caixa "Escrever" opens with; partial unique index, one per person and organization), `position` (sidebar order).
+- `email_signatures`: `id`, `user_id`, `channel_id`, `name` (1–60), `html` (≤ 20 000), `is_default` (partial unique index, at most one per person and caixa), `position`. Written through `email_save_signatures(channel, items)`, which replaces the person's list for that caixa in one step and leaves exactly one default (the first one when none is marked). The caixa-wide signatures in `messaging_channels.metadata.signatures` remain the fallback while a person has none.
+- `email_contacts`: primary key `(user_id, organization_id, email)`; `email` lowercase, `name`, `uses`, `last_used_at`. Filled by `email_remember_contacts(org, items)` after each send (up to 100 addresses per call; known addresses get `uses + 1`). Index `(user_id, organization_id, uses DESC, last_used_at DESC)`.
+- `email_contact_lists`: `id`, `user_id`, `organization_id`, `name` (1–60, unique per person and organization, case-insensitive), `members` (JSON array of `{ email, name }`, max 500).
+
+Storage: public bucket `email-signatures` (5 MB; PNG, JPEG, GIF, WebP) so recipients can load signature images; each person uploads and deletes only under `<user id>/`.
+
+`notificar_email_novo` (new mail in an Inbox folder) now leaves out people whose `notify` is false for that caixa: assignees minus muted people, or, when the caixa has no assignees and someone muted it, the active organization members minus muted people. With nobody left, no push is sent.
