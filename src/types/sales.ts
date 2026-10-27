@@ -200,6 +200,12 @@ export interface Sale {
   code: string;
   /** Recipient selected for this sale; legacy rows use the client setting. */
   billing_target?: 'client' | 'company' | null;
+  /** Automatic receipt for this sale; null follows the client's default. */
+  fiscal_auto_receipts?: boolean | null;
+  /** Email the automatic receipt; null follows the client's default. */
+  fiscal_auto_email?: boolean | null;
+  /** Optional address for this sale's automatic receipts. */
+  fiscal_email_recipient?: string | null;
   proposal_id: string | null;
   lead_id: string | null;
   client_id: string | null;

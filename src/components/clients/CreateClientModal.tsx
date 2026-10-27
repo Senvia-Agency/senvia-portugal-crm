@@ -30,6 +30,8 @@ import { useClientFieldsSettings } from "@/hooks/useClientFieldsSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { CLIENT_SOURCE_LABELS, ClientStatus, DEFAULT_CLIENT_FIELDS_SETTINGS, BillingTarget } from "@/types/clients";
 import { isBillingActive } from "@/components/sales/SaleFiscalInfo";
+import { isKeyInvoiceActive } from "@/lib/fiscal-automation";
+import { ClientAutomaticReceiptsCard, type ClientAutomaticReceipts } from "./ClientAutomaticReceiptsCard";
 import { COUNTRIES } from "@/lib/countries";
 import { User, Building2 } from "lucide-react";
 
@@ -53,6 +55,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
   const { data: teamMembers = [] } = useTeamMembers();
   const { data: fieldSettings } = useClientFieldsSettings();
   const invoicingEnabled = isBillingActive(organization);
+  const keyInvoiceActive = isKeyInvoiceActive(organization);
   const isTelecom = organization?.niche === 'telecom';
 
   const settings = fieldSettings || DEFAULT_CLIENT_FIELDS_SETTINGS;
@@ -70,6 +73,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
   const [companyPostalCode, setCompanyPostalCode] = useState("");
   const [companyCountry, setCompanyCountry] = useState("PT");
   const [billingTarget, setBillingTarget] = useState<BillingTarget>("client");
+  const [automaticReceipts, setAutomaticReceipts] = useState<ClientAutomaticReceipts>({ receipts: false, email: false });
   const [status, setStatus] = useState<ClientStatus>("active");
   const [source, setSource] = useState("");
   const [notes, setNotes] = useState("");
@@ -139,6 +143,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
         company_postal_code: companyPostalCode.trim() || undefined,
         company_country: companyCountry || undefined,
         billing_target: billingTarget,
+        ...(keyInvoiceActive && automaticReceipts.receipts ? { fiscal_auto_receipts: true, fiscal_auto_email: automaticReceipts.email } : {}),
         status,
         source: source || undefined,
         address_line1: addressLine1.trim() || undefined,
@@ -170,6 +175,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
   };
 
   const resetForm = () => {
+    setAutomaticReceipts({ receipts: false, email: false });
     setName("");
     setEmail("");
     setPhone("");
@@ -531,6 +537,10 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                       )}
                     </CardContent>
                   </Card>
+                  )}
+
+                  {keyInvoiceActive && (
+                    <ClientAutomaticReceiptsCard idPrefix="new-client" value={automaticReceipts} onChange={setAutomaticReceipts} />
                   )}
 
                   <Card>

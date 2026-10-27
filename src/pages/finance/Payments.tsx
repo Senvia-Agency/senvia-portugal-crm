@@ -11,6 +11,9 @@ import { AddRevenueModal } from "@/components/finance/AddRevenueModal";
 import { useAllPayments } from "@/hooks/useAllPayments";
 import { useUpdateSalePayment } from "@/hooks/useSalePayments";
 import { useGenerateReceipt } from "@/hooks/useGenerateReceipt";
+import { useAutomaticReceipts } from "@/hooks/useAutomaticReceipts";
+import { AutomaticReceiptBadge } from "@/components/finance/AutomaticReceiptBadge";
+import { automaticReceiptState } from "@/lib/fiscal-automation";
 import { useIssueInvoiceReceipt } from "@/hooks/useIssueInvoiceReceipt";
 import { useSaleItems } from "@/hooks/useSaleItems";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +49,7 @@ export default function FinancePayments() {
   const updatePayment = useUpdateSalePayment();
   const generateReceipt = useGenerateReceipt();
   const issueInvoiceReceipt = useIssueInvoiceReceipt();
+  const { data: automaticReceipts } = useAutomaticReceipts((payments ?? []).filter((payment) => payment.status === 'paid').map((payment) => payment.id));
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -234,6 +238,9 @@ export default function FinancePayments() {
     if (payment.status !== 'paid') return false;
     if ((payment.reversal_status ?? 'none') !== 'none' || Number(payment.reversed_amount ?? 0) > 0) return false;
     if (payment.invoice_reference) return false;
+    // An automatic receipt already on its way (or waiting for review) owns this payment.
+    const automatic = automaticReceipts?.get(payment.id);
+    if (automatic && automaticReceiptState(automatic.processing_status) !== 'cancelled') return false;
     const mode = getDocumentMode(payment);
     if (mode === 'invoice_receipt') {
       // FR belongs to the sale, not to each instalment. Show a single action
@@ -486,7 +493,8 @@ export default function FinancePayments() {
                           {payment.payment_method ? PAYMENT_METHOD_LABELS[payment.payment_method] : '-'}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {payment.invoice_reference || '-'}
+                          {payment.invoice_reference || (automaticReceipts?.get(payment.id) ? null : '-')}
+                          <AutomaticReceiptBadge job={automaticReceipts?.get(payment.id)} className={payment.invoice_reference ? 'mt-1 flex w-fit' : undefined} />
                         </TableCell>
                         <TableCell>
                           <Badge 
@@ -495,6 +503,7 @@ export default function FinancePayments() {
                           >
                             {PAYMENT_RECORD_STATUS_LABELS[payment.status]}
                           </Badge>
+                          <AutomaticReceiptBadge job={automaticReceipts?.get(payment.id)} className="mt-1 flex w-fit md:hidden" />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

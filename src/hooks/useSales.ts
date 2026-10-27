@@ -455,6 +455,9 @@ export function useUpdateSale() {
         subtotal?: number;
         client_id?: string | null;
         billing_target?: 'client' | 'company' | null;
+        fiscal_auto_receipts?: boolean | null;
+        fiscal_auto_email?: boolean | null;
+        fiscal_email_recipient?: string | null;
         sale_date?: string;
         seller_id?: string | null;
         proposal_type?: ProposalType | null;

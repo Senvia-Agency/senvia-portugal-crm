@@ -403,7 +403,39 @@ async function runIssue(db: AdminClient): Promise<Record<string, number>> {
     if (await processIssueJob(db, row, claimToken)) completed++
     else failed++
   }
-  return { scheduled: Number(scheduled || 0), claimed: data?.length || 0, completed, failed }
+  const sales = await runSaleReceipts(db)
+  return {
+    scheduled: Number(scheduled || 0),
+    claimed: (data?.length || 0) + sales.claimed,
+    completed: completed + sales.completed,
+    failed: failed + sales.failed,
+  }
+}
+
+// Receipts of non-recurring sales, queued when a payment became paid with the
+// automatic receipt on (client default or the sale's own choice). The decision
+// was taken at that moment, so there is no mode to recheck here.
+async function runSaleReceipts(db: AdminClient): Promise<{ claimed: number; completed: number; failed: number }> {
+  const claimToken = crypto.randomUUID()
+  const { data, error } = await db.rpc('claim_automatic_sale_receipts', {
+    p_limit: 25,
+    p_worker_id: claimToken,
+  })
+  if (error) throw new Error(`claim_automatic_sale_receipts: ${error.code || 'error'}`)
+  let completed = 0
+  let failed = 0
+  for (const job of (data || []) as FiscalWorkerJob[]) {
+    try {
+      const org = await loadOrganization(db, job.organization_id)
+      await issueReceipt(db, org, job, claimToken)
+      log('issued', { jobId: job.id, kind: job.document_type, origin: 'sale' })
+      completed++
+    } catch (issueError) {
+      await failIssue(db, job, claimToken, issueError)
+      failed++
+    }
+  }
+  return { claimed: data?.length || 0, completed, failed }
 }
 
 async function runReconcile(db: AdminClient): Promise<Record<string, number>> {

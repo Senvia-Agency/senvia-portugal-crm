@@ -56,6 +56,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useUpdateSale } from "@/hooks/useSales";
+import { isKeyInvoiceActive } from "@/lib/fiscal-automation";
+import { SaleAutomaticReceiptsCard } from "./SaleAutomaticReceiptsCard";
 import { useOrganization } from "@/hooks/useOrganization";
 import { InvoiceDraftModal } from "./InvoiceDraftModal";
 import type { DraftSaleItem } from "./InvoiceDraftModal";
@@ -1046,6 +1048,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         ))}
                       </CardContent>
                     </Card>
+                  )}
+
+                  {/* Automatic receipt: client default with a per-sale choice (recurring sales use their recurrence) */}
+                  {!isTelecom && !sale.has_recurring && isKeyInvoiceActive(organization) && (
+                    <SaleAutomaticReceiptsCard sale={sale} disabled={sale.status === 'cancelled'} />
                   )}
 
                   {/* Payments Section (hidden for telecom) */}

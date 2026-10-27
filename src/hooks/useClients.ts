@@ -67,6 +67,8 @@ export function useClient(clientId: string | null) {
 
 interface CreateClientData {
   name: string;
+  fiscal_auto_receipts?: boolean;
+  fiscal_auto_email?: boolean;
   email?: string;
   phone?: string;
   company?: string;
