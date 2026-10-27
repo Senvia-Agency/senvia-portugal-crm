@@ -371,14 +371,12 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
     }
   }
 
-  // Lead-level guard: if BOTH email AND phone are invalid, reject. A lead
-  // with neither is worthless and certainly fake.
-  if (!cleanPhone && !cleanEmail) {
-    console.warn('[submit-lead webhook] dropped — no valid contact method');
-    return new Response(
-      JSON.stringify({ error: 'Lead sem contacto válido' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  // Neither a valid phone nor a valid email. The lead is still saved, with what
+  // arrived kept in its notes and flagged for review: a paid ad lead is never lost,
+  // and an error response here makes Make switch the whole integration off.
+  const contactNeedsReview = !cleanPhone && !cleanEmail;
+  if (contactNeedsReview) {
+    console.warn('[submit-lead webhook] no valid contact method — saved for review');
   }
 
   // Deduplication check (same phone within 60s)
@@ -432,6 +430,16 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
       customData[key] = value;
     }
   }
+  if (contactNeedsReview) customData.contacto_por_rever = true;
+
+  const received = (value: unknown) =>
+    value === null || value === undefined || String(value).trim() === '' ? '(vazio)' : String(value).trim().substring(0, 200);
+  const leadNotes = [
+    contactNeedsReview
+      ? `⚠️ Contacto inválido recebido — rever antes de contactar. Telefone: ${received(phone)} · Email: ${received(email)}`
+      : null,
+    notes ? String(notes) : null,
+  ].filter(Boolean).join('\n\n');
 
   // Insert lead
   let { data: lead, error: leadError } = await supabase
@@ -446,7 +454,7 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
       gdpr_consent: true,
       source: String(source).substring(0, 100),
       status: 'new',
-      notes: notes ? String(notes).substring(0, 2000) : null,
+      notes: leadNotes ? leadNotes.substring(0, 2000) : null,
       custom_data: Object.keys(customData).length > 0 ? customData : {},
     })
     .select()
@@ -542,8 +550,8 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
         body: JSON.stringify({
           organization_id: org.id,
           user_ids: pushUserIds,
-          title: '🚀 Novo Lead!',
-          body: `${lead.name} - ${lead.source}`,
+          title: contactNeedsReview ? '⚠️ Novo lead por rever' : '🚀 Novo Lead!',
+          body: `${lead.name} - ${lead.source}${contactNeedsReview ? ' · contacto inválido' : ''}`,
           url: '/leads',
           tag: `lead-${lead.id}`,
         }),
@@ -608,6 +616,7 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
   </td></tr>
   <tr><td style="padding:0 32px 24px">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;border-radius:12px;border:1px solid #334155">
+      ${contactNeedsReview ? `<tr><td colspan="2" style="padding:12px 16px 0;color:#fbbf24;font-size:13px;font-weight:600">⚠️ Contacto inválido — reveja o lead antes de o contactar.</td></tr>` : ''}
       ${lead.name && lead.name !== 'Lead Externo' && lead.name !== 'Anónimo' ? `<tr><td style="padding:12px 16px 0;color:#94a3b8;font-size:13px;font-weight:600">Nome</td><td style="padding:12px 16px 0;color:#f1f5f9;font-size:14px;text-align:right">${lead.name}</td></tr>` : ''}
       ${lead.phone && lead.phone !== '000000000' ? `<tr><td style="padding:12px 16px 0;color:#94a3b8;font-size:13px;font-weight:600">Telefone</td><td style="padding:12px 16px 0;color:#f1f5f9;font-size:14px;text-align:right">${lead.phone}</td></tr>` : ''}
       ${lead.email && lead.email !== 'nao-fornecido@placeholder.local' ? `<tr><td style="padding:12px 16px 0;color:#94a3b8;font-size:13px;font-weight:600">Email</td><td style="padding:12px 16px 0;color:#f1f5f9;font-size:14px;text-align:right">${lead.email}</td></tr>` : ''}
@@ -654,7 +663,7 @@ async function handleWebhookMode(req: Request, token: string): Promise<Response>
   }
 
   return new Response(
-    JSON.stringify({ success: true, lead_id: lead.id }),
+    JSON.stringify({ success: true, lead_id: lead.id, contact_review: contactNeedsReview }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
