@@ -74,7 +74,7 @@ import { SellerSelect } from "@/components/sales/SellerSelect";
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from "@/components/shared/DocumentsCheckboxField";
 import { usePermissions } from '@/hooks/usePermissions';
 import { RecurringFiscalSettings } from "@/components/sales/RecurringFiscalSettings";
-import { configureSaleRecurrenceFiscal, ensureSaleRecurrenceFromLegacy } from "@/hooks/useSaleRecurrence";
+import { configureSaleRecurrenceFiscal, ensureSaleRecurrenceFromLegacy, includeSaleInRecurringFiscal } from "@/hooks/useSaleRecurrence";
 import {
   DEFAULT_RECURRING_FISCAL_CONFIG,
   recurringFiscalConfigError,
@@ -1000,6 +1000,15 @@ export function CreateSaleModal({
           if (hasCustomFiscalConfig) {
             await configureSaleRecurrenceFiscal(recurrenceId, recurringFiscalConfig);
           }
+          if (recurringFiscalConfig.fiscal_mode === 'automatic') {
+            // The sale itself is the first month: issue it like the cycles.
+            try {
+              await includeSaleInRecurringFiscal(recurrenceId);
+            } catch (firstMonthError) {
+              console.error('Including the first month failed:', firstMonthError);
+              toast.warning('A recorrência ficou automática, mas a Fatura do 1.º mês desta venda tem de ser emitida à mão.');
+            }
+          }
         } catch (fiscalError) {
           console.error('Recurring fiscal configuration failed:', fiscalError);
           if (hasCustomFiscalConfig) {
@@ -1695,6 +1704,7 @@ export function CreateSaleModal({
                         automaticDisabledReason={hasRecurringRetention
                           ? 'Produtos com retenção exigem emissão manual até à homologação deste cenário no KeyInvoice.'
                           : undefined}
+                        includesFirstMonth
                         compact
                       />
                       {!canConfigureFiscal && (

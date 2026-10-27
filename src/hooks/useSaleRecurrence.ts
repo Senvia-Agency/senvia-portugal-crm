@@ -81,6 +81,11 @@ export interface SaleRecurrenceDetail extends RecurringFiscalConfig {
   stripe_checkout_session_id: string | null;
   client_email: string | null;
   fiscal_auto_start_after: string | null;
+  /** The sale itself (its first month) is issued automatically like the cycles. */
+  fiscal_include_sale: boolean;
+  fiscal_sale_last_error: string | null;
+  /** The sale's own documents: its FT or FR and the receipts of its payments. */
+  sale_documents: RecurrenceFiscalDocument[];
   cycles: RecurrenceCycle[];
 }
 
@@ -90,6 +95,10 @@ const RECURRENCE_BASE_FIELDS =
   'id, sale_id, organization_id, amount, anchor_date, service_status, billing_status, billing_provider, next_cycle_date, last_cycle_date, stripe_subscription_id, stripe_checkout_session_id';
 const RECURRENCE_FISCAL_FIELDS =
   `${RECURRENCE_BASE_FIELDS}, fiscal_mode, fiscal_document_policy, fiscal_auto_email, fiscal_email_config, fiscal_auto_start_after`;
+const RECURRENCE_FIRST_MONTH_FIELDS =
+  `${RECURRENCE_FISCAL_FIELDS}, fiscal_include_sale, fiscal_sale_last_error`;
+const FISCAL_DOCUMENT_FIELDS =
+  'id, recurring_cycle_id, processing_status, reference, document_type, pdf_path, provider_document_type_code, provider_series, provider_document_number, provider_atcud, email_status, email_last_error';
 const CYCLE_BASE_FIELDS =
   'id, period_start, period_end, due_date, amount, status, stripe_invoice_id, paid_at, failure_reason';
 const CYCLE_FISCAL_FIELDS =
@@ -134,6 +143,36 @@ function cycleEmailStatus(value: unknown): FiscalEmailStatus {
   }
 }
 
+function toFiscalDocument(row: UnknownRow): RecurrenceFiscalDocument | null {
+  if (typeof row.id !== 'string') return null;
+  const text = (value: unknown) => (typeof value === 'string' ? value : null);
+  return {
+    id: row.id,
+    processing_status: text(row.processing_status),
+    reference: text(row.reference),
+    document_type: text(row.document_type),
+    pdf_path: text(row.pdf_path),
+    provider_document_type_code: text(row.provider_document_type_code),
+    provider_series: text(row.provider_series),
+    provider_document_number: text(row.provider_document_number),
+    provider_atcud: text(row.provider_atcud),
+    email_status: typeof row.email_status === 'string' ? cycleEmailStatus(row.email_status) : null,
+    email_last_error: text(row.email_last_error),
+  };
+}
+
+// The fiscal ledger columns are newer than the generated types.
+const fiscalInvoices = () => supabase.from('invoices') as unknown as {
+  select: (columns: string) => {
+    in: (column: string, values: unknown[]) => Promise<{ data: UnknownRow[] | null; error: { message?: string } | null }>;
+    eq: (column: string, value: unknown) => {
+      is: (column: string, value: null) => {
+        order: (column: string) => Promise<{ data: UnknownRow[] | null; error: { message?: string } | null }>;
+      };
+    };
+  };
+};
+
 /** Detalhe da recorrência de uma venda, com o histórico de ciclos. */
 export function useSaleRecurrence(saleId: string | null | undefined) {
   return useQuery({
@@ -157,7 +196,11 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
         };
       };
 
-      let recurrenceResult = await fetchRecurrence(RECURRENCE_FISCAL_FIELDS);
+      // Newest columns first; an older database falls back field set by field set.
+      let recurrenceResult = await fetchRecurrence(RECURRENCE_FIRST_MONTH_FIELDS);
+      if (recurrenceResult.error && isMissingFiscalSchema(recurrenceResult.error)) {
+        recurrenceResult = await fetchRecurrence(RECURRENCE_FISCAL_FIELDS);
+      }
       if (recurrenceResult.error && isMissingFiscalSchema(recurrenceResult.error)) {
         recurrenceResult = await fetchRecurrence(RECURRENCE_BASE_FIELDS);
       }
@@ -192,16 +235,8 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
       );
 
       if (supportsFiscalLedger && rawCycles.length > 0) {
-        const invoicesTable = supabase.from('invoices') as unknown as {
-          select: (columns: string) => {
-            in: (
-              column: string,
-              values: unknown[],
-            ) => Promise<{ data: UnknownRow[] | null; error: { message?: string } | null }>;
-          };
-        };
-        const { data: invoices, error: invoicesError } = await invoicesTable
-          .select('id, recurring_cycle_id, processing_status, reference, document_type, pdf_path, provider_document_type_code, provider_series, provider_document_number, provider_atcud, email_status, email_last_error')
+        const { data: invoices, error: invoicesError } = await fiscalInvoices()
+          .select(FISCAL_DOCUMENT_FIELDS)
           .in('recurring_cycle_id', rawCycles.map((cycle) => cycle.id));
         if (invoicesError) {
           // A salesperson may be allowed to view the sale but not fiscal
@@ -211,39 +246,31 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
         }
 
         for (const rawInvoice of (invoices ?? []) as unknown as UnknownRow[]) {
-          if (typeof rawInvoice.id !== 'string') continue;
-          const document: RecurrenceFiscalDocument = {
-            id: rawInvoice.id,
-            processing_status: typeof rawInvoice.processing_status === 'string'
-              ? rawInvoice.processing_status
-              : null,
-            reference: typeof rawInvoice.reference === 'string' ? rawInvoice.reference : null,
-            document_type: typeof rawInvoice.document_type === 'string' ? rawInvoice.document_type : null,
-            pdf_path: typeof rawInvoice.pdf_path === 'string' ? rawInvoice.pdf_path : null,
-            provider_document_type_code:
-              typeof rawInvoice.provider_document_type_code === 'string'
-                ? rawInvoice.provider_document_type_code
-                : null,
-            provider_series:
-              typeof rawInvoice.provider_series === 'string' ? rawInvoice.provider_series : null,
-            provider_document_number:
-              typeof rawInvoice.provider_document_number === 'string'
-                ? rawInvoice.provider_document_number
-                : null,
-            provider_atcud: typeof rawInvoice.provider_atcud === 'string' ? rawInvoice.provider_atcud : null,
-            email_status: typeof rawInvoice.email_status === 'string'
-              ? cycleEmailStatus(rawInvoice.email_status)
-              : null,
-            email_last_error:
-              typeof rawInvoice.email_last_error === 'string' ? rawInvoice.email_last_error : null,
-          };
-          invoicesById.set(rawInvoice.id, document);
+          const document = toFiscalDocument(rawInvoice);
+          if (!document) continue;
+          invoicesById.set(document.id, document);
           if (typeof rawInvoice.recurring_cycle_id === 'string') {
             const cycleDocuments = invoicesByCycleId.get(rawInvoice.recurring_cycle_id) ?? [];
             cycleDocuments.push(document);
             invoicesByCycleId.set(rawInvoice.recurring_cycle_id, cycleDocuments);
           }
         }
+      }
+
+      const includesSale = recurrence.fiscal_include_sale === true;
+      let saleDocuments: RecurrenceFiscalDocument[] = [];
+      if (includesSale) {
+        const { data: documents, error: documentsError } = await fiscalInvoices()
+          .select(FISCAL_DOCUMENT_FIELDS)
+          .eq('sale_id', saleId)
+          .is('recurring_cycle_id', null)
+          .order('created_at');
+        if (documentsError) {
+          console.warn('Sale fiscal documents are not available:', documentsError.message);
+        }
+        saleDocuments = ((documents ?? []) as UnknownRow[])
+          .map(toFiscalDocument)
+          .filter((document): document is RecurrenceFiscalDocument => document !== null);
       }
 
       const { data: sale } = await supabase
@@ -275,6 +302,11 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
         ...(recurrence as unknown as Omit<SaleRecurrenceDetail, 'cycles'>),
         ...fiscalConfig,
         client_email: (sale?.client as { email?: string | null } | null)?.email ?? null,
+        fiscal_include_sale: includesSale,
+        fiscal_sale_last_error: typeof recurrence.fiscal_sale_last_error === 'string'
+          ? recurrence.fiscal_sale_last_error
+          : null,
+        sale_documents: saleDocuments,
         cycles: normalizedCycles,
       };
     },
@@ -336,6 +368,43 @@ export async function ensureSaleRecurrenceFromLegacy(saleId: string): Promise<st
     : null;
   if (!id) throw new Error('A recorrência ainda não está disponível');
   return id;
+}
+
+/**
+ * While the sale is being created with automatic issuance, its first month (the sale
+ * itself) is issued like the cycles. Returns false when the sale no longer qualifies.
+ */
+export async function includeSaleInRecurringFiscal(recurrenceId: string): Promise<boolean> {
+  const { data, error } = await (supabase.rpc as unknown as (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message?: string } | null }>)(
+    'include_sale_in_recurring_fiscal',
+    { p_recurrence_id: recurrenceId },
+  );
+  if (error) throw new Error(error.message || 'Não foi possível incluir o 1.º mês na emissão automática');
+  return data === true;
+}
+
+export function useRetryRecurringSaleDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (recurrenceId: string) => {
+      const { error } = await (supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message?: string } | null }>)(
+        'retry_recurring_sale_document',
+        { p_recurrence_id: recurrenceId },
+      );
+      if (error) throw new Error(error.message || 'Não foi possível repetir a emissão');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sale-recurrence'] });
+      toast.success('Nova tentativa na próxima passagem (até 5 minutos)');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 }
 
 export function useConfigureSaleRecurrenceFiscal() {

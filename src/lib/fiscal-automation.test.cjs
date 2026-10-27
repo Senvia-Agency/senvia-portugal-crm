@@ -32,6 +32,21 @@ test('automatic receipts are only offered with an active KeyInvoice credential',
   assert.equal(api.isKeyInvoiceActive(null), false);
 });
 
+test('the first month reads from its own documents, then from why it waits', () => {
+  const base = { lastError: null, policy: 'invoice_then_receipt', anchorDate: '2026-10-27', today: '2026-10-27', documents: [] };
+  assert.equal(api.firstMonthState(base), 'queued');
+  assert.equal(api.firstMonthState({ ...base, policy: 'invoice_receipt_when_paid' }), 'waiting_payment');
+  assert.equal(api.firstMonthState({ ...base, anchorDate: '2026-11-03' }), 'waiting_start');
+  assert.equal(api.firstMonthState({ ...base, lastError: '[missing_nif] Sem NIF' }), 'review');
+  assert.equal(api.firstMonthState({ ...base, documents: [{ document_type: 'invoice', processing_status: 'processing' }] }), 'processing');
+  assert.equal(api.firstMonthState({ ...base, documents: [{ document_type: 'invoice', processing_status: 'manual_review' }] }), 'review');
+  // A receipt alone is not the month's document; a voided Fatura no longer counts.
+  assert.equal(api.firstMonthState({ ...base, documents: [{ document_type: 'receipt', processing_status: 'issued' }] }), 'queued');
+  assert.equal(api.firstMonthState({ ...base, documents: [{ document_type: 'invoice', processing_status: 'void' }] }), 'queued');
+  // Once issued, an older error no longer matters.
+  assert.equal(api.firstMonthState({ ...base, lastError: 'x', documents: [{ document_type: 'invoice', processing_status: 'issued' }] }), 'issued');
+});
+
 test('job states read in plain terms', () => {
   assert.equal(api.automaticReceiptState('pending'), 'queued');
   assert.equal(api.automaticReceiptState('retry'), 'retry');

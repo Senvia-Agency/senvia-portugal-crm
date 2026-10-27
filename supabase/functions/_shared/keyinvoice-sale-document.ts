@@ -23,6 +23,8 @@ export interface IssueSaleDocumentInput {
   recurringCycleId?: string | null
   idempotencyKey?: string | null
   requestEmail?: boolean
+  // Kept in the fiscal snapshot for the email worker (recipient mode, cc...).
+  emailConfig?: Record<string, unknown> | null
 }
 
 function documentType(kind: 'invoice' | 'invoice_receipt'): 'invoice' | 'invoice_receipt' {
@@ -636,10 +638,12 @@ export async function issueKeyInvoiceSaleDocument(
     expectedTotal,
     clientName,
     clientNif,
-    fiscalSnapshot,
     session,
     lines,
   } = context
+  const fiscalSnapshot = input.emailConfig
+    ? { ...context.fiscalSnapshot, email: input.emailConfig }
+    : context.fiscalSnapshot
   const duplicate = await findExisting(db, input, documentType(kind))
   if (duplicate?.processing_status === 'issued' || duplicate?.status === 'final') {
     return { invoice: duplicate, identity: identityFromResult(duplicate), alreadyIssued: true }

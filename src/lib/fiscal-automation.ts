@@ -38,3 +38,31 @@ export function automaticReceiptState(processingStatus: string | null | undefine
     default: return 'review';
   }
 }
+
+export type FirstMonthState = 'waiting_start' | 'waiting_payment' | 'queued' | 'processing' | 'issued' | 'review';
+
+/**
+ * Where the first month of a recurring sale (the sale itself) stands: its own FT or FR,
+ * or why it has not been issued yet.
+ */
+export function firstMonthState(input: {
+  lastError: string | null | undefined;
+  policy: 'invoice_then_receipt' | 'invoice_receipt_when_paid';
+  anchorDate: string;
+  today: string;
+  documents: ReadonlyArray<{ document_type: string | null; processing_status: string | null }>;
+}): FirstMonthState {
+  const primary = input.documents.find((document) =>
+    (document.document_type === 'invoice' || document.document_type === 'invoice_receipt')
+    && document.processing_status !== 'void'
+    && document.processing_status !== 'cancelled');
+  if (primary?.processing_status === 'issued') return 'issued';
+  if (input.lastError) return 'review';
+  if (primary) {
+    return primary.processing_status === 'processing' || primary.processing_status === 'pending'
+      ? 'processing'
+      : 'review';
+  }
+  if (input.anchorDate > input.today) return 'waiting_start';
+  return input.policy === 'invoice_receipt_when_paid' ? 'waiting_payment' : 'queued';
+}
