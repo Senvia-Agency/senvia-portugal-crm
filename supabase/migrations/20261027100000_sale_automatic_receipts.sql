@@ -66,7 +66,7 @@ DECLARE
 BEGIN
   SELECT decrypted_secret INTO v_key FROM vault.decrypted_secrets WHERE name = 'service_role_key';
   IF v_key IS NULL THEN RETURN; END IF;
-  PERFORM extensions.net.http_post(
+  PERFORM net.http_post(
     url := 'https://chhmfwlimtbsyjmgtokn.supabase.co/functions/v1/send-push-notification',
     headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || v_key),
     body := jsonb_build_object(
