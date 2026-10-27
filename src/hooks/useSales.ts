@@ -458,6 +458,7 @@ export function useUpdateSale() {
         fiscal_auto_receipts?: boolean | null;
         fiscal_auto_email?: boolean | null;
         fiscal_email_recipient?: string | null;
+        fiscal_auto_invoices?: boolean | null;
         sale_date?: string;
         seller_id?: string | null;
         proposal_type?: ProposalType | null;

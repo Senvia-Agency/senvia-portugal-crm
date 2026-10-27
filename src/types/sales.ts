@@ -206,6 +206,10 @@ export interface Sale {
   fiscal_auto_email?: boolean | null;
   /** Optional address for this sale's automatic receipts. */
   fiscal_email_recipient?: string | null;
+  /** Issue this sale's Fatura automatically; copied from the client at creation, null on older sales. */
+  fiscal_auto_invoices?: boolean | null;
+  /** Why the automatic Fatura stopped; the worker waits while it is set. */
+  fiscal_invoice_last_error?: string | null;
   proposal_id: string | null;
   lead_id: string | null;
   client_id: string | null;

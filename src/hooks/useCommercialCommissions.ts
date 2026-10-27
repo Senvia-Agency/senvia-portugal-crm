@@ -73,7 +73,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
   const saleTypeIds = buildSaleTypeIds(catalog ?? []);
 
   return useQuery<CommercialCommissionsData>({
-    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v2'],
+    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v3'],
     queryFn: async () => {
       const empty: CommercialCommissionsData = { commercials: [], total: 0, totalPending: 0 };
       if (!organizationId || !selectedMonth) return empty;
@@ -83,16 +83,20 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       const monthStartStr = format(monthStart, 'yyyy-MM-dd');
       const monthEndStr = format(monthEnd, 'yyyy-MM-dd');
 
-      // --- Direct commissions (delivered/fulfilled sales with commission) ---
+      // --- Direct commissions ---
+      // Telecom: delivered/fulfilled sales. Elsewhere the commission follows the
+      // client's payments, whatever the sale status; only cancelled sales drop out.
       // `as any`: the generated Supabase types in this repo are stale (they
       // predate telecom_status and half a dozen other live columns), and a
       // column they don't know poisons the whole query's type — the same trap
       // that once took the product catalog down.
-      const { data: sales, error: salesErr } = await (supabase as any)
+      const salesQuery = (supabase as any)
         .from('sales')
         .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, scheduled_install_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
-        .eq('organization_id', organizationId)
-        .in('status', ['delivered', 'fulfilled']);
+        .eq('organization_id', organizationId);
+      const { data: sales, error: salesErr } = await (isTelecom
+        ? salesQuery.in('status', ['delivered', 'fulfilled'])
+        : salesQuery.neq('status', 'cancelled'));
       if (salesErr) throw salesErr;
 
       const commissionSales = (sales || []).filter((s: any) => Number(s.comissao || 0) > 0);
@@ -475,7 +479,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
     extraCardsReconstructedSales: number;
     organizationSales: OrganizationCommissionSale[];
   }>({
-    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, sellerProfiles, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v2'],
+    queryKey: ['team-commission-total', orgId, fromKey, toKey, commissionFilters, catalog, sellerProfiles, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v3'],
     queryFn: async () => {
       if (!orgId) return {
         total: 0, count: 0, orgTotal: 0, grossTotal: 0, paidTotal: 0,
@@ -493,18 +497,22 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
         return true;
       };
 
-      const { data: sales, error: salesError } = await (supabase as any)
+      // Telecom: delivered/fulfilled sales. Elsewhere the commission follows the
+      // client's payments, whatever the sale status; only cancelled sales drop out.
+      const salesQuery = (supabase as any)
         .from('sales')
         .select('id, code, comissao, org_commission, total_value, sale_date, activation_date, scheduled_install_date, payment_status, telecom_status, total_cartoes, commission_paid_at, seller_id, created_by, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date, client:crm_clients(name), lead:leads(name)')
-        .eq('organization_id', orgId)
-        .in('status', ['delivered', 'fulfilled']);
+        .eq('organization_id', orgId);
+      const { data: sales, error: salesError } = await (isTelecom
+        ? salesQuery.in('status', ['delivered', 'fulfilled'])
+        : salesQuery.neq('status', 'cancelled'));
       if (salesError) throw salesError;
 
       const allSales = (sales || []) as any[];
       const saleSplitsById = isTelecom
         ? await fetchSplitsBySale(allSales.map(sale => sale.id as string))
         : new Map<string, import('@/hooks/useCommissionSplits').SaleCommissionSplit[]>();
-      // Only count commissions on RECEIVED sales (concluded AND fully paid).
+      // Only count commissions already earned: telecom by the operator, elsewhere by what the client paid.
       const candidates = allSales.filter(
         (s) => (isTelecom ? telecomCommissionPartsInPeriod(s, dateRange, saleSplitsById.get(s.id)).length > 0 : inRange(s.activation_date || s.sale_date))
           && (isTelecom ? isTelecomCommissionEarned(s) && saleMatchesCommissionFilters(s, commissionFilters, saleTypeIds) : Number(s.comissao || 0) > 0),

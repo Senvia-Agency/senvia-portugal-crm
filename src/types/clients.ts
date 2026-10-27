@@ -29,6 +29,8 @@ export interface CrmClient {
   fiscal_auto_receipts?: boolean;
   /** Default for this client's sales: email that automatic receipt. */
   fiscal_auto_email?: boolean;
+  /** Default for this client's new sales: the sale's Fatura (or Fatura-Recibo) issued automatically. */
+  fiscal_auto_invoices?: boolean;
   
   // Address
   address_line1?: string | null;
