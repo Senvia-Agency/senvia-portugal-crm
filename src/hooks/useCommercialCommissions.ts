@@ -23,6 +23,7 @@ export interface CommissionItem {
   date: string | null;
   amount: number;        // commission amount
   saleValue: number | null; // sale total value (direct sales); null for recurring
+  received?: number | null; // what the client paid in the period (direct sales paid by the client)
   paid: boolean;
   proportional?: boolean; // true when amount is proportional to partial payment
   expectedMonth?: boolean;
@@ -133,7 +134,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
       // later months contribute their share to those months. One item per
       // (sale, month) keeps React keys and selection unique in the UI.
       const monthKey = format(monthStart, 'yyyy-MM');
-      const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean }[] = [];
+      const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean; received?: number }[] = [];
       const organizationSaleIds: string[] = [];
       const organizationCommissionFilters = financeOptions?.commissionFilters
         ? { ...financeOptions.commissionFilters, userId: null }
@@ -211,6 +212,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
           date: lastPayDate || s.activation_date || s.sale_date,
           monthKey,
           proportional: paidThisMonth < tv,
+          received: paidThisMonth,
         });
       }
 
@@ -367,6 +369,7 @@ export function useCommercialCommissions(selectedMonth: string, effectiveUserIds
             date: mi.date,
             amount: share.amount,
             saleValue: Number(s.total_value || 0),
+            received: mi.received ?? null,
             paid,
             proportional: mi.proportional,
             expectedMonth: isTelecom,

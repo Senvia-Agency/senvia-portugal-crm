@@ -208,7 +208,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                           <TableCell>
                             {isPending ? (
                               <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600">
-                                {formatCurrency(entry.totalPending)} pendente
+                                {formatCurrency(entry.totalPending)} por pagar
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="border-green-500/30 bg-green-500/20 text-green-600">
@@ -237,7 +237,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                       <TableHead>Tipo</TableHead>
                                       <TableHead>Cliente / Venda</TableHead>
                                       <TableHead>Data</TableHead>
-                                      <TableHead className="text-right">Valor venda</TableHead>
+                                      <TableHead className="text-right">Recebido / venda</TableHead>
                                       <TableHead className="text-right">Comissão</TableHead>
                                       <TableHead>Estado</TableHead>
                                     </TableRow>
@@ -268,7 +268,11 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                           {item.date ? format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt }) : '—'}
                                         </TableCell>
                                         <TableCell className="text-right text-xs">
-                                          {item.saleValue != null ? formatCurrency(item.saleValue) : '—'}
+                                          {/* A proportional commission shows what the client paid this month out of the sale. */}
+                                          {item.saleValue == null ? '—'
+                                            : item.proportional && item.received != null
+                                              ? `${formatCurrency(item.received)} de ${formatCurrency(item.saleValue)}`
+                                              : formatCurrency(item.saleValue)}
                                         </TableCell>
                                         <TableCell className="text-right text-xs font-medium">{formatCurrency(item.amount)}</TableCell>
                                         <TableCell>
@@ -282,7 +286,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                                   : 'border-amber-500/30 bg-amber-500/20 text-amber-600',
                                               )}
                                             >
-                                              {item.kind === 'chargeback' ? (item.paid ? 'Aplicado' : 'Por aplicar') : (item.paid ? 'Pago' : 'Pendente')}
+                                              {item.kind === 'chargeback' ? (item.paid ? 'Aplicado' : 'Por aplicar') : (item.paid ? 'Pago' : 'Por pagar')}
                                             </Badge>
                                             {!item.paid && item.kind !== 'chargeback' && (
                                               <button
