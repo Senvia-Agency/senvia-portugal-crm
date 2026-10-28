@@ -12,7 +12,7 @@ import {
   manualReviewRequired,
   safeKeyInvoiceError,
 } from '../_shared/keyinvoice.ts'
-import { prepareKeyInvoiceSnapshotContext } from '../_shared/keyinvoice-sale-document.ts'
+import { issueKeyInvoiceSaleDocument, prepareKeyInvoiceSnapshotContext } from '../_shared/keyinvoice-sale-document.ts'
 import { FiscalEmailError, sendFiscalPdfWithBrevo } from '../_shared/fiscal-email.ts'
 import {
   fiscalFailureMode,
@@ -281,7 +281,7 @@ async function issueReceipt(
 }
 
 async function notifyFiscalAlert(
-  job: FiscalWorkerJob,
+  job: Pick<FiscalWorkerJob, 'id' | 'organization_id'>,
   title: string,
   body: string,
 ): Promise<void> {
@@ -403,7 +403,148 @@ async function runIssue(db: AdminClient): Promise<Record<string, number>> {
     if (await processIssueJob(db, row, claimToken)) completed++
     else failed++
   }
-  return { scheduled: Number(scheduled || 0), claimed: data?.length || 0, completed, failed }
+  // The sales' own Faturas first: issuing one queues the receipts of its paid payments,
+  // which the last step then issues in the same pass.
+  const firstMonths = await runRecurringSaleDocuments(db)
+  const invoices = await runAutomaticSaleInvoices(db)
+  const sales = await runSaleReceipts(db)
+  return {
+    scheduled: Number(scheduled || 0),
+    claimed: (data?.length || 0) + firstMonths.claimed + invoices.claimed + sales.claimed,
+    completed: completed + firstMonths.completed + invoices.completed + sales.completed,
+    failed: failed + firstMonths.failed + invoices.failed + sales.failed,
+  }
+}
+
+interface SaleDocumentJob {
+  sale_id: string
+  organization_id: string
+  // Empty: an FT, or an FR when the sale is already fully paid.
+  document_kind?: 'invoice' | 'invoice_receipt' | null
+  auto_email: boolean
+  email_config: Record<string, unknown> | null
+}
+
+interface RecurringSaleDocument extends SaleDocumentJob {
+  recurrence_id: string
+}
+
+async function hasSaleDocument(db: AdminClient, row: SaleDocumentJob): Promise<boolean> {
+  const { data, error } = await db.from('invoices')
+    .select('id')
+    .eq('organization_id', row.organization_id)
+    .eq('sale_id', row.sale_id)
+    .is('recurring_cycle_id', null)
+    .in('document_type', ['invoice', 'invoice_receipt'])
+    .not('processing_status', 'in', '(void,cancelled)')
+    .limit(1)
+  // When it cannot be confirmed, stop for review rather than try again blindly.
+  return Boolean(error) || (data?.length || 0) > 0
+}
+
+// Issues a sale's own FT/FR with the same code and idempotency key as "Emitir Fatura", so
+// the button and the automatic step never issue twice. A passing failure before anything
+// was reserved is tried again on the next pass; anything else is recorded by `stop` and
+// waits until someone reviews it.
+async function issueSaleDocuments<T extends SaleDocumentJob>(
+  db: AdminClient,
+  rows: T[],
+  origin: string,
+  alertTitle: string,
+  stop: (row: T, message: string) => PromiseLike<{ error: { code?: string } | null }>,
+  alertId: (row: T) => string,
+): Promise<{ claimed: number; completed: number; failed: number }> {
+  let completed = 0
+  let failed = 0
+  for (const row of rows) {
+    try {
+      const org = await loadOrganization(db, row.organization_id)
+      const result = await issueKeyInvoiceSaleDocument(db, org, {
+        organizationId: row.organization_id,
+        saleId: row.sale_id,
+        kind: row.document_kind || undefined,
+        requestEmail: row.auto_email,
+        emailConfig: row.auto_email ? { enabled: true, config: row.email_config || {} } : null,
+      })
+      log('issued', { saleId: row.sale_id, kind: result.invoice?.document_type, origin, alreadyIssued: result.alreadyIssued })
+      completed++
+    } catch (issueError) {
+      failed++
+      const safe = safeKeyInvoiceError(issueError)
+      if (safe.retryable && !safe.manual_review && !safe.ambiguous && !(await hasSaleDocument(db, row))) {
+        log(`${origin}-retry`, { saleId: row.sale_id, code: safe.code })
+        continue
+      }
+      const { error: markError } = await stop(row, `[${safe.code}] ${safe.message}`.slice(0, 2000))
+      if (markError) log(`${origin}-mark-failed`, { saleId: row.sale_id, code: markError.code })
+      await notifyFiscalAlert({ id: alertId(row), organization_id: row.organization_id }, alertTitle, safe.message)
+      log(`${origin}-failed`, { saleId: row.sale_id, code: safe.code })
+    }
+  }
+  return { claimed: rows.length, completed, failed }
+}
+
+// The first month of a recurring sale is the sale itself (its own payments plus any
+// one-off items); renewals are cycles. A sale created with automatic issuance gets its own
+// FT (or FR once paid) here, emailed with the recurrence's settings.
+async function runRecurringSaleDocuments(db: AdminClient): Promise<{ claimed: number; completed: number; failed: number }> {
+  const { data, error } = await db.rpc('list_due_recurring_sale_documents', { p_limit: 25 })
+  if (error) throw new Error(`list_due_recurring_sale_documents: ${error.code || 'error'}`)
+  return await issueSaleDocuments(
+    db,
+    (data || []) as RecurringSaleDocument[],
+    'recurring-sale',
+    'Fatura do 1.º mês requer revisão',
+    (row, message) => db.from('sale_recurrences')
+      .update({ fiscal_sale_last_error: message })
+      .eq('id', row.recurrence_id)
+      .eq('organization_id', row.organization_id),
+    (row) => row.recurrence_id,
+  )
+}
+
+// Non-recurring sales with the automatic Fatura on (the client's default when the sale was
+// created, or the sale's own choice): an FT, or an FR when already fully paid.
+async function runAutomaticSaleInvoices(db: AdminClient): Promise<{ claimed: number; completed: number; failed: number }> {
+  const { data, error } = await db.rpc('list_due_automatic_sale_invoices', { p_limit: 25 })
+  if (error) throw new Error(`list_due_automatic_sale_invoices: ${error.code || 'error'}`)
+  return await issueSaleDocuments(
+    db,
+    (data || []) as SaleDocumentJob[],
+    'automatic-invoice',
+    'Fatura automática requer revisão',
+    (row, message) => db.from('sales')
+      .update({ fiscal_invoice_last_error: message })
+      .eq('id', row.sale_id)
+      .eq('organization_id', row.organization_id),
+    (row) => row.sale_id,
+  )
+}
+
+// Receipts of non-recurring sales, queued when a payment became paid with the
+// automatic receipt on (client default or the sale's own choice). The decision
+// was taken at that moment, so there is no mode to recheck here.
+async function runSaleReceipts(db: AdminClient): Promise<{ claimed: number; completed: number; failed: number }> {
+  const claimToken = crypto.randomUUID()
+  const { data, error } = await db.rpc('claim_automatic_sale_receipts', {
+    p_limit: 25,
+    p_worker_id: claimToken,
+  })
+  if (error) throw new Error(`claim_automatic_sale_receipts: ${error.code || 'error'}`)
+  let completed = 0
+  let failed = 0
+  for (const job of (data || []) as FiscalWorkerJob[]) {
+    try {
+      const org = await loadOrganization(db, job.organization_id)
+      await issueReceipt(db, org, job, claimToken)
+      log('issued', { jobId: job.id, kind: job.document_type, origin: 'sale' })
+      completed++
+    } catch (issueError) {
+      await failIssue(db, job, claimToken, issueError)
+      failed++
+    }
+  }
+  return { claimed: data?.length || 0, completed, failed }
 }
 
 async function runReconcile(db: AdminClient): Promise<Record<string, number>> {

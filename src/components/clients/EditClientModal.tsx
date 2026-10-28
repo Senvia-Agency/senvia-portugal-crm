@@ -30,6 +30,8 @@ import { useClientFieldsSettings } from "@/hooks/useClientFieldsSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { CrmClient, CLIENT_SOURCE_LABELS, ClientStatus, DEFAULT_CLIENT_FIELDS_SETTINGS, BillingTarget } from "@/types/clients";
 import { isBillingActive } from "@/components/sales/SaleFiscalInfo";
+import { isKeyInvoiceActive } from "@/lib/fiscal-automation";
+import { ClientAutomaticDocuments, type ClientAutomaticDocumentsValue } from "./ClientAutomaticDocuments";
 import { COUNTRIES } from "@/lib/countries";
 import { User, Building2 } from "lucide-react";
 
@@ -47,6 +49,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
   const { data: teamMembers = [] } = useTeamMembers();
   const { data: fieldSettings } = useClientFieldsSettings();
   const invoicingEnabled = isBillingActive(organization);
+  const keyInvoiceActive = isKeyInvoiceActive(organization);
   const isTelecom = organization?.niche === 'telecom';
 
   const settings = fieldSettings || DEFAULT_CLIENT_FIELDS_SETTINGS;
@@ -64,6 +67,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
   const [companyPostalCode, setCompanyPostalCode] = useState("");
   const [companyCountry, setCompanyCountry] = useState("PT");
   const [billingTarget, setBillingTarget] = useState<BillingTarget>("client");
+  const [automaticDocuments, setAutomaticDocuments] = useState<ClientAutomaticDocumentsValue>({ invoices: false, receipts: false, email: false });
   const [status, setStatus] = useState<ClientStatus>("active");
   const [source, setSource] = useState("");
   const [notes, setNotes] = useState("");
@@ -108,6 +112,11 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
       setCompanyPostalCode(client.company_postal_code || "");
       setCompanyCountry(client.company_country || "PT");
       setBillingTarget((client.billing_target as BillingTarget) || "client");
+      setAutomaticDocuments({
+        invoices: client.fiscal_auto_invoices === true,
+        receipts: client.fiscal_auto_receipts === true,
+        email: client.fiscal_auto_email === true,
+      });
       setStatus(client.status);
       setSource(client.source || "");
       // Notes live in the unified timeline now — this field just ADDS a new note.
@@ -157,6 +166,11 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
         company_postal_code: companyPostalCode.trim() || null,
         company_country: companyCountry.trim() || null,
         billing_target: billingTarget,
+        ...(keyInvoiceActive ? {
+          fiscal_auto_invoices: automaticDocuments.invoices,
+          fiscal_auto_receipts: automaticDocuments.receipts,
+          fiscal_auto_email: (automaticDocuments.invoices || automaticDocuments.receipts) && automaticDocuments.email,
+        } : {}),
         status,
         source: source || null,
         address_line1: addressLine1.trim() || null,
@@ -532,6 +546,9 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                             </>
                           )}
                         </div>
+                      )}
+                      {keyInvoiceActive && (
+                        <ClientAutomaticDocuments idPrefix="edit-client" value={automaticDocuments} onChange={setAutomaticDocuments} />
                       )}
                     </CardContent>
                   </Card>

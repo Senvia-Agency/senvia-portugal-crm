@@ -1,3 +1,4 @@
+import { automationContactSuppressed } from '../_shared/automation-contact-optout.ts';
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
@@ -542,6 +543,10 @@ class Engine {
     for (const cursor of stillParked) done.add(cursor.node);
 
     while (queue.length) {
+      if (await automationContactSuppressed(this.db, run.organization_id, run.contact_phone, run.contact_email)) {
+        await this.finish(run, "cancelled", "Contacto pediu para parar mensagens automáticas");
+        return;
+      }
       if (steps >= flow.max_steps_per_run) {
         logError("limite de passos atingido — possível ciclo no fluxo", { run: run.id, flow: flow.id });
         await this.finish(run, "failed", `Limite de ${flow.max_steps_per_run} passos atingido`);
@@ -1567,6 +1572,9 @@ async function handleReply(db: any, body: Record<string, unknown>) {
   const text = String(body.text ?? "").trim();
   if (!orgId || !key) return { resumed: 0, message: "organization_id e phone são obrigatórios" };
 
+  if (await automationContactSuppressed(db, orgId, String(body.phone ?? ""))) {
+    return { resumed: 0, suppressed: true };
+  }
   const { data: runs } = await db
     .from("automation_runs")
     .select("*")
@@ -1729,3 +1737,4 @@ serve(async (req) => {
     });
   }
 });
+

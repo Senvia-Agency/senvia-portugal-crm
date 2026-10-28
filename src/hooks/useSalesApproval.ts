@@ -188,6 +188,8 @@ export interface MyCommissionSale {
   commission_expected_date?: string | null;
   /** Telecom commission is earned by lifecycle, independently of client receipts. */
   earned_by_operator?: boolean;
+  /** Outside telecom the commission follows the client's payments, whatever the sale status. */
+  commission_by_payment?: boolean;
   id: string;
   code: string | null;
   status: string;
@@ -220,7 +222,7 @@ export function useMyCommissions(selectedUserId?: string | null) {
   const isTelecom = organization?.niche === 'telecom';
 
   return useQuery({
-    queryKey: ['my-commissions', organizationId, userId, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v1'],
+    queryKey: ['my-commissions', organizationId, userId, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v2'],
     queryFn: async (): Promise<MyCommissionSale[]> => {
       if (!organizationId || !userId) return [];
 
@@ -335,6 +337,7 @@ export function useMyCommissions(selectedUserId?: string | null) {
           // someone else contributes 0 to HIS commissions, not its gross.
           comissao: saleHasSplits.has(s.id) ? (myAmountBySale.get(s.id) ?? 0) : (isTelecom ? telecomTeamCommission(s) : s.comissao),
           earned_by_operator: isTelecom && isTelecomCommissionEarned(s),
+          commission_by_payment: !isTelecom,
           commission_payment_month_offset: s.commission_payment_month_offset,
           commission_expected_date: s.commission_expected_date,
           sale_date: s.sale_date,

@@ -189,16 +189,9 @@ export default function Finance() {
   const myInPeriod = (myCommissions || []).filter((s) =>
     isTelecom ? telecomCommissionInPeriod(s, dateRange) : inPeriod(s.sale_date),
   );
-  const myPendingTotal = myInPeriod.reduce((sum, s) => {
-    if (isTelecom) return sum + commissionPortions(s).pending;
-    const isPending = s.status === 'pending' || s.status === 'in_progress';
-    return isPending ? sum + (Number(s.comissao) || 0) : sum;
-  }, 0);
-  const myGrossConfirmedTotal = myInPeriod.reduce((sum, s) => {
-    if (isTelecom) return sum + commissionPortions(s).confirmed;
-    const isConfirmed = s.status === 'delivered' || s.status === 'fulfilled';
-    return isConfirmed ? sum + (Number(s.comissao) || 0) : sum;
-  }, 0);
+  // Confirmed is what the client already paid (telecom: what the operator earned).
+  const myPendingTotal = myInPeriod.reduce((sum, s) => sum + commissionPortions(s).pending, 0);
+  const myGrossConfirmedTotal = myInPeriod.reduce((sum, s) => sum + commissionPortions(s).confirmed, 0);
 
   useEffect(() => {
     if (organization && !validTabs.includes(activeTab)) {

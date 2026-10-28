@@ -336,3 +336,34 @@ Personal layer of the WebMail on top of the email caixas (`messaging_channels` w
 Storage: public bucket `email-signatures` (5 MB; PNG, JPEG, GIF, WebP) so recipients can load signature images; each person uploads and deletes only under `<user id>/`.
 
 `notificar_email_novo` (new mail in an Inbox folder) now leaves out people whose `notify` is false for that caixa: assignees minus muted people, or, when the caixa has no assignees and someone muted it, the active organization members minus muted people. With nobody left, no push is sent.
+## Automatic receipts for non-recurring sales (20261027100000)
+
+The client sets the default and every sale follows it unless it makes its own choice. No new table.
+
+- `crm_clients.fiscal_auto_receipts` (boolean, default false): issue the KeyInvoice receipt (RC) when a payment of this client's sales is marked as paid. `crm_clients.fiscal_auto_email` (boolean, default false): email that receipt.
+- `sales.fiscal_auto_receipts` / `sales.fiscal_auto_email` (boolean, NULL = follow the client), `sales.fiscal_email_recipient` (optional address, validated).
+- Trigger `zz_queue_automatic_sale_receipt_trg` on `sale_payments` (AFTER INSERT OR UPDATE OF status, only on the transition to `paid`, only payments without `recurring_cycle_id`) calls `queue_automatic_sale_receipt(payment)`. It never makes marking a payment fail. Sales with a recurrence are skipped (their recurrence settings apply). The job is an `invoices` row (`document_type = receipt`, `processing_status = pending`, `fiscal_snapshot.origin = automatic_sale_receipt`) against the sale's latest issued KeyInvoice FT, using the manual key `receipt:<payment id>` so "Gerar recibo" and the automatic flow never both issue. Name and NIF come from the FT's fiscal recipient; the email goes to `sales.fiscal_email_recipient`, else the client's current email. When it cannot queue (KeyInvoice inactive, no receipt series, no issued FT, amount above what the FT still has open, FT without name/NIF) no row is created and `notify_sale_receipt_alert` sends a push to the organization.
+- `claim_automatic_sale_receipts(limit, worker)` (service role) hands these jobs to `keyinvoice-fiscal-worker`, which issues them with the same receipt code and completion/failure RPCs as recurring receipts (`complete_recurring_fiscal_document`, `fail_recurring_fiscal_document`, which accept a NULL cycle). The email step is unchanged. Trigger `link_automatic_sale_receipt_to_payment_trg` writes the receipt reference to `sale_payments.invoice_reference` once issued.
+- Only payments that become paid while the option is on are covered; switching it off later does not withdraw a receipt already queued.
+
+## First month of automatic recurring sales (20261027120000)
+
+A recurring sale's first month is the sale itself (its own payments plus any one-off items); only renewals are cycles. No new table.
+
+- `sale_recurrences.fiscal_include_sale` (boolean, default false): the sale's own documents are issued automatically with the recurrence's policy and email settings. Set only by `include_sale_in_recurring_fiscal(recurrence)`, which "Nova venda" calls right after configuring automatic issuance; it refuses (returns false) for a sale older than one hour, with cycles, with an FT/FR or legacy InvoiceXpress document, or cancelled. Existing recurrences are never marked, so nothing is issued retroactively.
+- `sale_recurrences.fiscal_sale_last_error` (text): why the sale's document stopped. While set the worker does not try again; `retry_recurring_sale_document(recurrence)` clears it (finance → invoices → issue permission).
+- `list_due_recurring_sale_documents(limit)` (service role) returns the marked sales whose FT is due (policy `invoice_then_receipt`, from `anchor_date`) or whose FR is due (policy `invoice_receipt_when_paid`, once the sale's non-cycle payments cover its total). `keyinvoice-fiscal-worker` issues them through `issueKeyInvoiceSaleDocument`, the same code and idempotency key (`manual:<sale>:sale:<kind>`) as "Emitir Fatura", with `email_status = pending` and the recurrence's email config in `fiscal_snapshot.email` when auto email is on.
+- Receipts: `queue_automatic_sale_receipt` now also covers the non-cycle payments of a marked recurrence with the `invoice_then_receipt` policy (email from the recurrence), and only ever uses the sale's own FT (`recurring_cycle_id IS NULL`). A payment paid before the FT exists returns `waiting:invoice` without an alert; trigger `zz_queue_first_month_receipts_after_invoice_trg` on `invoices` queues the receipts of the payments already paid as soon as that FT is issued (by the worker or by hand).
+
+## Automatic Fatura for non-recurring sales (20261027150000)
+
+The client's "Documentos automáticos" (inside the Faturação card) also issue the sale's own Fatura. No new table.
+
+- `crm_clients.fiscal_auto_invoices` (boolean, default false): default for the client's new sales.
+- `sales.fiscal_auto_invoices` (boolean): copied from the client by `copy_client_auto_invoice_to_sale_trg` (BEFORE INSERT, non-recurring sales only); NULL on sales created before the migration, which are never issued unless someone turns it on for that sale. `sales.fiscal_invoice_last_error` (text): why the automatic Fatura stopped; while set the worker does not try again, `retry_automatic_sale_invoice(sale)` clears it (finance → invoices → issue permission).
+- `list_due_automatic_sale_invoices(limit)` (service role) returns sales with the option on, at least 2 minutes old, not cancelled, without an FT/FR or legacy InvoiceXpress document, without a recurrence, in a KeyInvoice organization that is not telecom. `keyinvoice-fiscal-worker` issues them through `issueKeyInvoiceSaleDocument` (same code and idempotency key as "Emitir Fatura"): an FT, or an FR when the sale is already fully paid. Email follows `coalesce(sales.fiscal_auto_email, crm_clients.fiscal_auto_email)` and `sales.fiscal_email_recipient`.
+- `queue_automatic_sale_receipt` returns `waiting:invoice` (no alert) for a paid payment of such a sale whose FT is not issued yet; `zz_queue_first_month_receipts_after_invoice_trg` now also queues the receipts of the payments already paid when the FT of an automatic-invoice sale is issued.
+
+## Commissions follow the payments outside telecom
+
+Frontend rule (no schema change): outside telecom, the direct commission of a sale counts in proportion to what the client has paid, whatever the sale status; only cancelled sales drop out (`useCommercialCommissions`, `useTeamCommissionTotal`, `commissionPortions` with `commission_by_payment`). Telecom keeps its lifecycle rules and energy CPE commissions are unchanged.

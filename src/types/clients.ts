@@ -25,6 +25,12 @@ export interface CrmClient {
   company_postal_code?: string | null;
   company_country?: string | null;
   billing_target?: BillingTarget;
+  /** Default for this client's sales: KeyInvoice receipt issued when a payment is marked as paid. */
+  fiscal_auto_receipts?: boolean;
+  /** Default for this client's sales: email that automatic receipt. */
+  fiscal_auto_email?: boolean;
+  /** Default for this client's new sales: the sale's Fatura (or Fatura-Recibo) issued automatically. */
+  fiscal_auto_invoices?: boolean;
   
   // Address
   address_line1?: string | null;

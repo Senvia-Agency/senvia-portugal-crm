@@ -1,3 +1,4 @@
+import { automationContactSuppressed } from '../_shared/automation-contact-optout.ts';
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -43,6 +44,11 @@ serve(async (req: Request): Promise<Response> => {
     for (const item of items) {
       try {
         const variables = (item.variables as Record<string, unknown>) || {};
+        if (await automationContactSuppressed(supabase, item.organization_id, String(variables.telefone ?? variables.phone ?? ""), item.recipient_email)) {
+          const { error: cancelError } = await supabase.from("automation_queue").update({ status: "cancelled" }).eq("id", item.id).in("status", ["pending", "processing"]);
+          if (cancelError) throw cancelError;
+          continue;
+        }
         const clientId = typeof variables.client_id === "string" && variables.client_id ? variables.client_id : undefined;
 
         const { error: sendError } = await supabase.functions.invoke("send-template-email", {

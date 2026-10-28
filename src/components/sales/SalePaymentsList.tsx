@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSalePayments, useDeleteSalePayment, calculatePaymentSummary } from "@/hooks/useSalePayments";
 import { useGenerateReceipt } from "@/hooks/useGenerateReceipt";
+import { useAutomaticReceipts } from "@/hooks/useAutomaticReceipts";
+import { AutomaticReceiptBadge } from "@/components/finance/AutomaticReceiptBadge";
+import { automaticReceiptState } from "@/lib/fiscal-automation";
 import { useCancelInvoice } from "@/hooks/useCancelInvoice";
 import { useSaleItems } from "@/hooks/useSaleItems";
 import { formatCurrency, billingPeriodLabel } from "@/lib/format";
@@ -130,6 +133,12 @@ export function SalePaymentsList({
     tax_value: item.product?.tax_value ?? null,
   }));
   const generateReceipt = useGenerateReceipt();
+  const { data: automaticReceipts } = useAutomaticReceipts(payments.filter((payment) => payment.status === 'paid').map((payment) => payment.id));
+  // An automatic receipt already on its way (or waiting for review) owns its payment.
+  const hasAutomaticReceipt = (payment: SalePayment) => {
+    const job = automaticReceipts?.get(payment.id);
+    return !!job && automaticReceiptState(job.processing_status) !== 'cancelled';
+  };
   const cancelInvoice = useCancelInvoice();
   
   const [showTypeSelector, setShowTypeSelector] = useState(false);
@@ -301,6 +310,7 @@ export function SalePaymentsList({
                       </>
                     )}
                   </div>
+                  <AutomaticReceiptBadge job={automaticReceipts?.get(payment.id)} className="mt-1 flex w-fit" />
                   {payment.notes && (
                     <p className="text-xs text-muted-foreground truncate">
                       {payment.notes}
@@ -332,7 +342,7 @@ export function SalePaymentsList({
                     </>
                   )}
                   {/* Generate Receipt (RC) button - only when sale already has FT */}
-                  {hasInvoiceXpress && hasInvoice && invoicexpressType === 'FT' && payment.status === 'paid' && paymentHasNoReversal(payment) && !payment.invoice_reference && !readonly && (
+                  {hasInvoiceXpress && hasInvoice && invoicexpressType === 'FT' && payment.status === 'paid' && paymentHasNoReversal(payment) && !payment.invoice_reference && !hasAutomaticReceipt(payment) && !readonly && (
                     <Button
                       variant="outline"
                       size="sm"

@@ -10,6 +10,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useMyCommissions } from "@/hooks/useSalesApproval";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { formatCurrency } from "@/lib/format";
+import { commissionPortions } from "@/lib/commission-earnings";
 
 // Commissions content, rendered inside the Vendas page as a tab. Admins see team
 // commissions (+ analysis where applicable); salespeople see only their own.
@@ -19,12 +20,15 @@ export function CommissionsPanel() {
   const { data: myCommissions } = useMyCommissions();
   const [myModalOpen, setMyModalOpen] = useState(false);
 
-  const myConfirmedTotal = (myCommissions || [])
-    .filter((s) => s.status === "delivered" || s.status === "fulfilled")
-    .reduce((sum, s) => sum + (Number(s.comissao) || 0), 0);
-  const myPendingTotal = (myCommissions || [])
-    .filter((s) => s.status === "pending" || s.status === "in_progress")
-    .reduce((sum, s) => sum + (Number(s.comissao) || 0), 0);
+  // Outside telecom the commission follows the client's payments: confirmed is what
+  // was already paid. Telecom keeps counting by sale status.
+  const byPayment = organization?.niche !== "telecom";
+  const myConfirmedTotal = (myCommissions || []).reduce((sum, s) => sum + (byPayment
+    ? commissionPortions(s).confirmed
+    : s.status === "delivered" || s.status === "fulfilled" ? Number(s.comissao) || 0 : 0), 0);
+  const myPendingTotal = (myCommissions || []).reduce((sum, s) => sum + (byPayment
+    ? commissionPortions(s).pending
+    : s.status === "pending" || s.status === "in_progress" ? Number(s.comissao) || 0 : 0), 0);
 
   // Telecom/energy orgs use a different commission model (per CPE / contract /
   // DBL / consumo), so they get the specialised "Análise de Comissões" view —

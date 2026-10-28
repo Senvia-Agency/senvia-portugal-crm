@@ -27,6 +27,8 @@ interface RecurringFiscalSettingsProps {
   compact?: boolean;
   automaticDisabled?: boolean;
   automaticDisabledReason?: string;
+  /** The sale is being created: automatic issuance also covers its first month. */
+  includesFirstMonth?: boolean;
 }
 
 export function RecurringFiscalSettings({
@@ -37,6 +39,7 @@ export function RecurringFiscalSettings({
   compact = false,
   automaticDisabled = false,
   automaticDisabledReason,
+  includesFirstMonth = false,
 }: RecurringFiscalSettingsProps) {
   const setMode = (fiscal_mode: RecurringFiscalMode) => onChange({
     ...value,
@@ -108,7 +111,9 @@ export function RecurringFiscalSettings({
         )}
         {value.fiscal_mode === 'automatic' && (
           <p className="text-xs text-muted-foreground">
-            A emissão automática começa nos próximos ciclos. Os ciclos já existentes exigem tratamento manual, mesmo que estejam pagos.
+            {includesFirstMonth
+              ? 'Inclui o 1.º mês: o documento desta venda é emitido e enviado logo, como as renovações seguintes.'
+              : 'A emissão automática começa nos próximos ciclos. Os ciclos já existentes exigem tratamento manual, mesmo que estejam pagos.'}
           </p>
         )}
       </div>

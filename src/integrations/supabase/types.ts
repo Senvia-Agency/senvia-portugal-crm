@@ -1412,6 +1412,9 @@ export type Database = {
       }
       crm_clients: {
         Row: {
+          fiscal_auto_email: boolean
+          fiscal_auto_invoices: boolean
+          fiscal_auto_receipts: boolean
           company_address_same_as_client: boolean
           address_line1: string | null
           address_line2: string | null
@@ -1452,6 +1455,9 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          fiscal_auto_email?: boolean
+          fiscal_auto_invoices?: boolean
+          fiscal_auto_receipts?: boolean
           company_address_same_as_client?: boolean
           address_line1?: string | null
           address_line2?: string | null
@@ -1492,6 +1498,9 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          fiscal_auto_email?: boolean
+          fiscal_auto_invoices?: boolean
+          fiscal_auto_receipts?: boolean
           company_address_same_as_client?: boolean
           address_line1?: string | null
           address_line2?: string | null
@@ -7305,6 +7314,11 @@ export type Database = {
       }
       sales: {
         Row: {
+          fiscal_auto_email: boolean | null
+          fiscal_auto_receipts: boolean | null
+          fiscal_auto_invoices: boolean | null
+          fiscal_email_recipient: string | null
+          fiscal_invoice_last_error: string | null
           activation_date: string | null
           anos_contrato: number | null
           approved_at: string | null
@@ -7361,6 +7375,11 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          fiscal_auto_email?: boolean | null
+          fiscal_auto_receipts?: boolean | null
+          fiscal_auto_invoices?: boolean | null
+          fiscal_email_recipient?: string | null
+          fiscal_invoice_last_error?: string | null
           activation_date?: string | null
           anos_contrato?: number | null
           approved_at?: string | null
@@ -7417,6 +7436,11 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          fiscal_auto_email?: boolean | null
+          fiscal_auto_receipts?: boolean | null
+          fiscal_auto_invoices?: boolean | null
+          fiscal_email_recipient?: string | null
+          fiscal_invoice_last_error?: string | null
           activation_date?: string | null
           anos_contrato?: number | null
           approved_at?: string | null

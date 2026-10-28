@@ -36,13 +36,16 @@ import {
   useConfigureSaleRecurrenceFiscal,
   useReactivateSaleRecurrence,
   useRetryRecurringFiscalCycle,
+  useRetryRecurringSaleDocument,
   useSaleRecurrence,
   type BillingStatus,
   type CycleStatus,
   type FiscalCycleStatus,
   type FiscalEmailStatus,
+  type RecurrenceFiscalDocument,
   type ServiceStatus,
 } from '@/hooks/useSaleRecurrence';
+import { firstMonthState, type FirstMonthState } from '@/lib/fiscal-automation';
 
 // Serviço e cobrança são apresentados como dois crachás separados, e não como um
 // estado único, porque são mesmo coisas diferentes: um cliente pode estar em
@@ -95,6 +98,24 @@ const EMAIL_LABEL: Record<FiscalEmailStatus, string> = {
   suppressed: 'Suprimido',
 };
 
+const FIRST_MONTH_LABEL: Record<FirstMonthState, string> = {
+  waiting_start: 'Emite na data da venda',
+  waiting_payment: 'A aguardar pagamento integral',
+  queued: 'Por emitir',
+  processing: 'A emitir',
+  issued: 'Emitido',
+  review: 'Revisão necessária',
+};
+
+const FIRST_MONTH_FISCAL_STATUS: Record<FirstMonthState, FiscalCycleStatus> = {
+  waiting_start: 'not_scheduled',
+  waiting_payment: 'pending',
+  queued: 'pending',
+  processing: 'processing',
+  issued: 'completed',
+  review: 'manual_review',
+};
+
 function fiscalTone(status: FiscalCycleStatus): string {
   if (status === 'completed') return 'border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400';
   if (status === 'failed' || status === 'manual_review') return 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-400';
@@ -143,6 +164,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const reactivateRecurrence = useReactivateSaleRecurrence();
   const configureFiscal = useConfigureSaleRecurrenceFiscal();
   const retryFiscalCycle = useRetryRecurringFiscalCycle();
+  const retrySaleDocument = useRetryRecurringSaleDocument();
   const { can } = usePermissions();
   const canConfigureFiscal = can('finance', 'invoices', 'issue');
   const { organization } = useAuth();
@@ -182,6 +204,17 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const outstanding = cycles.filter((c) => c.status === 'pending' || c.status === 'failed');
   const totalPaid = paid.reduce((sum, c) => sum + Number(c.amount), 0);
   const totalOutstanding = outstanding.reduce((sum, c) => sum + Number(c.amount), 0);
+  // The first month is the sale itself, issued like the cycles when the sale was created
+  // with automatic issuance.
+  const firstMonth = recurrence.fiscal_include_sale
+    ? firstMonthState({
+        lastError: recurrence.fiscal_sale_last_error,
+        policy: recurrence.fiscal_document_policy,
+        anchorDate: recurrence.anchor_date,
+        today: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Lisbon' }),
+        documents: recurrence.sale_documents,
+      })
+    : null;
 
   const handleCheckout = async () => {
     const url = await createCheckout(recurrence.id);
@@ -237,6 +270,50 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
       setViewingFiscalDocumentId(null);
     }
   };
+
+  const renderFiscalDocuments = (documents: RecurrenceFiscalDocument[]) => documents.length > 0 && (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {documents.map((document) => {
+        const reference = document.reference
+          || [document.provider_series, document.provider_document_number].filter(Boolean).join('/')
+          || `Documento ${document.id.slice(0, 8)}`;
+        return (
+          <div key={document.id} className="flex items-start gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate font-medium">{reference}</span>
+              </div>
+              {document.provider_atcud && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">ATCUD {document.provider_atcud}</p>
+              )}
+              {document.email_status && (
+                <p className={cn('mt-0.5 text-[11px]', emailTone(document.email_status))}>
+                  Email: {EMAIL_LABEL[document.email_status]}
+                </p>
+              )}
+            </div>
+            {document.pdf_path && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                title="Abrir PDF"
+                aria-label={`Abrir PDF de ${reference}`}
+                onClick={() => handleOpenFiscalPdf(document.id, document.pdf_path!)}
+                disabled={viewingFiscalDocumentId === document.id}
+              >
+                {viewingFiscalDocumentId === document.id
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <FileDown className="h-3.5 w-3.5" />}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <Card>
@@ -408,6 +485,42 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           <p className="text-xs font-medium text-muted-foreground">
             Ciclos ({cycles.length})
           </p>
+          {firstMonth && (
+            <div className="rounded-md border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium capitalize">{monthLabel(recurrence.anchor_date)}</p>
+                  <p className="text-xs text-muted-foreground">1.º mês · documento desta venda</p>
+                </div>
+                <Badge variant="outline" className={cn('shrink-0', fiscalTone(FIRST_MONTH_FISCAL_STATUS[firstMonth]))}>
+                  {FIRST_MONTH_LABEL[firstMonth]}
+                </Badge>
+              </div>
+              {renderFiscalDocuments(recurrence.sale_documents)}
+              {firstMonth === 'review' && (
+                <div className="mt-2 flex flex-wrap items-start gap-2 rounded-md bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 break-words">
+                    {recurrence.fiscal_sale_last_error
+                      || 'O documento desta venda ficou por confirmar. Verifique-o em Financeiro → Faturas.'}
+                  </span>
+                  {recurrence.fiscal_sale_last_error && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => retrySaleDocument.mutate(recurrence.id)}
+                      disabled={retrySaleDocument.isPending || !canConfigureFiscal}
+                    >
+                      <RotateCcw className={cn('h-3.5 w-3.5', retrySaleDocument.isPending && 'animate-spin')} />
+                      Tentar novamente
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {cycles.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               Ainda não há ciclos. O primeiro é criado na data de renovação.
@@ -491,49 +604,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                     )}
                   </div>
 
-                  {visibleDocuments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {visibleDocuments.map((document) => {
-                        const reference = document.reference
-                          || [document.provider_series, document.provider_document_number].filter(Boolean).join('/')
-                          || `Documento ${document.id.slice(0, 8)}`;
-                        return (
-                          <div key={document.id} className="flex items-start gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="truncate font-medium">{reference}</span>
-                              </div>
-                              {document.provider_atcud && (
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">ATCUD {document.provider_atcud}</p>
-                              )}
-                              {document.email_status && (
-                                <p className={cn('mt-0.5 text-[11px]', emailTone(document.email_status))}>
-                                  Email: {EMAIL_LABEL[document.email_status]}
-                                </p>
-                              )}
-                            </div>
-                            {document.pdf_path && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 shrink-0"
-                                title="Abrir PDF"
-                                aria-label={`Abrir PDF de ${reference}`}
-                                onClick={() => handleOpenFiscalPdf(document.id, document.pdf_path!)}
-                                disabled={viewingFiscalDocumentId === document.id}
-                              >
-                                {viewingFiscalDocumentId === document.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <FileDown className="h-3.5 w-3.5" />}
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {renderFiscalDocuments(visibleDocuments)}
 
                   {excludedFromAutomatic && (
                     <p className="mt-2 text-xs text-muted-foreground">
