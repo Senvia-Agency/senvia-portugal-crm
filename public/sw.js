@@ -35,22 +35,35 @@ self.addEventListener("push", (e) => {
 
   e.waitUntil(
     (async () => {
-      // Inbox notifications: skip when the user already has the inbox open and
-      // focused — the in-app sound/badge covers it, a popup would just annoy.
+      // Every push MUST show a notification. iPhone and iPad (WebKit) revoke the
+      // device's push subscription when a push ends without one, and from then on
+      // that device gets no notifications at all. Skipping inbox pushes while the
+      // inbox was open did exactly that. Now, with the inbox open and focused (the
+      // in-app sound/badge already covers it), the notification is shown silently
+      // and closed at once: the rule is kept and nothing pops up.
+      let quiet = false;
       if (data.url && data.url.startsWith("/inbox")) {
         const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-        const focusedOnInbox = clients.some(
+        quiet = clients.some(
           (c) => c.focused && c.visibilityState === "visible" && new URL(c.url).pathname.startsWith("/inbox")
         );
-        if (focusedOnInbox) return;
       }
-      await self.registration.showNotification(data.title, {
+      const options = {
         body: data.body,
         icon: "/icon-192.png",
         badge: "/icon-192.png",
         data: { url: data.url || "/dashboard" },
         vibrate: [200, 100, 200],
-      });
+      };
+      if (quiet) {
+        // A tag of its own, so closing it never touches another notification.
+        const tag = `quiet-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await self.registration.showNotification(data.title, { ...options, tag, silent: true, vibrate: undefined });
+        const shown = await self.registration.getNotifications({ tag });
+        shown.forEach((n) => n.close());
+        return;
+      }
+      await self.registration.showNotification(data.title, options);
     })()
   );
 });

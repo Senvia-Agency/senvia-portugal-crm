@@ -68,9 +68,25 @@ async function getSwRegistration(): Promise<ServiceWorkerRegistration | null> {
   }
 }
 
+// Remembers that the person switched notifications off on this device, so a
+// lost subscription is only reported when they still want notifications.
+const OPTED_OUT_KEY = 'push-opted-out-v1';
+function hasOptedOut(): boolean {
+  try { return window.localStorage.getItem(OPTED_OUT_KEY) === '1'; } catch { return false; }
+}
+function setOptedOut(value: boolean) {
+  try {
+    if (value) window.localStorage.setItem(OPTED_OUT_KEY, '1');
+    else window.localStorage.removeItem(OPTED_OUT_KEY);
+  } catch { /* private mode: nothing to remember */ }
+}
+
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  // Permission granted but the device's subscription is gone (iPhone/iPad
+  // revoke it — see public/sw.js). Only a tap can renew it there.
+  const [needsReactivation, setNeedsReactivation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const { user, organization } = useAuth();
@@ -133,6 +149,13 @@ export function usePushNotifications() {
               console.error('[push] auto-renew failed:', e);
             }
           }
+        }
+
+        // Permission is there but the subscription is not: the device dropped it
+        // and, on iPhone/iPad, cannot get a new one without a tap. Unless the
+        // person switched notifications off here, ask them to reactivate.
+        if (!subscription && Notification.permission === 'granted' && !hasOptedOut() && !cancelled) {
+          setNeedsReactivation(true);
         }
 
         if (subscription && !cancelled) {
@@ -226,6 +249,8 @@ export function usePushNotifications() {
 
       if (error) throw new Error('Erro ao guardar subscrição');
 
+      setOptedOut(false);
+      setNeedsReactivation(false);
       setIsSubscribed(true);
       toast({ title: 'Notificações ativadas', description: 'Vai receber alertas quando chegarem novos leads.' });
       return true;
@@ -250,6 +275,7 @@ export function usePushNotifications() {
           await subscription.unsubscribe();
         }
       }
+      setOptedOut(true);
       setIsSubscribed(false);
       toast({ title: 'Notificações desativadas', description: 'Já não vai receber alertas de novos leads.' });
       return true;
@@ -262,9 +288,15 @@ export function usePushNotifications() {
     }
   }, [user, toast]);
 
+  // "Não quero" on the reactivation prompt: same as switching them off.
+  const declineReactivation = useCallback(() => {
+    setOptedOut(true);
+    setNeedsReactivation(false);
+  }, []);
+
   const toggle = useCallback(async () => {
     return isSubscribed ? await unsubscribe() : await subscribe();
   }, [isSubscribed, subscribe, unsubscribe]);
 
-  return { isSupported, isSubscribed, isLoading, permission, subscribe, unsubscribe, toggle };
+  return { isSupported, isSubscribed, isLoading, permission, needsReactivation, declineReactivation, subscribe, unsubscribe, toggle };
 }

@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
+
+// iPhone, iPod, or an iPad (which reports itself as a Mac with a touch screen).
+function isAppleMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
 
 interface PushNotificationsCardProps {
   organizationId?: string;
@@ -32,9 +40,19 @@ export const PushNotificationsCard = ({ organizationId, pushNotifications }: Pus
       <CardContent className="space-y-4">
         {!pushNotifications.isSupported ? (
           <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4">
-            <p className="text-sm text-amber-600 dark:text-amber-400">
-              O seu browser não suporta notificações push. Tente usar Chrome, Safari ou Firefox.
-            </p>
+            {isAppleMobile() ? (
+              // On iPhone/iPad no browser has push in a tab, Chrome included: only
+              // the Senvia added to the Home Screen can receive notifications.
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                No iPhone e no iPad, as notificações só funcionam com a Senvia no ecrã principal (iOS 16.4 ou mais recente).
+                No Safari, toque em Partilhar → Adicionar ao ecrã principal, abra a Senvia a partir do novo ícone e ative-as aqui.{' '}
+                <Link to="/install" className="font-medium underline underline-offset-2">Ver instruções</Link>
+              </p>
+            ) : (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                O seu browser não suporta notificações push. Tente usar Chrome, Safari ou Firefox.
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-between">
