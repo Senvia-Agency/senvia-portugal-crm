@@ -1,21 +1,22 @@
 import { FileText, Calendar, ShoppingBag, Store, UserCheck, Mail, Wallet, Zap, Search, MessageSquare } from "lucide-react";
+import type { ElementType } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useModules, EnabledModules } from "@/hooks/useModules";
+import { useModules, type EnabledModules } from "@/hooks/useModules";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ModuleConfig {
-  key: keyof EnabledModules;
-  label: string;
-  description: string;
-  icon: React.ElementType;
+  readonly key: keyof EnabledModules;
+  readonly label: string;
+  readonly description: string;
+  readonly icon: ElementType;
 }
 
-const MODULES: ModuleConfig[] = [
+const MODULES: readonly ModuleConfig[] = [
   { key: 'inbox', label: 'Caixa de Entrada', description: 'Mensagens de WhatsApp, Instagram e Facebook num só lugar', icon: MessageSquare },
   { key: 'clients', label: 'Clientes', description: 'Gestão de clientes e relacionamento comercial', icon: UserCheck },
   { key: 'proposals', label: 'Propostas', description: 'Gestão de propostas e orçamentos comerciais', icon: FileText },
@@ -127,9 +128,6 @@ export function ModulesTab() {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {t('Os módulos desativados não aparecem no menu de navegação. Módulos marcados com um plano requerem upgrade para serem ativados.')}
-      </p>
     </div>
   );
 }

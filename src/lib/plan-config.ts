@@ -43,6 +43,8 @@ export const DEFAULT_PLAN_FEATURES = {
 
 // ─── Default Module States (para o merge no useModules) ───
 export const DEFAULT_MODULES = {
+  leads: false,
+  automations: false,
   proposals: true,
   calendar: true,
   sales: true,

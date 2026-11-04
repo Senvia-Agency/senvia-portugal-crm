@@ -33,3 +33,21 @@ export function streamText(text: string, extraHeaders?: Record<string, string>):
     headers: { ...corsHeaders, "Content-Type": "text/event-stream", ...(extraHeaders ?? {}) },
   });
 }
+
+export function streamActionEvent(
+  event: "action_preview" | "action_result",
+  payload: unknown,
+  extraHeaders?: Record<string, string>,
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream", ...(extraHeaders ?? {}) },
+  });
+}

@@ -17,6 +17,7 @@ function normalizePriority(p?: string): "low" | "medium" | "high" {
 export const supportTools: Tool[] = [
   {
     name: "get_my_contact_info",
+    module: "support",
     description: "Obter os dados de contacto do utilizador atual (nome, email) já guardados. Usa ANTES de pedir dados para o ticket, para só perguntares o que falta.",
     parameters: { type: "object", properties: {}, required: [] },
     execute: async (_args, ctx) => {
@@ -43,6 +44,7 @@ export const supportTools: Tool[] = [
   },
   {
     name: "submit_support_ticket",
+    module: "support",
     description: "Submeter um ticket de suporte. O módulo/contexto é inferido automaticamente da conversa. Usa APENAS após o utilizador confirmar o resumo.",
     parameters: {
       type: "object",

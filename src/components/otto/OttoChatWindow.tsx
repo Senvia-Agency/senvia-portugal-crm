@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOttoChat } from "@/hooks/useOttoChat";
 import { OttoMessageComponent } from "./OttoMessage";
+import { OttoActionCard } from "./OttoActionCard";
 import { OttoQuickActions } from "./OttoQuickActions";
 import { OttoOnboardingKickoff } from "./OttoOnboardingKickoff";
 import { OttoAvatar } from "./OttoAvatar";
@@ -42,7 +43,10 @@ function AttachmentThumbnail({ file }: { file: File }) {
 export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
   const { t } = useLanguage();
   const { profile } = useAuth();
-  const { messages, isLoading, sendMessage, clearMessages, cancelStream } = useOttoChat();
+  const {
+    messages, isLoading, pendingAction, actionResult, actionDecision,
+    sendMessage, confirmAction, cancelAction, clearMessages, cancelStream,
+  } = useOttoChat();
   const { pendingAttachments, addAttachment, removeAttachment } = useOttoStore();
   const { showBadge: onboardingPending } = useOttoOnboarding();
   const [input, setInput] = useState("");
@@ -68,7 +72,7 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
         viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
       }, 50);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, pendingAction, actionResult]);
 
   useEffect(() => {
     if (!isLoading) inputRef.current?.focus();
@@ -258,6 +262,18 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
               isStreaming={isLoading && i === messages.length - 1 && msg.role === "assistant"}
             />
           ))}
+          {pendingAction && (
+            <OttoActionCard
+              kind="preview"
+              action={pendingAction}
+              decision={actionDecision}
+              onConfirm={confirmAction}
+              onCancel={cancelAction}
+            />
+          )}
+          {actionResult && (
+            <OttoActionCard kind="result" result={actionResult} onOpenResource={onClose} />
+          )}
           {waitingFirstWord && (
             <div className="flex items-center gap-2.5" role="status" aria-label={t("A pensar…")}>
               <OttoAvatar expression="listening" size="sm" />

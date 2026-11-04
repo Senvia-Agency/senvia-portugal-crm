@@ -251,6 +251,12 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     branching: false,
     defaultConfig: {},
   },
+  sale_payment_overdue_10d: {
+    type: 'sale_payment_overdue_10d',
+    label: 'Pagamento em atraso há mais de 10 dias',
+    description: 'Pagamento de venda ou ciclo recorrente ainda pendente após 10 dias completos',
+    icon: AlertCircle, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {},
+  },
   referral_month_earned: {
     type: 'referral_month_earned',
     label: 'Mês grátis por indicação',
@@ -606,6 +612,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
   'sale_renewal_due_today',
   'sale_renewal_due_in_2_days',
   'sale_renewal_overdue',
+  'sale_payment_overdue_10d',
   'referral_month_earned',
   'referral_month_started',
   'referral_month_ending_2d',
@@ -620,7 +627,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
  */
 export const TRIGGER_GROUPS: ReadonlyArray<{ key: string; label: string; types: AutomationTriggerType[] }> = [
   { key: 'leads', label: 'Leads', types: ['lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined'] },
-  { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue'] },
+  { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue', 'sale_payment_overdue_10d'] },
   { key: 'whatsapp', label: 'WhatsApp', types: ['message_received', 'whatsapp_keyword'] },
   { key: 'referrals', label: 'Indicações', types: ['referral_month_earned', 'referral_month_started', 'referral_month_ending_2d'] },
   { key: 'billing', label: 'Subscrição', types: ['subscription_renewal_due_2d', 'stripe_subscription_past_due'] },

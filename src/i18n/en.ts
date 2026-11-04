@@ -197,6 +197,7 @@ export const en: Record<string, string> = {
   "Atualizações": "Updates",
   "{{n}} atualização": "{{n}} update",
   "{{n}} atualizações": "{{n}} updates",
+  "Permissões do Otto": "Otto permissions",
   "Utilizador": "User",
 
   // Dashboard

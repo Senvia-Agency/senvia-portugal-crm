@@ -10,6 +10,8 @@ import {
 } from '@/lib/plan-config';
 
 export interface EnabledModules {
+  leads: boolean;
+  automations: boolean;
   proposals: boolean;
   calendar: boolean;
   sales: boolean;

@@ -3,6 +3,12 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { requiresSingleBillingEnrollment } from "../_shared/sale-billing-trigger-dedupe.ts";
+import { deterministicUuid } from "../_shared/agency-automations.ts";
+import {
+  isAutomationWebhookUrlValid,
+  parseAutomationWebhookBody,
+  parseAutomationWebhookHeaders,
+} from "../otto/lib/generic-automation-config.ts";
 
 // Motor dos fluxos de automação.
 //
@@ -67,6 +73,7 @@ interface Flow {
   organization_id: string;
   name: string;
   status: string;
+  trigger_type: string;
   graph: Graph;
   entry_node_id: string | null;
   version: number;
@@ -74,6 +81,130 @@ interface Flow {
   quiet_hours: { start?: string; end?: string } | null;
   max_steps_per_run: number;
   trigger_config?: Record<string, unknown> | null;
+}
+
+const SALE_PAYMENT_OVERDUE_10D = "sale_payment_overdue_10d";
+
+type BillingPaymentCheck =
+  | { readonly kind: "eligible" }
+  | { readonly kind: "not_due"; readonly reason: string }
+  | { readonly kind: "unavailable"; readonly reason: string };
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function relatedRecord(value: unknown): Readonly<Record<string, unknown>> | null {
+  if (isRecord(value)) return value;
+  if (Array.isArray(value) && value.length === 1 && isRecord(value[0])) return value[0];
+  return null;
+}
+
+function completedOverdueDays(dueDate: string): number | null {
+  const due = Date.parse(`${dueDate}T00:00:00Z`);
+  if (!Number.isFinite(due)) return null;
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((today - due) / 86_400_000);
+}
+
+function billingDateMatchesTrigger(triggerType: string, dueDate: string): boolean {
+  const daysOverdue = completedOverdueDays(dueDate);
+  if (daysOverdue === null) return false;
+  switch (triggerType) {
+    case "sale_renewal_due_in_2_days": return daysOverdue === -2;
+    case "sale_renewal_due_today": return daysOverdue === 0;
+    case "sale_renewal_overdue": return daysOverdue > 0 && daysOverdue <= 7;
+    case SALE_PAYMENT_OVERDUE_10D: return daysOverdue > 10;
+    default: return false;
+  }
+}
+
+async function checkBillingPayment(
+  db: ReturnType<typeof createClient>,
+  run: Run,
+  triggerType: string,
+): Promise<BillingPaymentCheck> {
+  const paymentId = run.context.payment_id;
+  const paymentSource = run.context.payment_source;
+  const saleId = run.context.sale_id;
+  const organizationId = run.context.organization_id;
+  if (typeof paymentId !== "string"
+    || typeof saleId !== "string"
+    || organizationId !== run.organization_id) {
+    return { kind: "unavailable", reason: "identidade da cobrança inválida" };
+  }
+
+  if (paymentSource === "sale_payments") {
+    const { data, error } = await db.from("sale_payments")
+      .select("id, sale_id, organization_id, status, payment_date, sale:sales!inner(status, organization_id)")
+      .eq("id", paymentId)
+      .eq("sale_id", saleId)
+      .eq("organization_id", run.organization_id)
+      .maybeSingle();
+    if (error) return { kind: "unavailable", reason: "falha ao consultar a cobrança" };
+    const row: unknown = data;
+    if (!isRecord(row)) return { kind: "not_due", reason: "cobrança removida" };
+    const sale = relatedRecord(row.sale);
+    if (!sale || sale.organization_id !== run.organization_id || typeof row.payment_date !== "string") {
+      return { kind: "unavailable", reason: "cobrança inconsistente" };
+    }
+    return row.status === "pending"
+        && sale.status !== "cancelled"
+        && billingDateMatchesTrigger(triggerType, row.payment_date)
+      ? { kind: "eligible" }
+      : { kind: "not_due", reason: "cobrança já não está pendente ou elegível para este aviso" };
+  }
+
+  if (paymentSource === "sale_recurring_cycles") {
+    const { data, error } = await db.from("sale_recurring_cycles")
+      .select("id, sale_id, organization_id, status, paid_at, due_date, recurrence:sale_recurrences(service_status, billing_provider), sale:sales!inner(status, organization_id)")
+      .eq("id", paymentId)
+      .eq("sale_id", saleId)
+      .eq("organization_id", run.organization_id)
+      .maybeSingle();
+    if (error) return { kind: "unavailable", reason: "falha ao consultar o ciclo" };
+    const row: unknown = data;
+    if (!isRecord(row)) return { kind: "not_due", reason: "ciclo removido" };
+    const sale = relatedRecord(row.sale);
+    const recurrence = relatedRecord(row.recurrence);
+    if (!sale || sale.organization_id !== run.organization_id || typeof row.due_date !== "string") {
+      return { kind: "unavailable", reason: "ciclo inconsistente" };
+    }
+    return row.status !== "paid"
+        && row.status !== "cancelled"
+        && row.paid_at === null
+        && sale.status !== "cancelled"
+        && recurrence?.service_status === "active"
+        && recurrence.billing_provider === "manual"
+        && billingDateMatchesTrigger(triggerType, row.due_date)
+      ? { kind: "eligible" }
+      : { kind: "not_due", reason: "ciclo já não está pendente ou elegível para este aviso" };
+  }
+
+  if (paymentSource === "sale_recurrences") {
+    const { data, error } = await db.from("sale_recurrences")
+      .select("id, sale_id, organization_id, service_status, billing_provider, next_cycle_date, sale:sales!inner(status, organization_id)")
+      .eq("id", paymentId)
+      .eq("sale_id", saleId)
+      .eq("organization_id", run.organization_id)
+      .maybeSingle();
+    if (error) return { kind: "unavailable", reason: "falha ao consultar a recorrência" };
+    const row: unknown = data;
+    if (!isRecord(row)) return { kind: "not_due", reason: "recorrência removida" };
+    const sale = relatedRecord(row.sale);
+    if (!sale || sale.organization_id !== run.organization_id || typeof row.next_cycle_date !== "string") {
+      return { kind: "unavailable", reason: "recorrência inconsistente" };
+    }
+    return row.service_status === "active"
+        && row.billing_provider === "manual"
+        && sale.status !== "cancelled"
+        && billingDateMatchesTrigger(triggerType, row.next_cycle_date)
+      ? { kind: "eligible" }
+      : { kind: "not_due", reason: "recorrência já não está ativa ou elegível para este aviso" };
+  }
+
+  return { kind: "unavailable", reason: "origem da cobrança inválida" };
 }
 
 // ---------------------------------------------------------------------------
@@ -663,6 +794,7 @@ class Engine {
       case "sale_renewal_due_today":
       case "sale_renewal_due_in_2_days":
       case "sale_renewal_overdue":
+      case "sale_payment_overdue_10d":
       case "trial_started":
       case "trial_day_3":
       case "trial_day_7":
@@ -778,6 +910,11 @@ class Engine {
             }).join("\n")
             : "";
           const options = listed ? `\n\n${listed}` : "";
+          if (requiresSingleBillingEnrollment(flow.trigger_type)) {
+            const check = await checkBillingPayment(this.db, run, flow.trigger_type);
+            if (check.kind === "unavailable") return { kind: "fail", error: check.reason };
+            if (check.kind === "not_due") return { kind: "end", detail: { ignorado: check.reason } };
+          }
           const sent = await this.sendWhatsapp(run, channel, `${text}${options}`, mediaUrl ? {
             url: mediaUrl,
             mimetype: media?.mimetype,
@@ -813,6 +950,11 @@ class Engine {
       }
 
       case "send_email": {
+        if (requiresSingleBillingEnrollment(flow.trigger_type)) {
+          const check = await checkBillingPayment(this.db, run, flow.trigger_type);
+          if (check.kind === "unavailable") return { kind: "fail", error: check.reason };
+          if (check.kind === "not_due") return { kind: "end", detail: { ignorado: check.reason } };
+        }
         if (!run.contact_email) return { kind: "fail", error: "Contacto sem email" };
         const { data, error } = await this.db.functions.invoke("send-template-email", {
           body: {
@@ -992,15 +1134,37 @@ class Engine {
       }
 
       case "webhook": {
-        const url = String(cfg.url ?? "");
-        if (!url) return { kind: "fail", error: "Webhook sem URL" };
+        const url = render(String(cfg.url ?? ""), vars);
+        if (!isAutomationWebhookUrlValid(url)) return { kind: "fail", error: "Webhook com URL inseguro ou inválido" };
+        const method = typeof cfg.method === "string" ? cfg.method.toUpperCase() : "POST";
+        if (!["GET", "POST", "PUT", "PATCH"].includes(method)) {
+          return { kind: "fail", error: "Webhook com método inválido" };
+        }
+        const renderedHeaders = cfg.headers ? render(String(cfg.headers), vars) : "";
+        const headers = parseAutomationWebhookHeaders(renderedHeaders);
+        if (headers === null) return { kind: "fail", error: "Webhook com cabeçalhos inseguros ou inválidos" };
+        const renderedBody = cfg.body ? render(String(cfg.body), vars) : "";
+        const parsedBody = parseAutomationWebhookBody(renderedBody);
+        if (parsedBody === undefined) return { kind: "fail", error: "Webhook com corpo inseguro ou inválido" };
+        if (requiresSingleBillingEnrollment(flow.trigger_type)) {
+          const check = await checkBillingPayment(this.db, run, flow.trigger_type);
+          if (check.kind === "unavailable") return { kind: "fail", error: check.reason };
+          if (check.kind === "not_due") return { kind: "end", detail: { ignorado: check.reason } };
+        }
+        const body = renderedBody.trim()
+          ? parsedBody
+          : { run_id: run.id, flow_id: flow.id, contact: vars };
         try {
           const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ run_id: run.id, flow_id: flow.id, contact: vars }),
+            method,
+            headers: { "Content-Type": "application/json", ...headers },
+            body: method === "GET" ? undefined : JSON.stringify(body),
+            redirect: "error",
+            signal: AbortSignal.timeout(15_000),
           });
-          return { kind: "next", detail: { url, status: res.status } };
+          return res.ok
+            ? { kind: "next", detail: { url, status: res.status } }
+            : { kind: "fail", error: `Webhook rejeitado com HTTP ${res.status}` };
         } catch (e) {
           return { kind: "fail", error: `Webhook falhou: ${(e as Error).message}` };
         }
@@ -1093,16 +1257,22 @@ async function handleEnroll(db: any, body: Record<string, unknown>) {
 
     const subjectId = (record.id as string) ?? null;
 
-    const preventsRepeatedEnrollment =
-      flow.reentry_policy === "once" || requiresSingleBillingEnrollment(triggerType);
+    const billingEnrollment = requiresSingleBillingEnrollment(triggerType);
+    const preventsRepeatedEnrollment = flow.reentry_policy === "once" || billingEnrollment;
     if (subjectId && preventsRepeatedEnrollment) {
-      const { data: prior } = await db.from("automation_runs")
-        .select("id").eq("flow_id", flow.id).eq("subject_id", subjectId).limit(1);
+      let priorQuery = db.from("automation_runs")
+        .select("id").eq("flow_id", flow.id).eq("subject_id", subjectId);
+      if (billingEnrollment) priorQuery = priorQuery.eq("flow_version", flow.version);
+      const { data: prior } = await priorQuery.limit(1);
       if (prior?.length) { results.push({ flow: flow.id, skipped: "já entrou neste fluxo" }); continue; }
     }
 
     const phone = (record.phone ?? record.telefone ?? null) as string | null;
+    const runId = billingEnrollment && subjectId
+      ? await deterministicUuid(`automation-run:${triggerType}:${String(record.payment_source ?? "payment")}:${String(record.payment_id ?? subjectId)}:${flow.id}:${flow.version}`)
+      : null;
     const { data: run, error } = await db.from("automation_runs").insert({
+      ...(runId ? { id: runId } : {}),
       organization_id: orgId,
       flow_id: flow.id,
       flow_version: flow.version,

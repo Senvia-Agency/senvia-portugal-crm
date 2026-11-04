@@ -5,6 +5,7 @@ import { deterministicUuid } from './agency-automations.ts';
 export const SALE_CYCLE_DUE_IN_2_DAYS = 'sale_renewal_due_in_2_days';
 export const SALE_CYCLE_DUE_TODAY = 'sale_renewal_due_today';
 export const SALE_CYCLE_OVERDUE = 'sale_renewal_overdue';
+export const SALE_PAYMENT_OVERDUE_10D = 'sale_payment_overdue_10d';
 
 /**
  * Cycles older than this are history, not an alert. Without the fence the
@@ -12,6 +13,7 @@ export const SALE_CYCLE_OVERDUE = 'sale_renewal_overdue';
  * left behind — 34 of them across two organizations at the time of writing.
  */
 const OVERDUE_WINDOW_DAYS = 7;
+const PAYMENT_OVERDUE_DAYS = 10;
 
 const isoDay = (offsetDays: number) => {
   const d = new Date();
@@ -74,8 +76,10 @@ async function loadContexts(db: any, saleIds: string[]): Promise<Map<string, Sal
   const { data: vendors } = vendorIds.length
     ? await db.from('profiles').select('id, full_name, email, phone').in('id', vendorIds)
     : { data: [] };
-  const clientById = new Map((clients ?? []).map((c: any) => [c.id, c]));
-  const vendorById = new Map((vendors ?? []).map((v: any) => [v.id, v]));
+  const clientById = new Map<string, SaleContext['client']>();
+  for (const client of clients ?? []) clientById.set(client.id, client);
+  const vendorById = new Map<string, SaleContext['vendor']>();
+  for (const vendor of vendors ?? []) vendorById.set(vendor.id, vendor);
   for (const sale of sales ?? []) {
     const client = sale.client_id ? clientById.get(sale.client_id) ?? null : null;
     out.set(sale.id, { sale, client, vendor: client?.assigned_to ? vendorById.get(client.assigned_to) ?? null : null });
@@ -83,22 +87,28 @@ async function loadContexts(db: any, saleIds: string[]): Promise<Map<string, Sal
   return out;
 }
 
-function buildRecord(id: string, ctx: SaleContext, extra: Record<string, string>): Record<string, string> | null {
+function buildRecord(id: string, ctx: SaleContext, extra: Record<string, unknown>, allowPhoneOnly = false): Record<string, unknown> | null {
   // A client with no email cannot be written to; the engine would fail the
   // run at the send step anyway, so skip it here with a reason in the logs.
-  if (!ctx.client?.email) return null;
+  if (!ctx.client || (!ctx.client.email && !(allowPhoneOnly && ctx.client.phone))) return null;
   return {
     id,
     sale_id: ctx.sale?.id ?? '',
     client_id: ctx.sale?.client_id ?? '',
     nome: ctx.client.name ?? '',
-    email: ctx.client.email,
+    email: ctx.client.email ?? '',
     telefone: ctx.client.phone ?? '',
     empresa: ctx.client.company ?? '',
     codigo_venda: ctx.sale?.code ?? '',
     vendedor_nome: ctx.vendor?.full_name ?? '',
     vendedor_email: ctx.vendor?.email ?? '',
     vendedor_telefone: ctx.vendor?.phone ?? '',
+    contact: {
+      client_id: ctx.sale?.client_id ?? '',
+      name: ctx.client.name ?? '',
+      email: ctx.client.email,
+      phone: ctx.client.phone ?? '',
+    },
     ...extra,
   };
 }
@@ -112,6 +122,9 @@ function buildRecord(id: string, ctx: SaleContext, extra: Record<string, string>
  * - due today: the cycle exists and is unpaid. Subject is the cycle id.
  * - overdue: unpaid, past due, within the 7-day window. Subject is the cycle
  *   id, so each cycle is announced once and older debt stays silent.
+ * - overdue by 10 days: every pending cycle or standalone scheduled payment
+ *   at least 10 calendar days past due. Its source-prefixed deterministic id
+ *   keeps one engine enrollment per payment subject when the cron catches up.
  *
  * Nothing here may break the caller: every failure is logged and counted.
  */
@@ -119,7 +132,8 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
   const today = isoDay(0);
   const inTwoDays = isoDay(2);
   const windowStart = isoDay(-OVERDUE_WINDOW_DAYS);
-  const summary = { due_in_2_days: 0, due_today: 0, overdue: 0, skipped_no_email: 0, failed: 0 };
+  const tenDaysAgo = isoDay(-(PAYMENT_OVERDUE_DAYS + 1));
+  const summary = { due_in_2_days: 0, due_today: 0, overdue: 0, overdue_10d: 0, skipped_no_email: 0, failed: 0 };
 
   const [{ data: upcoming, error: e1 }, { data: cycles, error: e2 }, { data: payments, error: e3 }] = await Promise.all([
     db.from('sale_recurrences')
@@ -127,20 +141,29 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       .eq('service_status', 'active').eq('billing_provider', 'manual')
       .eq('next_cycle_date', inTwoDays),
     db.from('sale_recurring_cycles')
-      .select('id, sale_id, organization_id, amount, due_date, period_start, period_end, recurrence_id, recurrence:sale_recurrences(service_status, billing_provider)')
+      .select('id, sale_id, organization_id, amount, due_date, period_start, period_end, recurrence_id, status, recurrence:sale_recurrences(service_status, billing_provider), sale:sales!inner(status, organization_id)')
       .is('paid_at', null).neq('status', 'paid')
-      .gte('due_date', windowStart).lte('due_date', today),
+      .lte('due_date', today)
+      .or(`due_date.gte.${windowStart},due_date.lte.${tenDaysAgo}`),
     db.from('sale_payments')
-      .select('id, sale_id, organization_id, amount, payment_date, status, notes, recurring_cycle_id, sale:sales!inner(status)')
+      .select('id, sale_id, organization_id, amount, payment_date, status, notes, recurring_cycle_id, sale:sales!inner(status, organization_id)')
       .eq('status', 'pending')
-      .gte('payment_date', windowStart).lte('payment_date', inTwoDays),
+      .lte('payment_date', inTwoDays)
+      .or(`payment_date.gte.${windowStart},payment_date.lte.${tenDaysAgo}`),
   ]);
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
   if (e3) throw new Error(e3.message);
 
   const liveCycles = (cycles ?? []).filter((c: any) =>
+    c.due_date >= windowStart &&
     c.recurrence?.service_status === 'active' && c.recurrence?.billing_provider === 'manual');
+  const overdueTenDayCycles = (cycles ?? []).filter((c: any) =>
+    c.status === 'pending' &&
+    c.sale?.status !== 'cancelled' &&
+    c.sale?.organization_id === c.organization_id &&
+    typeof c.due_date === 'string' &&
+    c.due_date <= tenDaysAgo);
   // One charge, one announcement. A monthly renewal exists twice — the cycle
   // and the pending payment generated for it (recurring_cycle_id) — and each
   // has its own id, so the engine's once-per-subject check let both through:
@@ -152,28 +175,40 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
     ...liveCycles.map((c: any) => `${c.sale_id}:${c.due_date}`),
     ...(upcoming ?? []).map((r: any) => `${r.sale_id}:${r.next_cycle_date}`),
   ]);
-  const pendingPayments = (payments ?? []).filter((payment: any) =>
+  const overdueTenDayCovered = new Set<string>(
+    overdueTenDayCycles.map((c: any) => `${c.sale_id}:${c.due_date}`),
+  );
+  const standalonePayments = (payments ?? []).filter((payment: any) =>
+    payment.status === 'pending' &&
     payment.sale?.status !== 'cancelled' &&
+    payment.sale?.organization_id === payment.organization_id &&
     !payment.recurring_cycle_id &&
-    typeof payment.payment_date === 'string' &&
+    typeof payment.payment_date === 'string');
+  const pendingPayments = standalonePayments.filter((payment: any) =>
+    payment.payment_date >= windowStart &&
     !covered.has(`${payment.sale_id}:${payment.payment_date}`) &&
     saleBillingTriggerForPaymentDate(payment.payment_date, today, inTwoDays) !== null);
+  const overdueTenDayPayments = standalonePayments.filter((payment: any) =>
+    payment.payment_date <= tenDaysAgo &&
+    !overdueTenDayCovered.has(`${payment.sale_id}:${payment.payment_date}`));
 
   const saleIds = [...new Set([
     ...(upcoming ?? []).map((r: any) => r.sale_id),
     ...liveCycles.map((c: any) => c.sale_id),
     ...pendingPayments.map((payment: any) => payment.sale_id),
+    ...overdueTenDayCycles.map((c: any) => c.sale_id),
+    ...overdueTenDayPayments.map((payment: any) => payment.sale_id),
   ].filter(Boolean))] as string[];
   const contexts = await loadContexts(db, saleIds);
 
-  const send = async (trigger: string, orgId: string, record: Record<string, string> | null, key: keyof typeof summary) => {
+  const send = async (trigger: string, orgId: string, record: Record<string, unknown> | null, key: keyof typeof summary) => {
     if (!record) { summary.skipped_no_email++; return; }
     try {
       await enroll(target, { trigger_type: trigger, organization_id: orgId, record });
       summary[key]++;
     } catch (error) {
       summary.failed++;
-      console.error('[sale-cycles] despacho falhou', { trigger, id: record.id, error: (error as Error).message });
+      console.error('[sale-cycles] despacho falhou', { trigger, id: String(record.id ?? ''), error: (error as Error).message });
     }
   };
 
@@ -182,6 +217,10 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
     if (!ctx) continue;
     const id = await deterministicUuid(`cycle-due:${r.id}:${r.next_cycle_date}`);
     await send(SALE_CYCLE_DUE_IN_2_DAYS, r.organization_id, buildRecord(id, ctx, {
+      payment_id: r.id,
+      payment_source: 'sale_recurrences',
+      organization_id: r.organization_id,
+      due_date: r.next_cycle_date,
       valor: euro(r.amount),
       data_vencimento: ptDate(r.next_cycle_date),
       dias_para_vencimento: '2',
@@ -194,6 +233,10 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
     const ctx = contexts.get(payment.sale_id);
     if (!ctx) continue;
     const record = buildRecord(payment.id, ctx, {
+      payment_id: payment.id,
+      payment_source: 'sale_payments',
+      organization_id: payment.organization_id,
+      due_date: payment.payment_date,
       valor: euro(payment.amount),
       data_vencimento: ptDate(payment.payment_date),
       periodo: payment.notes || 'Pagamento agendado',
@@ -210,10 +253,34 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
     }
   }
 
+  for (const payment of overdueTenDayPayments) {
+    const ctx = contexts.get(payment.sale_id);
+    if (!ctx || ctx.sale?.organization_id !== payment.organization_id) continue;
+    const id = await deterministicUuid(`payment-overdue-10d:payment:${payment.id}`);
+    await send(SALE_PAYMENT_OVERDUE_10D, payment.organization_id, buildRecord(id, ctx, {
+      trigger_type: SALE_PAYMENT_OVERDUE_10D,
+      payment_id: payment.id,
+      payment_source: 'sale_payments',
+      sale_id: payment.sale_id,
+      organization_id: payment.organization_id,
+      amount: Number(payment.amount),
+      due_date: payment.payment_date,
+      days_overdue: daysBetween(payment.payment_date, today),
+      valor: euro(payment.amount),
+      data_vencimento: ptDate(payment.payment_date),
+      periodo: payment.notes || 'Pagamento agendado',
+      dias_em_atraso: String(daysBetween(payment.payment_date, today)),
+    }, true), 'overdue_10d');
+  }
+
   for (const c of liveCycles) {
     const ctx = contexts.get(c.sale_id);
     if (!ctx) continue;
     const common = {
+      payment_id: c.id,
+      payment_source: 'sale_recurring_cycles',
+      organization_id: c.organization_id,
+      due_date: c.due_date,
       valor: euro(c.amount),
       data_vencimento: ptDate(c.due_date),
       periodo: `${ptDate(c.period_start)} a ${ptDate(c.period_end)}`,
@@ -224,6 +291,26 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       const late = daysBetween(c.due_date, today);
       await send(SALE_CYCLE_OVERDUE, c.organization_id, buildRecord(c.id, ctx, { ...common, dias_em_atraso: String(late) }), 'overdue');
     }
+  }
+
+  for (const c of overdueTenDayCycles) {
+    const ctx = contexts.get(c.sale_id);
+    if (!ctx || ctx.sale?.organization_id !== c.organization_id) continue;
+    const id = await deterministicUuid(`payment-overdue-10d:cycle:${c.id}`);
+    await send(SALE_PAYMENT_OVERDUE_10D, c.organization_id, buildRecord(id, ctx, {
+      trigger_type: SALE_PAYMENT_OVERDUE_10D,
+      payment_id: c.id,
+      payment_source: 'sale_recurring_cycles',
+      sale_id: c.sale_id,
+      organization_id: c.organization_id,
+      amount: Number(c.amount),
+      due_date: c.due_date,
+      days_overdue: daysBetween(c.due_date, today),
+      valor: euro(c.amount),
+      data_vencimento: ptDate(c.due_date),
+      periodo: `${ptDate(c.period_start)} a ${ptDate(c.period_end)}`,
+      dias_em_atraso: String(daysBetween(c.due_date, today)),
+    }, true), 'overdue_10d');
   }
 
   return summary;

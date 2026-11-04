@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from '@/i18n';
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { ArrowLeft, Settings as SettingsIcon } from "lucide-react";
+import { ArrowLeft, Bot, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PipelineEditor } from '@/components/settings/PipelineEditor';
@@ -744,7 +744,19 @@ export default function Settings() {
         {activeGroup === null ? (
           // Level 1: Group cards grid
           <>
-            <PageHeader icon={SettingsIcon} title={t("Definições")} subtitle={t("Configure a sua organização e integrações.")} />
+            <PageHeader
+              icon={SettingsIcon}
+              title={t("Definições")}
+              subtitle={t("Configure a sua organização e integrações.")}
+              actions={isAdmin ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/otto" className="gap-2">
+                    <Bot className="h-4 w-4" aria-hidden="true" />
+                    {t("Permissões do Otto")}
+                  </Link>
+                </Button>
+              ) : undefined}
+            />
             <MobileSettingsNav
               activeSection={null}
               onSelectSection={handleGroupSelect}

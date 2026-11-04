@@ -1,6 +1,7 @@
 // Basic write tools: create a lead, create a client, move a lead between
 // pipeline stages. All gated by permission (admins bypass) and audited.
-import type { Tool } from "../types.ts";
+import { canAccessRecord, canAssignUser } from "../record-scope.ts";
+import type { Tool, ToolContext } from "../types.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -26,7 +27,7 @@ function normalizeLookup(value: string): string {
     .trim();
 }
 
-async function resolveSaleByReference(ctx: any, reference: string): Promise<{ sale: any | null; error?: string; candidates?: any[] }> {
+async function resolveSaleByReference(ctx: ToolContext, reference: string): Promise<{ sale: any | null; error?: string; candidates?: any[] }> {
   const trimmed = reference.trim();
   if (!trimmed) return { sale: null, error: "Referência da venda em falta" };
 
@@ -38,7 +39,7 @@ async function resolveSaleByReference(ctx: any, reference: string): Promise<{ sa
       .eq("id", trimmed)
       .maybeSingle();
     if (error) return { sale: null, error: error.message };
-    return { sale: data || null };
+    return { sale: data && canAccessRecord(ctx, data) ? data : null };
   }
 
   const candidates = saleReferenceCandidates(trimmed);
@@ -49,21 +50,23 @@ async function resolveSaleByReference(ctx: any, reference: string): Promise<{ sa
     .in("code", candidates)
     .limit(10);
   if (error) return { sale: null, error: error.message };
-  if ((data || []).length === 1) return { sale: data![0] };
-  if ((data || []).length > 1) return { sale: null, candidates: data || [] };
+  const scopedCandidates = (data || []).filter((sale: object) => canAccessRecord(ctx, sale));
+  if (scopedCandidates.length === 1) return { sale: scopedCandidates[0] };
+  if (scopedCandidates.length > 1) return { sale: null, candidates: scopedCandidates };
 
   const { data: searched, error: searchError } = await ctx.supabaseAdmin
     .rpc("search_sales_unaccent", { org_id: ctx.orgId, search_term: trimmed, pay_status: null, max_results: 10 });
   if (searchError) return { sale: null, error: searchError.message };
-  if ((searched || []).length === 1) return { sale: searched![0] };
-  if ((searched || []).length > 1) return { sale: null, candidates: searched || [] };
+  const scopedSearched = (searched || []).filter((sale: object) => canAccessRecord(ctx, sale));
+  if (scopedSearched.length === 1) return { sale: scopedSearched[0] };
+  if (scopedSearched.length > 1) return { sale: null, candidates: scopedSearched };
 
   return { sale: null };
 }
 
 // Resolve the pipeline stage key to use. If the caller passed one, validate it;
 // otherwise fall back to the first stage by position.
-async function resolveStageKey(ctx: any, requested?: string): Promise<{ key: string | null; error?: string }> {
+async function resolveStageKey(ctx: ToolContext, requested?: string): Promise<{ key: string | null; error?: string }> {
   const { data: stages } = await ctx.supabaseAdmin
     .from("pipeline_stages")
     .select("key, name, position")
@@ -78,7 +81,7 @@ async function resolveStageKey(ctx: any, requested?: string): Promise<{ key: str
   return { key: stages[0].key };
 }
 
-async function resolveAssignee(ctx: any, args: Record<string, any>): Promise<{ userId: string | null; label: string | null; error?: string }> {
+async function resolveAssignee(ctx: ToolContext, args: Record<string, any>): Promise<{ userId: string | null; label: string | null; error?: string }> {
   const explicitUserId = typeof args.assigned_to_user_id === "string" ? args.assigned_to_user_id.trim() : "";
   const query = typeof args.assignee_query === "string" ? args.assignee_query.trim() : "";
   if (!explicitUserId && !query) return { userId: null, label: null };
@@ -104,12 +107,14 @@ async function resolveAssignee(ctx: any, args: Record<string, any>): Promise<{ u
 
   if (explicitUserId) {
     if (!memberIdsSet.has(explicitUserId)) return { userId: null, label: null, error: "O comercial indicado não pertence a esta organização ou está inativo." };
+    if (!canAssignUser(ctx, explicitUserId)) return { userId: null, label: null, error: "O comercial indicado está fora do âmbito de dados deste utilizador." };
     const profile = profileById.get(explicitUserId) || {};
     return { userId: explicitUserId, label: profile.full_name || profile.email || explicitUserId };
   }
 
   const normalized = normalizeLookup(query);
   const matches = memberIds
+    .filter((userId: string) => canAssignUser(ctx, userId))
     .map((userId: string) => {
       const profile = profileById.get(userId) || {};
       return {
@@ -139,6 +144,7 @@ async function resolveAssignee(ctx: any, args: Record<string, any>): Promise<{ u
 export const writeTools: Tool[] = [
   {
     name: "create_lead",
+    module: "leads",
     description: "Criar uma nova lead no CRM. Usa APENAS depois de confirmares os dados com o utilizador. Nome, email e telefone são obrigatórios.",
     parameters: {
       type: "object",
@@ -153,7 +159,7 @@ export const writeTools: Tool[] = [
       },
       required: ["name", "email", "phone"],
     },
-    permission: { module: "leads", subarea: "kanban", action: "create" },
+    permission: { module: "leads", subarea: "kanban", action: "add" },
     isWrite: true,
     execute: async (args, ctx) => {
       if (!args.name || !args.email || !args.phone) {
@@ -173,6 +179,7 @@ export const writeTools: Tool[] = [
           status: key,
           notes: args.notes || null,
           source: "otto",
+          assigned_to: ctx.userId,
         })
         .select("id, name, status")
         .single();
@@ -188,6 +195,7 @@ export const writeTools: Tool[] = [
   },
   {
     name: "create_client",
+    module: "clients",
     description: "Criar um novo cliente no CRM. Usa APENAS depois de confirmares os dados. O nome é obrigatório.",
     parameters: {
       type: "object",
@@ -201,7 +209,7 @@ export const writeTools: Tool[] = [
       },
       required: ["name"],
     },
-    permission: { module: "clients", subarea: "list", action: "create" },
+    permission: { module: "clients", subarea: "list", action: "add" },
     isWrite: true,
     execute: async (args, ctx) => {
       if (!args.name) return { error: "Nome em falta", _instruction: "Pede o nome do cliente antes de criar." };
@@ -216,6 +224,7 @@ export const writeTools: Tool[] = [
           company: args.company || null,
           notes: args.notes || null,
           source: "otto",
+          assigned_to: ctx.userId,
         })
         .select("id, name")
         .single();
@@ -231,6 +240,7 @@ export const writeTools: Tool[] = [
   },
   {
     name: "update_lead_status",
+    module: "leads",
     description: "Mover uma lead para outra etapa do pipeline. Precisa do ID da lead (obtém-no com search_leads) e da etapa destino.",
     parameters: {
       type: "object",
@@ -245,6 +255,16 @@ export const writeTools: Tool[] = [
     execute: async (args, ctx) => {
       const { key, error: stageErr } = await resolveStageKey(ctx, args.stage);
       if (stageErr || !key) return { error: stageErr || "Etapa inválida", _instruction: "Informa o utilizador da etapa inválida e lista as válidas." };
+      const { data: existingLead, error: lookupError } = await ctx.supabaseAdmin
+        .from("leads")
+        .select("id, assigned_to")
+        .eq("organization_id", ctx.orgId)
+        .eq("id", args.lead_id)
+        .maybeSingle();
+      if (lookupError) return { error: lookupError.message, _instruction: "ERRO ao consultar a lead. Informa o utilizador." };
+      if (!existingLead || !canAccessRecord(ctx, existingLead)) {
+        return { error: "Lead não encontrada", _instruction: "A lead não existe ou está fora do âmbito de dados deste utilizador. NÃO inventes." };
+      }
       const { data, error } = await ctx.supabaseAdmin
         .from("leads")
         .update({ status: key })
@@ -262,6 +282,7 @@ export const writeTools: Tool[] = [
   },
   {
     name: "create_sale",
+    module: "sales",
     description: "Registar uma nova venda no CRM. Antes, usa prepare_sale_creation/search_clients/search_leads para consultar o banco. Usa APENAS depois de confirmares cliente/lead, valor e comercial quando existir atribuição.",
     parameters: {
       type: "object",
@@ -296,11 +317,11 @@ export const writeTools: Tool[] = [
       if (args.client_id) {
         const { data: client } = await ctx.supabaseAdmin
           .from("crm_clients")
-          .select("id")
+          .select("id, assigned_to")
           .eq("organization_id", ctx.orgId)
           .eq("id", args.client_id)
           .maybeSingle();
-        if (!client) return { error: "Cliente não encontrado", _instruction: "O cliente indicado não existe nesta organização. Usa search_clients para confirmar. NÃO inventes." };
+        if (!client || !canAccessRecord(ctx, client)) return { error: "Cliente não encontrado", _instruction: "O cliente indicado não existe ou está fora do âmbito de dados deste utilizador. NÃO inventes." };
         if (shouldAssignEntity) {
           const { error: assignError } = await ctx.supabaseAdmin
             .from("crm_clients")
@@ -313,11 +334,11 @@ export const writeTools: Tool[] = [
       if (args.lead_id) {
         const { data: lead } = await ctx.supabaseAdmin
           .from("leads")
-          .select("id")
+          .select("id, assigned_to")
           .eq("organization_id", ctx.orgId)
           .eq("id", args.lead_id)
           .maybeSingle();
-        if (!lead) return { error: "Lead não encontrada", _instruction: "A lead indicada não existe nesta organização. Usa search_leads para confirmar. NÃO inventes." };
+        if (!lead || !canAccessRecord(ctx, lead)) return { error: "Lead não encontrada", _instruction: "A lead indicada não existe ou está fora do âmbito de dados deste utilizador. NÃO inventes." };
         if (shouldAssignEntity) {
           const { error: assignError } = await ctx.supabaseAdmin
             .from("leads")
@@ -355,6 +376,7 @@ export const writeTools: Tool[] = [
   },
   {
     name: "update_sale_seller",
+    module: "sales",
     description: "Atribuir/alterar o comercial responsável por uma venda existente. Aceita UUID interno ou código/referência visível da venda (ex: 0002). Usa search_sales/list_team_members quando possível e APENAS depois de confirmação explícita do utilizador.",
     parameters: {
       type: "object",
@@ -414,6 +436,7 @@ export const writeTools: Tool[] = [
   },
   {
     name: "create_proposal",
+    module: "proposals",
     description: "Criar uma proposta para uma lead. Precisa do ID da lead (obtém-no com search_leads) e do valor total. Usa APENAS depois de confirmares os dados.",
     parameters: {
       type: "object",
@@ -434,11 +457,11 @@ export const writeTools: Tool[] = [
       // Confirm the lead exists in this org before linking (proposals.lead_id is NOT NULL + FK).
       const { data: lead } = await ctx.supabaseAdmin
         .from("leads")
-        .select("id, name")
+        .select("id, name, assigned_to")
         .eq("organization_id", ctx.orgId)
         .eq("id", args.lead_id)
         .maybeSingle();
-      if (!lead) return { error: "Lead não encontrada", _instruction: "A lead indicada não existe nesta organização. Usa search_leads para confirmar. NÃO inventes." };
+      if (!lead || !canAccessRecord(ctx, lead)) return { error: "Lead não encontrada", _instruction: "A lead indicada não existe ou está fora do âmbito de dados deste utilizador. NÃO inventes." };
       const { data, error } = await ctx.supabaseAdmin
         .from("proposals")
         .insert({

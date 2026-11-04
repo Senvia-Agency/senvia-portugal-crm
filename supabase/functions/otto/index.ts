@@ -1,4 +1,5 @@
 import { createClient as createAttachmentClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
+import { z } from "https://esm.sh/zod@3.25.76";
 import { loadAttachmentParts } from './lib/attachments.ts';
 import { userRateLimit } from '../_shared/user-rate-limit.ts';
 // otto — Otto 2.0 platform agent. Modular successor to otto-chat:
@@ -13,13 +14,26 @@ import { userRateLimit } from '../_shared/user-rate-limit.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { paidQuota } from "../_shared/paid-quota.ts";
 import { boundedJson, ottoInput } from "../_shared/paid-input.ts";
-import { corsHeaders, jsonError, streamText } from "./lib/cors.ts";
+import { corsHeaders, jsonError, streamActionEvent, streamText } from "./lib/cors.ts";
 import { loadContext } from "./lib/context.ts";
 import { buildSystemPrompt } from "./lib/prompts.ts";
 import { getAIConfigs, chatCompletionResilient } from "./lib/ai.ts";
 import { ALL_TOOLS, getToolsForModel, canUseTool, runTool } from "./lib/tools/registry.ts";
+import {
+  actionPreviewFromResult,
+  cancelActionConfirmation,
+  consumeActionConfirmation,
+} from "./lib/confirmations.ts";
+import { runPreparedAutomationActivation } from "./lib/automation-activation-runner.ts";
+import { OVERDUE_PAYMENT_ACTIVATION_ACTION } from "./lib/automation-validation.ts";
 
 const MAX_ITERATIONS = 5;
+
+const ottoConfirmationInput = z.object({
+  organization_id: z.string().uuid(),
+  confirmation_id: z.string().uuid(),
+  decision: z.enum(["confirm", "cancel"]),
+}).strict();
 
 const MODULE_LABELS: Record<string, string> = {
   clients: "Clientes", leads: "Leads", finance: "Finanças", sales: "Vendas",
@@ -104,12 +118,138 @@ function fallbackTextFromToolResult(conversationMessages: any[]): string | null 
   return null;
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function actionResource(value: unknown) {
+  if (!isRecord(value)
+    || typeof value.type !== "string"
+    || typeof value.id !== "string"
+    || typeof value.route !== "string"
+    || !value.route.startsWith("/")) return null;
+  return { type: value.type, id: value.id, route: value.route };
+}
+
+function actionInvalidationKeys(value: unknown): string[][] | null {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const keys: string[][] = [];
+  for (const key of value) {
+    if (!Array.isArray(key)
+      || key.length === 0
+      || key.length > 10
+      || !key.every((part) => typeof part === "string")) return null;
+    keys.push([...key]);
+  }
+  return keys;
+}
+
+function streamToolActionResult(result: unknown, successSummary: string): Response {
+  const resultRecord = isRecord(result) ? result : null;
+  const error = resultRecord?.error;
+  const reasonCode = resultRecord?.reason_code;
+  const status = typeof error === "string"
+    ? (error === "Sem permissão" || reasonCode === "authorization_changed" ? "denied" : "failed")
+    : "succeeded";
+  const summary = typeof error === "string"
+    ? error
+    : typeof resultRecord?.summary === "string"
+    ? resultRecord.summary
+    : successSummary;
+  if (status !== "succeeded") {
+    return streamActionEvent("action_result", { status, summary, error });
+  }
+  const operation = typeof resultRecord?.operation === "string"
+    ? resultRecord.operation
+    : undefined;
+  const resource = actionResource(resultRecord?.resource) ?? undefined;
+  const invalidateQueryKeys = actionInvalidationKeys(resultRecord?.invalidateQueryKeys) ?? undefined;
+  return streamActionEvent("action_result", {
+    status,
+    summary,
+    operation,
+    resource,
+    invalidateQueryKeys,
+  });
+}
+
+async function handleConfirmationRequest(
+  req: Request,
+  input: z.infer<typeof ottoConfirmationInput>,
+): Promise<Response> {
+  const { ctx, hasDataAccess } = await loadContext(req, input.organization_id, undefined);
+  if (!hasDataAccess || !ctx) {
+    return streamActionEvent("action_result", {
+      status: "denied",
+      summary: "Sem acesso atual a esta organização.",
+    });
+  }
+
+  const limitResponse = await userRateLimit(ctx.supabaseAdmin, ctx.userId, "otto-confirm", corsHeaders);
+  if (limitResponse) {
+    return streamActionEvent("action_result", {
+      status: "denied",
+      summary: "Demasiadas confirmações seguidas. Tenta novamente dentro de instantes.",
+    });
+  }
+
+  if (input.decision === "cancel") {
+    const cancelled = await cancelActionConfirmation(ctx, input.confirmation_id);
+    return streamActionEvent("action_result", cancelled);
+  }
+
+  const consumed = await consumeActionConfirmation(ctx, input.confirmation_id);
+  if (consumed.status !== "ready") {
+    return streamActionEvent("action_result", {
+      status: consumed.status,
+      summary: consumed.summary,
+    });
+  }
+
+  if (consumed.confirmation.tool === OVERDUE_PAYMENT_ACTIVATION_ACTION) {
+    const result = await runPreparedAutomationActivation(ctx, consumed.confirmation);
+    return streamToolActionResult(
+      result,
+      "Automação de seguimento de pagamentos em atraso ativada.",
+    );
+  }
+
+  const storedTool = ALL_TOOLS.find((tool) => tool.name === consumed.confirmation.tool);
+  if (!storedTool || storedTool.module !== consumed.confirmation.moduleKey) {
+    return streamActionEvent("action_result", {
+      status: "denied",
+      summary: "A ação confirmada já não corresponde a uma operação autorizada.",
+    });
+  }
+
+  const resultText = await runTool(
+    consumed.confirmation.tool,
+    { ...consumed.confirmation.args },
+    ctx,
+    { confirmed: true },
+  );
+  let result: unknown;
+  try {
+    result = JSON.parse(resultText);
+  } catch {
+    result = null;
+  }
+
+  return streamToolActionResult(result, consumed.confirmation.summary);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonError("Método não permitido", 405);
 
   try {
-    const parsed = ottoInput.safeParse(await boundedJson(req));
+    const rawInput = await boundedJson(req);
+    const confirmation = ottoConfirmationInput.safeParse(rawInput);
+    if (confirmation.success) {
+      return await handleConfirmationRequest(req, confirmation.data);
+    }
+
+    const parsed = ottoInput.safeParse(rawInput);
     if (!parsed.success) return jsonError("Pedido inválido ou demasiado grande", 400);
     const { messages, organization_id, attachment_paths } = parsed.data;
 
@@ -131,7 +271,7 @@ serve(async (req) => {
 
     // Tools available to this user.
     const toolsForModel = (hasDataAccess && ctx)
-      ? getToolsForModel({ isAdmin: ctx.isAdmin, permissions: ctx.permissions })
+      ? getToolsForModel(ctx)
       : [];
 
     // Which permissioned modules are blocked (for the prompt note).
@@ -142,7 +282,7 @@ serve(async (req) => {
       // be listed as blocked.
       const blocked = new Set<string>();
       for (const t of ALL_TOOLS) {
-        if (t.permission?.action === "view" && !canUseTool(t, { isAdmin: false, permissions: ctx.permissions })) {
+        if (t.permission?.action === "view" && !canUseTool(t, ctx)) {
           blocked.add(MODULE_LABELS[t.permission.module] || t.permission.module);
         }
       }
@@ -213,6 +353,16 @@ serve(async (req) => {
           } else {
             console.log("otto_tool", { tool: fnName });
             toolResult = await runTool(fnName, fnArgs, ctx);
+          }
+          let decodedToolResult: unknown;
+          try {
+            decodedToolResult = JSON.parse(toolResult);
+          } catch {
+            decodedToolResult = null;
+          }
+          const actionPreview = actionPreviewFromResult(decodedToolResult);
+          if (actionPreview) {
+            return streamActionEvent("action_preview", actionPreview, providerHeaders);
           }
           conversationMessages.push({ role: "tool", tool_call_id: toolCall.id, content: toolResult });
         }
