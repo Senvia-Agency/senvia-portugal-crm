@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { tr } from '@/i18n';
 import { parseSharedTasks, taskEditableFields } from './task-mapping';
 import type { WorkTask, TaskStatus } from './model';
 
@@ -37,7 +38,7 @@ export function useOrganizationTasks() {
   }, [orgId, userId, client]);
   const mutation = useMutation({
     mutationFn: async (change: { task: WorkTask; statusOnly?: TaskStatus }) => {
-      if (!orgId || !userId) throw new Error('Seleciona uma organização para guardar a tarefa.');
+      if (!orgId || !userId) throw new Error(tr('Selecione uma organização para guardar a tarefa.'));
       const task = change.task;
       const { data: existing, error: readError } = await supabase.from('inbox_tasks').select('id,workplace_version,due_at,assigned_to,done_at')
         .eq('organization_id', orgId).eq('id', task.id).maybeSingle();
@@ -50,10 +51,10 @@ export function useOrganizationTasks() {
         const { data, error } = await supabase.from('inbox_tasks').update({ ...patch, ...(rearm ? { reminder_sent: false } : {}) })
           .eq('organization_id', orgId).eq('id', task.id).eq('workplace_version', task.version ?? 0).select(columns).maybeSingle();
         if (error) throw error;
-        if (!data) throw new Error('Esta tarefa mudou na equipa. O teu rascunho foi mantido; revê a versão atual antes de guardar.');
+        if (!data) throw new Error(tr('Esta tarefa mudou na equipa. O seu rascunho foi mantido; reveja a versão atual antes de guardar.'));
         return parseSharedTasks([data])[0];
       }
-      if (task.source === 'inbox' || change.statusOnly) throw new Error('A tarefa já não está disponível ou não tens acesso.');
+      if (task.source === 'inbox' || change.statusOnly) throw new Error(tr('A tarefa já não está disponível ou não tem acesso.'));
       const { data, error } = await supabase.from('inbox_tasks').insert({ ...taskEditableFields(task), id: task.id,
         organization_id: orgId, created_by: userId, suggested: false }).select(columns).single();
       if (error) throw error;

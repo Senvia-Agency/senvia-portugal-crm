@@ -5,6 +5,7 @@ import { ImportStep1Upload } from "@/components/marketing/import/ImportStep1Uplo
 import { useImportProspects } from "@/hooks/useProspects";
 import type { ProspectImportResult } from "@/types/prospects";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 interface ImportProspectsDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ export function ImportProspectsDialog({ open, onOpenChange }: ImportProspectsDia
   const [importSummary, setImportSummary] = useState<ProspectImportResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const importProspects = useImportProspects();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!open) {
@@ -43,7 +45,7 @@ export function ImportProspectsDialog({ open, onOpenChange }: ImportProspectsDia
         onOpenChange(false);
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Erro ao importar prospects");
+      setErrorMessage(error instanceof Error ? error.message : t("Erro ao importar prospects"));
     }
   };
 
@@ -51,9 +53,9 @@ export function ImportProspectsDialog({ open, onOpenChange }: ImportProspectsDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="flex h-full flex-col overflow-hidden p-0">
         <DialogHeader className="border-b px-4 py-4 md:px-6">
-          <DialogTitle>Importar prospects</DialogTitle>
+          <DialogTitle>{t("Importar prospects")}</DialogTitle>
           <DialogDescription>
-            Suporta .xlsb, .xlsx, .xls, .csv e .txt com atualização automática por NIF + CPE ou email.
+            {t("Suporta .xlsb, .xlsx, .xls, .csv e .txt com atualização automática por NIF + CPE ou email.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -67,8 +69,8 @@ export function ImportProspectsDialog({ open, onOpenChange }: ImportProspectsDia
 
             {importSummary ? (
               <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">
-                <strong className="font-medium">Resultado:</strong> {importSummary.inserted} novos • {importSummary.updated} atualizados • {importSummary.skipped} ignorados • {importSummary.failed} falhados
-                {importSummary.firstError ? <div className="mt-1 text-muted-foreground">Primeiro erro: {importSummary.firstError}</div> : null}
+                <strong className="font-medium">{t("Resultado:")}</strong> {t("{{inserted}} novos • {{updated}} atualizados • {{skipped}} ignorados • {{failed}} falhados", { inserted: importSummary.inserted, updated: importSummary.updated, skipped: importSummary.skipped, failed: importSummary.failed })}
+                {importSummary.firstError ? <div className="mt-1 text-muted-foreground">{t("Primeiro erro: {{error}}", { error: importSummary.firstError })}</div> : null}
               </div>
             ) : null}
 
@@ -97,11 +99,11 @@ export function ImportProspectsDialog({ open, onOpenChange }: ImportProspectsDia
         <div className="border-t px-4 py-4 md:px-6">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button onClick={handleImport} disabled={!fileName || rows.length === 0 || importProspects.isPending}>
               {importProspects.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Importar prospects
+              {t("Importar prospects")}
             </Button>
           </div>
         </div>

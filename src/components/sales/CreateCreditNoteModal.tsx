@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCreditNote } from "@/hooks/useCreateCreditNote";
+import { useLanguage } from "@/i18n";
+import { Trans } from "react-i18next";
 
 interface CreateCreditNoteModalProps {
   open: boolean;
@@ -36,6 +38,7 @@ export function CreateCreditNoteModal({
   documentType,
   documentReference,
 }: CreateCreditNoteModalProps) {
+  const { t } = useLanguage();
   const [reason, setReason] = useState("");
   const createCreditNote = useCreateCreditNote();
 
@@ -71,20 +74,19 @@ export function CreateCreditNoteModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-destructive" />
-            Emitir Nota de Crédito
+            {t("Emitir Nota de Crédito")}
           </DialogTitle>
           <DialogDescription>
-            Será criada uma Nota de Crédito referente ao documento <strong>{documentReference}</strong>. 
-            Todos os itens serão creditados pelo valor integral. A nota emitida é um documento fiscal definitivo.
+            <Trans i18nKey="Será criada uma Nota de Crédito referente ao documento <b>{{reference}}</b>. Todos os itens serão creditados pelo valor integral. A nota emitida é um documento fiscal definitivo." values={{ reference: documentReference }} components={{ b: <strong /> }} />
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="credit-note-reason">Motivo *</Label>
+            <Label htmlFor="credit-note-reason">{t("Motivo *")}</Label>
             <Textarea
               id="credit-note-reason"
-              placeholder="Indique o motivo da nota de crédito..."
+              placeholder={t("Indique o motivo da nota de crédito...")}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={4}
@@ -94,7 +96,7 @@ export function CreateCreditNoteModal({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={createCreditNote.isPending}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button
             variant="destructive"
@@ -104,10 +106,10 @@ export function CreateCreditNoteModal({
             {createCreditNote.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                A emitir...
+                {t("A emitir...")}
               </>
             ) : (
-              "Emitir Nota de Crédito"
+              t("Emitir Nota de Crédito")
             )}
           </Button>
         </DialogFooter>

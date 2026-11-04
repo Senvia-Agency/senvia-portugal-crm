@@ -7,9 +7,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Users, Calendar, Mail, UserCheck, UserX } from "lucide-react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AdminShell, AdminTableSkeleton } from "@/components/system-admin/AdminShell";
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface UserProfile {
   id: string;
@@ -30,7 +30,7 @@ interface OrgMemberWithProfile {
 
 function formatDate(date: string | null): string {
   if (!date) return "—";
-  return format(new Date(date), "dd MMM yyyy", { locale: pt });
+  return format(new Date(date), "dd MMM yyyy", { locale: dateLocale() });
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -40,6 +40,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function SystemAdminUsers() {
+  const { t } = useLanguage();
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["super-admin-users"],
     queryFn: async (): Promise<OrgMemberWithProfile[]> => {
@@ -76,31 +77,31 @@ export default function SystemAdminUsers() {
 
   return (
     <AdminShell
-      title="Utilizadores"
-      description={isLoading ? "A carregar..." : `${users.length} membros em organizações`}
+      title={t("Utilizadores")}
+      description={isLoading ? t("A carregar...") : t(users.length === 1 ? "{{n}} membro em organizações" : "{{n}} membros em organizações", { n: users.length })}
       icon={Users}
       maxWidth="5xl"
     >
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Membros por Organização</CardTitle>
+          <CardTitle className="text-sm">{t("Membros por Organização")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <AdminTableSkeleton rows={8} cols={5} />
           ) : users.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">Ainda não há utilizadores em organizações.</p>
+            <p className="p-6 text-sm text-muted-foreground">{t("Ainda não há utilizadores em organizações.")}</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Utilizador</TableHead>
+                    <TableHead>{t("Utilizador")}</TableHead>
                     <TableHead className="hidden sm:table-cell">Email</TableHead>
-                    <TableHead>Organização</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead className="hidden md:table-cell">Estado</TableHead>
-                    <TableHead className="hidden lg:table-cell">Registo</TableHead>
+                    <TableHead>{t("Organização")}</TableHead>
+                    <TableHead>{t("Função")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Estado")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("Registo", { context: "signup" })}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -112,7 +113,7 @@ export default function SystemAdminUsers() {
                             {(u.profile?.display_name || u.profile?.email || "?")[0].toUpperCase()}
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">{u.profile?.display_name || "Sem nome"}</span>
+                            <span className="text-sm font-medium">{u.profile?.display_name || t("Sem nome")}</span>
                             <span className="text-xs text-muted-foreground">{u.profile?.id.slice(0, 8)}</span>
                           </div>
                         </div>
@@ -136,7 +137,7 @@ export default function SystemAdminUsers() {
                             u.role === "member" && "bg-muted text-muted-foreground",
                           )}
                         >
-                          {ROLE_LABELS[u.role] || u.role}
+                          {ROLE_LABELS[u.role] ? t(ROLE_LABELS[u.role]) : u.role}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -144,12 +145,12 @@ export default function SystemAdminUsers() {
                           {u.is_active ? (
                             <>
                               <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span className="text-sm text-emerald-600 dark:text-emerald-400">Ativo</span>
+                              <span className="text-sm text-emerald-600 dark:text-emerald-400">{t("Ativo")}</span>
                             </>
                           ) : (
                             <>
                               <UserX className="h-3.5 w-3.5 text-destructive" />
-                              <span className="text-sm text-destructive">Inativo</span>
+                              <span className="text-sm text-destructive">{t("Inativo")}</span>
                             </>
                           )}
                         </div>

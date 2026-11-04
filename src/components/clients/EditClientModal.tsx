@@ -34,6 +34,7 @@ import { isKeyInvoiceActive } from "@/lib/fiscal-automation";
 import { ClientAutomaticDocuments, type ClientAutomaticDocumentsValue } from "./ClientAutomaticDocuments";
 import { COUNTRIES } from "@/lib/countries";
 import { User, Building2 } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 interface EditClientModalProps {
   client: CrmClient | null;
@@ -44,6 +45,7 @@ interface EditClientModalProps {
 }
 
 export function EditClientModal({ client, open, onOpenChange, inboxContact }: EditClientModalProps) {
+  const { t } = useLanguage();
   const labels = useClientLabels();
   const { organization } = useAuth();
   const { data: teamMembers = [] } = useTeamMembers();
@@ -202,24 +204,24 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
         <DialogHeader className="px-4 sm:px-6 py-4 border-b shrink-0">
-          <DialogTitle>Editar {labels.singular}</DialogTitle>
+          <DialogTitle>{t("Editar {{entity}}", { entity: t(labels.singular) })}</DialogTitle>
           <DialogDescription>
-            Atualize as informações do {labels.singular.toLowerCase()}.
+            {t("Atualize as informações do {{entity}}.", { entity: t(labels.singular).toLowerCase() })}
           </DialogDescription>
         </DialogHeader>
 
         {inboxContact && (
           <div className="shrink-0 flex items-center gap-3 border-b bg-green-500/5 px-4 sm:px-6 py-2.5">
-            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0">WhatsApp</span>
+            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0">{t("WhatsApp")}</span>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
-              <button type="button" title="Clica para copiar o nome"
+              <button type="button" title={t("Clica para copiar o nome")}
                 onClick={() => navigator.clipboard.writeText(inboxContact.name)}
                 className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
                 <span className="truncate max-w-[200px]">{inboxContact.name}</span>
                 <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0 text-muted-foreground"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
               </button>
               {inboxContact.phone && (
-                <button type="button" title="Clica para copiar o telefone"
+                <button type="button" title={t("Clica para copiar o telefone")}
                   onClick={() => navigator.clipboard.writeText(`+${inboxContact.phone}`)}
                   className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
                   <span>+{inboxContact.phone}</span>
@@ -227,7 +229,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                 </button>
               )}
             </div>
-            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">clica para copiar</span>
+            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{t("clica para copiar")}</span>
           </div>
         )}
 
@@ -239,17 +241,17 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                 {/* Basic Info */}
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Informações Básicas</CardTitle>
+                    <CardTitle className="text-base">{t("Informações Básicas")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="edit-name">{settings.name.label} *</Label>
+                        <Label htmlFor="edit-name">{t(settings.name.label)} *</Label>
                         <Input
                           id="edit-name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          placeholder={`Nome do ${labels.singular.toLowerCase()}`}
+                          placeholder={t("Nome do {{entity}}", { entity: t(labels.singular).toLowerCase() })}
                           required
                         />
                       </div>
@@ -257,7 +259,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                       {settings.email.visible && (
                         <div className="space-y-2">
                           <Label htmlFor="edit-email">
-                            {settings.email.label} {settings.email.required && '*'}
+                            {t(settings.email.label)} {settings.email.required && '*'}
                           </Label>
                           <Input
                             id="edit-email"
@@ -273,7 +275,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                       {settings.phone.visible && (
                         <div className="space-y-2">
                           <Label htmlFor="edit-phone">
-                            {settings.phone.label} {settings.phone.required && '*'}
+                            {t(settings.phone.label)} {settings.phone.required && '*'}
                           </Label>
                           <PhoneInput
                             value={phone}
@@ -285,17 +287,17 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
 
                       {settings.nif.visible && (
                         <div className="space-y-2">
-                          <Label htmlFor="edit-nif">NIF (Cliente) {settings.nif.required && '*'}</Label>
+                          <Label htmlFor="edit-nif">{t("NIF (Cliente)")} {settings.nif.required && '*'}</Label>
                           <Input
                             id="edit-nif"
                             value={nif}
                             onChange={(e) => setNif(e.target.value)}
-                            placeholder="NIF pessoal"
+                            placeholder={t("NIF pessoal")}
                             required={settings.nif.required}
                           />
                           {nifValidation.isDuplicate && (
                             <p className="text-xs text-destructive mt-1">
-                              Já existe um cliente com este NIF: {nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}
+                              {t("Já existe um cliente com este NIF:")} {nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}
                             </p>
                           )}
                         </div>
@@ -310,38 +312,38 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
-                        Empresa
+                        {t("Empresa")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="edit-company">
-                            {settings.company.label} {settings.company.required && '*'}
+                            {t(settings.company.label)} {settings.company.required && '*'}
                           </Label>
                           <Input
                             id="edit-company"
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
-                            placeholder="Nome da empresa"
+                            placeholder={t("Nome da empresa")}
                             required={settings.company.required}
                           />
                         </div>
                         {settings.company_nif?.visible && (
                           <div className="space-y-2">
                             <Label htmlFor="edit-company-nif">
-                              {settings.company_nif.label} {settings.company_nif.required && '*'}
+                              {t(settings.company_nif.label)} {settings.company_nif.required && '*'}
                             </Label>
                             <Input
                               id="edit-company-nif"
                               value={companyNif}
                               onChange={(e) => setCompanyNif(e.target.value)}
-                              placeholder="NIF da empresa"
+                              placeholder={t("NIF da empresa")}
                               required={settings.company_nif.required}
                             />
                             {companyNifValidation.isDuplicate && (
                               <p className="text-xs text-destructive mt-1">
-                                Já existe um cliente com este NIF: {companyNifValidation.existingClientCode ? `${companyNifValidation.existingClientCode} - ` : ''}{companyNifValidation.existingClientName}
+                                {t("Já existe um cliente com este NIF:")} {companyNifValidation.existingClientCode ? `${companyNifValidation.existingClientCode} - ` : ''}{companyNifValidation.existingClientName}
                               </p>
                             )}
                           </div>
@@ -356,7 +358,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        {settings.address.label} {settings.address.required && '*'}
+                        {t(settings.address.label)} {settings.address.required && '*'}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -365,7 +367,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                           <Input
                             value={addressLine1}
                             onChange={(e) => setAddressLine1(e.target.value)}
-                            placeholder="Rua, número"
+                            placeholder={t("Rua, número")}
                             required={settings.address.required}
                           />
                         </div>
@@ -373,23 +375,23 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                           <Input
                             value={addressLine2}
                             onChange={(e) => setAddressLine2(e.target.value)}
-                            placeholder="Apartamento, andar (opcional)"
+                            placeholder={t("Apartamento, andar (opcional)")}
                           />
                         </div>
                         <Input
                           value={postalCode}
                           onChange={(e) => setPostalCode(e.target.value)}
-                          placeholder="Código Postal"
+                          placeholder={t("Código Postal")}
                         />
                         <Input
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
-                          placeholder="Cidade"
+                          placeholder={t("Cidade")}
                         />
                         <div className="sm:col-span-2">
                           <Select value={country} onValueChange={setCountry}>
                             <SelectTrigger>
-                              <SelectValue placeholder="País" />
+                              <SelectValue placeholder={t("País")} />
                             </SelectTrigger>
                             <SelectContent>
                               {COUNTRIES.map((c) => (
@@ -409,35 +411,35 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                 {isTelecom && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Localização / Grupo</CardTitle>
+                      <CardTitle className="text-base">{t("Localização / Grupo")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="edit-distrito">Distrito</Label>
+                          <Label htmlFor="edit-distrito">{t("Distrito")}</Label>
                           <Input
                             id="edit-distrito"
                             value={distrito}
                             onChange={(e) => setDistrito(e.target.value)}
-                            placeholder="Ex: Lisboa"
+                            placeholder={t("Ex: Lisboa")}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="edit-conselho">Concelho</Label>
+                          <Label htmlFor="edit-conselho">{t("Concelho")}</Label>
                           <Input
                             id="edit-conselho"
                             value={conselho}
                             onChange={(e) => setConselho(e.target.value)}
-                            placeholder="Ex: Sintra"
+                            placeholder={t("Ex: Sintra")}
                           />
                         </div>
                         <div className="space-y-2 sm:col-span-2">
-                          <Label htmlFor="edit-grupo-economico">Grupo Económico</Label>
+                          <Label htmlFor="edit-grupo-economico">{t("Grupo Económico")}</Label>
                           <Input
                             id="edit-grupo-economico"
                             value={grupoEconomico}
                             onChange={(e) => setGrupoEconomico(e.target.value)}
-                            placeholder="Ex: Grupo XYZ"
+                            placeholder={t("Ex: Grupo XYZ")}
                           />
                         </div>
                       </div>
@@ -450,7 +452,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Adicionar nota {settings.notes.required && '*'}
+                        {t("Adicionar nota")} {settings.notes.required && '*'}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -458,7 +460,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                         id="edit-notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Escreve uma nota para adicionar ao histórico…"
+                        placeholder={t("Escreve uma nota para adicionar ao histórico…")}
                         rows={4}
                         required={settings.notes.required}
                       />
@@ -474,7 +476,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                   {invoicingEnabled && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Faturação</CardTitle>
+                      <CardTitle className="text-base">{t("Faturação")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <RadioGroup
@@ -493,8 +495,8 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                           <RadioGroupItem value="client" id="edit-billing-client" />
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">Faturar Cliente</p>
-                            <p className="text-xs text-muted-foreground">Usa o nome e NIF do cliente</p>
+                            <p className="text-sm font-medium">{t("Faturar Cliente")}</p>
+                            <p className="text-xs text-muted-foreground">{t("Usa o nome e NIF do cliente")}</p>
                           </div>
                         </label>
                         <label
@@ -508,35 +510,35 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                           <RadioGroupItem value="company" id="edit-billing-company" />
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">Faturar Empresa</p>
-                            <p className="text-xs text-muted-foreground">Usa o nome e contribuinte da empresa</p>
+                            <p className="text-sm font-medium">{t("Faturar Empresa")}</p>
+                            <p className="text-xs text-muted-foreground">{t("Usa o nome e contribuinte da empresa")}</p>
                           </div>
                         </label>
                       </RadioGroup>
                       {company.trim() && (
                         <div className="mt-4 space-y-3 border-t pt-4">
-                          <p className="text-sm font-medium">Morada fiscal da empresa</p>
+                          <p className="text-sm font-medium">{t("Morada fiscal da empresa")}</p>
                           <label className="flex items-center gap-2 text-sm cursor-pointer">
                             <Checkbox checked={companyAddressSameAsClient} onCheckedChange={(checked) => setCompanyAddressSameAsClient(checked === true)} />
-                            Usar a mesma morada do cliente
+                            {t("Usar a mesma morada do cliente")}
                           </label>
                           {companyAddressSameAsClient ? (
                             <p className="text-xs text-muted-foreground">
                               {addressLine1 && city && postalCode && country
                                 ? `${addressLine1}, ${postalCode} ${city}, ${COUNTRIES.find((item) => item.code === country)?.name || country}`
-                                : 'Preenche a morada do cliente para poder emitir faturas à empresa.'}
+                                : t("Preenche a morada do cliente para poder emitir faturas à empresa.")}
                             </p>
                           ) : (
                             <>
-                              <p className="text-xs text-muted-foreground">Preenche a morada própria da empresa para faturar à empresa.</p>
-                              <Input aria-label="Morada fiscal da empresa" placeholder="Morada" value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
-                              <Input aria-label="Complemento da morada da empresa" placeholder="Complemento (opcional)" value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
+                              <p className="text-xs text-muted-foreground">{t("Preenche a morada própria da empresa para faturar à empresa.")}</p>
+                              <Input aria-label={t("Morada fiscal da empresa")} placeholder={t("Morada")} value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
+                              <Input aria-label={t("Complemento da morada da empresa")} placeholder={t("Complemento (opcional)")} value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
                               <div className="grid grid-cols-2 gap-2">
-                                <Input aria-label="Código postal da empresa" placeholder="Código postal" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
-                                <Input aria-label="Localidade da empresa" placeholder="Localidade" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
+                                <Input aria-label={t("Código postal da empresa")} placeholder={t("Código postal")} value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
+                                <Input aria-label={t("Localidade da empresa")} placeholder={t("Localidade")} value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
                               </div>
                               <Select value={companyCountry} onValueChange={setCompanyCountry}>
-                                <SelectTrigger aria-label="País da empresa"><SelectValue placeholder="País da empresa" /></SelectTrigger>
+                                <SelectTrigger aria-label={t("País da empresa")}><SelectValue placeholder={t("País da empresa")} /></SelectTrigger>
                                 <SelectContent>
                                   {COUNTRIES.map((item) => (
                                     <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
@@ -556,33 +558,32 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Classificação</CardTitle>
+                      <CardTitle className="text-base">{t("Classificação")}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label>{labels.statusFieldLabel}</Label>
+                        <Label>{t(labels.statusFieldLabel)}</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as ClientStatus)}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="active">{labels.statusActive}</SelectItem>
-                            <SelectItem value="inactive">{labels.statusInactive}</SelectItem>
-                            <SelectItem value="vip">{labels.statusVip}</SelectItem>
+                            <SelectItem value="active">{t(labels.statusActive)}</SelectItem>
+                            <SelectItem value="inactive">{t(labels.statusInactive)}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Origem</Label>
+                        <Label>{t("Origem")}</Label>
                         <Select value={source} onValueChange={setSource}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
+                            <SelectValue placeholder={t("Selecione...")} />
                           </SelectTrigger>
                           <SelectContent>
                             {Object.entries(CLIENT_SOURCE_LABELS).map(([value, label]) => (
                               <SelectItem key={value} value={value}>
-                                {label}
+                                {t(label)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -590,16 +591,16 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Comercial Responsável</Label>
+                        <Label>{t("Comercial Responsável")}</Label>
                         <Select 
                           value={assignedTo || "none"} 
                           onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Sem responsável atribuído" />
+                            <SelectValue placeholder={t("Sem responsável atribuído")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">Sem responsável</SelectItem>
+                            <SelectItem value="none">{t("Sem responsável")}</SelectItem>
                             {teamMembers
                               .filter((member) => member.user_id)
                               .map((member) => (
@@ -616,10 +617,10 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     <Button type="submit" disabled={!isValid || updateClient.isPending} className="w-full">
-                      {updateClient.isPending ? "A guardar..." : "Guardar Alterações"}
+                      {updateClient.isPending ? t("A guardar...") : t("Guardar Alterações")}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full">
-                      Cancelar
+                      {t("Cancelar")}
                     </Button>
                   </div>
                 </div>

@@ -16,6 +16,7 @@ import { MessageBubble, type ReactionGroup } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
 import { ForwardDialog } from './ForwardDialog';
 import { GroupDetailsDialog } from './GroupDetailsDialog';
+import { useLanguage } from '@/i18n';
 
 interface People {
   readonly nameFor: (id: string | null) => string;
@@ -38,6 +39,7 @@ interface Props {
 const SAME_RUN_MS = 5 * 60 * 1000;
 
 export function ConversationView({ conversation, conversations, organizationId, userId, people, focusMessageId, onFocused, onBack, onOpen }: Props) {
+  const { t } = useLanguage();
   const client = useQueryClient();
   const thread = useChatThread(conversation.id, organizationId, userId);
   const messages = useMemo(() => thread.messages.data?.messages ?? [], [thread.messages.data]);
@@ -98,21 +100,21 @@ export function ConversationView({ conversation, conversations, organizationId, 
       await setReaction(conversation.id, message.id, userId, emoji, on);
       void client.invalidateQueries({ queryKey: chatKeys.reactions(conversation.id) });
       thread.notifyReactions();
-    } catch (error) { toast.error('Reação não guardada', { description: describeChatError(error) }); }
+    } catch (error) { toast.error(t('Reação não guardada'), { description: describeChatError(error) }); }
   }
   async function confirmDelete() {
     if (!deleting) return;
-    try { await deleteMessage(deleting); refreshThread(); } catch (error) { toast.error('Mensagem não eliminada', { description: describeChatError(error) }); }
+    try { await deleteMessage(deleting); refreshThread(); } catch (error) { toast.error(t('Mensagem não eliminada'), { description: describeChatError(error) }); }
     setDeleting(null);
   }
   async function toggleSetting(patch: { is_pinned?: boolean; is_muted?: boolean; is_archived?: boolean }, done: string) {
-    try { await updateSettings(conversation.id, userId, patch); refreshList(); toast.success(done); } catch (error) { toast.error('Preferência não guardada', { description: describeChatError(error) }); }
+    try { await updateSettings(conversation.id, userId, patch); refreshList(); toast.success(done); } catch (error) { toast.error(t('Preferência não guardada'), { description: describeChatError(error) }); }
   }
 
   const typingNames = thread.typingUserIds.map(id => people.firstName(id));
   const subtitle = typingNames.length > 0
-    ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'está' : 'estão'} a escrever…`
-    : conversation.kind === 'direct' ? 'Conversa privada' : conversation.kind === 'channel' ? `Toda a organização · ${conversation.memberCount} membros` : `${conversation.memberCount} membros`;
+    ? t(typingNames.length === 1 ? '{{names}} está a escrever…' : '{{names}} estão a escrever…', { names: typingNames.join(', ') })
+    : conversation.kind === 'direct' ? t('Conversa privada') : conversation.kind === 'channel' ? `${t('Toda a organização')} · ${t('{{n}} membros', { n: conversation.memberCount })}` : t('{{n}} membros', { n: conversation.memberCount });
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
     if (!event.dataTransfer.types.includes('Files')) return;
@@ -120,31 +122,31 @@ export function ConversationView({ conversation, conversations, organizationId, 
     setIncoming(Array.from(event.dataTransfer.files));
   };
 
-  return <section className="relative flex h-full min-h-0 flex-col" aria-label={`Conversa: ${title}`}
+  return <section className="relative flex h-full min-h-0 flex-col" aria-label={t('Conversa: {{title}}', { title })}
     onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDragging(true); } }}
     onDragLeave={event => { if (event.currentTarget === event.target) setDragging(false); }} onDrop={onDrop}>
-    {dragging && <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-background/90 text-sm font-semibold text-primary">Largue os ficheiros para os enviar nesta conversa</div>}
+    {dragging && <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-background/90 text-sm font-semibold text-primary">{t('Largue os ficheiros para os enviar nesta conversa')}</div>}
     <header className="flex items-center gap-3 border-b px-3 py-2.5">
-      <Button variant="ghost" size="icon" aria-label="Voltar às conversas" onClick={onBack} className="chat-back h-10 w-10 shrink-0 rounded-full"><ArrowLeft className="h-5 w-5" /></Button>
+      <Button variant="back" size="icon" aria-label={t('Voltar às conversas')} onClick={onBack} className="chat-back h-10 w-10 shrink-0 rounded-full"><ArrowLeft className="h-5 w-5" /></Button>
       <ConversationAvatar kind={conversation.kind} name={title} url={conversation.kind === 'direct' ? people.avatarFor(conversation.peerUserId) : null} size={40} />
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-[15.5px] font-bold">{title}</h2>
         <p className={cn('truncate text-[12.5px]', typingNames.length ? 'font-medium text-primary' : 'text-muted-foreground')}>{subtitle}</p>
       </div>
-      {conversation.kind !== 'direct' && <Button variant="ghost" size="icon" aria-label="Detalhes" onClick={() => setDetailsOpen(true)} className="h-10 w-10 rounded-full"><Info className="h-5 w-5" /></Button>}
+      {conversation.kind !== 'direct' && <Button variant="ghost" size="icon" aria-label={t('Detalhes')} onClick={() => setDetailsOpen(true)} className="h-10 w-10 rounded-full"><Info className="h-5 w-5" /></Button>}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Opções da conversa" className="h-10 w-10 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={t('Opções da conversa')} className="h-10 w-10 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onSelect={() => void toggleSetting({ is_pinned: !conversation.isPinned }, conversation.isPinned ? 'Conversa desafixada' : 'Conversa fixada')}>
-            {conversation.isPinned ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}{conversation.isPinned ? 'Desafixar' : 'Fixar no topo'}
+          <DropdownMenuItem onSelect={() => void toggleSetting({ is_pinned: !conversation.isPinned }, conversation.isPinned ? t('Conversa desafixada') : t('Conversa fixada'))}>
+            {conversation.isPinned ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}{conversation.isPinned ? t('Desafixar') : t('Fixar no topo')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void toggleSetting({ is_muted: !conversation.isMuted }, conversation.isMuted ? 'Notificações ativadas' : 'Conversa silenciada')}>
-            {conversation.isMuted ? <Bell className="mr-2 h-4 w-4" /> : <BellOff className="mr-2 h-4 w-4" />}{conversation.isMuted ? 'Reativar' : 'Silenciar'}
+          <DropdownMenuItem onSelect={() => void toggleSetting({ is_muted: !conversation.isMuted }, conversation.isMuted ? t('Notificações ativadas') : t('Conversa silenciada'))}>
+            {conversation.isMuted ? <Bell className="mr-2 h-4 w-4" /> : <BellOff className="mr-2 h-4 w-4" />}{conversation.isMuted ? t('Reativar', { context: 'mute' }) : t('Silenciar')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void toggleSetting({ is_archived: !conversation.isArchived }, conversation.isArchived ? 'Conversa desarquivada' : 'Conversa arquivada')}>
-            <Archive className="mr-2 h-4 w-4" />{conversation.isArchived ? 'Desarquivar' : 'Arquivar'}
+          <DropdownMenuItem onSelect={() => void toggleSetting({ is_archived: !conversation.isArchived }, conversation.isArchived ? t('Conversa desarquivada') : t('Conversa arquivada'))}>
+            <Archive className="mr-2 h-4 w-4" />{conversation.isArchived ? t('Desarquivar') : t('Arquivar')}
           </DropdownMenuItem>
-          {conversation.kind !== 'direct' && <DropdownMenuItem onSelect={() => setDetailsOpen(true)}><Info className="mr-2 h-4 w-4" />Detalhes do grupo</DropdownMenuItem>}
+          {conversation.kind !== 'direct' && <DropdownMenuItem onSelect={() => setDetailsOpen(true)}><Info className="mr-2 h-4 w-4" />{t('Detalhes do grupo')}</DropdownMenuItem>}
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
@@ -152,13 +154,13 @@ export function ConversationView({ conversation, conversations, organizationId, 
     <div ref={scroller} className="chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6"
       onScroll={event => { const element = event.currentTarget; nearBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 140; }}>
       {thread.hasOlder && <div className="mb-3 flex justify-center"><Button variant="outline" size="sm" className="rounded-full" disabled={thread.messages.isFetching} onClick={loadOlder}>
-        {thread.messages.isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Ver mensagens anteriores</Button></div>}
+        {thread.messages.isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}{t('Ver mensagens anteriores')}</Button></div>}
       {thread.messages.isLoading && <Loader2 className="mx-auto my-10 h-5 w-5 animate-spin text-muted-foreground" />}
       {thread.messages.isError && <p role="alert" className="mx-auto my-10 max-w-sm text-center text-sm text-destructive">{describeChatError(thread.messages.error)}</p>}
       {!thread.messages.isLoading && messages.length === 0 && !thread.messages.isError && <div className="mx-auto my-16 max-w-xs text-center text-sm text-muted-foreground">
         <ConversationAvatar kind={conversation.kind} name={title} url={conversation.kind === 'direct' ? people.avatarFor(conversation.peerUserId) : null} size={64} />
         <p className="mt-3 font-semibold text-foreground">{title}</p>
-        <p className="mt-1">{conversation.kind === 'channel' ? 'O canal de toda a organização. Diga olá à equipa.' : 'Ainda não há mensagens. Escreva a primeira.'}</p>
+        <p className="mt-1">{conversation.kind === 'channel' ? t('O canal de toda a organização. Diga olá à equipa.') : t('Ainda não há mensagens. Escreva a primeira.')}</p>
       </div>}
       {messages.map((message, index) => {
         const previous = messages[index - 1];
@@ -170,8 +172,8 @@ export function ConversationView({ conversation, conversations, organizationId, 
           {newDay && <div className="my-4 flex justify-center"><span className="rounded-full bg-muted px-3 py-1 text-[11.5px] font-semibold capitalize text-muted-foreground">{dayLabel(message.createdAt)}</span></div>}
           <MessageBubble message={message} mine={mine} showSender={!continued && conversation.kind !== 'direct'}
             senderName={people.nameFor(message.senderId)} senderAvatar={people.avatarFor(message.senderId)}
-            replied={replied} repliedName={replied ? (replied.senderId === userId ? 'Eu' : people.nameFor(replied.senderId)) : ''}
-            reactions={reactionsByMessage.get(message.id) ?? []} myUserId={userId} nameFor={id => id === userId ? 'Eu' : people.nameFor(id)}
+            replied={replied} repliedName={replied ? (replied.senderId === userId ? t('Eu') : people.nameFor(replied.senderId)) : ''}
+            reactions={reactionsByMessage.get(message.id) ?? []} myUserId={userId} nameFor={id => id === userId ? t('Eu') : people.nameFor(id)}
             seen={mine && peerReadAt ? peerReadAt >= message.createdAt : mine && conversation.kind === 'direct' ? false : null}
             highlighted={highlight === message.id}
             onReply={() => { setEditing(null); setReplyTo(message); }} onEdit={() => { setReplyTo(null); setEditing(message); }}
@@ -182,7 +184,7 @@ export function ConversationView({ conversation, conversations, organizationId, 
     </div>
 
     <ChatComposer key={conversation.id} conversationId={conversation.id} userId={userId} replyTo={replyTo} editing={editing}
-      replyName={replyTo ? (replyTo.senderId === userId ? 'si próprio' : people.nameFor(replyTo.senderId)) : ''}
+      replyName={replyTo ? (replyTo.senderId === userId ? t('si próprio') : people.nameFor(replyTo.senderId)) : ''}
       incomingFiles={incoming} onIncomingTaken={takeIncoming}
       onCancelReply={() => setReplyTo(null)} onCancelEdit={() => setEditing(null)} onSent={refreshThread}
       onTyping={thread.notifyTyping} describeError={describeChatError} />
@@ -190,12 +192,12 @@ export function ConversationView({ conversation, conversations, organizationId, 
     <AlertDialog open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminar mensagem?</AlertDialogTitle>
-          <AlertDialogDescription>A mensagem passa a aparecer como "Mensagem eliminada" para todos e o ficheiro anexado é apagado. Não pode ser desfeito.</AlertDialogDescription>
+          <AlertDialogTitle>{t('Eliminar mensagem?')}</AlertDialogTitle>
+          <AlertDialogDescription>{t('A mensagem passa a aparecer como "Mensagem eliminada" para todos e o ficheiro anexado é apagado. Não pode ser desfeito.')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Manter</AlertDialogCancel>
-          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void confirmDelete()}>Eliminar</AlertDialogAction>
+          <AlertDialogCancel>{t('Manter')}</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void confirmDelete()}>{t('Eliminar')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

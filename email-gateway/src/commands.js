@@ -1,12 +1,17 @@
 // Command processor: polls email_commands and executes each over IMAP/SMTP, then
 // updates the email tables. Lets the CRM drive actions/sending without the gateway
 // being publicly reachable (it only needs the DB it already talks to).
+import { randomUUID } from 'node:crypto';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import { simpleParser } from 'mailparser';
 import { getEmailCaixa, smtpTransport } from './caixas.js';
 import { getManager } from './idle.js';
-import { syncFolderMessages, syncOlderMessages, syncUnreadMessages, backfillBodies, fetchMessageBody } from './sync.js';
+import { syncFolders, syncFolderMessages, syncOlderMessages, syncUnreadMessages, backfillBodies, fetchMessageBody } from './sync.js';
+import { planRules, rulesNeedBody } from './rules.js';
 import { q } from './db.js';
+import { withHostSlot } from './host-slots.js';
+import { smtpErrorMessage, retryableBeforeSend } from './smtp-errors.js';
+import { embedInlineImages } from './inline-images.js';
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -30,8 +35,163 @@ async function folderByRole(caixa, role) {
   return f;
 }
 async function folderById(id, caixa) {
-  const [f] = await q(`SELECT id, path FROM email_folders WHERE id=$1 AND channel_id=$2 AND organization_id=$3`, [id, caixa.id, caixa.organization_id]);
+  const [f] = await q(`SELECT id, path, role FROM email_folders WHERE id=$1 AND channel_id=$2 AND organization_id=$3`, [id, caixa.id, caixa.organization_id]);
   return f;
+}
+
+// Folder names the person types. The hierarchy separator and IMAP wildcards would turn one
+// name into a path or a pattern, so they are refused rather than silently changed.
+export function folderName(raw) {
+  const name = String(raw ?? '').trim();
+  if (!name || name.length > 60) throw new Error('o nome da pasta tem de ter entre 1 e 60 caracteres');
+  if (/[/\\.%*"\u0000-\u001f]/.test(name)) throw new Error('o nome da pasta não pode ter / \\ . % * nem aspas');
+  return name;
+}
+
+/** The new path of a folder renamed in place: same parent, new last segment. */
+export function renamedPath(path, delimiter, name) {
+  const at = delimiter ? path.lastIndexOf(delimiter) : -1;
+  return at >= 0 ? `${path.slice(0, at + delimiter.length)}${name}` : name;
+}
+
+async function boxDelimiter(client, path) {
+  const boxes = await client.list();
+  return boxes.find((box) => box.path === path)?.delimiter || boxes.find((box) => box.delimiter)?.delimiter || '/';
+}
+
+// Only folders the person created (not Inbox, Sent, Trash...) can be renamed or deleted.
+async function customFolder(p, caixa) {
+  const folder = await folderById(p.folderId, caixa);
+  if (!folder) throw new Error('pasta inexistente');
+  if (folder.role !== 'custom') throw new Error('as pastas do sistema não podem ser alteradas');
+  return folder;
+}
+
+async function createFolder(client, caixa, p) {
+  const name = folderName(p.name);
+  let path = name;
+  if (p.parentFolderId) {
+    const parent = await folderById(p.parentFolderId, caixa);
+    if (!parent) throw new Error('pasta mãe inexistente');
+    path = `${parent.path}${await boxDelimiter(client, parent.path)}${name}`;
+  }
+  await client.mailboxCreate(path);
+  await syncFolders(client, caixa);
+}
+
+async function renameFolder(client, caixa, p) {
+  const folder = await customFolder(p, caixa);
+  const name = folderName(p.name);
+  const delimiter = await boxDelimiter(client, folder.path);
+  const next = renamedPath(folder.path, delimiter, name);
+  if (next === folder.path) return;
+  await client.mailboxRename(folder.path, next);
+  // The folder keeps its row (and its messages); subfolders follow under the new prefix.
+  await q(`UPDATE email_folders SET path = $2 || substr(path, length($1) + 1), updated_at = now()
+            WHERE channel_id = $3 AND organization_id = $4 AND (path = $1 OR starts_with(path, $5))`,
+    [folder.path, next, caixa.id, caixa.organization_id, folder.path + delimiter]);
+  await syncFolders(client, caixa);
+}
+
+// Deleting an IMAP folder deletes its messages, so only an empty folder without subfolders goes.
+async function deleteFolder(client, caixa, p) {
+  const folder = await customFolder(p, caixa);
+  const delimiter = await boxDelimiter(client, folder.path);
+  const [children] = await q(`SELECT count(*)::int AS n FROM email_folders
+    WHERE channel_id = $1 AND organization_id = $2 AND starts_with(path, $3)`, [caixa.id, caixa.organization_id, folder.path + delimiter]);
+  if (children?.n > 0) throw new Error('apague primeiro as subpastas');
+  const rule = await ruleMovingTo(caixa, folder.id);
+  if (rule) throw new Error(`a regra "${rule}" move emails para esta pasta: mude-a antes de apagar a pasta`);
+  const status = await client.status(folder.path, { messages: true });
+  if ((status.messages || 0) > 0) throw new Error('a pasta tem emails: mova-os para outra pasta antes de a apagar');
+  await client.mailboxDelete(folder.path);
+  await q(`DELETE FROM email_folders WHERE id = $1 AND channel_id = $2 AND organization_id = $3`, [folder.id, caixa.id, caixa.organization_id]);
+}
+
+// Postgres "undefined_table": email_rules before its migration ran.
+const NO_RULES_TABLE = '42P01';
+
+/** Name of a rule that moves mail to this folder, if any. */
+async function ruleMovingTo(caixa, folderId) {
+  try {
+    const [rule] = await q(`SELECT name FROM email_rules WHERE channel_id = $1 AND organization_id = $2
+      AND actions @> jsonb_build_array(jsonb_build_object('type', 'move', 'folderId', $3::text)) LIMIT 1`,
+    [caixa.id, caixa.organization_id, folderId]);
+    return rule?.name ?? null;
+  } catch (e) {
+    if (e.code === NO_RULES_TABLE) return null;
+    throw e;
+  }
+}
+
+// Plain text of a body for the "Texto do email" condition.
+function bodyText(text, html) {
+  return String(text || htmlToPlain(html) || '').slice(0, 100_000);
+}
+
+async function runRulePlan(client, caixa, msg, plan) {
+  if (plan.seen && !msg.seen) await setFlag(client, msg, '\\Seen', true, 'seen', true, caixa);
+  if (plan.flagged && !msg.flagged) await setFlag(client, msg, '\\Flagged', true, 'flagged', true, caixa);
+  if (!plan.destination) return;
+  const target = plan.destination.folderId
+    ? await folderById(plan.destination.folderId, caixa)
+    : await folderByRole(caixa, plan.destination.role);
+  if (!target) throw new Error('a pasta de destino da regra já não existe');
+  if (target.id !== msg.folder_id) await doMove(client, caixa, msg, target);
+}
+
+/**
+ * Applies the caixa's enabled rules, in order, to the Inbox messages above `afterUid` (oldest
+ * first, 50 at a time). Returns the last UID looked at, so each message goes through the rules
+ * once, and whether anything was changed on the server.
+ */
+export async function applyInboxRules(client, caixa, inbox, afterUid) {
+  const fresh = await q(
+    `SELECT id, uid, folder_id, seen, flagged, from_name, from_address, to_addresses, cc_addresses,
+            subject, has_attachments, body_fetched, text_body, html_body
+       FROM email_messages
+      WHERE folder_id = $1 AND channel_id = $2 AND organization_id = $3 AND uid > $4
+      ORDER BY uid LIMIT 50`,
+    [inbox.id, caixa.id, caixa.organization_id, afterUid],
+  );
+  if (!fresh.length) return { lastUid: afterUid, touched: false };
+  const lastUid = Number(fresh[fresh.length - 1].uid);
+
+  let rules;
+  try {
+    rules = await q(
+      `SELECT id, name, match_all, conditions, actions, stop_processing FROM email_rules
+        WHERE channel_id = $1 AND organization_id = $2 AND enabled ORDER BY position, created_at`,
+      [caixa.id, caixa.organization_id],
+    );
+  } catch (e) {
+    if (e.code === NO_RULES_TABLE) return { lastUid, touched: false };
+    throw e;
+  }
+  if (!rules.length) return { lastUid, touched: false };
+
+  const needBody = rulesNeedBody(rules);
+  const names = new Map(rules.map((rule) => [rule.id, rule.name]));
+  let touched = false;
+  for (const row of fresh) {
+    const msg = { ...row, path: inbox.path };
+    try {
+      let body = '';
+      if (needBody) {
+        const fetched = row.body_fetched ? null : await fetchMessageBody(client, caixa, msg);
+        body = fetched ? bodyText(fetched.text, fetched.html) : bodyText(row.text_body, row.html_body);
+      }
+      const plan = planRules(rules, { ...row, body });
+      if (!plan.matched.length) continue;
+      touched = true;
+      await runRulePlan(client, caixa, msg, plan);
+      await q(`UPDATE email_rules SET match_count = match_count + 1, last_matched_at = now() WHERE id = ANY($1::uuid[])`, [plan.matched]);
+      log(`[${caixa.label}] regras aplicadas ao email ${row.uid}: ${plan.matched.map((id) => names.get(id)).join(', ')}`);
+    } catch (e) {
+      log(`[${caixa.label}] regras: falha no email ${row.uid}: ${e.message}`);
+    }
+  }
+  return { lastUid, touched };
 }
 async function updateCounts(client, folderId, caixa) {
   const f = await folderById(folderId, caixa);
@@ -151,35 +311,75 @@ async function fetchAttachment(client, attachmentId, caixa) {
     [att.id, match.content.toString('base64'), caixa.organization_id, caixa.id]);
 }
 
+// Gmail, Outlook and most hosting panels already file what goes out by SMTP in Sent,
+// sometimes a moment after the send. Look for it a few times before adding our copy.
+export async function sentCopyExists(client, path, messageId, { tries = 3, waitMs = 1500 } = {}) {
+  const bare = messageId.replace(/^<|>$/g, '');
+  for (let attempt = 0; attempt < tries; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const lock = await client.getMailboxLock(path);
+    try {
+      const uids = await client.search({ header: { 'message-id': bare } }, { uid: true });
+      if (Array.isArray(uids) && uids.length > 0) return true;
+    } finally { lock.release(); }
+  }
+  return false;
+}
+
 async function sendMail(caixa, p) {
   const from = { name: caixa.label || '', address: caixa.meta.email_address };
+  const domain = String(caixa.meta.email_address || '').split('@')[1] || 'senvia.pt';
+  const inline = await embedInlineImages(p.html || '');
+  const files = Array.isArray(p.attachments)
+    ? p.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.b64 || '', 'base64'), contentType: a.contentType || undefined }))
+    : [];
   const opts = {
     disableFileAccess: true,
     disableUrlAccess: true,
+    // One Message-ID and date for what is sent and for the Sent copy: the copy can be
+    // recognised, and replies thread on the message the recipient actually got.
+    messageId: `<${randomUUID()}@${domain}>`,
+    date: new Date(),
     from,
     to: toAddr(p.to),
     cc: toAddr(p.cc),
     bcc: toAddr(p.bcc),
     subject: p.subject || '',
-    html: p.html || undefined,
+    html: inline.html || undefined,
     text: p.text || (p.html ? undefined : ''),
     inReplyTo: p.inReplyTo || undefined,
     references: p.references || undefined,
-    attachments: Array.isArray(p.attachments) && p.attachments.length
-      ? p.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.b64 || '', 'base64'), contentType: a.contentType || undefined }))
-      : undefined,
+    attachments: files.length || inline.attachments.length ? [...files, ...inline.attachments] : undefined,
   };
   // Build raw MIME once (for the Sent copy), then send via SMTP.
   const raw = await new Promise((res, rej) =>
     new MailComposer(opts).compile().build((e, m) => (e ? rej(e) : res(m))));
-  await (await smtpTransport(caixa)).sendMail(opts);
+  const server = caixa.meta.smtp_server;
+  const deliver = async () => (await smtpTransport(caixa)).sendMail(opts);
+  try {
+    await withHostSlot(`smtp:${server}`, async () => {
+      try { await deliver(); }
+      catch (e) {
+        // A connection that failed before the server took anything: one more try.
+        if (!retryableBeforeSend(e)) throw e;
+        log(`[${caixa.label}] SMTP falhou a ligar (${e.code}); nova tentativa`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await deliver();
+      }
+    });
+  } catch (e) {
+    log(`[${caixa.label}] envio falhou: ${e.code || ''} ${e.responseCode || ''} ${e.message}`);
+    throw new Error(smtpErrorMessage(e, server));
+  }
 
-  // Save a copy to the Sent folder (best-effort).
+  // Save a copy to the Sent folder (best-effort), unless the server already did.
   const sent = await folderByRole(caixa, 'sent');
   const client = getManager(caixa.id)?.client;
   if (sent && client?.usable) {
     try {
-      await client.append(sent.path, raw, ['\\Seen']);
+      if (!(await sentCopyExists(client, sent.path, opts.messageId))) {
+        await client.append(sent.path, raw, ['\\Seen']);
+      }
       await syncFolderMessages(client, caixa, sent, 10);
       await updateCounts(client, sent.id, caixa);
     } catch (e) { log(`[${caixa.label}] aviso ao gravar em Enviados: ${e.message}`); }
@@ -206,9 +406,15 @@ async function execute(cmd) {
       )
   ) AS allowed`, [caixa.id, caixa.organization_id, cmd.created_by]);
   if (access?.allowed !== true) throw new Error('comando não autorizado');
-  const client = getManager(cmd.channel_id)?.client;
-  if (!client?.usable) throw new Error('caixa desligada');
   const p = cmd.payload || {};
+  // Sending only needs SMTP: an IMAP connection that is down must not block it
+  // (the Sent copy is best-effort and waits for the next sync).
+  if (cmd.type === 'send') return sendMail(caixa, applySignature(caixa, p));
+  const client = getManager(cmd.channel_id)?.client;
+  if (!client?.usable) {
+    const lastError = getManager(cmd.channel_id)?.lastError;
+    throw new Error(`A ligação IMAP da caixa está em baixo${lastError ? ` (${lastError})` : ''}. Tente daqui a pouco.`);
+  }
 
   switch (cmd.type) {
     case 'mark_read': { const m = await getMsg(p.messageId, caixa); if (!m) throw new Error('mensagem inexistente'); return setFlag(client, m, '\\Seen', true, 'seen', true, caixa); }
@@ -264,7 +470,9 @@ async function execute(cmd) {
       return fetchMessageBody(client, caixa, m);
     }
     case 'fetch_attachment': return fetchAttachment(client, p.attachmentId, caixa);
-    case 'send': return sendMail(caixa, applySignature(caixa, p));
+    case 'create_folder': return createFolder(client, caixa, p);
+    case 'rename_folder': return renameFolder(client, caixa, p);
+    case 'delete_folder': return deleteFolder(client, caixa, p);
     default: throw new Error(`tipo desconhecido: ${cmd.type}`);
   }
 }

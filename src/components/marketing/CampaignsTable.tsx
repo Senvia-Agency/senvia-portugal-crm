@@ -13,6 +13,7 @@ import type { EmailCampaign, CampaignStatus } from "@/types/marketing";
 import { CAMPAIGN_STATUS_LABELS, CAMPAIGN_STATUS_STYLES } from "@/types/marketing";
 import { format } from "date-fns";
 import { normalizeString } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 interface CampaignsTableProps {
   campaigns: EmailCampaign[];
@@ -33,6 +34,7 @@ const STATUS_DOT_COLORS: Record<CampaignStatus, string> = {
 export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }: CampaignsTableProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { t } = useLanguage();
 
   const filtered = useMemo(() => {
     return campaigns.filter(c => {
@@ -46,8 +48,8 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p className="text-lg font-medium">Sem campanhas</p>
-        <p className="text-sm">Crie a sua primeira campanha de email</p>
+        <p className="text-lg font-medium">{t("Sem campanhas")}</p>
+        <p className="text-sm">{t("Crie a sua primeira campanha de email")}</p>
       </div>
     );
   }
@@ -59,7 +61,7 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Procurar uma campanha..."
+            placeholder={t("Procurar uma campanha...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -67,15 +69,15 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Todos os status" />
+            <SelectValue placeholder={t("Todos os estados")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            <SelectItem value="draft">Rascunho</SelectItem>
-            <SelectItem value="sending">A enviar</SelectItem>
-            <SelectItem value="sent">Enviada</SelectItem>
-            <SelectItem value="failed">Falhada</SelectItem>
-            <SelectItem value="scheduled">Agendada</SelectItem>
+            <SelectItem value="all">{t("Todos os estados")}</SelectItem>
+            <SelectItem value="draft">{t("Rascunho")}</SelectItem>
+            <SelectItem value="sending">{t("A enviar")}</SelectItem>
+            <SelectItem value="sent">{t("Enviada")}</SelectItem>
+            <SelectItem value="failed">{t("Falhada")}</SelectItem>
+            <SelectItem value="scheduled">{t("Agendada")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -83,7 +85,7 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
       {/* Campaign cards */}
       {filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm">
-          Nenhuma campanha encontrada
+          {t("Nenhuma campanha encontrada")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -108,24 +110,24 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
                         style={{ backgroundColor: style.bg, color: style.text }}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
-                        {CAMPAIGN_STATUS_LABELS[campaign.status]}
+                        {t(CAMPAIGN_STATUS_LABELS[campaign.status])}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {campaign.status === 'scheduled' && campaign.scheduled_at
-                        ? `Agendada para ${format(new Date(campaign.scheduled_at), "dd/MM/yyyy 'às' HH:mm")}`
+                        ? t("Agendada para {{date}} às {{time}}", { date: format(new Date(campaign.scheduled_at), "dd/MM/yyyy"), time: format(new Date(campaign.scheduled_at), "HH:mm") })
                         : campaign.sent_at
-                          ? `Enviada a ${format(new Date(campaign.sent_at), "dd/MM/yyyy 'às' HH:mm")}`
-                          : `Editada a ${format(new Date(campaign.updated_at), "dd/MM/yyyy 'às' HH:mm")}`
+                          ? t("Enviada a {{date}} às {{time}}", { date: format(new Date(campaign.sent_at), "dd/MM/yyyy"), time: format(new Date(campaign.sent_at), "HH:mm") })
+                          : t("Editada a {{date}} às {{time}}", { date: format(new Date(campaign.updated_at), "dd/MM/yyyy"), time: format(new Date(campaign.updated_at), "HH:mm") })
                       }
                     </p>
                   </div>
 
                   {/* Right: metrics */}
                   <div className="flex items-center gap-4 sm:gap-6">
-                    <MetricCol icon={<Mail className="h-3.5 w-3.5" />} label="Destinatários" value={campaign.total_recipients} />
-                    <MetricCol icon={<Eye className="h-3.5 w-3.5" />} label="Enviados" value={campaign.sent_count} />
-                    <MetricCol icon={<MousePointer className="h-3.5 w-3.5" />} label="Falhados" value={campaign.failed_count} />
+                    <MetricCol icon={<Mail className="h-3.5 w-3.5" />} label={t("Destinatários")} value={campaign.total_recipients} />
+                    <MetricCol icon={<Eye className="h-3.5 w-3.5" />} label={t("Enviados")} value={campaign.sent_count} />
+                    <MetricCol icon={<MousePointer className="h-3.5 w-3.5" />} label={t("Falhados")} value={campaign.failed_count} />
 
                     {/* Action button */}
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -150,19 +152,19 @@ export function CampaignsTable({ campaigns, onView, onEdit, onDelete, onReopen }
                         <DropdownMenuContent align="end">
                           {campaign.status === 'draft' && (
                             <DropdownMenuItem onClick={() => onEdit(campaign)}>
-                              <Pencil className="mr-2 h-4 w-4" /> Editar
+                              <Pencil className="mr-2 h-4 w-4" /> {t("Editar")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => onView(campaign)}>
-                            <BarChart3 className="mr-2 h-4 w-4" /> Ver detalhes
+                            <BarChart3 className="mr-2 h-4 w-4" /> {t("Ver detalhes")}
                           </DropdownMenuItem>
                           {(campaign.status === 'failed' || campaign.status === 'scheduled') && onReopen && (
                             <DropdownMenuItem onClick={() => onReopen(campaign.id)}>
-                              <RotateCcw className="mr-2 h-4 w-4" /> Reabrir como rascunho
+                              <RotateCcw className="mr-2 h-4 w-4" /> {t("Reabrir como rascunho")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem className="text-destructive" onClick={() => onDelete(campaign.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                            <Trash2 className="mr-2 h-4 w-4" /> {t("Eliminar")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

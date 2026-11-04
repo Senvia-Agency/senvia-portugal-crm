@@ -6,6 +6,7 @@ import type { TeamMember } from '@/hooks/useTeam';
 import { cn } from '@/lib/utils';
 import { createGroup, describeChatError, startDirect } from './chat-api';
 import { PersonAvatar } from './ChatAvatar';
+import { tr, useLanguage } from '@/i18n';
 
 interface Props {
   readonly open: boolean;
@@ -22,15 +23,16 @@ const normalize = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, 
 /** Automatic name for an unnamed group: "Ana, Rui e Marta" (up to four names, then "+N"). */
 export function groupTitle(names: readonly string[]) {
   const list = names.filter(Boolean);
-  if (list.length <= 1) return list[0] ?? 'Grupo';
+  if (list.length <= 1) return list[0] ?? tr('Grupo');
   const shown = list.slice(0, 4);
   const rest = list.length - shown.length;
   if (rest > 0) return `${shown.join(', ')} +${rest}`;
-  return `${shown.slice(0, -1).join(', ')} e ${shown[shown.length - 1]}`;
+  return tr('{{first}} e {{last}}', { first: shown.slice(0, -1).join(', '), last: shown[shown.length - 1] });
 }
 
 /** New conversation, as in Realize: one colleague opens a private chat; several make a group (name optional). */
 export function NewConversationDialog({ open, onOpenChange, organizationId, userId, people, onCreated }: Props) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [title, setTitle] = useState('');
@@ -58,7 +60,7 @@ export function NewConversationDialog({ open, onOpenChange, organizationId, user
       onOpenChange(false);
       onCreated(id);
     } catch (error) {
-      toast.error('Conversa não criada', { description: describeChatError(error) });
+      toast.error(t('Conversa não criada'), { description: describeChatError(error) });
     } finally {
       setBusy(false);
     }
@@ -67,21 +69,21 @@ export function NewConversationDialog({ open, onOpenChange, organizationId, user
   return <Dialog open={open} onOpenChange={value => { if (busy) return; if (!value) reset(); onOpenChange(value); }}>
     <DialogContent className="chat-dialog flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-[28px] p-0 sm:max-w-md sm:rounded-[28px]">
       <DialogHeader className="space-y-1 px-6 pb-3 pt-6 text-left">
-        <DialogTitle className="text-xl font-extrabold">Nova conversa</DialogTitle>
-        <DialogDescription>Escolha um colega, ou vários para criar um grupo.</DialogDescription>
+        <DialogTitle className="text-xl font-extrabold">{t('Nova conversa')}</DialogTitle>
+        <DialogDescription>{t('Escolha um colega, ou vários para criar um grupo.')}</DialogDescription>
       </DialogHeader>
       <div className="space-y-3 px-6 pb-3">
         {isGroup && <div className="rounded-2xl bg-primary/[.07] p-3 ring-1 ring-primary/20">
           <label htmlFor="chat-new-group-title" className="mb-2 flex items-center gap-1.5 text-[12.5px] font-bold uppercase tracking-[0.08em] text-primary">
-            <Users className="h-4 w-4" aria-hidden="true" /> Novo grupo · {selected.length} colegas
+            <Users className="h-4 w-4" aria-hidden="true" /> {t('Novo grupo · {{n}} colegas', { n: selected.length })}
           </label>
-          <input id="chat-new-group-title" value={title} onChange={event => setTitle(event.target.value.slice(0, 80))} placeholder="Dê um nome ao grupo"
+          <input id="chat-new-group-title" value={title} onChange={event => setTitle(event.target.value.slice(0, 80))} placeholder={t('Dê um nome ao grupo')}
             className="h-12 w-full rounded-xl bg-card px-4 text-[15px] font-semibold outline-none ring-2 ring-primary/30 placeholder:font-normal placeholder:text-muted-foreground focus:ring-primary" />
-          <p className="mt-1.5 text-[12px] text-muted-foreground">Opcional. Se não escrever, fica <b className="text-foreground">{defaultTitle}</b>.</p>
+          <p className="mt-1.5 text-[12px] text-muted-foreground">{t('Opcional. Se não escrever, fica')} <b className="text-foreground">{defaultTitle}</b>.</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {selected.map(id => {
               const person = personOf(id);
-              return <button key={id} type="button" onClick={() => toggle(id)} aria-label={`Tirar ${person?.full_name ?? ''} do grupo`}
+              return <button key={id} type="button" onClick={() => toggle(id)} aria-label={t('Tirar {{name}} do grupo', { name: person?.full_name ?? '' })}
                 className="inline-flex items-center gap-1 rounded-full bg-card py-1 pl-1 pr-2 text-[12px] font-semibold ring-1 ring-border hover:ring-destructive/40">
                 <PersonAvatar name={person?.full_name ?? '?'} url={person?.avatar_url} size={20} />
                 {person?.full_name.split(' ')[0]}
@@ -92,7 +94,7 @@ export function NewConversationDialog({ open, onOpenChange, organizationId, user
         </div>}
         <label className="flex h-11 items-center gap-2 rounded-2xl bg-muted/70 px-3 text-muted-foreground focus-within:bg-card focus-within:ring-1 focus-within:ring-primary/40">
           <Search className="h-4 w-4" aria-hidden="true" />
-          <input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Nome, função ou email" aria-label="Procurar colega"
+          <input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder={t('Nome, função ou email')} aria-label={t('Procurar colega')}
             className="w-full bg-transparent text-sm text-foreground outline-none" />
         </label>
       </div>
@@ -105,7 +107,7 @@ export function NewConversationDialog({ open, onOpenChange, organizationId, user
               <PersonAvatar name={person.full_name} url={person.avatar_url} size={40} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14.5px] font-semibold">{person.full_name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{ROLE_LABELS[person.role] ?? 'Colaborador'}</span>
+                <span className="block truncate text-xs text-muted-foreground">{t(ROLE_LABELS[person.role] ?? 'Colaborador')}</span>
               </span>
               <span aria-hidden="true" className={cn('flex h-6 w-6 items-center justify-center rounded-full ring-2', checked ? 'bg-primary text-primary-foreground ring-primary' : 'ring-border')}>
                 {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
@@ -113,13 +115,13 @@ export function NewConversationDialog({ open, onOpenChange, organizationId, user
             </button>
           </li>;
         })}
-        {visible.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum colega encontrado.</p>}
+        {visible.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{t('Nenhum colega encontrado.')}</p>}
       </ul>
       <div className="border-t p-4">
         <button type="button" onClick={() => void create()} disabled={!canCreate}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isGroup ? `Criar grupo com ${selected.length} colegas` : 'Começar conversa'}
+          {isGroup ? t('Criar grupo com {{n}} colegas', { n: selected.length }) : t('Começar conversa')}
         </button>
       </div>
     </DialogContent>

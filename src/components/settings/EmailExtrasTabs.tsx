@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import { useSaveEmailChannelMeta, type EmailChannel, type EmailSignature, type VacationReply } from '@/hooks/useEmailChannels';
+import { useLanguage } from '@/i18n';
 
 function newId(): string {
   // crypto.randomUUID is available in all supported browsers; fallback just in case.
@@ -20,6 +21,7 @@ function newId(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export function SignaturesTab({ channel }: { channel: EmailChannel }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const save = useSaveEmailChannelMeta();
   const meta = channel.metadata ?? {};
 
@@ -31,7 +33,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
   const selected = signatures.find((s) => s.id === selectedId) ?? null;
 
   const addSignature = () => {
-    const sig: EmailSignature = { id: newId(), name: `Assinatura ${signatures.length + 1}`, html: '' };
+    const sig: EmailSignature = { id: newId(), name: t('Assinatura {{n}}', { n: signatures.length + 1 }), html: '' };
     setSignatures((prev) => [...prev, sig]);
     setSelectedId(sig.id);
   };
@@ -59,8 +61,8 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
         },
       },
       {
-        onSuccess: () => toast({ title: 'Assinaturas guardadas' }),
-        onError: (e) => toast({ title: 'Falha ao guardar', description: (e as Error).message, variant: 'destructive' }),
+        onSuccess: () => toast({ title: t('Assinaturas guardadas') }),
+        onError: (e) => toast({ title: t('Falha ao guardar'), description: (e as Error).message, variant: 'destructive' }),
       },
     );
   };
@@ -68,7 +70,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Assinaturas incluídas no final das mensagens enviadas por esta caixa. Define qual usar em emails novos e em respostas/encaminhamentos.
+        {t('Assinaturas incluídas no final das mensagens enviadas por esta caixa. Define qual usar em emails novos e em respostas/encaminhamentos.')}
       </p>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_1fr]">
@@ -76,7 +78,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
         <div className="space-y-2">
           <div className="rounded-xl border divide-y overflow-hidden">
             {signatures.length === 0 ? (
-              <p className="px-3 py-4 text-xs text-muted-foreground">Ainda sem assinaturas.</p>
+              <p className="px-3 py-4 text-xs text-muted-foreground">{t('Ainda sem assinaturas.')}</p>
             ) : (
               signatures.map((s) => (
                 <div
@@ -88,7 +90,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
                   onClick={() => setSelectedId(s.id)}
                 >
                   <PenLine className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 truncate text-sm font-medium">{s.name || 'Sem nome'}</span>
+                  <span className="flex-1 truncate text-sm font-medium">{s.name || t('Sem nome')}</span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); deleteSignature(s.id); }}
@@ -101,7 +103,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
             )}
           </div>
           <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={addSignature}>
-            <Plus className="h-4 w-4" /> Criar nova
+            <Plus className="h-4 w-4" /> {t('Criar nova')}
           </Button>
         </div>
 
@@ -111,24 +113,24 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
             <>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5 text-sm font-medium">
-                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" /> Nome da assinatura
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" /> {t('Nome da assinatura')}
                 </Label>
-                <Input value={selected.name} onChange={(e) => updateSelected({ name: e.target.value })} placeholder="Ex: Thiago, Suporte..." />
+                <Input value={selected.name} onChange={(e) => updateSelected({ name: e.target.value })} placeholder={t('Ex: Thiago, Suporte...')} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Conteúdo</Label>
+                <Label className="text-sm font-medium">{t('Conteúdo')}</Label>
                 <RichTextEditor
                   key={selected.id}
                   value={selected.html}
                   onChange={(html) => updateSelected({ html })}
-                  placeholder="Escreve a tua assinatura (formatação, links e imagens são aceites)..."
+                  placeholder={t('Escreve a tua assinatura (formatação, links e imagens são aceites)...')}
                   minHeight={180}
                 />
               </div>
             </>
           ) : (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Seleciona uma assinatura à esquerda, ou cria uma nova.
+              {t('Seleciona uma assinatura à esquerda, ou cria uma nova.')}
             </div>
           )}
         </div>
@@ -136,25 +138,25 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
 
       {/* Defaults */}
       <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Padrões de assinatura</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t('Assinaturas predefinidas')}</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Para novos emails</Label>
+            <Label className="text-xs text-muted-foreground">{t('Para novos emails')}</Label>
             <Select value={defaultNew ?? 'none'} onValueChange={(v) => setDefaultNew(v === 'none' ? null : v)}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem assinatura</SelectItem>
-                {signatures.map((s) => <SelectItem key={s.id} value={s.id}>{s.name || 'Sem nome'}</SelectItem>)}
+                <SelectItem value="none">{t('Sem assinatura')}</SelectItem>
+                {signatures.map((s) => <SelectItem key={s.id} value={s.id}>{s.name || t('Sem nome')}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Para respostas / encaminhamentos</Label>
+            <Label className="text-xs text-muted-foreground">{t('Para respostas / encaminhamentos')}</Label>
             <Select value={defaultReply ?? 'none'} onValueChange={(v) => setDefaultReply(v === 'none' ? null : v)}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem assinatura</SelectItem>
-                {signatures.map((s) => <SelectItem key={s.id} value={s.id}>{s.name || 'Sem nome'}</SelectItem>)}
+                <SelectItem value="none">{t('Sem assinatura')}</SelectItem>
+                {signatures.map((s) => <SelectItem key={s.id} value={s.id}>{s.name || t('Sem nome')}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -163,7 +165,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
 
       <Button onClick={handleSave} disabled={save.isPending} className="gap-1.5">
         {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        Guardar assinaturas
+        {t('Guardar assinaturas')}
       </Button>
     </div>
   );
@@ -174,6 +176,7 @@ export function SignaturesTab({ channel }: { channel: EmailChannel }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function VacationTab({ channel }: { channel: EmailChannel }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const save = useSaveEmailChannelMeta();
   const vac: VacationReply = channel.metadata?.vacation_reply ?? { enabled: false };
 
@@ -188,11 +191,11 @@ export function VacationTab({ channel }: { channel: EmailChannel }) {
 
   const handleSave = () => {
     if (enabled && !subject.trim()) {
-      toast({ title: 'Indica um assunto para a resposta', variant: 'destructive' });
+      toast({ title: t('Indica um assunto para a resposta'), variant: 'destructive' });
       return;
     }
     if (enabled && !message.trim()) {
-      toast({ title: 'Escreve a mensagem da resposta', variant: 'destructive' });
+      toast({ title: t('Escreve a mensagem da resposta'), variant: 'destructive' });
       return;
     }
     const payload: VacationReply = {
@@ -206,8 +209,8 @@ export function VacationTab({ channel }: { channel: EmailChannel }) {
     save.mutate(
       { channelId: channel.id, patch: { vacation_reply: payload } },
       {
-        onSuccess: () => toast({ title: enabled ? 'Resposta de férias ativada' : 'Resposta de férias guardada' }),
-        onError: (e) => toast({ title: 'Falha ao guardar', description: (e as Error).message, variant: 'destructive' }),
+        onSuccess: () => toast({ title: enabled ? t('Resposta de férias ativada') : t('Resposta de férias guardada') }),
+        onError: (e) => toast({ title: t('Falha ao guardar'), description: (e as Error).message, variant: 'destructive' }),
       },
     );
   };
@@ -215,54 +218,53 @@ export function VacationTab({ channel }: { channel: EmailChannel }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Envia uma resposta automática às mensagens recebidas nesta caixa. Se um contacto enviar várias mensagens,
-        a resposta é enviada no máximo a cada 4 dias.
+        {t('Envia uma resposta automática às mensagens recebidas nesta caixa. Se um contacto enviar várias mensagens, a resposta é enviada no máximo a cada 4 dias.')}
       </p>
 
       <div className="flex items-center gap-3 rounded-xl border p-4">
         <Switch checked={enabled} onCheckedChange={setEnabled} />
-        <span className="text-sm font-medium">{enabled ? 'Resposta automática de férias ativada' : 'Resposta automática de férias desativada'}</span>
+        <span className="text-sm font-medium">{enabled ? t('Resposta automática de férias ativada') : t('Resposta automática de férias desativada')}</span>
       </div>
 
       <div className={cn('space-y-4 transition-opacity', !enabled && 'pointer-events-none opacity-50')}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Primeiro dia</Label>
+            <Label className="text-sm font-medium">{t('Primeiro dia')}</Label>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <input id="vac-hasend" type="checkbox" checked={hasEnd} onChange={(e) => setHasEnd(e.target.checked)} className="h-4 w-4" />
-              <Label htmlFor="vac-hasend" className="text-sm font-medium">Último dia (opcional)</Label>
+              <Label htmlFor="vac-hasend" className="text-sm font-medium">{t('Último dia (opcional)')}</Label>
             </div>
             <Input type="date" value={endDate} disabled={!hasEnd} min={startDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Assunto</Label>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ex: Estou de férias" />
+          <Label className="text-sm font-medium">{t('Assunto')}</Label>
+          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('Ex: Estou de férias')} />
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Mensagem</Label>
+          <Label className="text-sm font-medium">{t('Mensagem')}</Label>
           <RichTextEditor
             value={message}
             onChange={setMessage}
-            placeholder="Olá, estou de férias e responderei assim que possível..."
+            placeholder={t('Olá, estou de férias e responderei assim que possível...')}
             minHeight={160}
           />
         </div>
 
         <div className="flex items-center gap-2">
           <input id="vac-onlycontacts" type="checkbox" checked={onlyContacts} onChange={(e) => setOnlyContacts(e.target.checked)} className="h-4 w-4" />
-          <Label htmlFor="vac-onlycontacts" className="text-sm">Enviar resposta apenas a contactos existentes no CRM (leads/clientes)</Label>
+          <Label htmlFor="vac-onlycontacts" className="text-sm">{t('Enviar resposta apenas a contactos existentes no CRM (leads/clientes)')}</Label>
         </div>
       </div>
 
       <Button onClick={handleSave} disabled={save.isPending} className="gap-1.5">
         {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        Guardar
+        {t('Guardar')}
       </Button>
     </div>
   );

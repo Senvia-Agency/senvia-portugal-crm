@@ -3,14 +3,17 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { tr } from '@/i18n';
 import { useMessagingChannels } from '@/hooks/useMessagingChannels';
 import { COMMAND_LABELS, emailCommandErrorMessage, type EmailMessage } from '@/hooks/useEmail';
 import {
-  deleteContactList, describeWebmailError, isMissingMigration, readContactLists, readContacts, readDrafts, readFolders,
-  readMessages, readPreferences, readSignatures, readThread, saveContactList, saveOrder, savePreference, saveSignatures,
-  setDefaultAccount, type ListQuery, type PreferencePatch, type SignatureDraft,
+  deleteContactList, deleteRule, describeWebmailError, insertRule, isMissingMigration, readContactLists, readContacts, readDrafts,
+  readFolders, readMessages, readPreferences, readRules, readSignatures, readThread, reorderRules, saveContactList, saveOrder,
+  savePreference, saveSignatures, setDefaultAccount, updateRule, type ListQuery, type PreferencePatch, type SignatureDraft,
 } from './webmail-api';
-import { buildAccounts, type MailAccount } from './webmail-model';
+import type { EmailRule, RuleDraft } from './email-rules';
+import { buildAccounts, type MailAccount, type WebmailFolder } from './webmail-model';
+import { invokeImapFunction } from '@/lib/imap-edge-queue';
 
 const db = supabase as unknown as { from: (table: string) => any };
 
@@ -49,7 +52,7 @@ export function usePreferenceActions() {
   const client = useQueryClient();
   const key = ['webmail-preferences', organizationId, userId];
   const refresh = () => client.invalidateQueries({ queryKey: key });
-  const guard = () => { if (!userId || !organizationId) throw new Error('Sessão sem organização.'); return { userId, organizationId }; };
+  const guard = () => { if (!userId || !organizationId) throw new Error(tr('Sessão sem organização.')); return { userId, organizationId }; };
   return {
     save: useMutation({
       mutationFn: ({ channelId, patch }: { channelId: string; patch: PreferencePatch }) => {
@@ -144,9 +147,9 @@ export function useWebmailRealtime(channelIds: readonly string[]) {
         void client.invalidateQueries({ queryKey: ['email-command-activity'] });
         void client.invalidateQueries({ queryKey: ['email-command-failures'] });
         const row = payload.new as { type?: string; status?: string; error?: string } | undefined;
-        if (row?.type === 'send' && row.status === 'done') toast.success('Email enviado');
+        if (row?.type === 'send' && row.status === 'done') toast.success(tr('Email enviado'));
         if (row?.status === 'error') {
-          toast.error(`${(row.type && COMMAND_LABELS[row.type]) || 'Uma ação de email'} falhou`, { description: emailCommandErrorMessage(row.error) });
+          toast.error(tr('{{action}} falhou', { action: tr((row.type && COMMAND_LABELS[row.type]) || 'Uma ação de email') }), { description: emailCommandErrorMessage(row.error) });
           refreshMail();
         }
       })
@@ -197,11 +200,11 @@ export function useMailboxActions() {
   };
 
   const queue = async (channelId: string, type: string, payload: Record<string, unknown>) => {
-    if (!organizationId) throw new Error('Sessão sem organização.');
+    if (!organizationId) throw new Error(tr('Sessão sem organização.'));
     const { error } = await db.from('email_commands').insert({ organization_id: organizationId, channel_id: channelId, type, payload, created_by: userId });
     if (error) throw error;
   };
-  const report = (error: unknown) => toast.error('Ação de email não concluída', { description: error instanceof Error ? error.message : describeWebmailError(error) });
+  const report = (error: unknown) => toast.error(tr('Ação de email não concluída'), { description: error instanceof Error ? error.message : describeWebmailError(error) });
 
   const removeAway = (type: 'archive' | 'spam' | 'move', messages: readonly EmailMessage[], extra: Record<string, unknown> = {}) => {
     const fresh = messages.filter(message => !hiddenRef.current.has(message.id));
@@ -220,9 +223,9 @@ export function useMailboxActions() {
     await Promise.all(groupBy(fresh, message => `${message.channel_id}:${message.folder_id}`).map(async group => {
       const ids = group.map(message => message.id);
       try {
-        const { data, error } = await supabase.functions.invoke('email-message-action', { body: { action, message_ids: ids } });
+        const { data, error } = await invokeImapFunction('email-message-action', { action, message_ids: ids });
         const failure = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : null;
-        if (error || failure) throw new Error(failure || 'Não foi possível concluir a ação no servidor de correio.');
+        if (error || failure) throw new Error(failure || tr('Não foi possível concluir a ação no servidor de correio.'));
       } catch (error) {
         // Nothing moved on the server: the messages come back now.
         release(ids);
@@ -260,10 +263,10 @@ export function useMailboxActions() {
     syncUnread: (folders: readonly { id: string; channel_id: string }[]) =>
       Promise.all(folders.map(folder => queue(folder.channel_id, 'sync_unread', { folderId: folder.id }))).catch(report),
     fetchBody: async (messageId: string) => {
-      const { error } = await supabase.functions.invoke('email-fetch-body', { body: { message_id: messageId } });
+      const { error } = await invokeImapFunction('email-fetch-body', { message_id: messageId });
       if (error) {
         const detail = await error.context?.json?.().catch(() => null);
-        throw new Error(detail?.error || 'Não foi possível carregar o conteúdo do email.');
+        throw new Error(detail?.error || tr('Não foi possível carregar o conteúdo do email.'));
       }
       await Promise.all([
         client.invalidateQueries({ queryKey: ['email-message', messageId] }),
@@ -271,6 +274,27 @@ export function useMailboxActions() {
       ]);
     },
     fetchAttachment: (channelId: string, attachmentId: string) => queue(channelId, 'fetch_attachment', { attachmentId }),
+    // Folders change on the mail server itself; the realtime folder rows confirm (or the failure toast explains).
+    createFolder: (channelId: string, name: string, parentFolderId: string | null) =>
+      queue(channelId, 'create_folder', { name: name.trim(), parentFolderId })
+        .then(() => { toast.success(tr('A criar a pasta…')); })
+        .catch(report),
+    renameFolder: (folder: WebmailFolder, name: string) => {
+      client.setQueriesData({ queryKey: ['email-folders', 'webmail'] }, (old: WebmailFolder[] | undefined) =>
+        Array.isArray(old) ? old.map(item => (item.id === folder.id ? { ...item, name: name.trim() } : item)) : old);
+      return queue(folder.channel_id, 'rename_folder', { folderId: folder.id, name: name.trim() }).catch(error => {
+        void client.invalidateQueries({ queryKey: ['email-folders'] });
+        report(error);
+      });
+    },
+    deleteFolder: (folder: WebmailFolder) => {
+      client.setQueriesData({ queryKey: ['email-folders', 'webmail'] }, (old: WebmailFolder[] | undefined) =>
+        Array.isArray(old) ? old.filter(item => item.id !== folder.id) : old);
+      return queue(folder.channel_id, 'delete_folder', { folderId: folder.id }).catch(error => {
+        void client.invalidateQueries({ queryKey: ['email-folders'] });
+        report(error);
+      });
+    },
   };
 }
 export type MailboxActions = ReturnType<typeof useMailboxActions>;
@@ -294,6 +318,43 @@ export function useSaveSignatures(channelId: string) {
     mutationFn: (items: readonly SignatureDraft[]) => saveSignatures(channelId, items),
     onSuccess: saved => client.setQueryData(['email-signatures', channelId, userId], saved),
   });
+}
+
+// Rules -------------------------------------------------------------------------------------------
+
+export function useMailRules(channelId: string) {
+  return useQuery({
+    queryKey: ['email-rules', channelId],
+    queryFn: () => readRules(channelId),
+    retry: (count, error) => !isMissingMigration(error) && count < 2,
+  });
+}
+
+/** Each change is saved at once and seen by everyone who can open the caixa. */
+export function useMailRuleActions(channelId: string) {
+  const client = useQueryClient();
+  const key = ['email-rules', channelId];
+  const refresh = () => client.invalidateQueries({ queryKey: key });
+  return {
+    create: useMutation({ mutationFn: ({ position, draft }: { position: number; draft: RuleDraft }) => insertRule(channelId, position, draft), onSettled: refresh }),
+    update: useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateRule>[1] }) => updateRule(id, patch), onSettled: refresh }),
+    remove: useMutation({ mutationFn: deleteRule, onSettled: refresh }),
+    reorder: useMutation({
+      mutationFn: (ids: readonly string[]) => reorderRules(channelId, ids),
+      // The new order shows at once; a failure puts the saved one back.
+      onMutate: async ids => {
+        await client.cancelQueries({ queryKey: key });
+        const previous = client.getQueryData<EmailRule[]>(key);
+        if (previous) {
+          const byId = new Map(previous.map(rule => [rule.id, rule]));
+          client.setQueryData(key, ids.flatMap((id, position) => { const rule = byId.get(id); return rule ? [{ ...rule, position }] : []; }));
+        }
+        return { previous };
+      },
+      onError: (_error, _ids, context) => client.setQueryData(key, context?.previous),
+      onSettled: refresh,
+    }),
+  };
 }
 
 export function useMailContacts(enabled = true) {

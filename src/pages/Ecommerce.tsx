@@ -9,10 +9,12 @@ import { formatCurrency } from "@/lib/format";
 import { SEO } from "@/components/SEO";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n";
 
 export default function Ecommerce() {
   const { profile, organization } = useAuth();
   const { data: stats, isLoading } = useEcommerceStats();
+  const { t } = useLanguage();
 
   const modules = [
     {
@@ -70,17 +72,17 @@ export default function Ecommerce() {
     <>
       <SEO
         title="E-commerce | Senvia OS"
-        description="Gestão completa da sua loja online"
+        description={t("Gestão completa da sua loja online")}
       />
       
       <div className="space-y-6 p-4 md:p-6 pb-nav-safe md:pb-6">
-        <PageHeader icon={Store} title="E-commerce" subtitle="Gestão completa da sua loja online" />
+        <PageHeader icon={Store} title="E-commerce" subtitle={t("Gestão completa da sua loja online")} />
 
         {/* Quick Stats */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Receita Total</CardDescription>
+              <CardDescription>{t("Receita Total")}</CardDescription>
               {isLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
@@ -93,7 +95,7 @@ export default function Ecommerce() {
           
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Pedidos Hoje</CardDescription>
+              <CardDescription>{t("Pedidos Hoje")}</CardDescription>
               {isLoading ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
@@ -106,7 +108,7 @@ export default function Ecommerce() {
           
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Pedidos Pendentes</CardDescription>
+              <CardDescription>{t("Pedidos Pendentes")}</CardDescription>
               {isLoading ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
@@ -121,7 +123,7 @@ export default function Ecommerce() {
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
-                Stock Baixo
+                {t("Stock Baixo")}
               </CardDescription>
               {isLoading ? (
                 <Skeleton className="h-8 w-12" />
@@ -147,9 +149,9 @@ export default function Ecommerce() {
                       <module.icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <CardTitle className="text-base">{module.title}</CardTitle>
+                      <CardTitle className="text-base">{t(module.title)}</CardTitle>
                       <CardDescription className="text-sm">
-                        {module.description}
+                        {t(module.description)}
                       </CardDescription>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -165,7 +167,7 @@ export default function Ecommerce() {
                         <>
                           <span className="text-2xl font-bold">{module.stat}</span>
                           {module.statLabel && (
-                            <span className="text-sm text-muted-foreground">{module.statLabel}</span>
+                            <span className="text-sm text-muted-foreground">{t(module.statLabel)}</span>
                           )}
                         </>
                       )}
@@ -184,9 +186,9 @@ export default function Ecommerce() {
               <Package className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold">Módulo E-commerce Ativo</h3>
+              <h3 className="font-semibold">{t("Módulo E-commerce Ativo")}</h3>
               <p className="text-sm text-muted-foreground">
-                Gerencie produtos, pedidos e clientes numa plataforma integrada.
+                {t("Faça a gestão de produtos, pedidos e clientes numa plataforma integrada.")}
               </p>
             </div>
           </CardContent>

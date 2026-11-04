@@ -20,7 +20,7 @@ test('sanitized email DOM excludes active content, handlers and dangerous URLs',
 
 test('email formatting survives but CSS resources and global layout do not', () => {
   // Given
-  const input = '<table class="senvia-quote fixed" style="position:fixed;background-image:url(https://tracker.invalid);color:red"><tr><td style="font-weight:bold;padding-right:16px">Hello <b>team</b><img src="data:image/png;base64,aGVsbG8=" width="90"><img src="https://tracker.invalid/pixel"></td></tr></table>';
+  const input = '<table class="senvia-quote fixed" style="position:fixed;background-image:url(https://tracker.invalid);color:red"><tr><td style="font-weight:bold;padding-right:16px">Hello <b>team</b><img src="data:image/png;base64,aGVsbG8=" width="90"><img src="https://tracker.invalid/pixel" width="1" height="1"></td></tr></table><img src="https://pasted.invalid/photo.png">';
   // When
   const host = dom.window.document.createElement('div');
   host.innerHTML = sanitizeEmailHtml(input);
@@ -41,6 +41,17 @@ test('signature keeps safe HTTPS image sources and links', () => {
 
   assert.equal(host.querySelector('img')?.getAttribute('src'), 'https://app.senvia.pt/icon-192.png');
   assert.equal(host.querySelector('a')?.getAttribute('href'), 'https://www.senvia.pt/');
+});
+
+test('a reply or forward keeps the HTTPS images of the quoted email, but not tracking pixels', () => {
+  // Given
+  const html_body = '<p>Brevo</p><img alt="Facebook" height="35" src="https://img.brevo.invalid/facebook.png"><img src="https://tracker.invalid/open" style="width:1px;height:1px"><img src="http://insecure.invalid/logo.png">';
+  // When
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = quoteEmailHtml({ from_name: 'Nuno', from_address: 'nuno@example.invalid', date: null, html_body, text_body: null });
+  host.innerHTML = sanitizeEmailHtml(host.innerHTML);
+  // Then
+  assert.deepEqual([...host.querySelectorAll('img[src]')].map(img => img.getAttribute('src')), ['https://img.brevo.invalid/facebook.png']);
 });
 
 test('quoted sender fields remain text and quoted body is sanitized', () => {

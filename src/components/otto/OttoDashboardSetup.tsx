@@ -4,6 +4,7 @@ import { OttoAvatar } from "./OttoAvatar";
 import { SetupTaskIcon } from "./SetupTaskIcon";
 import { useRunSetupTask } from "./useRunSetupTask";
 import { useOttoOnboarding } from "@/hooks/useOttoOnboarding";
+import { useLanguage } from "@/i18n";
 
 // Large dashboard hero where Otto walks the admin through configuring every ACTIVE
 // module. Disappears on its own once everything is set up, or when the admin closes
@@ -12,6 +13,7 @@ import { useOttoOnboarding } from "@/hooks/useOttoOnboarding";
 export function OttoDashboardSetup() {
   const { loading, showSetupCard, pending, progress, dismissSetup } = useOttoOnboarding();
   const run = useRunSetupTask();
+  const { t } = useLanguage();
 
   if (loading || !showSetupCard) return null;
 
@@ -26,30 +28,28 @@ export function OttoDashboardSetup() {
       <button
         type="button"
         onClick={dismissSetup}
-        // A dispensa é definitiva (guardada no servidor), por isso o botão tem
-        // de o dizer — um X sem legenda lê-se como "fechar por agora".
-        aria-label="Não voltar a mostrar este painel"
-        title="Não voltar a mostrar"
-        className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        // A dispensa é definitiva (guardada no servidor), por isso o botão diz-o
+        // por extenso — um X sozinho lê-se como "fechar por agora".
+        className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
       >
-        <X className="h-4 w-4" />
+        {t("Não mostrar mais")}<X className="h-3.5 w-3.5" />
       </button>
 
-      <div className="flex flex-col gap-4 pr-8 sm:flex-row sm:items-center sm:justify-between sm:pr-10">
+      <div className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between sm:pr-40 sm:pt-0">
         <div className="flex items-center gap-3">
           <OttoAvatar expression="happy" size="lg" />
           <div>
-            <h2 className="text-lg font-bold text-foreground">Vamos configurar o teu Senvia OS</h2>
+            <h2 className="text-lg font-bold text-foreground">{t("Vamos configurar o teu Senvia OS")}</h2>
             <p className="text-sm text-muted-foreground">
               {pending.length === 1
-                ? "Falta 1 passo. Carrega para eu te guiar."
-                : `Faltam ${pending.length} passos. Carrega num para eu te guiar.`}
+                ? t("Falta 1 passo. Carrega para eu te guiar.")
+                : t("Faltam {{n}} passos. Carrega num para eu te guiar.", { n: pending.length })}
             </p>
           </div>
         </div>
         <div className="min-w-[140px]">
           <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Progresso</span>
+            <span>{t("Progresso")}</span>
             <span>{progress.done}/{progress.total}</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -69,8 +69,8 @@ export function OttoDashboardSetup() {
                 <SetupTaskIcon icon={task.icon} className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">{task.label}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{task.description}</p>
+                <p className="text-sm font-semibold text-foreground">{t(task.label)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t(task.description)}</p>
               </div>
               <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
@@ -80,7 +80,7 @@ export function OttoDashboardSetup() {
       {progress.done > 0 && (
         <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-          {progress.done} {progress.done === 1 ? "passo concluído" : "passos concluídos"}.
+          {t(progress.done === 1 ? "{{n}} passo concluído." : "{{n}} passos concluídos.", { n: progress.done })}
         </p>
       )}
     </motion.section>

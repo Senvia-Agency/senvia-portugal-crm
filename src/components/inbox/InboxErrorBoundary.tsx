@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { tr } from "@/i18n";
 
 // Local error boundary for the inbox thread/list. Unlike the app-wide
 // ErrorBoundary in components/ErrorBoundary.tsx (which handles chunk-load
@@ -47,10 +48,10 @@ export class InboxErrorBoundary extends Component<Props, State> {
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">
-              Algo correu mal ao mostrar esta conversa
+              {tr("Algo correu mal ao mostrar esta conversa")}
             </p>
             <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-              Podes tentar novamente ou abrir outra conversa.
+              {tr("Podes tentar novamente ou abrir outra conversa.")}
             </p>
           </div>
           <Button
@@ -58,7 +59,7 @@ export class InboxErrorBoundary extends Component<Props, State> {
             variant="outline"
             onClick={() => this.setState({ hasError: false, error: null })}
           >
-            Tentar novamente
+            {tr("Tentar novamente")}
           </Button>
         </div>
       );

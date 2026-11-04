@@ -11,7 +11,6 @@ import {
 import { ArrowLeft, Plus, Pencil, Trash2, CheckCircle, Search, X, RefreshCw, PauseCircle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, startOfDay, endOfDay, isSameMonth } from "date-fns";
-import { pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -32,6 +31,10 @@ import { useUpdateSalePayment, useCreateSalePayment } from "@/hooks/useSalePayme
 import { TelecomBalanceDetail } from "@/components/finance/TelecomBalanceDetail";
 import { MinhasComissoesContent } from "@/components/finance/MinhasComissoesContent";
 import { TeamCommissionsTab } from "@/components/finance/TeamCommissionsTab";
+import { CommissionAnalysisTab } from "@/components/finance/CommissionAnalysisTab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissions } from "@/hooks/usePermissions";
+import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { EditExpenseModal } from "@/components/finance/EditExpenseModal";
 import { RecurringExpensesTable, useRecurringExpenseCount } from "@/components/finance/RecurringExpensesTable";
@@ -45,6 +48,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { dateLocale, tr, useLanguage } from "@/i18n";
 
 export type FinanceDetailType =
   | "faturado" | "received" | "pending" | "overdue" | "dueSoon" | "expenses" | "balance" | "myCommissions" | "commissions"
@@ -94,7 +98,7 @@ function inRange(dateStr: string, dateRange?: DateRange) {
 
 function fmtDate(dateStr?: string | null) {
   if (!dateStr) return '—';
-  return format(parseISO(dateStr), "dd MMM yyyy", { locale: pt });
+  return format(parseISO(dateStr), "dd MMM yyyy", { locale: dateLocale() });
 }
 
 /** Case- and accent-insensitive "contains", for the search box on each list. */
@@ -106,19 +110,21 @@ function matchesSearch(term: string | undefined, values: Array<string | null | u
 }
 
 function TotalFooter({ count, total }: { count: number; total: number }) {
+  const { t } = useLanguage();
   return (
     <div className="flex justify-between border-t px-4 py-2 text-sm font-medium">
-      <span>Total ({count})</span>
+      <span>{t("Total ({{n}})", { n: count })}</span>
       <span>{formatCurrency(total)}</span>
     </div>
   );
 }
 
 function EmptyRow({ cols }: { cols: number }) {
+  const { t } = useLanguage();
   return (
     <TableRow>
       <TableCell colSpan={cols} className="h-24 text-center text-muted-foreground">
-        Sem registos.
+        {t("Sem registos.")}
       </TableCell>
     </TableRow>
   );
@@ -131,9 +137,9 @@ function EmptyRow({ cols }: { cols: number }) {
  */
 function dueLabel(dateStr: string): { text: string; late: boolean } {
   const days = Math.round((startOfDay(parseISO(dateStr)).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
-  if (days === 0) return { text: "vence hoje", late: false };
-  if (days > 0) return { text: `em ${days} dia${days === 1 ? "" : "s"}`, late: false };
-  return { text: `há ${-days} dia${days === -1 ? "" : "s"}`, late: true };
+  if (days === 0) return { text: tr("vence hoje"), late: false };
+  if (days > 0) return { text: tr(days === 1 ? "em {{n}} dia" : "em {{n}} dias", { n: days }), late: false };
+  return { text: tr(days === -1 ? "há {{n}} dia" : "há {{n}} dias", { n: -days }), late: true };
 }
 
 function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
@@ -142,6 +148,7 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
   /** Pending lists: the date is the due date, with how far it is. */
   due?: boolean;
 }) {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const updatePayment = useUpdateSalePayment();
   const createPayment = useCreateSalePayment();
@@ -214,13 +221,13 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{due ? "Vencimento" : "Recebido em"}</TableHead>
-            <TableHead>Venda</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead className="hidden sm:table-cell">Método</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
-            {showActions && <TableHead className="text-right">Ações</TableHead>}
+            <TableHead>{due ? t("Vencimento") : t("Recebido em")}</TableHead>
+            <TableHead>{t("Venda")}</TableHead>
+            <TableHead>{t("Cliente")}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t("Método")}</TableHead>
+            <TableHead>{t("Estado")}</TableHead>
+            <TableHead className="text-right">{t("Valor")}</TableHead>
+            {showActions && <TableHead className="text-right">{t("Ações")}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -243,7 +250,7 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
                 <TableCell>{p.sale?.code || "—"}</TableCell>
                 <TableCell>{p.client_name || p.lead_name || "—"}</TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : "—"}
+                  {p.payment_method ? t(PAYMENT_METHOD_LABELS[p.payment_method]) : "—"}
                 </TableCell>
                 <TableCell>
                   <StatusBadge {...paymentRecordStatusBadge(p.status)} />
@@ -254,7 +261,7 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
                     {p.status === "pending" && (
                       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openConfirm(p)}>
                         <CheckCircle className="h-4 w-4" />
-                        <span className="hidden sm:inline">Marcar Pago</span>
+                        <span className="hidden sm:inline">{t("Marcar Pago")}</span>
                       </Button>
                     )}
                   </TableCell>
@@ -269,19 +276,18 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
       <AlertDialog open={!!confirm} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Marcar pagamento como pago?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Marcar pagamento como pago?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirm && (
                 <>
-                  {confirm.client_name || confirm.lead_name || "Cliente"} — venda{" "}
-                  {confirm.sale?.code || "—"} • total agendado {formatCurrency(full)}.
+                  {t("{{client}} — venda {{code}} • total agendado {{total}}.", { client: confirm.client_name || confirm.lead_name || t("Cliente"), code: confirm.sale?.code || "—", total: formatCurrency(full) })}
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="mp-amount">Valor recebido</Label>
+              <Label htmlFor="mp-amount">{t("Valor recebido")}</Label>
               <Input
                 id="mp-amount"
                 type="number"
@@ -293,19 +299,19 @@ function PaymentsDetailTable({ payments, allowMarkPaid = false, due = false }: {
               />
               {isPartial && (
                 <p className="text-xs text-muted-foreground">
-                  Ficará {formatCurrency(remainder)} agendado (parcela restante).
+                  {t("Ficará {{value}} agendado (parcela restante).", { value: formatCurrency(remainder) })}
                 </p>
               )}
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="mp-date">Data de pagamento</Label>
+              <Label htmlFor="mp-date">{t("Data de pagamento")}</Label>
               <Input id="mp-date" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
             </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleMarkPaid} disabled={busy || receivedNum <= 0 || !payDate}>
-              {isPartial ? "Registar parcial" : "Confirmar"}
+              {isPartial ? t("Registar parcial") : t("Confirmar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -336,6 +342,7 @@ function SalesDetailTable({
   /** "activation" counts a sale when it went live, not when it was sold. */
   dateBasis?: "sale" | "activation";
 }) {
+  const { t } = useLanguage();
   const { data: sales = [], isLoading } = useSales();
   const saleTypeIds = useSaleTypeIds();
   const { organization } = useAuth();
@@ -379,12 +386,12 @@ function SalesDetailTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{dateBasis === 'activation' ? 'Recebimento previsto' : 'Data'}</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Código</TableHead>
-            {isTelecom && <TableHead>Vendedor</TableHead>}
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-right">{isTelecom ? "Comissão" : "Valor"}</TableHead>
+            <TableHead>{dateBasis === 'activation' ? t('Recebimento previsto') : t('Data')}</TableHead>
+            <TableHead>{t("Cliente")}</TableHead>
+            <TableHead>{t("Código")}</TableHead>
+            {isTelecom && <TableHead>{t("Vendedor")}</TableHead>}
+            <TableHead>{t("Estado")}</TableHead>
+            <TableHead className="text-right">{isTelecom ? t("Comissão") : t("Valor")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -395,14 +402,14 @@ function SalesDetailTable({
               {shown.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && telecomCommissionDate(s)
-                    ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: pt })
+                    ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: dateLocale() })
                     : fmtDate(dateBasis === 'activation' ? telecomCommissionDate(s) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>
                   <TableCell>{s.code}</TableCell>
                   {isTelecom && <TableCell>{sellerOf(s)}</TableCell>}
                   <TableCell>
                     {isTelecom && s.telecom_status ? (
-                      <Badge variant="outline" className={TELECOM_STATUS_COLORS[s.telecom_status]}>{TELECOM_STATUS_LABELS[s.telecom_status]}</Badge>
+                      <Badge variant="outline" className={TELECOM_STATUS_COLORS[s.telecom_status]}>{t(TELECOM_STATUS_LABELS[s.telecom_status])}</Badge>
                     ) : <StatusBadge {...saleStatusBadge(s.status)} />}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(valueOf(s))}</TableCell>
@@ -416,7 +423,7 @@ function SalesDetailTable({
                   {isTelecom && <TableCell>—</TableCell>}
                   <TableCell>
                     <Badge variant="outline" className="border-blue-500/30 bg-blue-500/20 text-blue-600">
-                      Renovação
+                      {t("Renovação")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(r.amount)}</TableCell>
@@ -432,6 +439,7 @@ function SalesDetailTable({
 }
 
 function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = "" }: { dateRange?: DateRange; commissionFilters?: CommissionFilters; searchTerm?: string }) {
+  const { t } = useLanguage();
   // Reuse the card's query so rows, permissions, filters and total cannot diverge.
   const { data, isLoading, isError, refetch } = useTeamCommissionTotal(dateRange, commissionFilters);
   const { data: sales = [] } = useSales();
@@ -441,14 +449,14 @@ function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = ""
     [sales, selectedSaleId],
   );
   if (isLoading) return <Skeleton className="h-64 w-full" />;
-  if (isError) return <div className="rounded-md border p-4">Não foi possível carregar as vendas. <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button></div>;
+  if (isError) return <div className="rounded-md border p-4">{t("Não foi possível carregar as vendas.")} <Button variant="outline" onClick={() => void refetch()}>{t("Tentar novamente")}</Button></div>;
   const allRows = data?.organizationSales ?? [];
   const rows = allRows.filter((sale) => matchesSearch(searchTerm, [sale.clientName, sale.code, ...sale.products]));
   // Searching narrows the rows, so the total has to follow them.
   const rowsTotal = searchTerm.trim()
     ? rows.reduce((sum, sale) => sum + sale.amount, 0)
     : (data?.orgTotal ?? 0);
-  const displayAmount = (amount: number | null | undefined) => amount == null ? "Não disponível" : formatCurrency(amount);
+  const displayAmount = (amount: number | null | undefined) => amount == null ? t("Não disponível") : formatCurrency(amount);
   const commissionPending = data ? Math.max(data.total - data.paidTotal, 0) : 0;
   const cardsPending = data?.extraCardsTotal != null && data.extraCardsPaidTotal != null
     ? Math.max(data.extraCardsTotal - data.extraCardsPaidTotal, 0)
@@ -460,58 +468,58 @@ function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = ""
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-md border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Valor líquido da organização</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("Valor líquido da organização")}</p>
           <p className="mt-1 text-lg font-semibold">{formatCurrency(data?.orgTotal ?? 0)}</p>
         </div>
         <div className="rounded-md border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Cartões extra dos vendedores</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("Cartões extra dos vendedores")}</p>
           <p className="mt-1 text-lg font-semibold">{displayAmount(data?.extraCardsTotal)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {data?.extraCardsPaidTotal == null || cardsPending == null
-              ? "Pago / por pagar indisponível"
-              : `${formatCurrency(data.extraCardsPaidTotal)} pagas · ${formatCurrency(cardsPending)} por pagar${data.extraCardsUntrackedSales ? ' (subtotal identificado)' : ''}`}
+              ? t("Pago / por pagar indisponível")
+              : `${t("{{paid}} pagas · {{pending}} por pagar", { paid: formatCurrency(data.extraCardsPaidTotal), pending: formatCurrency(cardsPending) })}${data.extraCardsUntrackedSales ? ` ${t("(subtotal identificado)")}` : ''}`}
           </p>
         </div>
         <div className="rounded-md border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Comissões sem cartões</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("Comissões sem cartões")}</p>
           <p className="mt-1 text-lg font-semibold">{displayAmount(data?.commissionWithoutCards)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {data?.commissionWithoutCardsPaid == null || commissionWithoutCardsPending == null
-              ? "Pago / por pagar indisponível"
-              : `${formatCurrency(data.commissionWithoutCardsPaid)} pagas · ${formatCurrency(commissionWithoutCardsPending)} por pagar`}
+              ? t("Pago / por pagar indisponível")
+              : t("{{paid}} pagas · {{pending}} por pagar", { paid: formatCurrency(data.commissionWithoutCardsPaid), pending: formatCurrency(commissionWithoutCardsPending) })}
           </p>
         </div>
         <div className="rounded-md border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Comissões totais (inclui cartões)</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("Comissões totais (inclui cartões)")}</p>
           <p className="mt-1 text-lg font-semibold">{formatCurrency(data?.total ?? 0)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatCurrency(data?.paidTotal ?? 0)} pagas · {formatCurrency(commissionPending)} por pagar
+            {t("{{paid}} pagas · {{pending}} por pagar", { paid: formatCurrency(data?.paidTotal ?? 0), pending: formatCurrency(commissionPending) })}
           </p>
         </div>
       </div>
       {!!data?.extraCardsReconstructedSales && (
         <p className="text-xs text-muted-foreground">
-          Em {data.extraCardsReconstructedSales} venda(s), os cartões extra foram calculados pela quantidade guardada na venda e pela taxa atual do produto.
+          {t("Em {{n}} venda(s), os cartões extra foram calculados pela quantidade guardada na venda e pela taxa atual do produto.", { n: data.extraCardsReconstructedSales })}
         </p>
       )}
       {!!data?.extraCardsUntrackedSales && (
         <p className="text-xs text-muted-foreground">
-          O subtotal dos cartões extra não inclui {data.extraCardsUntrackedSales} venda(s) sem dados suficientes para reconstruir esse valor. Por isso, a comissão sem cartões também não pode ser calculada com exactidão.
+          {t("O subtotal dos cartões extra não inclui {{n}} venda(s) sem dados suficientes para reconstruir esse valor. Por isso, a comissão sem cartões também não pode ser calculada com exatidão.", { n: data.extraCardsUntrackedSales })}
         </p>
       )}
       <div className="rounded-md border">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Recebimento previsto</TableHead>
-            <TableHead>Cliente / Produto</TableHead>
-            <TableHead>Código</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-right">Valor da Organização</TableHead>
+            <TableHead>{t("Recebimento previsto")}</TableHead>
+            <TableHead>{t("Cliente / Produto")}</TableHead>
+            <TableHead>{t("Código")}</TableHead>
+            <TableHead>{t("Estado")}</TableHead>
+            <TableHead className="text-right">{t("Valor da Organização")}</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? <EmptyRow cols={5} /> : rows.map((sale) => (
               <TableRow key={sale.id}>
-                <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: pt }) : fmtDate(sale.date)}</TableCell>
+                <TableCell className="whitespace-nowrap">{sale.deferred && sale.date ? format(parseISO(sale.date), 'MMM yyyy', { locale: dateLocale() }) : fmtDate(sale.date)}</TableCell>
                 <TableCell>
                   <Button
                     variant="link"
@@ -520,10 +528,10 @@ function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = ""
                   >
                     {sale.clientName}
                   </Button>
-                  <p className="text-xs text-muted-foreground">{sale.products.join(' · ') || 'Produto não identificado'}</p>
+                  <p className="text-xs text-muted-foreground">{sale.products.join(' · ') || t('Produto não identificado')}</p>
                 </TableCell>
                 <TableCell>{sale.code || '—'}</TableCell>
-                <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus]}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className={TELECOM_STATUS_COLORS[sale.telecomStatus as TelecomStatus]}>{t(TELECOM_STATUS_LABELS[sale.telecomStatus as TelecomStatus])}</Badge></TableCell>
                 <TableCell className="text-right font-medium">{formatCurrency(sale.amount)}</TableCell>
               </TableRow>
             ))}
@@ -543,6 +551,7 @@ function OrganizationValueDetail({ dateRange, commissionFilters, searchTerm = ""
 }
 
 function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateRange; searchTerm?: string }) {
+  const { t } = useLanguage();
   const { data: expenses = [], isLoading } = useExpenses();
   const { organization } = useAuth();
   const stripeInvoiceIds = useMemo(
@@ -562,7 +571,7 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
       return Object.fromEntries((data || []).map((payment: any) => {
         const sale = payment.sales;
         const clientName = sale?.crm_clients?.name || sale?.leads?.name;
-        return [payment.stripe_invoice_id, [sale?.code ? `Venda ${sale.code}` : null, clientName].filter(Boolean).join(" · ")];
+        return [payment.stripe_invoice_id, [sale?.code ? tr("Venda {{code}}", { code: sale.code }) : null, clientName].filter(Boolean).join(" · ")];
       }));
     },
     enabled: !!organization?.id && stripeInvoiceIds.length > 0,
@@ -585,10 +594,10 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
-            <TableHead>Descrição / origem</TableHead>
-            <TableHead>Categoria</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
+            <TableHead>{t("Data")}</TableHead>
+            <TableHead>{t("Descrição / origem")}</TableHead>
+            <TableHead>{t("Categoria")}</TableHead>
+            <TableHead className="text-right">{t("Valor")}</TableHead>
             <TableHead className="w-[1%]"></TableHead>
           </TableRow>
         </TableHeader>
@@ -605,18 +614,18 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <RefreshCw className="h-3 w-3" />
                       {describeSchedule(scheduleOf(e)!)}
-                      {e.next_recurrence_date && ` · próximo ${fmtDate(e.next_recurrence_date)}`}
+                      {e.next_recurrence_date && ` · ${t("próximo {{date}}", { date: fmtDate(e.next_recurrence_date) })}`}
                     </div>
                   )}
                   {pausedScheduleOf(e) && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <PauseCircle className="h-3 w-3" />
-                      Em pausa · {describeSchedule(pausedScheduleOf(e)!)}
+                      {t("Em pausa")} · {describeSchedule(pausedScheduleOf(e)!)}
                     </div>
                   )}
                   {e.stripe_invoice_id && (
                     <div className="text-xs text-muted-foreground">
-                      {stripePaymentOrigins[e.stripe_invoice_id] || "Pagamento Stripe"}
+                      {stripePaymentOrigins[e.stripe_invoice_id] || t("Pagamento Stripe")}
                     </div>
                   )}
                 </TableCell>
@@ -650,18 +659,18 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar despesa?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar despesa?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é irreversível. A despesa será permanentemente removida.
+              {t("Esta ação é irreversível. A despesa será permanentemente removida.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { if (deleteId) { deleteExpense.mutate(deleteId); setDeleteId(null); } }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -671,6 +680,7 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
 }
 
 function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: DateRange; received: PaymentWithSale[]; receivedTotal: number }) {
+  const { t } = useLanguage();
   const { data: expenses = [] } = useExpenses();
   const expensesTotal = useMemo(
     () => expenses.filter((e) => inRange(e.expense_date, dateRange)).reduce((s, e) => s + (Number(e.amount) || 0), 0),
@@ -681,26 +691,26 @@ function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: Dat
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card><CardContent className="pt-6">
-          <p className="text-xs text-muted-foreground">Recebido</p>
+          <p className="text-xs text-muted-foreground">{t("Recebido")}</p>
           <p className="text-xl font-bold text-emerald-600">{formatCurrency(receivedTotal)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <p className="text-xs text-muted-foreground">Despesas</p>
+          <p className="text-xs text-muted-foreground">{t("Despesas")}</p>
           <p className="text-xl font-bold text-destructive">{formatCurrency(expensesTotal)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <p className="text-xs text-muted-foreground">Saldo</p>
+          <p className="text-xs text-muted-foreground">{t("Saldo")}</p>
           <p className={cn("text-xl font-bold", balance >= 0 ? "text-emerald-600" : "text-destructive")}>
             {formatCurrency(balance)}
           </p>
         </CardContent></Card>
       </div>
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Recebidos</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">{t("Recebidos")}</h3>
         <PaymentsDetailTable payments={received} />
       </div>
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Despesas</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">{t("Despesas")}</h3>
         <ExpensesDetailTable dateRange={dateRange} />
       </div>
     </div>
@@ -708,6 +718,7 @@ function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: Dat
 }
 
 export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueSoonPayments, searchTerm, commissionFilters, onBack, showBack = true }: FinanceCardDetailProps) {
+  const { t } = useLanguage();
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   // Expenses: every one booked in the period, or the recurring schedules.
   const [expensesView, setExpensesView] = usePersistedState<"all" | "recurring">("finance-expenses-view-v1", "all");
@@ -745,28 +756,34 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       .map((p) => ({
         id: p.id,
         date: p.payment_date,
-        label: p.client_name || p.lead_name || p.sale?.code || "Renovação",
+        label: p.client_name || p.lead_name || p.sale?.code || t("Renovação"),
         amount: Number(p.sale?.recurring_value) || Number(p.sale?.total_value) || p.amount,
       })),
-    [payments],
+    [payments, t],
   );
 
-  const { organization: orgForTitle } = useAuth();
+  const { organization: orgForTitle, organizations: memberships, isSuperAdmin } = useAuth();
   const orgIsTelecom = orgForTitle?.niche === "telecom";
+  // Telecom/energy commissions (per CPE, contract, DBL, consumption) also get the
+  // analysis view. It lived only in a Comissões tab of Vendas; that tab is gone and
+  // the team commissions are managed here.
+  const { isAdmin: canSeeAnalysis } = usePermissions();
+  const showCommissionAnalysis = canSeeAnalysis && (orgIsTelecom
+    || hasPerfect2GetherAccess({ organizationId: orgForTitle?.id, memberships, isSuperAdmin }));
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        {showBack && <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-          <ArrowLeft className="h-4 w-4" /> Voltar
+        {showBack && <Button variant="back" size="sm" onClick={onBack} className="gap-1">
+          <ArrowLeft className="h-4 w-4" /> {t("Voltar")}
         </Button>}
         <h2 className="text-lg font-semibold">
           {/* Same override as the card that opened this. */}
-          {type === "faturado" && orgIsTelecom ? "Total de Comissão" : type === "myCommissions" && commissionFilters?.userId ? "Comissão do vendedor" : TITLES[type]}
+          {type === "faturado" && orgIsTelecom ? t("Total de Comissão") : type === "myCommissions" && commissionFilters?.userId ? t("Comissão do vendedor") : t(TITLES[type])}
         </h2>
 
         {type === "expenses" && (
           <Button size="sm" className="ml-auto gap-1.5" onClick={() => setAddExpenseOpen(true)}>
-            <Plus className="h-4 w-4" /> Nova Despesa
+            <Plus className="h-4 w-4" /> {t("Nova Despesa")}
           </Button>
         )}
       </div>
@@ -779,16 +796,16 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
           <Input
             value={ownSearch}
             onChange={(e) => setOwnSearch(e.target.value)}
-            placeholder="Pesquisar cliente, código ou produto..."
+            placeholder={t("Pesquisar cliente, código ou produto...")}
             className="h-11 border-primary/40 bg-primary/[0.05] pl-10 pr-10 text-sm shadow-sm placeholder:text-muted-foreground/80 focus-visible:ring-2 focus-visible:ring-primary/25"
-            aria-label="Pesquisar nesta lista"
+            aria-label={t("Pesquisar nesta lista")}
           />
           {ownSearch && (
             <button
               type="button"
               onClick={() => setOwnSearch("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-              aria-label="Limpar pesquisa"
+              aria-label={t("Limpar pesquisa")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -801,8 +818,8 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "expenses" && (
         <div className="inline-flex rounded-lg border border-border bg-card p-1">
           {([
-            ["all", "Todas as despesas"],
-            ["recurring", `Recorrentes (${recurringCount})`],
+            ["all", t("Todas as despesas")],
+            ["recurring", t("Recorrentes ({{n}})", { n: recurringCount })],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -850,7 +867,20 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
       {type === "expenses" && expensesView === "recurring" && <RecurringExpensesTable searchTerm={search} />}
       {type === "organizationValue" && orgIsTelecom && <OrganizationValueDetail dateRange={dateRange} commissionFilters={commissionFilters} searchTerm={search} />}
       {type === "myCommissions" && <MinhasComissoesContent dateRange={dateRange} userId={commissionFilters?.userId} />}
-      {type === "commissions" && <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />}
+      {type === "commissions" && (showCommissionAnalysis ? (
+        <Tabs defaultValue={orgIsTelecom ? "analise" : "equipa"}>
+          <TabsList>
+            <TabsTrigger value="equipa">{t("Comissões da equipa")}</TabsTrigger>
+            <TabsTrigger value="analise">{t("Análise de Comissões")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="equipa" className="mt-4">
+            <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />
+          </TabsContent>
+          <TabsContent value="analise" className="mt-4">
+            <CommissionAnalysisTab />
+          </TabsContent>
+        </Tabs>
+      ) : <TeamCommissionsTab financeOptions={orgIsTelecom ? { dateRange, commissionFilters } : undefined} />)}
       {type === "balance" && orgIsTelecom && <TelecomBalanceDetail dateRange={dateRange} commissionFilters={commissionFilters} />}
       {type === "balance" && !orgIsTelecom && <BalanceDetail dateRange={dateRange} received={received} receivedTotal={receivedTotal} />}
     </div>

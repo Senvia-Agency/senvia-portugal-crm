@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, useLanguage } from "@/i18n";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ interface ImportsHistoryDialogProps {
 
 export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialogProps) {
   const { data: imports = [], isLoading } = useLeadImports();
+  const { t } = useLanguage();
   const deleteImport = useDeleteLeadImport();
   const { can, isAdmin } = usePermissions();
 
@@ -42,9 +43,9 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-5xl max-h-[85dvh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Histórico de Importações</DialogTitle>
+            <DialogTitle>{t("Histórico de Importações")}</DialogTitle>
             <DialogDescription>
-              Lotes de leads importados nesta organização. Só podes apagar lotes onde nenhum lead já tenha atividade (proposta, cliente, venda, encomenda ou evento).
+              {t("Lotes de leads importados nesta organização. Só podes apagar lotes onde nenhum lead já tenha atividade (proposta, cliente, venda, encomenda ou evento).")}
             </DialogDescription>
           </DialogHeader>
 
@@ -56,20 +57,20 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
             ) : imports.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <FileX className="mx-auto mb-3 h-12 w-12 opacity-50" />
-                <p>Ainda não há importações.</p>
+                <p>{t("Ainda não há importações.")}</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Por</TableHead>
-                    <TableHead className="text-right">Importados</TableHead>
-                    <TableHead className="text-right">Ainda existem</TableHead>
-                    <TableHead className="text-right">Com atividade</TableHead>
-                    {canDelete && <TableHead className="text-right">Ações</TableHead>}
+                    <TableHead>{t("Nome")}</TableHead>
+                    <TableHead>{t("Código")}</TableHead>
+                    <TableHead>{t("Data")}</TableHead>
+                    <TableHead>{t("Por")}</TableHead>
+                    <TableHead className="text-right">{t("Importados")}</TableHead>
+                    <TableHead className="text-right">{t("Ainda existem")}</TableHead>
+                    <TableHead className="text-right">{t("Com atividade")}</TableHead>
+                    {canDelete && <TableHead className="text-right">{t("Ações")}</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -79,7 +80,7 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
                       <TableRow key={imp.id}>
                         <TableCell className="font-medium">
                           {imp.name || (
-                            <span className="text-muted-foreground italic">(sem nome)</span>
+                            <span className="text-muted-foreground italic">{t("(sem nome)")}</span>
                           )}
                           {imp.file_name && (
                             <div className="text-xs text-muted-foreground truncate max-w-[280px]">
@@ -91,7 +92,7 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
                           <span className="font-mono text-xs">{imp.import_code}</span>
                         </TableCell>
                         <TableCell className="text-sm">
-                          {format(new Date(imp.created_at), "dd MMM yyyy 'às' HH:mm", { locale: pt })}
+                          {format(new Date(imp.created_at), t("dd MMM yyyy 'às' HH:mm"), { locale: dateLocale() })}
                         </TableCell>
                         <TableCell className="text-sm">{imp.importer_name || "—"}</TableCell>
                         <TableCell className="text-right">{imp.total_inserted}</TableCell>
@@ -115,8 +116,8 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
                               onClick={() => setConfirming(imp)}
                               title={
                                 locked
-                                  ? `${imp.leads_with_activity} lead(s) já têm atividade — não é possível apagar este lote.`
-                                  : "Apagar importação"
+                                  ? t("{{n}} lead(s) já têm atividade — não é possível apagar este lote.", { n: imp.leads_with_activity })
+                                  : t("Apagar importação")
                               }
                             >
                               {locked ? <AlertTriangle className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
@@ -136,31 +137,31 @@ export function ImportsHistoryDialog({ open, onOpenChange }: ImportsHistoryDialo
       <AlertDialog open={!!confirming} onOpenChange={(o) => !o && setConfirming(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Apagar importação?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Apagar importação?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirming && (
                 <>
-                  Vais apagar a importação <strong>"{confirming.name || confirming.import_code}"</strong>:
+                  {t("Vais apagar a importação \"{{name}}\":", { name: confirming.name || confirming.import_code })}
                   <ul className="mt-2 list-disc pl-5 space-y-1 text-sm">
-                    <li>{confirming.leads_remaining} lead(s) serão eliminados.</li>
-                    <li>O registo da importação será removido.</li>
+                    <li>{t("{{n}} lead(s) serão eliminados.", { n: confirming.leads_remaining })}</li>
+                    <li>{t("O registo da importação será removido.")}</li>
                   </ul>
                   <p className="mt-3 text-sm text-destructive">
-                    Esta ação não pode ser revertida.
+                    {t("Esta ação não pode ser revertida.")}
                   </p>
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteImport.isPending}
             >
               {deleteImport.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Apagar
+              {t("Apagar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

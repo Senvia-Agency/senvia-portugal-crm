@@ -12,13 +12,14 @@ import type { Proposal } from '@/types/proposals';
 import type { Lead } from '@/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface ProposalsListProps {
   lead: Lead;
 }
 
 export function ProposalsList({ lead }: ProposalsListProps) {
+  const { t } = useLanguage();
   const { data: proposals = [], isLoading } = useLeadProposals(lead.id);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
@@ -40,18 +41,18 @@ export function ProposalsList({ lead }: ProposalsListProps) {
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2">
           <FileText className="h-4 w-4" />
-          Propostas ({proposals.length})
+          {t("Propostas ({{n}})", { n: proposals.length })}
         </h3>
         <Button size="sm" onClick={() => setCreateModalOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
-          Nova
+          {t("Nova")}
         </Button>
       </div>
 
       {proposals.length === 0 ? (
         <div className="text-center py-6 text-muted-foreground border rounded-lg bg-muted/30">
           <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">Sem propostas para este lead.</p>
+          <p className="text-sm">{t("Sem propostas para este lead.")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -63,11 +64,11 @@ export function ProposalsList({ lead }: ProposalsListProps) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <StatusBadge {...proposalStatusBadge(proposal.status)} />
+                  <StatusBadge {...proposalStatusBadge(proposal.status)} label={t(proposalStatusBadge(proposal.status).label)} />
                   {proposal.proposal_type && (
                     <Badge className={cn('text-xs', proposal.proposal_type === 'energia' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-violet-500/20 text-violet-400')}>
                       {proposal.proposal_type === 'energia' ? <Zap className="h-3 w-3 mr-1" /> : <Wrench className="h-3 w-3 mr-1" />}
-                      {PROPOSAL_TYPE_LABELS[proposal.proposal_type]}
+                      {t(PROPOSAL_TYPE_LABELS[proposal.proposal_type])}
                     </Badge>
                   )}
                   {proposal.code && (
@@ -76,7 +77,7 @@ export function ProposalsList({ lead }: ProposalsListProps) {
                     </span>
                   )}
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(proposal.proposal_date), "d MMM yyyy", { locale: pt })}
+                    {format(new Date(proposal.proposal_date), "d MMM yyyy", { locale: dateLocale() })}
                   </span>
                 </div>
                 <p className="font-semibold text-primary">

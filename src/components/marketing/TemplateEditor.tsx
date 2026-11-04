@@ -10,6 +10,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Separator } from "@/components/ui/separator";
 import { TEMPLATE_VARIABLES_CLIENT, TEMPLATE_VARIABLES_ORG, TEMPLATE_VARIABLES_RENEWAL } from "@/types/marketing";
 import { cn } from "@/lib/utils";
+import { tr, useLanguage } from "@/i18n";
 import {
   Bold,
   Italic,
@@ -38,6 +39,7 @@ function hasComplexHtml(html: string): boolean {
 }
 
 function VariablePalette({ onInsert }: { onInsert: (variable: string) => void }) {
+  const { t } = useLanguage();
   const groups = [
     { label: 'Contacto', variables: TEMPLATE_VARIABLES_CLIENT },
     { label: 'Organização', variables: TEMPLATE_VARIABLES_ORG },
@@ -47,12 +49,12 @@ function VariablePalette({ onInsert }: { onInsert: (variable: string) => void })
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-semibold text-foreground">Personalização</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">Clica numa variável para a inserir na posição do cursor.</p>
+        <p className="text-sm font-semibold text-foreground">{t("Personalização")}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("Clique numa variável para a inserir na posição do cursor.")}</p>
       </div>
       {groups.map((group) => (
         <section key={group.label} className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.label}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t(group.label)}</p>
           <div className="flex flex-wrap gap-1.5">
             {group.variables.map((variable) => (
               <Button
@@ -61,7 +63,7 @@ function VariablePalette({ onInsert }: { onInsert: (variable: string) => void })
                 variant="outline"
                 size="sm"
                 className="h-auto min-h-7 justify-start px-2 py-1 text-left text-xs"
-                title={variable.label}
+                title={t(variable.label)}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onInsert(variable.key)}
               >
@@ -76,10 +78,11 @@ function VariablePalette({ onInsert }: { onInsert: (variable: string) => void })
 }
 
 function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  const { t } = useLanguage();
   const setLink = () => {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href;
-    const url = window.prompt("URL do link:", previousUrl);
+    const url = window.prompt(t("URL do link:"), previousUrl);
     if (url === null) return;
     if (url === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -92,40 +95,40 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
   return (
     <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-muted/30">
-      <Toggle size="sm" pressed={editor.isActive("bold")} onPressedChange={() => editor.chain().focus().toggleBold().run()} aria-label="Negrito">
+      <Toggle size="sm" pressed={editor.isActive("bold")} onPressedChange={() => editor.chain().focus().toggleBold().run()} aria-label={t("Negrito")}>
         <Bold className="h-4 w-4" />
       </Toggle>
-      <Toggle size="sm" pressed={editor.isActive("italic")} onPressedChange={() => editor.chain().focus().toggleItalic().run()} aria-label="Itálico">
+      <Toggle size="sm" pressed={editor.isActive("italic")} onPressedChange={() => editor.chain().focus().toggleItalic().run()} aria-label={t("Itálico")}>
         <Italic className="h-4 w-4" />
       </Toggle>
       <Separator orientation="vertical" className="h-6 mx-1" />
-      <Toggle size="sm" pressed={editor.isActive("heading", { level: 1 })} onPressedChange={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} aria-label="Título 1">
+      <Toggle size="sm" pressed={editor.isActive("heading", { level: 1 })} onPressedChange={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} aria-label={t("Título 1")}>
         <Heading1 className="h-4 w-4" />
       </Toggle>
-      <Toggle size="sm" pressed={editor.isActive("heading", { level: 2 })} onPressedChange={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} aria-label="Título 2">
+      <Toggle size="sm" pressed={editor.isActive("heading", { level: 2 })} onPressedChange={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} aria-label={t("Título 2")}>
         <Heading2 className="h-4 w-4" />
       </Toggle>
       <Separator orientation="vertical" className="h-6 mx-1" />
-      <Toggle size="sm" pressed={editor.isActive("bulletList")} onPressedChange={() => editor.chain().focus().toggleBulletList().run()} aria-label="Lista">
+      <Toggle size="sm" pressed={editor.isActive("bulletList")} onPressedChange={() => editor.chain().focus().toggleBulletList().run()} aria-label={t("Lista")}>
         <List className="h-4 w-4" />
       </Toggle>
-      <Toggle size="sm" pressed={editor.isActive("orderedList")} onPressedChange={() => editor.chain().focus().toggleOrderedList().run()} aria-label="Lista numerada">
+      <Toggle size="sm" pressed={editor.isActive("orderedList")} onPressedChange={() => editor.chain().focus().toggleOrderedList().run()} aria-label={t("Lista numerada")}>
         <ListOrdered className="h-4 w-4" />
       </Toggle>
       <Separator orientation="vertical" className="h-6 mx-1" />
-      <Toggle size="sm" pressed={editor.isActive("link")} onPressedChange={setLink} aria-label="Inserir link">
+      <Toggle size="sm" pressed={editor.isActive("link")} onPressedChange={setLink} aria-label={t("Inserir link")}>
         <LinkIcon className="h-4 w-4" />
       </Toggle>
       {editor.isActive("link") && (
-        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().unsetLink().run()} aria-label="Remover link">
+        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().unsetLink().run()} aria-label={t("Remover link")}>
           <Unlink className="h-4 w-4" />
         </Button>
       )}
       <Separator orientation="vertical" className="h-6 mx-1" />
-      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} aria-label="Desfazer">
+      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} aria-label={t("Desfazer")}>
         <Undo className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} aria-label="Refazer">
+      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} aria-label={t("Refazer")}>
         <Redo className="h-4 w-4" />
       </Button>
     </div>
@@ -134,6 +137,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
 export function TemplateEditor({ value, onChange, className, workspace = false }: TemplateEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { t } = useLanguage();
   const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeTab, setActiveTab] = useState("editor");
   // Track whether TipTap content is stale (edited via HTML tab)
@@ -143,7 +147,7 @@ export function TemplateEditor({ value, onChange, className, workspace = false }
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2] } }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: "text-primary underline" } }),
-      Placeholder.configure({ placeholder: "Escreva o conteúdo do seu email aqui..." }),
+      Placeholder.configure({ placeholder: t("Escreva o conteúdo do seu email aqui...") }),
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -168,7 +172,7 @@ export function TemplateEditor({ value, onChange, className, workspace = false }
       const doc = iframeRef.current.contentDocument;
       if (doc) {
         doc.open();
-        const previewContent = value || '<p style="color: #999;">O preview aparecerá aqui...</p>';
+        const previewContent = value || `<p style="color: #999;">${tr("A pré-visualização aparecerá aqui...")}</p>`;
         if (previewContent.includes('data-senvia-email-shell="v1"') || (
           previewContent.includes('https://app.senvia.pt/senvia-logo-white.png') &&
           previewContent.toUpperCase().includes('#F0F4F8')
@@ -271,9 +275,9 @@ export function TemplateEditor({ value, onChange, className, workspace = false }
         {!workspace && <VariablePalette onInsert={insertVariable} />}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="editor">Editor Visual</TabsTrigger>
+          <TabsTrigger value="editor">{t("Editor Visual")}</TabsTrigger>
           <TabsTrigger value="html">HTML</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="preview">{t("Pré-visualização")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="editor" className="mt-4">
@@ -281,7 +285,7 @@ export function TemplateEditor({ value, onChange, className, workspace = false }
             <div className="flex items-start gap-2 p-3 mb-3 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>
-                O conteúdo contém HTML avançado (tabelas, divs, estilos). O editor visual pode simplificar o layout. Use a tab <strong>HTML</strong> para editar código complexo sem perda.
+                {t("O conteúdo contém HTML avançado (tabelas, divs, estilos). O editor visual pode simplificar o layout. Use o separador HTML para editar código complexo sem perda.")}
               </span>
             </div>
           )}
@@ -300,18 +304,18 @@ export function TemplateEditor({ value, onChange, className, workspace = false }
               onChange(e.target.value);
             }}
             className="min-h-[400px] font-mono text-sm leading-relaxed"
-            placeholder="<p>Escreva o seu HTML aqui...</p>"
+            placeholder={t("<p>Escreva o seu HTML aqui...</p>")}
           />
         </TabsContent>
 
         <TabsContent value="preview" className="mt-4" forceMount>
           <div className={cn("border rounded-md bg-white overflow-hidden", activeTab !== "preview" && "hidden")}>
-            <iframe ref={iframeRef} title="Email Preview" className="w-full h-[400px] border-0" sandbox="allow-same-origin" />
+            <iframe ref={iframeRef} title={t("Pré-visualização do email")} className="w-full h-[400px] border-0" sandbox="allow-same-origin" />
           </div>
         </TabsContent>
         </Tabs>
         <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
-          Para templates com tabelas ou estilos, usa o separador <strong className="text-foreground">HTML</strong>. A pré-visualização mostra o resultado antes de guardar.
+          {t("Para templates com tabelas ou estilos, use o separador")} <strong className="text-foreground">HTML</strong>. {t("A pré-visualização mostra o resultado antes de guardar.")}
         </div>
       </div>
     </div>

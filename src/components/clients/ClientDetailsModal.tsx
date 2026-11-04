@@ -28,6 +28,7 @@ import { formatOperationalUnits } from "@/lib/sale-units";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LeadAttachments } from "@/components/leads/LeadAttachments";
+import { useLanguage } from "@/i18n";
 
 interface ClientDetailsModalProps {
   client: CrmClient | null;
@@ -37,6 +38,7 @@ interface ClientDetailsModalProps {
 }
 
 export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: ClientDetailsModalProps) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const isTelecom = organization?.niche === 'telecom';
   const { modules } = useModules();
@@ -62,7 +64,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                 )}
               </div>
               <DialogDescription className="mt-1">
-                Cliente desde {formatDate(client.created_at)}
+                {t("Cliente desde")} {formatDate(client.created_at)}
               </DialogDescription>
             </div>
             <Badge
@@ -74,7 +76,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                 CLIENT_STATUS_STYLES[client.status].border
               )}
             >
-              {CLIENT_STATUS_LABELS[client.status]}
+              {t(CLIENT_STATUS_LABELS[client.status])}
             </Badge>
           </div>
         </DialogHeader>
@@ -82,7 +84,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
         <div className="space-y-6 py-4">
           {/* Contact Info */}
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">Informações de Contacto</h4>
+            <h4 className="text-sm font-semibold text-foreground">{t("Informações de Contacto")}</h4>
             
             {client.phone && (
               <div className="flex items-center gap-3 text-sm">
@@ -107,7 +109,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
 
             <div className="flex items-center gap-3 text-sm">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span>Criado: {formatDateTime(client.created_at)}</span>
+              <span>{t("Criado:")} {formatDateTime(client.created_at)}</span>
             </div>
           </div>
 
@@ -116,7 +118,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
             <>
               <Separator />
               <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-foreground">Dados da Empresa</h4>
+                <h4 className="text-sm font-semibold text-foreground">{t("Dados da Empresa")}</h4>
                 
                 {client.company && (
                   <div className="flex items-center gap-3 text-sm">
@@ -128,7 +130,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                 {client.nif && (
                   <div className="flex items-center gap-3 text-sm">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span>NIF: {client.nif}</span>
+                    <span>{t("NIF:")} {client.nif}</span>
                   </div>
                 )}
               </div>
@@ -138,7 +140,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
           {/* Metrics */}
           <Separator />
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">Métricas</h4>
+            <h4 className="text-sm font-semibold text-foreground">{t("Métricas")}</h4>
             
             <div className="grid grid-cols-1 xs:grid-cols-3 gap-4">
               <div className="rounded-lg bg-muted/50 p-3 text-center">
@@ -146,7 +148,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                   <FileText className="h-3 w-3" />
                 </div>
                 <p className="text-lg font-semibold">{client.total_proposals}</p>
-                <p className="text-xs text-muted-foreground">Propostas</p>
+                <p className="text-xs text-muted-foreground">{t("Propostas")}</p>
               </div>
               
               <div className="rounded-lg bg-muted/50 p-3 text-center">
@@ -154,7 +156,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                   <ShoppingBag className="h-3 w-3" />
                 </div>
                 <p className="text-lg font-semibold">{formatOperationalUnits(client.total_sales)}</p>
-                <p className="text-xs text-muted-foreground">Vendas</p>
+                <p className="text-xs text-muted-foreground">{t("Vendas")}</p>
               </div>
               
               {showEnergy ? (
@@ -164,15 +166,15 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                       <Euro className="h-3 w-3" />
                     </div>
                     <p className="text-lg font-semibold">{formatCurrency(client.total_comissao || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Comissão</p>
+                    <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                   </div>
                   <div className="rounded-lg bg-muted/50 p-3 text-center">
                     <p className="text-lg font-semibold">{(client.total_mwh || 0).toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">MWh</p>
+                    <p className="text-xs text-muted-foreground">{t("MWh")}</p>
                   </div>
                   <div className="rounded-lg bg-muted/50 p-3 text-center">
                     <p className="text-lg font-semibold">{(client.total_kwp || 0).toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">kWp</p>
+                    <p className="text-xs text-muted-foreground">{t("kWp")}</p>
                   </div>
                 </>
               ) : (
@@ -181,7 +183,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
                     <Euro className="h-3 w-3" />
                   </div>
                   <p className="text-lg font-semibold">{formatCurrency(client.total_value)}</p>
-                  <p className="text-xs text-muted-foreground">Valor Total</p>
+                  <p className="text-xs text-muted-foreground">{t("Valor Total")}</p>
                 </div>
               )}
             </div>
@@ -194,10 +196,10 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                  Origem
+                  {t("Origem")}
                 </h4>
                 <div className="px-3 py-2 bg-muted rounded-md text-sm">
-                  {CLIENT_SOURCE_LABELS[client.source] || client.source}
+                  {CLIENT_SOURCE_LABELS[client.source] ? t(CLIENT_SOURCE_LABELS[client.source]) : client.source}
                 </div>
               </div>
             </>
@@ -208,7 +210,7 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
             <>
               <Separator />
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">Notas</h4>
+                <h4 className="text-sm font-semibold text-foreground">{t("Notas")}</h4>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                   {client.notes}
                 </p>
@@ -226,11 +228,11 @@ export function ClientDetailsModal({ client, open, onOpenChange, onEdit }: Clien
 
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
+            {t("Fechar")}
           </Button>
           <Button onClick={() => { onOpenChange(false); onEdit(client); }}>
             <Pencil className="h-4 w-4 mr-2" />
-            Editar
+            {t("Editar")}
           </Button>
         </div>
       </DialogContent>

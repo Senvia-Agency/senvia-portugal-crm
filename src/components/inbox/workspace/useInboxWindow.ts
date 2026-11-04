@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { currentLanguage, tr } from '@/i18n';
 
 export function useInboxWindow() {
   const [popup, setPopup] = useState<Window | null>(null);
@@ -11,11 +12,11 @@ export function useInboxWindow() {
     }
     const next = window.open('', '', 'popup,width=720,height=850');
     if (!next) {
-      toast.error('O navegador bloqueou a janela. Permite pop-ups para este site e tenta novamente.');
+      toast.error(tr('O navegador bloqueou a janela. Permite pop-ups para este site e tenta novamente.'));
       return;
     }
     next.document.title = 'Inbox — Senvia OS';
-    next.document.documentElement.lang = 'pt';
+    next.document.documentElement.lang = currentLanguage();
     next.document.documentElement.className = document.documentElement.className;
     const base = next.document.createElement('base');
     base.href = document.baseURI;

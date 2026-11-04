@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useId, useLayoutEffect } from 'react';
 import {
   Loader2, Send, X, Paperclip, FileText, Bold, Italic, Underline,
-  List, ListOrdered, Minus, BookmarkCheck, Trash2, Maximize2, UsersRound,
+  List, ListOrdered, Minus, BookmarkCheck, Trash2, Maximize2, UsersRound, Link2, Type, Palette, ChevronDown,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { autoLinkBeforeCaret, normalizeLink } from '@/lib/email-links';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -15,6 +17,7 @@ import { rememberContacts, type ContactList } from '@/features/webmail/webmail-a
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { tr, useLanguage, intlLocale } from '@/i18n';
 import { useEmailActions } from '@/hooks/useEmailActions';
 import { fmtSize } from './emailShared';
 import type { EmailMessage, EmailAddress, EmailDraft, RecipientSuggestion } from '@/hooks/useEmail';
@@ -25,7 +28,7 @@ import { useEmailChannels } from '@/hooks/useEmailChannels';
 import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { cn } from '@/lib/utils';
 import type { EmailAttachment } from '@/hooks/useEmail';
-import { insertEmailPaste, quoteEmailHtml as quoteHtml, sanitizeEmailHtml, toEditorHtml } from '@/lib/email-html';
+import { escapeEmailText, insertEmailPaste, quoteEmailHtml as quoteHtml, sanitizeEmailHtml, toEditorHtml } from '@/lib/email-html';
 import { writeEmailRecovery, removeEmailRecovery, type EmailRecovery } from '@/lib/inbox-drafts';
 import { resolveEmailSignatureHtml, resolveEmailSignatureSource } from '@/lib/email-signature';
 
@@ -33,6 +36,25 @@ import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceCo
 
 interface Attached { filename: string; contentType: string; b64: string; size: number; }
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
+
+// Fonts every mail client has; <font face/size/color> is what they all render.
+const EMAIL_FONTS = [
+  { label: 'Sans Serif', value: 'Arial, Helvetica, sans-serif' },
+  { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+  { label: 'Largura fixa', value: '"Courier New", Courier, monospace' },
+  { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+  { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+  { label: 'Trebuchet', value: '"Trebuchet MS", sans-serif' },
+];
+const EMAIL_SIZES = [
+  { label: 'Pequeno', value: '2' },
+  { label: 'Normal', value: '3' },
+  { label: 'Grande', value: '5' },
+  { label: 'Enorme', value: '6' },
+];
+// How each size looks in the menu.
+const SIZE_PX: Record<string, string> = { '2': '12px', '3': '14px', '5': '18px', '6': '22px' };
+const EMAIL_COLORS = ['#111827', '#6b7280', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#7c3aed'];
 
 const COMPOSER_W = 540;
 const COMPOSER_GAP = 8;
@@ -95,6 +117,7 @@ function EmailChipInput({
   organizationId?: string;
   extra?: ComposerExtras;
 }) {
+  const { t } = useLanguage();
   const [raw, setRaw] = useState('');
   const [focused, setFocused] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -201,7 +224,7 @@ function EmailChipInput({
         className="flex-1 min-w-[120px] bg-transparent outline-none text-base md:text-sm placeholder:text-muted-foreground"
       />
       {showSuggestions && (
-        <div id={suggestionsId} role="listbox" aria-label="Sugestões de destinatários" className="absolute left-0 top-full z-50 mt-1 max-h-56 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+        <div id={suggestionsId} role="listbox" aria-label={t("Sugestões de destinatários")} className="absolute left-0 top-full z-50 mt-1 max-h-56 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
           {suggestions.map((s, i) => (
             <button
               key={s.address}
@@ -220,22 +243,22 @@ function EmailChipInput({
               <span className="min-w-0 flex-1 truncate">
                 {s.source === 'list' && <UsersRound className="mr-1 inline h-3.5 w-3.5 text-primary" aria-hidden="true" />}
                 <span className="font-medium">{s.name}</span>{" "}
-                <span className="text-muted-foreground">{s.source === 'list' ? `${s.members?.length ?? 0} ${s.members?.length === 1 ? 'pessoa' : 'pessoas'}` : s.address}</span>
+                <span className="text-muted-foreground">{s.source === 'list' ? t(s.members?.length === 1 ? '{{n}} pessoa' : '{{n}} pessoas', { n: s.members?.length ?? 0 }) : s.address}</span>
               </span>
               {s.source === 'list' && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Lista</span>
+                <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{t('Lista')}</span>
               )}
               {s.source === 'contact' && (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Já enviado</span>
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('Já enviado')}</span>
               )}
               {s.source === 'team' && (
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">Equipa</span>
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">{t('Equipa')}</span>
               )}
               {s.source === 'crm' && (
                 <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">CRM</span>
               )}
               {s.source === 'sent' && (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Enviado</span>
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('Enviado')}</span>
               )}
             </button>
           ))}
@@ -276,6 +299,7 @@ export function EmailComposer({
   webmail?: WebmailComposerOptions;
 }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const { organization, profile, user } = useAuth();
   const queryClient = useQueryClient();
   // The caixa this message goes out from; only the WebMail lets it change ("De").
@@ -323,7 +347,7 @@ export function EmailComposer({
     recoveryProtected.current = protectedDraft;
     if (!protectedDraft && !storageWarningShown.current) {
       storageWarningShown.current = true;
-      toast({ title: 'Não foi possível proteger o rascunho neste navegador', description: 'Guarda o texto antes de sair.', variant: 'destructive' });
+      toast({ title: t('Não foi possível proteger o rascunho neste navegador'), description: t('Guarda o texto antes de sair.'), variant: 'destructive' });
     }
   };
   useLayoutEffect(() => { checkpointRef.current = checkpoint; checkpoint(); });
@@ -459,17 +483,17 @@ export function EmailComposer({
     for (const att of originalAttachments.filter((a) => !a.inline)) {
       resolveAttachment(att.id).then((resolved) => {
         if (cancelled) return;
-        if (!resolved) throw new Error('Anexo indisponível');
+        if (!resolved) throw new Error(t('Anexo indisponível'));
         setAttachments((prev) => (prev.some((a) => a.filename === att.filename && a.size === (att.size ?? 0))
           ? prev
           : [...prev, {
-              filename: att.filename || 'anexo',
+              filename: att.filename || t('anexo'),
               contentType: resolved.content_type || att.content_type || 'application/octet-stream',
               b64: resolved.data_b64,
               size: att.size ?? 0,
             }]));
       }).catch(() => {
-        toast({ title: `Não foi possível reencaminhar "${att.filename || 'um anexo'}"`, variant: 'destructive' });
+        toast({ title: t('Não foi possível reencaminhar "{{name}}"', { name: att.filename || t('um anexo') }), variant: 'destructive' });
       }).finally(() => { remaining--; if (!cancelled && remaining === 0) setLoadingAttachments(false); });
     }
     return () => { cancelled = true; };
@@ -513,7 +537,7 @@ export function EmailComposer({
       } catch (error) {
         if (!autosaveWarningShown.current) {
           autosaveWarningShown.current = true;
-          toast({ title: 'Não foi possível sincronizar o rascunho', description: recoveryProtected.current ? 'O texto está protegido neste separador. Mantém o separador aberto até guardar no servidor.' : 'Copia o texto antes de sair desta página.', variant: 'destructive' });
+          toast({ title: tr('Não foi possível sincronizar o rascunho'), description: recoveryProtected.current ? tr('O texto está protegido neste separador. Mantém o separador aberto até guardar no servidor.') : tr('Copia o texto antes de sair desta página.'), variant: 'destructive' });
         }
         console.warn('[Email draft] Server save failed', error instanceof Error ? error.name : 'unknown');
       }
@@ -547,6 +571,63 @@ export function EmailComposer({
     setBodyVersion((v) => v + 1);
   };
 
+  // Menus and the link box take the focus away from the body; the selection is
+  // kept here and put back before the change is applied to it.
+  const savedRange = useRef<Range | null>(null);
+  const saveSelection = () => {
+    const editor = editorRef.current;
+    const selection = editor?.ownerDocument.getSelection();
+    if (editor && selection && selection.rangeCount > 0 && editor.contains(selection.anchorNode)) {
+      savedRange.current = selection.getRangeAt(0).cloneRange();
+    }
+  };
+  const restoreSelection = () => {
+    const editor = editorRef.current;
+    if (!editor) return null;
+    editor.focus();
+    const selection = editor.ownerDocument.getSelection();
+    if (selection && savedRange.current) {
+      selection.removeAllRanges();
+      selection.addRange(savedRange.current);
+    }
+    return editor.ownerDocument;
+  };
+  const applyStyle = (cmd: 'fontName' | 'fontSize' | 'foreColor', value: string) => {
+    const doc = restoreSelection();
+    if (!doc) return;
+    doc.execCommand('styleWithCSS', false, 'false');
+    doc.execCommand(cmd, false, value);
+    checkpointRef.current();
+    setBodyVersion((v) => v + 1);
+  };
+
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkValue, setLinkValue] = useState('');
+  const [linkError, setLinkError] = useState(false);
+  const openLink = () => {
+    saveSelection();
+    const current = savedRange.current?.startContainer.parentElement?.closest('a');
+    setLinkValue(current?.getAttribute('href')?.replace(/^mailto:/, '') ?? '');
+    setLinkError(false);
+    setLinkOpen(true);
+  };
+  const applyLink = () => {
+    const href = normalizeLink(linkValue);
+    if (!href) { setLinkError(true); return; }
+    const doc = restoreSelection();
+    if (!doc) return;
+    const selection = doc.getSelection();
+    if (selection && !selection.isCollapsed) {
+      doc.execCommand('createLink', false, href);
+    } else {
+      // Nothing selected: the address itself becomes the link text.
+      doc.execCommand('insertHTML', false, `<a href="${escapeEmailText(href)}">${escapeEmailText(linkValue.trim())}</a>&nbsp;`);
+    }
+    setLinkOpen(false);
+    checkpointRef.current();
+    setBodyVersion((v) => v + 1);
+  };
+
   const handleDiscard = async () => {
     closingRef.current = true;
     await draftOperation.current.catch(() => undefined);
@@ -567,9 +648,9 @@ export function EmailComposer({
         attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, b64: a.b64 })),
       });
       setDraftId(result.id);
-      toast({ title: 'Rascunho guardado' });
+      toast({ title: t('Rascunho guardado') });
     } catch (e) {
-      toast({ title: 'Falha ao guardar rascunho', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: t('Falha ao guardar rascunho'), description: (e as Error).message, variant: 'destructive' });
     } finally { setSavingDraft(false); }
   };
 
@@ -582,16 +663,16 @@ export function EmailComposer({
   const handleSend = async () => {
     if (sendLock.current || loadingAttachments) return;
     const everyone = [...to, ...(showCc ? cc : []), ...(showBcc ? bcc : [])];
-    if (webmail ? everyone.length === 0 : to.length === 0) { toast({ title: 'Indica pelo menos um destinatário', variant: 'destructive' }); return; }
+    if (webmail ? everyone.length === 0 : to.length === 0) { toast({ title: t('Indica pelo menos um destinatário'), variant: 'destructive' }); return; }
     if (everyone.some(a => !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(a.address))) {
-      toast({ title: 'Verifica os endereços dos destinatários', variant: 'destructive' }); return;
+      toast({ title: t('Verifica os endereços dos destinatários'), variant: 'destructive' }); return;
     }
     if (webmail) {
       // As in Realize: these only ask for confirmation; nothing here blocks the send.
       const issues = [
-        ...(to.length === 0 ? ['Ninguém em "Para": a mensagem só vai em Cc/Cco.'] : []),
-        ...(!subject.trim() ? ['A mensagem não tem assunto.'] : []),
-        ...(!writtenText() && attachments.length === 0 ? ['A mensagem não tem texto nem anexos.'] : []),
+        ...(to.length === 0 ? [t('Ninguém em "Para": a mensagem só vai em Cc/Cco.')] : []),
+        ...(!subject.trim() ? [t('A mensagem não tem assunto.')] : []),
+        ...(!writtenText() && attachments.length === 0 ? [t('A mensagem não tem texto nem anexos.')] : []),
       ];
       if (issues.length) { setSendCheck(issues); return; }
     }
@@ -619,7 +700,7 @@ export function EmailComposer({
       const idToDelete = draftIdRef.current ?? initialDraft?.id ?? null;
       if (idToDelete) { try { await actions.deleteDraft(idToDelete); } catch { /* non-critical */ } }
       clearRecovery();
-      toast({ title: 'Email colocado na fila de envio', description: 'O estado do envio será atualizado na caixa de entrada.' });
+      toast({ title: t('Email colocado na fila de envio'), description: t('O estado do envio será atualizado na caixa de entrada.') });
       if (webmail && organization?.id) {
         // Suggestions learn from every send; a failure here never affects the email.
         void rememberContacts(organization.id, [...to, ...(showCc ? cc : []), ...(showBcc ? bcc : [])])
@@ -628,7 +709,7 @@ export function EmailComposer({
       }
       onClose();
     } catch (e) {
-      toast({ title: 'Falha ao enviar', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: t('Falha ao enviar'), description: (e as Error).message, variant: 'destructive' });
     } finally { sendLock.current = false; setSending(false); }
   };
 
@@ -646,9 +727,9 @@ export function EmailComposer({
     if (hasContent) {
       try {
         await persistDraft(currentDraft());
-        toast({ title: 'Rascunho guardado' });
+        toast({ title: t('Rascunho guardado') });
       } catch (e) {
-        toast({ title: 'Não foi possível guardar o rascunho', description: (e as Error).message, variant: 'destructive' });
+        toast({ title: t('Não foi possível guardar o rascunho'), description: (e as Error).message, variant: 'destructive' });
         return;
       }
     } else {
@@ -678,7 +759,7 @@ export function EmailComposer({
     let running = attachments.reduce((s, a) => s + a.size, 0);
     const added: Attached[] = [];
     for (const f of Array.from(files)) {
-      if (running + f.size > MAX) { toast({ title: `${f.name} excede o limite (25 MB no total)`, variant: 'destructive' }); continue; }
+      if (running + f.size > MAX) { toast({ title: t('{{name}} excede o limite (25 MB no total)', { name: f.name }), variant: 'destructive' }); continue; }
       try {
         const b64 = await new Promise<string>((res, rej) => {
           const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f);
@@ -686,17 +767,17 @@ export function EmailComposer({
         added.push({ filename: f.name, contentType: f.type || 'application/octet-stream', b64, size: f.size });
         running += f.size;
       } catch {
-        toast({ title: `Falha ao ler ${f.name}`, variant: 'destructive' });
+        toast({ title: t('Falha ao ler {{name}}', { name: f.name }), variant: 'destructive' });
       }
     }
     if (added.length) setAttachments((prev) => [...prev, ...added]);
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const baseTitle = mode === 'reply' ? 'Responder'
-    : mode === 'replyAll' ? 'Responder a todos'
-    : mode === 'forward' ? 'Reencaminhar'
-    : 'Nova mensagem';
+  const baseTitle = mode === 'reply' ? t('Responder')
+    : mode === 'replyAll' ? t('Responder a todos')
+    : mode === 'forward' ? t('Reencaminhar')
+    : t('Nova mensagem');
   const title = subject.trim() || baseTitle;
 
   const workspace = useInboxWorkspace();
@@ -758,10 +839,10 @@ export function EmailComposer({
         onDoubleClick={() => setMinimized((m) => !m)}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{webmail && !minimized ? baseTitle : title}</span>
-        <button type="button" title={minimized ? "Restaurar" : "Minimizar"} aria-label={minimized ? "Restaurar" : "Minimizar"} onClick={() => setMinimized((m) => !m)} className="rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity">
+        <button type="button" title={minimized ? t("Restaurar") : t("Minimizar")} aria-label={minimized ? t("Restaurar") : t("Minimizar")} onClick={() => setMinimized((m) => !m)} className="rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity">
           {webmail && minimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
         </button>
-        <button type="button" title="Fechar" aria-label="Fechar" onClick={() => void handleClose()} className="rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity">
+        <button type="button" title={t("Fechar")} aria-label={t("Fechar")} onClick={() => void handleClose()} className="rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -772,10 +853,10 @@ export function EmailComposer({
           {webmail && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-4 py-1.5">
               <div className="flex min-h-[36px] min-w-0 flex-1 items-center">
-                <span className="w-12 shrink-0 text-xs text-muted-foreground">De</span>
+                <span className="w-12 shrink-0 text-xs text-muted-foreground">{t('De')}</span>
                 {webmail.accounts.length > 1 ? (
                   <Select value={activeChannelId ?? undefined} onValueChange={(value) => void changeAccount(value)}>
-                    <SelectTrigger aria-label="Enviar de" className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus:ring-0 md:max-w-md"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label={t("Enviar de")} className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus:ring-0 md:max-w-md"><SelectValue /></SelectTrigger>
                     <SelectContent className="z-[80]">
                       {webmail.accounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.name} &lt;{account.address}&gt;</SelectItem>)}
                     </SelectContent>
@@ -785,14 +866,14 @@ export function EmailComposer({
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Assinatura:</span>
+                <span className="text-xs text-muted-foreground">{t('Assinatura:')}</span>
                 <Select value={signatureChoice ?? undefined} onValueChange={applySignature}>
-                  <SelectTrigger aria-label="Assinatura" className="h-9 w-auto min-w-[9rem] max-w-[14rem] border-0 bg-transparent px-1 shadow-none focus:ring-0"><SelectValue placeholder="A carregar…" /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Assinatura")} className="h-9 w-auto min-w-[9rem] max-w-[14rem] border-0 bg-transparent px-1 shadow-none focus:ring-0"><SelectValue placeholder={t("A carregar…")} /></SelectTrigger>
                   <SelectContent className="z-[80]">
-                    {signatureChoice === 'kept' && <SelectItem value="kept">A do rascunho</SelectItem>}
-                    {personalList.map((signature) => <SelectItem key={signature.id} value={signature.id}>{signature.name}{signature.is_default ? ' (predefinida)' : ''}</SelectItem>)}
-                    {personalList.length === 0 && caixaSignature && <SelectItem value="caixa">Assinatura da caixa</SelectItem>}
-                    <SelectItem value="none">Sem assinatura</SelectItem>
+                    {signatureChoice === 'kept' && <SelectItem value="kept">{t('A do rascunho')}</SelectItem>}
+                    {personalList.map((signature) => <SelectItem key={signature.id} value={signature.id}>{signature.name}{signature.is_default ? ' ' + t('(predefinida)') : ''}</SelectItem>)}
+                    {personalList.length === 0 && caixaSignature && <SelectItem value="caixa">{t('Assinatura da caixa')}</SelectItem>}
+                    <SelectItem value="none">{t('Sem assinatura')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -801,34 +882,34 @@ export function EmailComposer({
 
           {/* Para */}
           <div className="flex min-h-[44px] items-center border-b border-border px-4 py-1.5">
-            <span className="w-12 shrink-0 text-xs text-muted-foreground">Para</span>
-            <EmailChipInput label="Para" value={to} onChange={setTo} placeholder="nome@exemplo.com" channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
+            <span className="w-12 shrink-0 text-xs text-muted-foreground">{t('Para')}</span>
+            <EmailChipInput label={t("Para")} value={to} onChange={setTo} placeholder={t("nome@exemplo.com")} channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
             <div className="ml-2 flex shrink-0 gap-2 text-xs text-muted-foreground">
               {!showCc && <button type="button" className="hover:text-foreground transition-colors" onClick={() => setShowCc(true)}>Cc</button>}
-              {!showBcc && <button type="button" className="hover:text-foreground transition-colors" onClick={() => setShowBcc(true)}>Cco</button>}
+              {!showBcc && <button type="button" className="hover:text-foreground transition-colors" onClick={() => setShowBcc(true)}>{t('Cco')}</button>}
             </div>
           </div>
 
           {showCc && (
             <div className="flex min-h-[44px] items-center border-b border-border px-4 py-1.5">
               <span className="w-12 shrink-0 text-xs text-muted-foreground">Cc</span>
-              <EmailChipInput label="Cc" value={cc} onChange={setCc} placeholder="cc@exemplo.com" channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
+              <EmailChipInput label="Cc" value={cc} onChange={setCc} placeholder={t("cc@exemplo.com")} channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
               <button type="button" className="ml-2 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => { setShowCc(false); setCc([]); }}><X className="h-3.5 w-3.5" /></button>
             </div>
           )}
 
           {showBcc && (
             <div className="flex min-h-[44px] items-center border-b border-border px-4 py-1.5">
-              <span className="w-12 shrink-0 text-xs text-muted-foreground">Cco</span>
-              <EmailChipInput label="Cco" value={bcc} onChange={setBcc} placeholder="cco@exemplo.com" channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
+              <span className="w-12 shrink-0 text-xs text-muted-foreground">{t('Cco')}</span>
+              <EmailChipInput label={t("Cco")} value={bcc} onChange={setBcc} placeholder={t("cco@exemplo.com")} channelId={activeChannelId} organizationId={organization?.id} extra={extras} />
               <button type="button" className="ml-2 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => { setShowBcc(false); setBcc([]); }}><X className="h-3.5 w-3.5" /></button>
             </div>
           )}
 
           {/* Assunto */}
           <div className="flex items-center border-b border-border px-4 py-1.5">
-            <span className="w-12 shrink-0 text-xs text-muted-foreground">Assunto</span>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto" autoComplete="off"
+            <span className="w-12 shrink-0 text-xs text-muted-foreground">{t('Assunto')}</span>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t("Assunto")} autoComplete="off"
               className="border-0 p-0 shadow-none focus-visible:ring-0 text-base md:text-sm bg-transparent" />
           </div>
 
@@ -840,10 +921,18 @@ export function EmailComposer({
             tabIndex={0}
             onInput={() => { checkpointRef.current(); setBodyVersion((v) => v + 1); }}
             onPaste={(event) => { insertEmailPaste(event); checkpointRef.current(); setBodyVersion((v) => v + 1); }}
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openLink(); return; }
+              // An address typed and followed by a space or Enter becomes a link, as in Gmail.
+              if ((event.key === ' ' || event.key === 'Enter') && autoLinkBeforeCaret(event.currentTarget.ownerDocument)) {
+                checkpointRef.current();
+                setBodyVersion((v) => v + 1);
+              }
+            }}
             role="textbox"
-            aria-label="Corpo da mensagem"
+            aria-label={t("Corpo da mensagem")}
             aria-multiline="true"
-            className={cn("flex-1 overflow-y-auto px-4 py-3 text-base md:text-sm outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5", webmail ? "min-h-[240px]" : "min-h-[120px] max-h-[40dvh] md:max-h-[400px]")}
+            className={cn("flex-1 overflow-y-auto px-4 py-3 text-base md:text-sm outline-none [&_a]:text-primary [&_a]:underline [&_table_img]:max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5", webmail ? "min-h-[240px]" : "min-h-[120px] max-h-[40dvh] md:max-h-[400px]")}
             style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif", lineHeight: '1.6' }}
           />
 
@@ -861,13 +950,68 @@ export function EmailComposer({
             </div>
           )}
 
+          {/* The link box: an address, email or phone for the selected text (Ctrl+K). */}
+          {linkOpen && (
+            <div className="flex items-center gap-2 border-t border-border bg-background px-3 py-2">
+              <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <Input autoFocus value={linkValue} placeholder={t("Site, email ou telefone (ex.: senvia.pt)")} aria-label={t("Endereço do link")}
+                aria-invalid={linkError}
+                onChange={(e) => { setLinkValue(e.target.value); setLinkError(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink(); } if (e.key === 'Escape') { e.preventDefault(); setLinkOpen(false); restoreSelection(); } }}
+                className={cn('h-8 flex-1 text-sm', linkError && 'border-destructive focus-visible:ring-destructive')} />
+              {linkError && <span className="shrink-0 text-xs text-destructive">{t('Endereço inválido')}</span>}
+              <Button size="sm" className="h-8 rounded-full px-3 text-xs" onClick={applyLink}>{t('Inserir')}</Button>
+              <button type="button" aria-label={t("Fechar")} onClick={() => { setLinkOpen(false); restoreSelection(); }}
+                className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          )}
+
           {/* Bottom toolbar */}
           <div className="sticky bottom-0 flex flex-wrap items-center gap-1 border-t border-border bg-background px-3 py-2">
             <Button size="sm" onClick={handleSend} disabled={sending || savingDraft || loadingAttachments} className="rounded-full px-4 text-xs">
               {sending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
-              Enviar
+              {t('Enviar')}
             </Button>
             <div className="mx-1 h-4 w-px bg-border" />
+            {/* Font, size and colour: the menus steal the focus, so the selection is kept first. */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger onPointerDown={saveSelection} title={t("Tipo de letra")} aria-label={t("Tipo de letra")}
+                className="flex items-center gap-0.5 rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                <Type className="h-3.5 w-3.5" /><ChevronDown className="h-3 w-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-44" onCloseAutoFocus={(e) => e.preventDefault()}>
+                {EMAIL_FONTS.map((font) => (
+                  <DropdownMenuItem key={font.label} onSelect={() => applyStyle('fontName', font.value)} style={{ fontFamily: font.value }}>{t(font.label)}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger onPointerDown={saveSelection} title={t("Tamanho do texto")} aria-label={t("Tamanho do texto")}
+                className="flex items-center gap-0.5 rounded px-1.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                Aa<ChevronDown className="h-3 w-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-36" onCloseAutoFocus={(e) => e.preventDefault()}>
+                {EMAIL_SIZES.map((size) => (
+                  <DropdownMenuItem key={size.value} onSelect={() => applyStyle('fontSize', size.value)}>
+                    <span style={{ fontSize: SIZE_PX[size.value] }}>{t(size.label)}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger onPointerDown={saveSelection} title={t("Cor do texto")} aria-label={t("Cor do texto")}
+                className="flex items-center gap-0.5 rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                <Palette className="h-3.5 w-3.5" /><ChevronDown className="h-3 w-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="grid w-auto grid-cols-4 gap-1 p-2" onCloseAutoFocus={(e) => e.preventDefault()}>
+                {EMAIL_COLORS.map((color) => (
+                  <DropdownMenuItem key={color} aria-label={t('Cor {{color}}', { color })} onSelect={() => applyStyle('foreColor', color)}
+                    className="h-7 w-7 justify-center rounded-full p-0">
+                    <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: color }} />
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             {[
               { icon: Bold, cmd: 'bold', title: 'Negrito' },
               { icon: Italic, cmd: 'italic', title: 'Itálico' },
@@ -875,26 +1019,30 @@ export function EmailComposer({
               { icon: List, cmd: 'insertUnorderedList', title: 'Lista' },
               { icon: ListOrdered, cmd: 'insertOrderedList', title: 'Lista numerada' },
             ].map(({ icon: Icon, cmd, title }) => (
-              <button key={cmd} type="button" title={title} onMouseDown={(e) => e.preventDefault()} onClick={() => format(cmd)}
+              <button key={cmd} type="button" title={t(title)} onMouseDown={(e) => e.preventDefault()} onClick={() => format(cmd)}
                 className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
                 <Icon className="h-3.5 w-3.5" />
               </button>
             ))}
+            <button type="button" title={t("Inserir link (Ctrl+K)")} aria-label={t("Inserir link")} onMouseDown={(e) => e.preventDefault()} onClick={openLink}
+              className={cn('rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors', linkOpen && 'bg-accent text-foreground')}>
+              <Link2 className="h-3.5 w-3.5" />
+            </button>
             <div className="mx-1 h-4 w-px bg-border" />
-            <button type="button" title="Anexar" onClick={() => fileRef.current?.click()}
+            <button type="button" title={t("Anexar")} onClick={() => fileRef.current?.click()}
               className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
               <Paperclip className="h-3.5 w-3.5" />
             </button>
-            <button type="button" title="Guardar rascunho" onClick={handleSaveDraft} disabled={savingDraft}
+            <button type="button" title={t("Guardar rascunho")} onClick={handleSaveDraft} disabled={savingDraft}
               className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40">
               {savingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookmarkCheck className="h-3.5 w-3.5" />}
             </button>
             {webmail && (
               <span className="ml-2 text-[11px] text-muted-foreground" aria-live="polite">
-                {savingDraft ? 'A guardar…' : savedAt ? `Guardado às ${savedAt.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                {savingDraft ? t('A guardar…') : savedAt ? t('Guardado às {{time}}', { time: savedAt.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) }) : ''}
               </span>
             )}
-            <button type="button" title="Descartar" onClick={handleDiscard}
+            <button type="button" title={t("Descartar")} onClick={handleDiscard}
               className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -909,7 +1057,7 @@ export function EmailComposer({
         <div role="status" className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-b-xl border-2 border-dashed border-primary bg-background/90">
           <div className="flex flex-col items-center gap-2 text-primary">
             <Paperclip className="h-8 w-8" />
-            <span className="text-sm font-medium">Solte os ficheiros aqui para anexar</span>
+            <span className="text-sm font-medium">{t('Largue os ficheiros aqui para anexar')}</span>
           </div>
         </div>
       )}
@@ -917,7 +1065,7 @@ export function EmailComposer({
       <AlertDialog open={sendCheck !== null} onOpenChange={(open) => { if (!open) setSendCheck(null); }}>
         <AlertDialogContent className="z-[90]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Enviar mesmo assim?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Enviar mesmo assim?')}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 {(sendCheck ?? []).map((issue) => <li key={issue}>{issue}</li>)}
@@ -925,8 +1073,8 @@ export function EmailComposer({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Rever</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setSendCheck(null); void doSend(); }}>Enviar</AlertDialogAction>
+            <AlertDialogCancel>{t('Rever')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setSendCheck(null); void doSend(); }}>{t('Enviar')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

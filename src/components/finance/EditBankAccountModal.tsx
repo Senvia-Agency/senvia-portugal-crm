@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useUpdateBankAccount } from '@/hooks/useBankAccounts';
 import { parseLocalizedNumber, formatIban, cleanIban } from '@/lib/format';
 import type { BankAccount } from '@/types/bank-accounts';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   account: BankAccount;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function EditBankAccountModal({ account, open, onOpenChange }: Props) {
+  const { t } = useLanguage();
   const update = useUpdateBankAccount();
   const [name, setName] = useState(account.name);
   const [bankName, setBankName] = useState(account.bank_name || '');
@@ -59,20 +61,20 @@ export function EditBankAccountModal({ account, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Editar Conta Corrente</DialogTitle>
+          <DialogTitle>{t("Editar Conta Corrente")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Nome da Conta *</Label>
+            <Label>{t("Nome da Conta *")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Banco</Label>
+              <Label>{t("Banco")}</Label>
               <Input value={bankName} onChange={(e) => setBankName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Nome do Titular</Label>
+              <Label>{t("Nome do Titular")}</Label>
               <Input value={holderName} onChange={(e) => setHolderName(e.target.value)} />
             </div>
           </div>
@@ -81,7 +83,7 @@ export function EditBankAccountModal({ account, open, onOpenChange }: Props) {
             <Input value={iban} onChange={(e) => setIban(formatIban(e.target.value))} />
           </div>
           <div className="space-y-2">
-            <Label>Saldo Inicial (EUR)</Label>
+            <Label>{t("Saldo Inicial (EUR)")}</Label>
             <Input
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
@@ -92,17 +94,17 @@ export function EditBankAccountModal({ account, open, onOpenChange }: Props) {
           <div className="flex gap-6">
             <div className="flex items-center gap-2">
               <Checkbox id="edit-default" checked={isDefault} onCheckedChange={(c) => setIsDefault(c === true)} />
-              <Label htmlFor="edit-default" className="cursor-pointer">Conta por defeito</Label>
+              <Label htmlFor="edit-default" className="cursor-pointer">{t("Conta por defeito")}</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id="edit-active" checked={isActive} onCheckedChange={(c) => setIsActive(c === true)} />
-              <Label htmlFor="edit-active" className="cursor-pointer">Ativa</Label>
+              <Label htmlFor="edit-active" className="cursor-pointer">{t("Ativa")}</Label>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
             <Button type="submit" disabled={update.isPending || !name.trim()}>
-              {update.isPending ? 'A guardar...' : 'Guardar'}
+              {update.isPending ? t('A guardar...') : t('Guardar')}
             </Button>
           </DialogFooter>
         </form>

@@ -290,7 +290,13 @@ Deno.serve(async (req) => {
     // `organization_id` (the settings page's "test notification" button).
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    const isInternalServiceCall = !!token && token === supabaseKey;
+    // Trusted callers: the service role key (edge functions), or the internal automation
+    // secret (database triggers such as the sale notifications, via pg_net).
+    let isInternalServiceCall = !!token && token === supabaseKey;
+    if (!isInternalServiceCall && token && token.length < 200) {
+      const { data: isAutomation } = await supabase.rpc('verify_automation_secret', { p_secret: token });
+      isInternalServiceCall = isAutomation === true;
+    }
     if (!isInternalServiceCall) {
       if (!token) {
         return new Response(JSON.stringify({ error: 'Não autorizado' }), {
@@ -394,7 +400,14 @@ Deno.serve(async (req) => {
 
       if (result.success) {
         successCount++;
-      } else if (result.statusCode === 404 || result.statusCode === 410) {
+      } else if (
+        result.statusCode === 404 || result.statusCode === 410 ||
+        // Registered with an old VAPID key (400 VapidPkHashMismatch) or rejected for that
+        // subscription alone (403): it can never succeed again. Drop the row; the device
+        // registers a fresh one the next time the app opens (usePushNotifications auto-heal).
+        result.statusCode === 403 ||
+        (result.statusCode === 400 && /VapidPkHashMismatch|UnauthorizedRegistration|BadJwtToken/i.test(result.error ?? ''))
+      ) {
         expiredEndpoints.push(sub.endpoint);
       }
     }

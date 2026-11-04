@@ -1,5 +1,6 @@
 import { Building, UsersRound, Package, Link2, Bell, Receipt, Shield, GitBranch, LayoutGrid, FileText, List, KeyRound, UserCog, Network, BellRing, AlertTriangle, Calculator, ShoppingCart, CreditCard, Calendar, Mail, LifeBuoy, User, FormInput, TrendingUp, Plug, Radio, Gift } from "lucide-react";
 import { SettingsCard } from "./SettingsCard";
+import { useLanguage } from "@/i18n";
 
 // Settings information architecture: 8 balanced top-level groups, 2 navigation
 // levels (group card -> tabbed content). Reorganized from the former 9-group /
@@ -54,6 +55,7 @@ export function MobileSettingsNav({
   canManageIntegrations,
   isTelecom = false,
 }: MobileSettingsNavProps) {
+  const { t } = useLanguage();
   const visibleSections = sections.filter(item => {
     if (item.requiresTeam && !canManageTeam) return false;
     if (item.requiresIntegrations && !canManageIntegrations) return false;
@@ -66,8 +68,8 @@ export function MobileSettingsNav({
         <SettingsCard
           key={section.id}
           icon={section.icon}
-          title={section.label}
-          description={section.description}
+          title={t(section.label)}
+          description={t(section.description)}
           onClick={() => onSelectSection(section.id)}
           tint={section.tint}
           iconColor={section.iconColor}

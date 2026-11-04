@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { FormSettings } from "@/types";
 import { AIAvatar } from "@/components/conversational/AIAvatar";
+import { useLanguage } from "@/i18n";
 
 interface ConversationalFormPreviewProps {
   settings: FormSettings;
@@ -12,6 +13,7 @@ export function ConversationalFormPreview({
   settings,
   organizationName 
 }: ConversationalFormPreviewProps) {
+  const { t } = useLanguage();
   const primaryColor = settings.primary_color || "#3B82F6";
 
   // Build preview steps from settings
@@ -80,7 +82,7 @@ export function ConversationalFormPreview({
         {visibleFields.length > 0 && (
           <div className="mt-6 pt-4 border-t border-border/50">
             <p className="text-xs text-muted-foreground text-center mb-2">
-              Campos: {visibleFields.join(" → ")}
+              {t("Campos:")} {visibleFields.join(" → ")}
             </p>
           </div>
         )}

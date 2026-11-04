@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PdfCanvas } from '@/components/inbox/PdfCanvas';
 import { fmtSize } from '@/components/email/emailShared';
 import type { EmailAttachment } from '@/hooks/useEmail';
+import { tr, useLanguage } from '@/i18n';
 import { base64ToBlob, readCachedAttachment } from './webmail-api';
 
 /** Downloaded attachments stay in memory for the session (the last 12). */
@@ -26,7 +27,7 @@ export function attachmentType(attachment: Pick<EmailAttachment, 'filename' | 'c
   const extension = (attachment.filename || '').split('.').pop()?.toLowerCase() ?? '';
   return EXTENSION_TYPES[extension] ?? 'application/octet-stream';
 }
-const extensionOf = (name: string | null) => ((name || '').includes('.') ? (name || '').split('.').pop()!.toUpperCase().slice(0, 5) : 'FICH');
+const extensionOf = (name: string | null) => ((name || '').includes('.') ? (name || '').split('.').pop()!.toUpperCase().slice(0, 5) : tr('FICH'));
 function TypeIcon({ type, name }: { type: string; name: string | null }) {
   const extension = (name || '').split('.').pop()?.toLowerCase() ?? '';
   if (type.startsWith('image/')) return <ImageIcon className="h-7 w-7 text-sky-500" />;
@@ -52,29 +53,30 @@ export function saveBlob(blob: Blob, filename: string) {
 export function AttachmentTiles({ attachments, resolve }: { attachments: readonly EmailAttachment[]; resolve: ResolveAttachment }) {
   const [preview, setPreview] = useState<EmailAttachment | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { t } = useLanguage();
   const files = attachments.filter(attachment => !attachment.inline);
   if (files.length === 0) return null;
   const download = async (attachment: EmailAttachment) => {
     setBusy(attachment.id);
-    try { saveBlob(await resolve(attachment), attachment.filename || 'anexo'); }
+    try { saveBlob(await resolve(attachment), attachment.filename || t('anexo')); }
     finally { setBusy(null); }
   };
   return <>
-    <ul className="mb-5 flex flex-wrap gap-3" aria-label="Anexos">
+    <ul className="mb-5 flex flex-wrap gap-3" aria-label={t('Anexos')}>
       {files.map((attachment, index) => <li key={attachment.id}>
         <div className="webmail-tile">
           <button type="button" className="flex min-h-0 flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setPreview(attachment)}
-            aria-label={`Pré-visualizar ${attachment.filename || 'anexo'}`}>
+            aria-label={t('Pré-visualizar {{name}}', { name: attachment.filename || t('anexo') })}>
             <span className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/50">
               <Thumb attachment={attachment} eager={index < 6} />
             </span>
             <span className="border-t px-2 py-1.5">
-              <span className="block truncate text-[11px] font-medium">{attachment.filename || 'anexo'}</span>
+              <span className="block truncate text-[11px] font-medium">{attachment.filename || t('anexo')}</span>
               <span className="block text-[10px] text-muted-foreground">{extensionOf(attachment.filename)} · {fmtSize(attachment.size)}</span>
             </span>
           </button>
           <button type="button" className="webmail-tile-download absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-background"
-            aria-label={`Descarregar ${attachment.filename || 'anexo'}`} onClick={() => void download(attachment)} disabled={busy === attachment.id}>
+            aria-label={t('Descarregar {{name}}', { name: attachment.filename || t('anexo') })} onClick={() => void download(attachment)} disabled={busy === attachment.id}>
             {busy === attachment.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </button>
         </div>
@@ -115,6 +117,7 @@ function Thumb({ attachment, eager }: { attachment: EmailAttachment; eager: bool
 /** Images, PDFs, video, audio and text open here; other files are download-only. SVG is never previewed. */
 function AttachmentPreview({ attachment, resolve, onClose }: { attachment: EmailAttachment; resolve: ResolveAttachment; onClose: () => void }) {
   const type = attachmentType(attachment);
+  const { t } = useLanguage();
   const [state, setState] = useState<{ url: string | null; text: string | null; error: string | null; loading: boolean }>({ url: null, text: null, error: null, loading: true });
   const [attempt, setAttempt] = useState(0);
   const previewable = type !== 'image/svg+xml' && (type.startsWith('image/') || type === 'application/pdf' || type.startsWith('video/') || type.startsWith('audio/') || type.startsWith('text/'));
@@ -128,27 +131,27 @@ function AttachmentPreview({ attachment, resolve, onClose }: { attachment: Email
       if (type.startsWith('text/')) { setState({ url: null, text: (await blob.text()).slice(0, 200_000), error: null, loading: false }); return; }
       objectUrl = URL.createObjectURL(new Blob([blob], { type }));
       setState({ url: objectUrl, text: null, error: null, loading: false });
-    }).catch(error => { if (active) setState({ url: null, text: null, error: error instanceof Error ? error.message : 'Não foi possível abrir o anexo.', loading: false }); });
+    }).catch(error => { if (active) setState({ url: null, text: null, error: error instanceof Error ? error.message : t('Não foi possível abrir o anexo.'), loading: false }); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment, attempt, previewable, resolve, type]);
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
     <DialogContent variant="fullScreen" className="flex flex-col gap-0 bg-zinc-950 p-0 text-white">
       <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 pr-14">
-        <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{attachment.filename || 'Anexo'}</DialogTitle>
-        <DialogDescription className="sr-only">Pré-visualização do anexo do email.</DialogDescription>
-        <Button size="sm" variant="secondary" className="rounded-full" onClick={() => void resolve(attachment).then(blob => saveBlob(blob, attachment.filename || 'anexo'))}>
-          <Download className="mr-1.5 h-4 w-4" />Descarregar
+        <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{attachment.filename || t('Anexo')}</DialogTitle>
+        <DialogDescription className="sr-only">{t('Pré-visualização do anexo do email.')}</DialogDescription>
+        <Button size="sm" variant="secondary" className="rounded-full" onClick={() => void resolve(attachment).then(blob => saveBlob(blob, attachment.filename || t('anexo')))}>
+          <Download className="mr-1.5 h-4 w-4" />{t('Descarregar')}
         </Button>
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
-        {state.loading ? <Loader2 className="h-7 w-7 animate-spin text-white/70" aria-label="A carregar" />
-          : state.error ? <div className="space-y-3 text-center"><p className="text-sm text-white/80">{state.error}</p><Button variant="secondary" size="sm" onClick={() => setAttempt(value => value + 1)}><RotateCw className="mr-1.5 h-4 w-4" />Tentar novamente</Button></div>
-          : !previewable ? <div className="space-y-2 text-center"><TypeIcon type={type} name={attachment.filename} /><p className="text-sm text-white/80">Este tipo de ficheiro não tem pré-visualização. Use "Descarregar".</p></div>
+        {state.loading ? <Loader2 className="h-7 w-7 animate-spin text-white/70" aria-label={t('A carregar')} />
+          : state.error ? <div className="space-y-3 text-center"><p className="text-sm text-white/80">{state.error}</p><Button variant="secondary" size="sm" onClick={() => setAttempt(value => value + 1)}><RotateCw className="mr-1.5 h-4 w-4" />{t('Tentar novamente')}</Button></div>
+          : !previewable ? <div className="space-y-2 text-center"><TypeIcon type={type} name={attachment.filename} /><p className="text-sm text-white/80">{t('Este tipo de ficheiro não tem pré-visualização. Use "Descarregar".')}</p></div>
           : state.text !== null ? <pre className="h-full w-full max-w-4xl overflow-auto whitespace-pre-wrap rounded-2xl bg-white p-5 text-left text-sm text-zinc-900">{state.text}</pre>
           : type === 'application/pdf' ? <iframe title={attachment.filename || 'PDF'} src={state.url ?? undefined} className="h-full w-full max-w-5xl rounded-xl bg-white" />
           : type.startsWith('video/') ? <video src={state.url ?? undefined} controls className="max-h-full max-w-full rounded-xl" />
           : type.startsWith('audio/') ? <audio src={state.url ?? undefined} controls className="w-full max-w-md" />
-          : <img src={state.url ?? undefined} alt={attachment.filename || 'Imagem anexada'} className="max-h-full max-w-full rounded-xl object-contain" />}
+          : <img src={state.url ?? undefined} alt={attachment.filename || t('Imagem anexada')} className="max-h-full max-w-full rounded-xl object-contain" />}
       </div>
     </DialogContent>
   </Dialog>;
@@ -174,7 +177,7 @@ export function makeResolver(channelId: string, fetchAttachment: FetchAttachment
     const known = memory.get(attachment.id);
     if (known) return known;
     const cached = await fetchCachedAttachment(channelId, attachment.id, fetchAttachment);
-    if (!cached) throw new Error('O servidor de correio não entregou o anexo a tempo. Tente novamente.');
+    if (!cached) throw new Error(tr('O servidor de correio não entregou o anexo a tempo. Tente novamente.'));
     const blob = base64ToBlob(cached.data_b64, attachmentType({ filename: attachment.filename, content_type: cached.content_type || attachment.content_type }));
     remember(attachment.id, blob);
     return blob;

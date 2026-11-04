@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamMembers } from '@/hooks/useTeam';
+import { useLanguage } from '@/i18n';
 import { bootstrapChat, fetchMembers, fetchMessages, fetchReactions, isMissingMigration, listConversations, markRead, signedUrl } from './chat-api';
 
 export const chatKeys = {
@@ -122,17 +123,18 @@ export function useChatThread(conversationId: string | null, organizationId: str
 
 /** Names and photos of the organization's people, with a stable fallback for former members. */
 export function useChatPeople(userId: string | undefined) {
+  const { t } = useLanguage();
   const { data: members = [] } = useTeamMembers();
   return useMemo(() => {
     const byId = new Map(members.map(member => [member.user_id, member]));
-    const nameFor = (id: string | null | undefined) => !id ? 'Antigo membro' : byId.get(id)?.full_name || 'Antigo membro';
+    const nameFor = (id: string | null | undefined) => !id ? t('Antigo membro') : byId.get(id)?.full_name || t('Antigo membro');
     return {
       members: members.filter(member => !member.is_banned),
       nameFor,
-      firstName: (id: string | null | undefined) => id === userId ? 'Eu' : nameFor(id).split(' ')[0],
+      firstName: (id: string | null | undefined) => id === userId ? t('Eu') : nameFor(id).split(' ')[0],
       avatarFor: (id: string | null | undefined) => (id ? byId.get(id)?.avatar_url : null) ?? null,
     };
-  }, [members, userId]);
+  }, [members, userId, t]);
 }
 
 /** Signed URL for a private chat file, renewed before it expires. */

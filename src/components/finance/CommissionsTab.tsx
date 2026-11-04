@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format, subMonths, startOfMonth } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, dateLocale, intlLocale } from '@/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,13 +34,14 @@ function generateMonthOptions() {
     const d = startOfMonth(subMonths(now, i));
     options.push({
       value: format(d, 'yyyy-MM-dd'),
-      label: format(d, 'MMMM yyyy', { locale: pt }),
+      label: format(d, 'MMMM yyyy', { locale: dateLocale() }),
     });
   }
   return options;
 }
 
 export function CommissionsTab() {
+  const { t } = useLanguage();
   const { effectiveUserIds, canFilterByTeam } = useTeamFilter();
   const monthOptions = generateMonthOptions();
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value);
@@ -98,7 +99,7 @@ export function CommissionsTab() {
             <div className="relative flex-1 sm:max-w-[300px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar comercial..."
+                placeholder={t("Pesquisar comercial...")}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -112,9 +113,9 @@ export function CommissionsTab() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <FileX className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium mb-1">Sem dados de comissão</h3>
+            <h3 className="text-lg font-medium mb-1">{t("Sem dados de comissão")}</h3>
             <p className="text-sm text-muted-foreground max-w-md">
-              Nenhuma venda concluída com data de ativação neste mês (Angariação / Angariação Indexado).
+              {t("Nenhuma venda concluída com data de ativação neste mês (Angariação / Angariação Indexado).")}
             </p>
           </CardContent>
         </Card>
@@ -126,13 +127,13 @@ export function CommissionsTab() {
               <div className="flex items-center gap-3">
                 <Zap className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Totalizador EE (Angariação)</p>
+                  <p className="text-sm font-medium text-muted-foreground">{t("Totalizador EE (Angariação)")}</p>
                   <p className="text-2xl font-bold">{globalMwh.toFixed(1)} MWh</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant="outline" className="text-sm font-semibold">
-                  {TIER_LABELS[globalTier] || globalTier}
+                  {t(TIER_LABELS[globalTier] || globalTier)}
                 </Badge>
                 <Badge variant="outline" className="text-base font-semibold">
                   {formatCurrency(globalEnergyCommission)}
@@ -147,7 +148,7 @@ export function CommissionsTab() {
               <div className="flex items-center gap-3">
                 <Sun className="h-5 w-5 text-amber-500" />
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Totalizador Serviços</p>
+                  <p className="text-sm font-medium text-muted-foreground">{t("Totalizador Serviços")}</p>
                   <p className="text-2xl font-bold">{globalServicosKwp.toFixed(1)} kWp</p>
                 </div>
               </div>
@@ -160,7 +161,7 @@ export function CommissionsTab() {
           {/* Total geral */}
           <Card className="border-muted-foreground/20">
             <CardContent className="flex items-center justify-between p-4">
-              <p className="text-sm font-medium text-muted-foreground">Total Comissões</p>
+              <p className="text-sm font-medium text-muted-foreground">{t("Total Comissões")}</p>
               <p className="text-2xl font-bold">{formatCurrency(totalCommission)}</p>
             </CardContent>
           </Card>
@@ -172,10 +173,10 @@ export function CommissionsTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
-                    <TableHead>Comercial</TableHead>
-                    <TableHead className="text-right">MWh Total</TableHead>
-                    <TableHead>Patamar</TableHead>
-                    <TableHead className="text-right">Comissão</TableHead>
+                    <TableHead>{t("Comercial")}</TableHead>
+                    <TableHead className="text-right">{t("MWh Total")}</TableHead>
+                    <TableHead>{t("Patamar")}</TableHead>
+                    <TableHead className="text-right">{t("Comissão")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -196,7 +197,7 @@ export function CommissionsTab() {
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="text-right">{item.totalConsumoMwh.toFixed(1)}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{TIER_LABELS[item.tier] || item.tier}</Badge>
+                          <Badge variant="secondary">{t(TIER_LABELS[item.tier] || item.tier)}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-semibold">{formatCurrency(item.totalFinal)}</TableCell>
                       </TableRow>
@@ -207,13 +208,13 @@ export function CommissionsTab() {
                               <Table>
                                 <TableHeader>
                                 <TableRow>
-                                    <TableHead>Venda</TableHead>
-                                     <TableHead>Tipo</TableHead>
+                                    <TableHead>{t("Venda")}</TableHead>
+                                     <TableHead>{t("Tipo")}</TableHead>
                                      <TableHead>CPE/CUI</TableHead>
-                                    <TableHead className="text-right">EE (kWh)</TableHead>
-                                    <TableHead className="text-right">Serviços (kWp)</TableHead>
-                                     <TableHead className="text-right">Comissão Final</TableHead>
-                                     <TableHead>Serviços</TableHead>
+                                    <TableHead className="text-right">{t("EE (kWh)")}</TableHead>
+                                    <TableHead className="text-right">{t("Serviços (kWp)")}</TableHead>
+                                     <TableHead className="text-right">{t("Comissão Final")}</TableHead>
+                                     <TableHead>{t("Serviços")}</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -222,18 +223,18 @@ export function CommissionsTab() {
                                       <TableCell className="text-xs font-medium">{d.sale_code || '—'}</TableCell>
                                       <TableCell>
                                         <Badge variant="outline" className="text-[10px] whitespace-nowrap">
-                                          {NEGOTIATION_TYPE_LABELS[d.negotiation_type] || d.negotiation_type || '—'}
+                                          {d.negotiation_type ? t(NEGOTIATION_TYPE_LABELS[d.negotiation_type] || d.negotiation_type) : '—'}
                                         </Badge>
                                       </TableCell>
                                       <TableCell className="text-xs">{d.serial_number || d.proposal_cpe_id?.slice(0, 8)}</TableCell>
-                                      <TableCell className="text-right text-xs">{d.consumo_anual ? d.consumo_anual.toLocaleString('pt-PT') : '—'}</TableCell>
+                                      <TableCell className="text-right text-xs">{d.consumo_anual ? d.consumo_anual.toLocaleString(intlLocale()) : '—'}</TableCell>
                                       <TableCell className="text-right text-xs">{d.servicos_kwp > 0 ? d.servicos_kwp.toFixed(1) : '—'}</TableCell>
                                       <TableCell className="text-right text-xs font-medium">{d.comissao_final != null ? formatCurrency(d.comissao_final) : '—'}</TableCell>
                                       <TableCell className="text-xs">
                                         <div className="flex flex-wrap gap-1">
                                           {d.proposal_type === 'energia' && (
                                             <Badge variant="default" className="text-[10px]">
-                                              Energia{d.negotiation_type ? ` - ${NEGOTIATION_TYPE_LABELS[d.negotiation_type] || d.negotiation_type}` : ''}
+                                              {t("Energia")}{d.negotiation_type ? ` - ${t(NEGOTIATION_TYPE_LABELS[d.negotiation_type] || d.negotiation_type)}` : ''}
                                             </Badge>
                                           )}
                                           {d.servicos?.map((s, i) => (

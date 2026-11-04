@@ -42,6 +42,7 @@ import {
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { ServicosSection } from '@/components/proposals/ServicosSection';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
+import { useLanguage } from "@/i18n";
 
 interface CreateProposalModalProps {
   client?: CrmClient | null;
@@ -53,6 +54,7 @@ interface CreateProposalModalProps {
 }
 
 export function CreateProposalModal({ client, open, onOpenChange, onSuccess, preselectedClientId, leadId }: CreateProposalModalProps) {
+  const { t } = useLanguage();
   const { data: clients = [] } = useClients();
   const { data: products = [] } = useActiveProducts();
   const { organization } = useAuth();
@@ -403,7 +405,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
           <DialogHeader className="px-6 pr-14 py-4 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              Nova Proposta
+              {t("Nova Proposta")}
             </DialogTitle>
           </DialogHeader>
 
@@ -417,12 +419,12 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <User className="h-4 w-4" />
-                        Informação Básica
+                        {t("Informação Básica")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-4">
                       <div className="space-y-2">
-                        <Label>Cliente <span className="text-destructive">*</span></Label>
+                        <Label>{t("Cliente")} <span className="text-destructive">*</span></Label>
                         <div className="flex gap-2">
                           <SearchableCombobox
                             options={clients.map((c): ComboboxOption => ({
@@ -432,10 +434,10 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                             }))}
                             value={selectedClientId}
                             onValueChange={setSelectedClientId}
-                            placeholder="Selecionar cliente..."
-                            searchPlaceholder="Pesquisar cliente..."
-                            emptyLabel="Sem cliente associado"
-                            emptyText="Nenhum cliente encontrado."
+                            placeholder={t("Selecionar cliente...")}
+                            searchPlaceholder={t("Pesquisar cliente...")}
+                            emptyLabel={t("Sem cliente associado")}
+                            emptyText={t("Nenhum cliente encontrado.")}
                             className="flex-1"
                           />
                           <Button
@@ -443,19 +445,19 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                             variant="outline"
                             size="icon"
                             onClick={() => setIsCreateClientOpen(true)}
-                            title="Novo Cliente"
+                            title={t("Novo Cliente")}
                           >
                             <UserPlus className="h-4 w-4" />
                           </Button>
                         </div>
                         {attempted && !selectedClientId && (
-                          <p className="text-xs text-destructive">Selecione um cliente</p>
+                          <p className="text-xs text-destructive">{t("Selecione um cliente")}</p>
                         )}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="proposal-date">Data da Proposta</Label>
+                          <Label htmlFor="proposal-date">{t("Data da Proposta")}</Label>
                           <Input
                             id="proposal-date"
                             type="date"
@@ -464,7 +466,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="status">Estado</Label>
+                          <Label htmlFor="status">{t("Estado")}</Label>
                           <Select value={status} onValueChange={(v) => setStatus(v as ProposalStatus)}>
                             <SelectTrigger id="status">
                               <SelectValue />
@@ -472,7 +474,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                             <SelectContent>
                               {PROPOSAL_STATUSES.map((s) => (
                                 <SelectItem key={s} value={s}>
-                                  {PROPOSAL_STATUS_LABELS[s]}
+                                  {t(PROPOSAL_STATUS_LABELS[s])}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -486,7 +488,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                   {isTelecom && (
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Tipo de Negociação</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Tipo de Negociação")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-2">
@@ -499,7 +501,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                               className="h-9 text-xs"
                               onClick={() => setNegotiationType(type)}
                             >
-                              {NEGOTIATION_TYPE_LABELS[type]}
+                              {t(NEGOTIATION_TYPE_LABELS[type])}
                             </Button>
                           ))}
                         </div>
@@ -511,7 +513,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                   {showEnergy && (
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Tipo de Proposta</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Tipo de Proposta")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-2">
@@ -522,7 +524,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                             onClick={() => handleProposalTypeChange('energia')}
                           >
                             <Zap className="h-4 w-4" />
-                            Energia
+                            {t("Energia")}
                           </Button>
                           <Button
                             type="button"
@@ -531,7 +533,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                             onClick={() => handleProposalTypeChange('servicos')}
                           >
                             <Wrench className="h-4 w-4" />
-                            Outros Serviços
+                            {t("Outros Serviços")}
                           </Button>
                         </div>
                       </CardContent>
@@ -545,8 +547,8 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                         {attempted && !isEnergiaValid && (
                           <p className="text-xs text-destructive mb-2">
                             {proposalCpes.length === 0 
-                              ? 'Adicione pelo menos 1 CPE/CUI' 
-                              : 'Todos os campos de cada CPE são obrigatórios'}
+                              ? t("Adicione pelo menos 1 CPE/CUI") 
+                              : t("Todos os campos de cada CPE são obrigatórios")}
                           </p>
                         )}
                         <ProposalCpeSelector
@@ -589,18 +591,18 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Package className="h-4 w-4" />
-                          Produtos/Serviços
+                          {t("Produtos/Serviços")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
                         {attempted && !isGenericValid && (
-                          <p className="text-xs text-destructive">Adicione pelo menos 1 produto</p>
+                          <p className="text-xs text-destructive">{t("Adicione pelo menos 1 produto")}</p>
                         )}
                         {products.length > 0 && (
                           <>
                             <Select onValueChange={handleAddProduct}>
                               <SelectTrigger>
-                                <SelectValue placeholder="Adicionar produto/serviço..." />
+                                <SelectValue placeholder={t("Adicionar produto/serviço...")} />
                               </SelectTrigger>
                               <SelectContent>
                                 {products.map((product) => (
@@ -636,7 +638,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                                       
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <Label className="text-xs text-muted-foreground">Quantidade</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Quantidade")}</Label>
                                           <Input
                                             type="number"
                                             min="0.5"
@@ -647,7 +649,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                                           />
                                         </div>
                                         <div>
-                                          <Label className="text-xs text-muted-foreground">Preço Unit.</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Preço Unit.")}</Label>
                                           <Input
                                             type="number"
                                             step="0.01"
@@ -660,7 +662,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                                       
                                       <div className="flex items-end gap-2">
                                         <div className="flex-1">
-                                          <Label className="text-xs text-muted-foreground">Desconto</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Desconto")}</Label>
                                           <div className="flex gap-1">
                                             <Button
                                               type="button"
@@ -696,7 +698,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                                           </div>
                                         </div>
                                         <div className="text-right min-w-[80px]">
-                                          <Label className="text-xs text-muted-foreground">Subtotal</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Subtotal")}</Label>
                                           <div className="text-sm font-medium">
                                             {hasDiscount && (
                                               <span className="text-xs text-muted-foreground line-through mr-1">
@@ -733,14 +735,14 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                   {/* Observações */}
                   <Card>
                     <CardHeader className="pb-2 p-4">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">Observações da Negociação</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">{t("Observações da Negociação")}</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <Textarea
                         id="notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Detalhes da negociação, condições especiais, etc..."
+                        placeholder={t("Detalhes da negociação, condições especiais, etc...")}
                         rows={3}
                       />
                     </CardContent>
@@ -755,18 +757,18 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <FileText className="h-4 w-4" />
-                          Resumo
+                          {t("Resumo")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
                         {isTelecom && proposalType === 'energia' && proposalCpes.length > 0 && (
                           <>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">CPE/CUI adicionados</span>
+                              <span className="text-muted-foreground">{t("CPE/CUI adicionados")}</span>
                               <span className="font-medium">{proposalCpes.length}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Comissão Total</span>
+                              <span className="text-muted-foreground">{t("Comissão Total")}</span>
                               <span className="font-medium">{formatCurrency(totalComissao)}</span>
                             </div>
                             <Separator />
@@ -774,11 +776,11 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                         )}
 
                         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
-                          <p className="text-sm text-muted-foreground mb-1">Total da Proposta</p>
+                          <p className="text-sm text-muted-foreground mb-1">{t("Total da Proposta")}</p>
                           <p className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</p>
                           {isTelecom && proposalType === 'energia' && proposalCpes.length > 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Soma das margens de {proposalCpes.length} CPE(s)
+                              {t("Soma das margens de {{n}} CPE(s)", { n: proposalCpes.length })}
                             </p>
                           )}
                         </div>
@@ -803,10 +805,10 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                 {createProposal.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    A criar...
+                    {t("A criar...")}
                   </>
                 ) : (
-                  "Criar Proposta"
+                  t("Criar Proposta")
                 )}
               </Button>
               <Button
@@ -815,7 +817,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                 size="lg"
                 onClick={() => onOpenChange(false)}
               >
-                Cancelar
+                {t("Cancelar")}
               </Button>
             </div>
           </div>

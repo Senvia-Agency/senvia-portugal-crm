@@ -19,6 +19,7 @@ import { Video, Phone, CheckSquare, RefreshCw, Loader2, Mail, Link as LinkIcon, 
 import { toast } from 'sonner';
 import { useEmailTemplateRequirement } from '@/hooks/useEmailTemplateRequirement';
 import { EMAIL_TEMPLATE_TRIGGERS } from '@/lib/email-template-triggers';
+import { useLanguage } from '@/i18n';
 
 const EVENT_TYPE_ICONS: Record<EventType, React.ReactNode> = {
   meeting: <Video className="h-4 w-4" />,
@@ -39,6 +40,7 @@ interface CreateEventModalProps {
 }
 
 export function CreateEventModal({ open, onOpenChange, selectedDate, event, preselectedLeadId, onSuccess, initialTitle = '', initialDescription = '' }: CreateEventModalProps) {
+  const { t } = useLanguage();
   const { data: leads = [] } = useLeads();
   const { organization } = useAuth();
   const createEvent = useCreateEvent();
@@ -234,7 +236,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
           }],
         });
       } catch {
-        toast.error('Evento criado, mas falha ao enviar email.');
+        toast.error(t('Evento criado, mas falha ao enviar email.'));
       }
     }
 
@@ -249,23 +251,23 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Evento' : 'Novo Evento'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('Editar Evento') : t('Novo Evento')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Título *</Label>
+            <Label htmlFor="title">{t('Título *')}</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Reunião com cliente"
+              placeholder={t("Ex: Reunião com cliente")}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de Evento</Label>
+            <Label>{t('Tipo de Evento')}</Label>
             <Select value={eventType} onValueChange={(v) => setEventType(v as EventType)}>
               <SelectTrigger>
                 <SelectValue />
@@ -275,7 +277,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
                   <SelectItem key={type} value={type}>
                     <div className="flex items-center gap-2">
                       {EVENT_TYPE_ICONS[type]}
-                      {EVENT_TYPE_LABELS[type]}
+                      {t(EVENT_TYPE_LABELS[type])}
                     </div>
                   </SelectItem>
                 ))}
@@ -285,12 +287,12 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
 
           <div className="flex items-center gap-2">
             <Switch checked={allDay} onCheckedChange={setAllDay} id="all-day" />
-            <Label htmlFor="all-day">Dia inteiro</Label>
+            <Label htmlFor="all-day">{t('Dia inteiro')}</Label>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Data Início *</Label>
+              <Label>{t('Data Início *')}</Label>
               <Input
                 type="date"
                 value={startDate}
@@ -300,7 +302,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
             </div>
             {!allDay && (
               <div className="space-y-2">
-                <Label>Hora Início</Label>
+                <Label>{t('Hora Início')}</Label>
                 <Input
                   type="time"
                   value={startTime}
@@ -312,7 +314,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Data Fim</Label>
+              <Label>{t('Data Fim')}</Label>
               <Input
                 type="date"
                 value={endDate}
@@ -321,7 +323,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
             </div>
             {!allDay && (
               <div className="space-y-2">
-                <Label>Hora Fim</Label>
+                <Label>{t('Hora Fim')}</Label>
                 <Input
                   type="time"
                   value={endTime}
@@ -332,7 +334,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
           </div>
 
           <div className="space-y-2">
-            <Label>Lead Associado</Label>
+            <Label>{t('Lead Associado')}</Label>
             <SearchableCombobox
               options={leads.map((lead): ComboboxOption => ({
                 value: lead.id,
@@ -341,10 +343,10 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
               }))}
               value={leadId || null}
               onValueChange={(v) => setLeadId(v || "")}
-              placeholder="Selecionar lead..."
-              searchPlaceholder="Pesquisar lead..."
-              emptyLabel="Nenhum"
-              emptyText="Nenhum lead encontrado."
+              placeholder={t("Selecionar lead...")}
+              searchPlaceholder={t("Pesquisar lead...")}
+              emptyLabel={t("Nenhum")}
+              emptyText={t("Nenhum lead encontrado.")}
             />
           </div>
 
@@ -353,7 +355,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <LinkIcon className="h-4 w-4" />
-                Link da Reunião
+                {t('Link da Reunião')}
               </Label>
               <Input
                 type="url"
@@ -370,7 +372,7 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
               <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
                 <Label htmlFor="send-email" className="text-sm font-medium cursor-pointer">
-                  Enviar email ao lead
+                  {t('Enviar email ao lead')}
                 </Label>
                 <p className="text-xs text-muted-foreground truncate">
                   {selectedLead?.email}
@@ -378,8 +380,8 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
               </div>
               {!eventEmailTemplate.isLoading && !eventEmailTemplate.isConfigured && (
                 <span
-                  title="Configure um template de email ativo com o gatilho «Envio Manual: Convite de Reunião» em Marketing → Templates antes de enviar."
-                  aria-label="É necessário configurar o template do convite de reunião"
+                  title={t("Configure um template de email ativo com o gatilho «Envio Manual: Convite de Reunião» em Marketing → Templates antes de enviar.")}
+                  aria-label={t("É necessário configurar o template do convite de reunião")}
                   className="shrink-0 text-muted-foreground"
                 >
                   <MessageCircleMore className="h-4 w-4" />
@@ -395,15 +397,15 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
           )}
 
           <div className="space-y-2">
-            <Label>Lembrete</Label>
+            <Label>{t('Lembrete')}</Label>
             <Select value={reminderMinutes || "none"} onValueChange={(v) => setReminderMinutes(v === "none" ? "" : v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Sem lembrete" />
+                <SelectValue placeholder={t("Sem lembrete")} />
               </SelectTrigger>
               <SelectContent>
                 {REMINDER_OPTIONS.map((option) => (
                   <SelectItem key={option.value ?? 'none'} value={option.value?.toString() ?? 'none'}>
-                    {option.label}
+                    {t(option.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -411,23 +413,23 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, event, pres
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="description">{t('Descrição')}</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Notas adicionais..."
+              placeholder={t("Notas adicionais...")}
               rows={3}
             />
           </div>
 
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={isPending} className="flex-1">
               {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditing ? 'Guardar' : 'Criar'}
+              {isEditing ? t('Guardar') : t('Criar')}
             </Button>
           </div>
         </form>

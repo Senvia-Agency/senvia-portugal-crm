@@ -7,8 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/lib/format";
 import { useRecurringSales } from "@/hooks/useRecurringSales";
 import { formatOperationalUnits, sumOperationalSaleUnits } from "@/lib/sale-units";
+import { useLanguage } from "@/i18n";
 
 export function RenewalAlertsWidget() {
+  const { t } = useLanguage();
   const { data: recurringSales = [], isLoading } = useRecurringSales();
 
   if (isLoading) {
@@ -17,7 +19,7 @@ export function RenewalAlertsWidget() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            Próximas recorrências
+            {t("Próximas recorrências")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -35,13 +37,13 @@ export function RenewalAlertsWidget() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-500" />
-            Renovações
+            {t("Renovações")}
           </CardTitle>
-          <CardDescription>Sem renovações pendentes</CardDescription>
+          <CardDescription>{t("Sem renovações pendentes")}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground text-center py-4">
-            Todas as vendas recorrentes estão em dia.
+            {t("Todas as vendas recorrentes estão em dia.")}
           </p>
         </CardContent>
       </Card>
@@ -54,12 +56,12 @@ export function RenewalAlertsWidget() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Próximas recorrências
+            {t("Próximas recorrências")}
             <Badge variant="secondary" className="ml-auto">
               {formatOperationalUnits(sumOperationalSaleUnits(recurringSales))}
             </Badge>
           </CardTitle>
-          <CardDescription>Vendas com cobrança recorrente próxima ou vencida</CardDescription>
+          <CardDescription>{t("Vendas com cobrança recorrente próxima ou vencida")}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[300px]">
@@ -88,11 +90,11 @@ export function RenewalAlertsWidget() {
                             <RefreshCw className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                           )}
                           <span className="font-medium text-sm truncate">
-                            {sale.client?.name || 'Cliente'}
+                            {sale.client?.name || t('Cliente')}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Venda {sale.code} • {formatCurrency(sale.recurring_value)}/mês
+                          {t("Venda {{code}} • {{value}}/mês", { code: sale.code, value: formatCurrency(sale.recurring_value) })}
                         </p>
                       </div>
                       <Badge 
@@ -104,10 +106,10 @@ export function RenewalAlertsWidget() {
                         }`}
                       >
                         {isOverdue 
-                          ? `Vencida há ${Math.abs(daysUntil)} dias`
+                          ? t('Vencida há {{n}} dias', { n: Math.abs(daysUntil) })
                           : isDueToday
-                            ? 'Vence hoje'
-                            : `Em ${daysUntil} dias`
+                            ? t('Vence hoje')
+                            : t('Em {{n}} dias', { n: daysUntil })
                         }
                       </Badge>
                     </div>

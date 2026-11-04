@@ -8,6 +8,7 @@ import {
 } from '@/lib/automation-nodes';
 import { GroupChip } from '@/components/automations/TriggerPicker';
 import type { AutomationNodeCategory, AutomationNodeType } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 interface NodesPanelProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ const CATEGORY_ORDER: AutomationNodeCategory[] = ['whatsapp', 'email', 'timing',
  * one chip per category; Enter takes the first match, Esc closes.
  */
 export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<AutomationNodeCategory | null>(null);
   const term = normalizeString(search.trim());
@@ -41,14 +43,14 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
       const definition = NODE_DEFINITIONS[type];
       if (category && definition.category !== category) continue;
       if (term
-        && !normalizeString(definition.label).includes(term)
-        && !normalizeString(definition.description).includes(term)) continue;
+        && !normalizeString(t(definition.label)).includes(term)
+        && !normalizeString(t(definition.description)).includes(term)) continue;
       groups.set(definition.category, [...(groups.get(definition.category) ?? []), type]);
     }
     return CATEGORY_ORDER
       .filter((key) => groups.has(key))
       .map((key) => ({ category: key, types: groups.get(key) as AutomationNodeType[] }));
-  }, [term, category]);
+  }, [term, category, t]);
 
   const categoriesPresent = useMemo(
     () => CATEGORY_ORDER.filter((key) => ACTION_TYPES.some((type) => NODE_DEFINITIONS[type].category === key)),
@@ -63,14 +65,14 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
         'animate-in slide-in-from-right duration-200 sm:w-[420px]',
       )}
       role="dialog"
-      aria-label="Adicionar passo"
+      aria-label={t('Adicionar passo')}
     >
       <div className="flex items-start gap-3 border-b border-border p-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-foreground">Adicionar passo</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">O que acontece a seguir neste ponto do fluxo?</p>
+          <h2 className="text-base font-semibold text-foreground">{t('Adicionar passo')}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('O que acontece a seguir neste ponto do fluxo?')}</p>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose} aria-label="Fechar">
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose} aria-label={t('Fechar')}>
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -87,21 +89,21 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
                 onSelect(first);
               }
             }}
-            placeholder="Pesquisar passo..."
+            placeholder={t('Pesquisar passo...')}
             className="h-10 border-primary/40 bg-primary/[0.05] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-            aria-label="Pesquisar passo"
+            aria-label={t('Pesquisar passo')}
             autoFocus
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <GroupChip active={category === null} onClick={() => setCategory(null)}>Todos</GroupChip>
+          <GroupChip active={category === null} onClick={() => setCategory(null)}>{t('Todos')}</GroupChip>
           {categoriesPresent.map((key) => (
             <GroupChip
               key={key}
               active={category === key}
               onClick={() => setCategory(category === key ? null : key)}
             >
-              {CATEGORY_LABELS[key]}
+              {t(CATEGORY_LABELS[key])}
             </GroupChip>
           ))}
         </div>
@@ -110,14 +112,14 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {grouped.length === 0 ? (
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Nenhum passo corresponde à pesquisa.
+            {t('Nenhum passo corresponde à pesquisa.')}
           </div>
         ) : (
           <div className="space-y-5">
             {grouped.map(({ category: key, types }) => (
               <section key={key}>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {CATEGORY_LABELS[key]}
+                  {t(CATEGORY_LABELS[key])}
                 </p>
                 <div className="grid gap-2">
                   {types.map((type) => {
@@ -139,8 +141,8 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
                           <Icon className={cn('h-5 w-5', style.icon)} />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold text-foreground">{definition.label}</span>
-                          <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{definition.description}</span>
+                          <span className="block text-sm font-semibold text-foreground">{t(definition.label)}</span>
+                          <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{t(definition.description)}</span>
                         </span>
                       </button>
                     );
@@ -153,7 +155,7 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
       </div>
 
       <p className="shrink-0 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-        Enter escolhe o primeiro resultado · Esc fecha
+        {t('Enter escolhe o primeiro resultado · Esc fecha')}
       </p>
     </aside>
   );

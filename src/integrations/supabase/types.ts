@@ -14,6 +14,222 @@ export type Database = {
   }
   public: {
     Tables: {
+      lead_reassignment_settings: {
+        Row: {
+          after_max: string
+          days: number[]
+          enabled: boolean
+          enabled_at: string | null
+          max_reassignments: number
+          notify_email: boolean
+          organization_id: string
+          pool: string
+          pool_user_ids: string[]
+          progress_rule: string
+          timeout_minutes: number
+          updated_at: string
+          updated_by: string | null
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          after_max?: string
+          days?: number[]
+          enabled?: boolean
+          enabled_at?: string | null
+          max_reassignments?: number
+          notify_email?: boolean
+          organization_id: string
+          pool?: string
+          pool_user_ids?: string[]
+          progress_rule?: string
+          timeout_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_end?: string
+          window_start?: string
+        }
+        Update: {
+          after_max?: string
+          days?: number[]
+          enabled?: boolean
+          enabled_at?: string | null
+          max_reassignments?: number
+          notify_email?: boolean
+          organization_id?: string
+          pool?: string
+          pool_user_ids?: string[]
+          progress_rule?: string
+          timeout_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      lead_reassignments: {
+        Row: {
+          created_at: string
+          from_user: string | null
+          id: string
+          lead_id: string
+          organization_id: string
+          reason: string
+          to_user: string | null
+        }
+        Insert: {
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id: string
+          organization_id: string
+          reason?: string
+          to_user?: string | null
+        }
+        Update: {
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id?: string
+          organization_id?: string
+          reason?: string
+          to_user?: string | null
+        }
+        Relationships: []
+      }
+      time_clock_entries: {
+        Row: {
+          action: string
+          admin_note: string | null
+          created_at: string
+          created_by: string | null
+          employee_note: string | null
+          id: string
+          organization_id: string
+          punched_at: string
+          source: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          admin_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_note?: string | null
+          id?: string
+          organization_id: string
+          punched_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          admin_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_note?: string | null
+          id?: string
+          organization_id?: string
+          punched_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      time_clock_entry_history: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changed_by_name: string | null
+          changed_fields: string[]
+          entry_id: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          organization_id: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changed_fields?: string[]
+          entry_id: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changed_fields?: string[]
+          entry_id?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      work_schedules: {
+        Row: {
+          days: number[]
+          end_time: string
+          lunch_end: string | null
+          lunch_start: string | null
+          organization_id: string
+          reminders: boolean
+          start_time: string
+          tolerance_min: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          days?: number[]
+          end_time?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id: string
+          reminders?: boolean
+          start_time?: string
+          tolerance_min?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          days?: number[]
+          end_time?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id?: string
+          reminders?: boolean
+          start_time?: string
+          tolerance_min?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       activation_objectives: {
         Row: {
           created_at: string | null
@@ -8734,6 +8950,30 @@ export type Database = {
       }
     }
     Functions: {
+      time_clock_admin_save_entry: {
+        Args: {
+          _action: string
+          _entry_id: string | null
+          _note?: string | null
+          _organization_id: string
+          _punched_at: string
+          _reason: string
+          _user_id: string | null
+        }
+        Returns: string
+      }
+      time_clock_admin_set_status: {
+        Args: { _entry_ids: string[]; _organization_id: string; _reason?: string | null; _status: string }
+        Returns: number
+      }
+      time_clock_correct_entry: {
+        Args: { _at: string; _entry_id: string; _reason: string }
+        Returns: undefined
+      }
+      time_clock_punch: {
+        Args: { _action: string; _at?: string | null; _note?: string | null; _organization_id: string }
+        Returns: string
+      }
       email_save_signatures: {
         Args: { _channel_id: string; _items: Json }
         Returns: {

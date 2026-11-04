@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { ShoppingCart, Eye, Truck } from "lucide-react";
 import {
   Table,
@@ -31,10 +30,12 @@ import {
 import { OrderDetailsModal } from "./OrderDetailsModal";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { orderStatusBadge, ecomPaymentStatusBadge, fulfillmentStatusBadge } from "@/lib/status-badge-maps";
+import { useLanguage, dateLocale } from "@/i18n";
 
 export function OrdersTable() {
   const { data: orders, isLoading } = useOrders();
   const updateStatus = useUpdateOrderStatus();
+  const { t } = useLanguage();
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -63,17 +64,17 @@ export function OrdersTable() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            {filteredOrders?.length || 0} pedidos
+            {t((filteredOrders?.length || 0) === 1 ? "{{n}} pedido" : "{{n}} pedidos", { n: filteredOrders?.length || 0 })}
           </p>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filtrar por estado" />
+              <SelectValue placeholder={t("Filtrar por estado")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">{t("Todos")}</SelectItem>
               {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
                 <SelectItem key={value} value={value}>
-                  {label}
+                  {t(label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -84,9 +85,9 @@ export function OrdersTable() {
       {filteredOrders?.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed p-8">
           <ShoppingCart className="h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 font-semibold">Sem pedidos</h3>
+          <h3 className="mt-4 font-semibold">{t("Sem pedidos")}</h3>
           <p className="text-sm text-muted-foreground">
-            Os pedidos aparecerão aqui quando os clientes comprarem.
+            {t("Os pedidos aparecerão aqui quando os clientes comprarem.")}
           </p>
         </div>
       ) : (
@@ -94,14 +95,14 @@ export function OrdersTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Pedido</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead>Expedição</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("Pedido")}</TableHead>
+                <TableHead>{t("Data")}</TableHead>
+                <TableHead>{t("Cliente")}</TableHead>
+                <TableHead>{t("Estado")}</TableHead>
+                <TableHead>{t("Pagamento")}</TableHead>
+                <TableHead>{t("Expedição")}</TableHead>
+                <TableHead className="text-right">{t("Total")}</TableHead>
+                <TableHead className="text-right">{t("Ações")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,11 +114,11 @@ export function OrdersTable() {
                     </code>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(order.created_at), "d MMM yyyy", { locale: pt })}
+                    {format(new Date(order.created_at), "d MMM yyyy", { locale: dateLocale() })}
                   </TableCell>
                   <TableCell>
                     {order.customer?.name || (
-                      <span className="text-muted-foreground">Cliente anónimo</span>
+                      <span className="text-muted-foreground">{t("Cliente anónimo")}</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -131,7 +132,7 @@ export function OrdersTable() {
                       <SelectContent>
                         {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
                           <SelectItem key={value} value={value}>
-                            {label}
+                            {t(label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -151,7 +152,7 @@ export function OrdersTable() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setSelectedOrder(order)}
-                      title="Ver detalhes"
+                      title={t("Ver detalhes")}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>

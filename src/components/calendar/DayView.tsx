@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, isSameDay, isToday, getHours, getMinutes } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import type { CalendarEvent } from '@/types/calendar';
 import { EVENT_TYPE_COLORS } from '@/types/calendar';
 import { EventCard } from './EventCard';
@@ -19,6 +19,7 @@ interface DayViewProps {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function DayView({ currentDate, events, onEventClick, markers = [] }: DayViewProps) {
+  const { t } = useLanguage();
   const dayMarkers = markers.filter((marker) => isSameDay(marker.date, currentDate));
   const dayEvents = useMemo(() => {
     return events.filter((event) => isSameDay(new Date(event.start_time), currentDate));
@@ -53,7 +54,7 @@ export function DayView({ currentDate, events, onEventClick, markers = [] }: Day
         )}
       >
         <p className="text-sm font-medium text-muted-foreground uppercase">
-          {format(currentDate, 'EEEE', { locale: pt })}
+          {format(currentDate, 'EEEE', { locale: dateLocale() })}
         </p>
         <p
           className={cn(
@@ -64,14 +65,14 @@ export function DayView({ currentDate, events, onEventClick, markers = [] }: Day
           {format(currentDate, 'd')}
         </p>
         <p className="text-sm text-muted-foreground">
-          {format(currentDate, "MMMM 'de' yyyy", { locale: pt })}
+          {format(currentDate, t("MMMM 'de' yyyy"), { locale: dateLocale() })}
         </p>
       </div>
 
       {/* All Day Events */}
       {(allDayEvents.length > 0 || dayMarkers.length > 0) && (
         <div className="border-b p-3 bg-muted/30">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Dia Inteiro</p>
+          <p className="text-xs font-medium text-muted-foreground mb-2">{t("Dia Inteiro")}</p>
           <div className="space-y-2">
             {dayMarkers.map((marker) => <CalendarMarkerChip key={marker.key} marker={marker} className="rounded-lg px-3 py-2 text-sm" />)}
             {allDayEvents.map((event) => (

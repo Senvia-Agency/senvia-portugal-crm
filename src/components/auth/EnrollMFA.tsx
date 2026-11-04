@@ -5,6 +5,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Shield, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 interface EnrollMFAProps {
   onSuccess: () => void;
@@ -13,6 +14,7 @@ interface EnrollMFAProps {
 
 export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
@@ -41,7 +43,7 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
       setFactorId(data.id);
     } catch (error: any) {
       toast({
-        title: 'Erro ao ativar 2FA',
+        title: t('Erro ao ativar 2FA'),
         description: error.message,
         variant: 'destructive',
       });
@@ -70,14 +72,14 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
       if (verifyError) throw verifyError;
 
       toast({
-        title: 'Autenticação de dois fatores ativada!',
-        description: 'A sua conta está agora protegida com 2FA.',
+        title: t('Autenticação de dois fatores ativada!'),
+        description: t('A sua conta está agora protegida com 2FA.'),
       });
       onSuccess();
     } catch (error: any) {
       toast({
-        title: 'Código inválido',
-        description: 'Verifique o código e tente novamente.',
+        title: t('Código inválido'),
+        description: t('Verifique o código e tente novamente.'),
         variant: 'destructive',
       });
       setVerifyCode('');
@@ -93,21 +95,21 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Shield className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Ativar Autenticação 2FA</CardTitle>
+          <CardTitle>{t("Ativar Autenticação 2FA")}</CardTitle>
           <CardDescription>
-            Proteja a sua conta com uma camada extra de segurança usando o Microsoft Authenticator, Google Authenticator ou qualquer app TOTP.
+            {t("Proteja a sua conta com uma camada extra de segurança usando o Microsoft Authenticator, Google Authenticator ou qualquer app TOTP.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Button onClick={handleEnroll} disabled={isEnrolling} className="w-full">
             {isEnrolling ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A gerar QR Code...</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("A gerar QR Code...")}</>
             ) : (
-              'Ativar 2FA'
+              t('Ativar 2FA')
             )}
           </Button>
           <Button variant="outline" onClick={onCancel} className="w-full">
-            Cancelar
+            {t("Cancelar")}
           </Button>
         </CardContent>
       </Card>
@@ -117,9 +119,9 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
   return (
     <Card className="border-border">
       <CardHeader className="text-center">
-        <CardTitle>Digitalizar QR Code</CardTitle>
+        <CardTitle>{t("Digitalizar QR Code")}</CardTitle>
         <CardDescription>
-          Abra a sua app de autenticação e digitalize o código abaixo.
+          {t("Abra a sua app de autenticação e digitalize o código abaixo.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -134,7 +136,7 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
         {/* Verification */}
         <div className="space-y-3">
           <p className="text-sm text-center text-muted-foreground">
-            Insira o código de 6 dígitos da sua app:
+            {t("Insira o código de 6 dígitos da sua app:")}
           </p>
           <div className="flex justify-center">
             <InputOTP
@@ -161,13 +163,13 @@ export function EnrollMFA({ onSuccess, onCancel }: EnrollMFAProps) {
             className="w-full"
           >
             {isVerifying ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A verificar...</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("A verificar...")}</>
             ) : (
-              <><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar</>
+              <><CheckCircle2 className="mr-2 h-4 w-4" />{t("Confirmar")}</>
             )}
           </Button>
           <Button variant="outline" onClick={onCancel} className="w-full">
-            Cancelar
+            {t("Cancelar")}
           </Button>
         </div>
       </CardContent>

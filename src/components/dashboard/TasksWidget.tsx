@@ -7,21 +7,24 @@ import { useOpenInboxTasks, isTaskOverdue } from "@/hooks/useInboxTasks";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { InboxTasksModal } from "@/components/inbox/InboxTasksModal";
 import { cn } from "@/lib/utils";
+import { intlLocale, tr, useLanguage } from "@/i18n";
 
 function dueLabel(dueAt: string): string {
   const d = new Date(dueAt);
   const now = new Date();
-  const time = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return `Hoje ${time}`;
+  const time = d.toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return tr("Hoje {{time}}", { time });
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
-  if (d.toDateString() === tomorrow.toDateString()) return `Amanhã ${time}`;
-  return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "short" });
+  if (d.toDateString() === tomorrow.toDateString()) return tr("Amanhã {{time}}", { time });
+  return d.toLocaleDateString(intlLocale(), { day: "2-digit", month: "short" });
 }
 
 // Dashboard widget: my open conversation tasks (overdue first). Clicking a task
 // deep-links into the conversation. Renders nothing when there are no tasks.
 export function TasksWidget() {
+  // Aliased: the task callbacks below use `t` for the task.
+  const { t: translate } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: openTasks = [] } = useOpenInboxTasks();
@@ -47,15 +50,15 @@ export function TasksWidget() {
   if (myTasks.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card data-module="tasks">
+      <CardHeader className="px-4 pb-1.5 pt-3.5">
         <CardTitle className="flex items-center justify-between text-sm font-semibold">
           <span className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
-            Minhas tarefas
+            {translate("As minhas tarefas")}
             {overdue > 0 && (
               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                {overdue} atrasada{overdue > 1 ? "s" : ""}
+                {translate(overdue > 1 ? "{{n}} atrasadas" : "{{n}} atrasada", { n: overdue })}
               </span>
             )}
           </span>
@@ -64,19 +67,20 @@ export function TasksWidget() {
             onClick={() => setTasksModalOpen(true)}
             className="flex items-center gap-1 text-xs font-normal text-muted-foreground hover:text-foreground"
           >
-            Abrir <ArrowRight className="h-3 w-3" />
+            {translate("Abrir")} <ArrowRight className="h-3 w-3" />
           </button>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1.5">
-          {myTasks.slice(0, 6).map((t) => {
+      <CardContent className="px-2 pb-2">
+        <div className="space-y-0.5">
+          {myTasks.slice(0, 5).map((t) => {
+            // Five at most: the rest are one click away in "Abrir".
             const late = isTaskOverdue(t);
             return (
               <Link
                 key={t.id}
                 to={t.contact_phone ? `/inbox?phone=${encodeURIComponent(t.contact_phone)}` : "/inbox"}
-                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-[13px] hover:bg-accent"
               >
                 <span className="min-w-0">
                   <span className="block truncate">{t.title}</span>
@@ -87,7 +91,7 @@ export function TasksWidget() {
                 {t.due_at && (
                   <span className={cn("flex shrink-0 items-center gap-1 text-xs", late ? "font-semibold text-red-600" : "text-muted-foreground")}>
                     <CalendarClock className="h-3 w-3" />
-                    {late ? "Atrasada" : dueLabel(t.due_at)}
+                    {late ? translate("Atrasada") : dueLabel(t.due_at)}
                   </span>
                 )}
               </Link>

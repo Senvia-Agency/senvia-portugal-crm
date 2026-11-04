@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 /**
  * Detects when the deployed bundle has changed (different /index.html hash)
@@ -24,6 +25,7 @@ async function fetchCurrentBuildId(): Promise<string | null> {
 }
 
 export function PWAUpdateBanner() {
+  const { t } = useLanguage();
   const [needRefresh, setNeedRefresh] = useState(false);
 
   useEffect(() => {
@@ -60,9 +62,9 @@ export function PWAUpdateBanner() {
     <div className="fixed inset-x-0 top-0 z-[100] flex justify-center px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-3 rounded-lg border border-primary/30 bg-background/95 px-4 py-2.5 shadow-lg backdrop-blur">
         <RefreshCw className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium text-foreground">Nova versão disponível</span>
+        <span className="text-sm font-medium text-foreground">{t("Nova versão disponível")}</span>
         <Button size="sm" onClick={() => window.location.reload()}>
-          Atualizar agora
+          {t("Atualizar agora")}
         </Button>
       </div>
     </div>

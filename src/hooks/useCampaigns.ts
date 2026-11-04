@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import type { EmailCampaign, CampaignStatus } from '@/types/marketing';
 import { useState } from 'react';
 
@@ -89,10 +90,10 @@ export function useSyncCampaignSends() {
       queryClient.invalidateQueries({ queryKey: ['campaign-sends'] });
       queryClient.invalidateQueries({ queryKey: ['email-campaigns'] });
       const total = (data.inserted || 0) + (data.updated || 0);
-      toast.success(`Sincronizados ${total} registos da Brevo`);
+      toast.success(tr('Sincronizados {{total}} registos da Brevo', { total }));
     },
     onError: (err) => {
-      toast.error(`Erro ao sincronizar: ${err.message}`);
+      toast.error(tr('Erro ao sincronizar: {{message}}', { message: err.message }));
     },
   });
 
@@ -128,10 +129,10 @@ export function useCreateCampaign() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-campaigns'] });
-      toast.success('Campanha criada');
+      toast.success(tr('Campanha criada'));
     },
     onError: () => {
-      toast.error('Erro ao criar campanha');
+      toast.error(tr('Erro ao criar campanha'));
     },
   });
 }
@@ -192,10 +193,10 @@ export function useUpdateCampaign() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-campaigns'] });
-      toast.success('Campanha atualizada');
+      toast.success(tr('Campanha atualizada'));
     },
     onError: () => {
-      toast.error('Erro ao atualizar campanha');
+      toast.error(tr('Erro ao atualizar campanha'));
     },
   });
 }
@@ -232,10 +233,10 @@ export function useReopenCampaign() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-campaigns'] });
-      toast.success('Campanha reaberta como rascunho');
+      toast.success(tr('Campanha reaberta como rascunho'));
     },
     onError: () => {
-      toast.error('Erro ao reabrir campanha');
+      toast.error(tr('Erro ao reabrir campanha'));
     },
   });
 }
@@ -258,10 +259,10 @@ export function useDeleteCampaign() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-campaigns'] });
-      toast.success('Campanha eliminada');
+      toast.success(tr('Campanha eliminada'));
     },
     onError: () => {
-      toast.error('Erro ao eliminar campanha');
+      toast.error(tr('Erro ao eliminar campanha'));
     },
   });
 }

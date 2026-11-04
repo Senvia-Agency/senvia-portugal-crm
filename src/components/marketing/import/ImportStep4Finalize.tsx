@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/i18n";
 
 interface ImportResult {
   imported: number;
@@ -33,6 +34,7 @@ export function ImportStep4Finalize({
   importing, progress, result,
   onImport, onClose,
 }: Props) {
+  const { t } = useLanguage();
   if (result) {
     return (
       <div className="space-y-4">
@@ -41,27 +43,27 @@ export function ImportStep4Finalize({
             <Check className="h-7 w-7 text-primary" />
           </div>
         </div>
-        <p className="text-center font-semibold">Importação concluída!</p>
+        <p className="text-center font-semibold">{t("Importação concluída!")}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-bold text-primary">{result.imported}</p>
-            <p className="text-xs text-muted-foreground">Novos</p>
+            <p className="text-xs text-muted-foreground">{t("Novos")}</p>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-bold text-blue-500">{result.updated}</p>
-            <p className="text-xs text-muted-foreground">Atualizados</p>
+            <p className="text-xs text-muted-foreground">{t("Atualizados")}</p>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-bold text-amber-500">{result.duplicates}</p>
-            <p className="text-xs text-muted-foreground">Existentes</p>
+            <p className="text-xs text-muted-foreground">{t("Existentes")}</p>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <p className="text-lg font-bold text-destructive">{result.errors}</p>
-            <p className="text-xs text-muted-foreground">Erros</p>
+            <p className="text-xs text-muted-foreground">{t("Erros")}</p>
           </div>
         </div>
         <div className="flex justify-end pt-2">
-          <Button onClick={onClose}>Fechar</Button>
+          <Button onClick={onClose}>{t("Fechar")}</Button>
         </div>
       </div>
     );
@@ -71,17 +73,17 @@ export function ImportStep4Finalize({
     <div className="space-y-6">
       {/* Contact management */}
       <div className="space-y-4">
-        <h4 className="text-sm font-semibold">Gerenciamento de contactos</h4>
+        <h4 className="text-sm font-semibold">{t("Gestão de contactos")}</h4>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="update-existing" className="text-sm cursor-pointer flex-1">
-            Atualizar os atributos existentes de contactos
+            {t("Atualizar os atributos existentes de contactos")}
           </Label>
           <Switch id="update-existing" checked={updateExisting} onCheckedChange={onUpdateExistingChange} />
         </div>
         {updateExisting && (
           <div className="flex items-center justify-between gap-3 pl-4 border-l-2 border-muted">
             <Label htmlFor="clear-empty" className="text-sm cursor-pointer flex-1 text-muted-foreground">
-              Importar campos vazios para apagar dados existentes
+              {t("Importar campos vazios para apagar dados existentes")}
             </Label>
             <Switch id="clear-empty" checked={clearEmptyFields} onCheckedChange={onClearEmptyFieldsChange} />
           </div>
@@ -90,7 +92,7 @@ export function ImportStep4Finalize({
 
       {/* Opt-in certification */}
       <div className="space-y-3">
-        <h4 className="text-sm font-semibold">Certificação Opt-in</h4>
+        <h4 className="text-sm font-semibold">{t("Certificação Opt-in")}</h4>
         <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
           <Checkbox
             id="opt-in"
@@ -100,12 +102,12 @@ export function ImportStep4Finalize({
           />
           <div>
             <Label htmlFor="opt-in" className="text-sm cursor-pointer font-medium">
-              Certifico que os novos contactos importados atendem a estas condições:
+              {t("Certifico que os novos contactos importados cumprem estas condições:")}
             </Label>
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground list-disc pl-4">
-              <li>Os meus contactos concordaram em receber campanhas por email ou WhatsApp</li>
-              <li>Estes contactos não foram obtidos de terceiros</li>
-              <li>Estes contactos não foram comprados ou alugados</li>
+              <li>{t("Os meus contactos concordaram em receber campanhas por email ou WhatsApp")}</li>
+              <li>{t("Estes contactos não foram obtidos de terceiros")}</li>
+              <li>{t("Estes contactos não foram comprados ou alugados")}</li>
             </ul>
           </div>
         </div>
@@ -114,16 +116,16 @@ export function ImportStep4Finalize({
       {importing && (
         <div className="space-y-2">
           <Progress value={progress} />
-          <p className="text-xs text-center text-muted-foreground">A importar... {progress}%</p>
+          <p className="text-xs text-center text-muted-foreground">{t("A importar... {{progress}}%", { progress })}</p>
         </div>
       )}
 
       <div className="flex justify-end">
         <Button onClick={onImport} disabled={!optInCertified || importing}>
           {importing ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A importar...</>
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("A importar...")}</>
           ) : (
-            "Confirme sua importação"
+            t("Confirmar importação")
           )}
         </Button>
       </div>

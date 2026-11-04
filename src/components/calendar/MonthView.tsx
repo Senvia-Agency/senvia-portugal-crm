@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage } from '@/i18n';
 import type { CalendarEvent } from '@/types/calendar';
 import { EventCard } from './EventCard';
 import { CalendarMarkerChip } from './CalendarMarkerChip';
@@ -18,6 +18,7 @@ interface MonthViewProps {
 }
 
 export function MonthView({ currentDate, events, selectedDay, onDayClick, onEventClick, markers }: MonthViewProps) {
+  const { t } = useLanguage();
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -42,7 +43,7 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
             key={day}
             className="py-2 text-center text-xs font-medium text-muted-foreground uppercase"
           >
-            {day}
+            {t(day)}
           </div>
         ))}
       </div>
@@ -100,7 +101,7 @@ export function MonthView({ currentDate, events, selectedDay, onDayClick, onEven
                 ))}
                 {hiddenCount > 0 && (
                   <p className="calendar-more text-xs text-muted-foreground text-center">
-                    +{hiddenCount} mais
+                    {t("+{{n}} mais", { n: hiddenCount })}
                   </p>
                 )}
               </div>

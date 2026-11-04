@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { Loader2 } from 'lucide-react';
 import { pdfOutputScale } from './pdf-rendering';
+import { useLanguage } from '@/i18n';
 
 export function PdfCanvas({ document, page, width }: {
   readonly document: PDFDocumentProxy;
   readonly page: number;
   readonly width: number;
 }) {
+  const { t } = useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [busy, setBusy] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -42,8 +44,8 @@ export function PdfCanvas({ document, page, width }: {
     return () => { active = false; render?.cancel(); };
   }, [document, page, width]);
   return <div className="relative inline-block bg-white shadow-sm">
-    <canvas ref={canvasRef} aria-label={`Página ${page} do PDF`} className={failed ? 'hidden' : 'block'} />
-    {busy && !failed && <span className="absolute inset-0 flex items-center justify-center" role="status"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /><span className="sr-only">A carregar página</span></span>}
-    {failed && <p className="p-4 text-sm text-destructive" role="alert">Não foi possível mostrar esta página.</p>}
+    <canvas ref={canvasRef} aria-label={t('Página {{page}} do PDF', { page })} className={failed ? 'hidden' : 'block'} />
+    {busy && !failed && <span className="absolute inset-0 flex items-center justify-center" role="status"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /><span className="sr-only">{t("A carregar página")}</span></span>}
+    {failed && <p className="p-4 text-sm text-destructive" role="alert">{t("Não foi possível mostrar esta página.")}</p>}
   </div>;
 }

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, FileText, Search } from "lucide-react";
 import { endOfDay, format, parseISO, startOfDay } from "date-fns";
-import { pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +19,7 @@ import { useSales } from "@/hooks/useSales";
 import { formatCurrency } from "@/lib/format";
 import { SALE_STATUS_COLORS, SALE_STATUS_LABELS, type SaleStatus, type SaleWithDetails } from "@/types/sales";
 import { supabase } from "@/integrations/supabase/client";
+import { dateLocale, useLanguage } from "@/i18n";
 
 type SaleInvoiceLink = {
   sale_id: string | null;
@@ -46,6 +46,7 @@ function isInDateRange(date: string, range?: DateRange) {
 export default function NewInvoice() {
   const navigate = useNavigate();
   const { organization } = useAuth();
+  const { t } = useLanguage();
   const { data: sales = [], isLoading: salesLoading } = useSales();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>();
@@ -96,9 +97,9 @@ export default function NewInvoice() {
     <div className="min-h-full space-y-5 p-4 pb-20 md:p-6 md:pb-8 lg:p-8">
       <PageHeader
         icon={FileText}
-        title="Nova fatura"
-        subtitle="Seleciona uma venda ainda sem documento fiscal para emitir a fatura."
-        actions={<Button variant="outline" onClick={() => navigate("/financeiro")}><ArrowLeft className="mr-2 h-4 w-4" />Voltar ao Financeiro</Button>}
+        title={t("Nova fatura")}
+        subtitle={t("Seleciona uma venda ainda sem documento fiscal para emitir a fatura.")}
+        actions={<Button variant="outline" onClick={() => navigate("/financeiro")}><ArrowLeft className="mr-2 h-4 w-4" />{t("Voltar ao Financeiro")}</Button>}
       />
 
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 md:flex-row md:items-center">
@@ -107,40 +108,40 @@ export default function NewInvoice() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Pesquisar por cliente, empresa ou código da venda…"
+            placeholder={t("Pesquisar por cliente, empresa ou código da venda…")}
             className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-            aria-label="Pesquisar vendas sem fatura"
+            aria-label={t("Pesquisar vendas sem fatura")}
           />
         </div>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as SaleStatusFilter)}>
-          <SelectTrigger className="h-10 w-full border-primary/25 md:w-[190px]" aria-label="Filtrar por estado da venda">
-            <SelectValue placeholder="Estado da venda" />
+          <SelectTrigger className="h-10 w-full border-primary/25 md:w-[190px]" aria-label={t("Filtrar por estado da venda")}>
+            <SelectValue placeholder={t("Estado da venda")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os estados</SelectItem>
-            <SelectItem value="in_progress">Em progresso</SelectItem>
-            <SelectItem value="fulfilled">Entregue</SelectItem>
-            <SelectItem value="delivered">Concluída</SelectItem>
+            <SelectItem value="all">{t("Todos os estados")}</SelectItem>
+            <SelectItem value="in_progress">{t("Em progresso")}</SelectItem>
+            <SelectItem value="fulfilled">{t("Entregue")}</SelectItem>
+            <SelectItem value="delivered">{t("Concluída")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as SalePaymentFilter)}>
-          <SelectTrigger className="h-10 w-full border-primary/25 md:w-[190px]" aria-label="Filtrar por estado do pagamento">
-            <SelectValue placeholder="Pagamento" />
+          <SelectTrigger className="h-10 w-full border-primary/25 md:w-[190px]" aria-label={t("Filtrar por estado do pagamento")}>
+            <SelectValue placeholder={t("Pagamento")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os pagamentos</SelectItem>
-            <SelectItem value="pending">Por receber</SelectItem>
-            <SelectItem value="partial">Parcialmente pago</SelectItem>
-            <SelectItem value="paid">Pago</SelectItem>
+            <SelectItem value="all">{t("Todos os pagamentos")}</SelectItem>
+            <SelectItem value="pending">{t("Por receber")}</SelectItem>
+            <SelectItem value="partial">{t("Parcialmente pago")}</SelectItem>
+            <SelectItem value="paid">{t("Pago")}</SelectItem>
           </SelectContent>
         </Select>
-        <DateRangePicker value={dateRange} onChange={setDateRange} placeholder="Todo o histórico" className="w-full md:w-[260px]" />
+        <DateRangePicker value={dateRange} onChange={setDateRange} placeholder={t("Todo o histórico")} className="w-full md:w-[260px]" />
       </div>
 
       <div className="flex items-center justify-between gap-3 px-1">
         <div>
-          <h2 className="font-semibold">Vendas sem fatura</h2>
-          <p className="text-sm text-muted-foreground">Seleciona uma venda para rever os dados e emitir o documento.</p>
+          <h2 className="font-semibold">{t("Vendas sem fatura")}</h2>
+          <p className="text-sm text-muted-foreground">{t("Seleciona uma venda para rever os dados e emitir o documento.")}</p>
         </div>
         {!isLoading && <Badge variant="secondary">{eligibleSales.length}</Badge>}
       </div>
@@ -148,7 +149,7 @@ export default function NewInvoice() {
       {isLoading ? (
         <div className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>
       ) : eligibleSales.length === 0 ? (
-        <EmptyState icon={FileText} title="Nenhuma venda por faturar" description="Não há vendas sem fatura com os filtros selecionados." />
+        <EmptyState icon={FileText} title={t("Nenhuma venda por faturar")} description={t("Não há vendas sem fatura com os filtros selecionados.")} />
       ) : (
         <div className="space-y-3">
           {eligibleSales.map((sale) => (
@@ -156,19 +157,19 @@ export default function NewInvoice() {
               <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
                 <div className="min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{sale.client?.name || sale.lead?.name || "Cliente sem nome"}</span>
-                    <Badge variant="outline" className={SALE_STATUS_COLORS[sale.status]}>{SALE_STATUS_LABELS[sale.status]}</Badge>
-                    <Badge variant="secondary">Venda {sale.code}</Badge>
+                    <span className="font-semibold">{sale.client?.name || sale.lead?.name || t("Cliente sem nome")}</span>
+                    <Badge variant="outline" className={SALE_STATUS_COLORS[sale.status]}>{t(SALE_STATUS_LABELS[sale.status])}</Badge>
+                    <Badge variant="secondary">{t("Venda {{code}}", { code: sale.code })}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                    <span>{format(parseISO(sale.sale_date), "dd MMM yyyy", { locale: pt })}</span>
-                    <span>{sale.payment_status === "paid" ? "Pago" : sale.payment_status === "partial" ? "Parcialmente pago" : "Por receber"}</span>
+                    <span>{format(parseISO(sale.sale_date), "dd MMM yyyy", { locale: dateLocale() })}</span>
+                    <span>{sale.payment_status === "paid" ? t("Pago") : sale.payment_status === "partial" ? t("Parcialmente pago") : t("Por receber")}</span>
                     {sale.client?.company && <span>{sale.client.company}</span>}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end">
                   <span className="text-lg font-semibold tabular-nums">{formatCurrency(sale.gross_value ?? sale.total_value)}</span>
-                  <Button onClick={() => setSelectedSaleId(sale.id)}>Selecionar venda</Button>
+                  <Button onClick={() => setSelectedSaleId(sale.id)}>{t("Selecionar venda")}</Button>
                 </div>
               </CardContent>
             </Card>

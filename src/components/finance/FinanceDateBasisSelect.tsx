@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { DATE_BASIS_LABEL, type DateBasis } from '@/lib/recurring-finance';
+import { useLanguage } from '@/i18n';
 
 interface FinanceDateBasisSelectProps {
   value: DateBasis;
@@ -24,9 +25,10 @@ interface FinanceDateBasisSelectProps {
  * ver respondida.
  */
 export function FinanceDateBasisSelect({ value, onChange }: FinanceDateBasisSelectProps) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">Base de cálculo</Label>
+      <Label className="text-xs text-muted-foreground">{t("Base de cálculo")}</Label>
       <Select value={value} onValueChange={(next) => onChange(next as DateBasis)}>
         <SelectTrigger className="w-[190px]">
           <SelectValue />
@@ -35,21 +37,21 @@ export function FinanceDateBasisSelect({ value, onChange }: FinanceDateBasisSele
           <SelectItem value="accrual">
             <span className="flex items-center gap-2">
               <CalendarClock className="h-3.5 w-3.5" />
-              {DATE_BASIS_LABEL.accrual}
+              {t(DATE_BASIS_LABEL.accrual)}
             </span>
           </SelectItem>
           <SelectItem value="cash">
             <span className="flex items-center gap-2">
               <Landmark className="h-3.5 w-3.5" />
-              {DATE_BASIS_LABEL.cash}
+              {t(DATE_BASIS_LABEL.cash)}
             </span>
           </SelectItem>
         </SelectContent>
       </Select>
       <p className="text-[11px] text-muted-foreground">
         {value === 'accrual'
-          ? 'O mês que o serviço cobre, esteja pago ou não.'
-          : 'O mês em que o dinheiro entrou.'}
+          ? t('O mês que o serviço cobre, esteja pago ou não.')
+          : t('O mês em que o dinheiro entrou.')}
       </p>
     </div>
   );

@@ -38,6 +38,7 @@ import type {
   AutomationGraph, AutomationNodeConfig, AutomationNodeType, AutomationReentryPolicy,
   AutomationTriggerType,
 } from '@/types/automations';
+import { tr, useLanguage } from '@/i18n';
 
 type PickerTarget =
   // `position` is set when the "+" was dragged: the step lands exactly there
@@ -47,6 +48,7 @@ type PickerTarget =
   | null;
 
 export default function AutomationEditor() {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const { data: flow, isLoading } = useAutomationFlow(id ?? null);
   const updateFlow = useUpdateAutomationFlow();
@@ -128,8 +130,8 @@ export default function AutomationEditor() {
       // Pulled from a branch that already has a line. A branch carries exactly
       // one path, so there is no room for a second step on it.
       if (branch && graph.edges.some((edge) => edge.source === sourceId && edge.branch === branch)) {
-        toast.error('Ramo já ligado', {
-          description: 'Apaga a ligação atual antes de pôr outro passo neste ramo.',
+        toast.error(tr('Ramo já ligado'), {
+          description: tr('Apaga a ligação atual antes de pôr outro passo neste ramo.'),
         });
         return;
       }
@@ -146,7 +148,7 @@ export default function AutomationEditor() {
       // position update, and only the edges decide whether this is allowed.
       const refusal = describeConnectionRefusal(graph, sourceId, targetId, branch);
       if (refusal) {
-        toast.error('Ligação não permitida', { description: refusal });
+        toast.error(tr('Ligação não permitida'), { description: refusal });
         return;
       }
       // Functional, so the edge stacks on the positions written by the same
@@ -253,7 +255,7 @@ export default function AutomationEditor() {
       reentry_policy: reentry,
     });
     setDirty(false);
-    toast.success('Automação guardada');
+    toast.success(t('Automação guardada'));
   };
 
   /**
@@ -271,7 +273,7 @@ export default function AutomationEditor() {
     const nextStatus = flow.status === 'active' ? 'paused' : 'active';
 
     if (nextStatus === 'active' && issues.length) {
-      toast.error('Não é possível ativar', { description: issues[0].message });
+      toast.error(t('Não é possível ativar'), { description: issues[0].message });
       return;
     }
     // Never activate a graph that differs from what is stored.
@@ -325,11 +327,11 @@ export default function AutomationEditor() {
       <div className="p-4 md:p-6">
         <EmptyState
           icon={Workflow}
-          title="Automação não encontrada"
-          description="O fluxo que procura foi eliminado ou não pertence a esta organização."
+          title={t('Automação não encontrada')}
+          description={t('O fluxo que procura foi eliminado ou não pertence a esta organização.')}
         >
           <Button asChild variant="outline">
-            <Link to="/automacoes">Voltar às automações</Link>
+            <Link to="/automacoes">{t('Voltar às automações')}</Link>
           </Button>
         </EmptyState>
       </div>
@@ -344,7 +346,7 @@ export default function AutomationEditor() {
       {/* Toolbar */}
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2.5 md:px-4">
         <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-          <Link to="/automacoes" title="Voltar">
+          <Link to="/automacoes" title={t('Voltar')}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -356,7 +358,7 @@ export default function AutomationEditor() {
             setDirty(true);
           }}
           className="h-8 w-40 border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:border-border focus-visible:border-border sm:w-64"
-          placeholder="Nome da automação"
+          placeholder={t('Nome da automação')}
         />
 
         <FlowStatusPill status={flow.status} />
@@ -364,7 +366,7 @@ export default function AutomationEditor() {
         {dirty && (
           <span className="flex items-center gap-1 text-xs font-medium text-warning">
             <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-            Alterações por guardar
+            {t('Alterações por guardar')}
           </span>
         )}
 
@@ -374,7 +376,7 @@ export default function AutomationEditor() {
             title={issues.map((issue) => issue.message).join('\n')}
           >
             <AlertTriangle className="h-3.5 w-3.5" />
-            {issues.length} {issues.length === 1 ? 'aviso' : 'avisos'}
+            {t(issues.length === 1 ? '{{n}} aviso' : '{{n}} avisos', { n: issues.length })}
           </span>
         )}
 
@@ -384,10 +386,10 @@ export default function AutomationEditor() {
               variant="ghost"
               size="sm"
               onClick={handleAutoLayout}
-              title="Reorganizar os passos automaticamente"
+              title={t('Reorganizar os passos automaticamente')}
             >
               <LayoutGrid className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Auto-organizar</span>
+              <span className="hidden sm:inline">{t('Auto-organizar')}</span>
             </Button>
           )}
 
@@ -396,10 +398,10 @@ export default function AutomationEditor() {
             size="sm"
             onClick={handleOpenTest}
             disabled={isBusy}
-            title="Correr o fluxo com os seus contactos"
+            title={t('Correr o fluxo com os seus contactos')}
           >
             <FlaskConical className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Testar</span>
+            <span className="hidden sm:inline">{t('Testar')}</span>
           </Button>
 
           {/* As in n8n: "Guardado" when the canvas is what runs, a highlighted
@@ -409,7 +411,7 @@ export default function AutomationEditor() {
             size="sm"
             onClick={handleSave}
             disabled={!dirty || isBusy}
-            title={dirty ? 'Guardar (Ctrl+S)' : 'Tudo guardado'}
+            title={dirty ? t('Guardar (Ctrl+S)') : t('Tudo guardado')}
             className={cn(!dirty && 'text-muted-foreground disabled:opacity-100')}
           >
             {updateFlow.isPending
@@ -417,7 +419,7 @@ export default function AutomationEditor() {
               : dirty
                 ? <Save className="mr-1.5 h-3.5 w-3.5" />
                 : <Check className="mr-1.5 h-3.5 w-3.5" />}
-            {dirty ? 'Guardar' : 'Guardado'}
+            {dirty ? t('Guardar') : t('Guardado')}
           </Button>
 
           <Button
@@ -428,9 +430,9 @@ export default function AutomationEditor() {
             className={cn(isActive && 'text-warning')}
           >
             {isActive ? (
-              <><Pause className="mr-1.5 h-3.5 w-3.5" /> Pausar</>
+              <><Pause className="mr-1.5 h-3.5 w-3.5" /> {t('Pausar')}</>
             ) : (
-              <><Play className="mr-1.5 h-3.5 w-3.5" /> Ativar</>
+              <><Play className="mr-1.5 h-3.5 w-3.5" /> {t('Ativar')}</>
             )}
           </Button>
         </div>
@@ -439,13 +441,13 @@ export default function AutomationEditor() {
       {/* Tabs */}
       <div className="flex shrink-0 gap-1 border-b border-border bg-card px-3 md:px-4">
         <TabButton active={tab === 'canvas'} onClick={() => setTab('canvas')} icon={Workflow}>
-          Fluxo
+          {t('Fluxo')}
         </TabButton>
         <TabButton active={tab === 'activity'} onClick={() => setTab('activity')} icon={Activity}>
-          Atividade
+          {t('Atividade')}
         </TabButton>
         <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={SlidersHorizontal}>
-          Definições
+          {t('Definições')}
         </TabButton>
       </div>
 

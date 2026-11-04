@@ -21,6 +21,7 @@ import {
 } from '@/hooks/useEmailTemplateCategories';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import type { EmailTemplateCategoryRow } from '@/types/marketing';
+import { useLanguage } from '@/i18n';
 
 /** Same swatches the expense categories offer, so the two screens match. */
 const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'];
@@ -33,6 +34,7 @@ export function TemplateCategoriesManager() {
   const { data: categories, isLoading } = useEmailTemplateCategories();
   const { data: templates } = useEmailTemplates();
   const deleteCategory = useDeleteEmailTemplateCategory();
+  const { t } = useLanguage();
 
   const [editing, setEditing] = useState<EmailTemplateCategoryRow | 'new' | null>(null);
   const [deleting, setDeleting] = useState<EmailTemplateCategoryRow | null>(null);
@@ -53,7 +55,7 @@ export function TemplateCategoriesManager() {
       <div className="flex items-center justify-end">
         <Button onClick={() => setEditing('new')} className="gap-2">
           <Plus className="h-4 w-4" />
-          Adicionar categoria
+          {t('Adicionar categoria')}
         </Button>
       </div>
 
@@ -66,8 +68,8 @@ export function TemplateCategoriesManager() {
           </div>
         ) : !categories?.length ? (
           <div className="py-8 text-center text-muted-foreground">
-            <p>Nenhuma categoria criada.</p>
-            <p className="text-sm">Clique em "Adicionar" para criar a primeira.</p>
+            <p>{t('Nenhuma categoria criada.')}</p>
+            <p className="text-sm">{t('Clique em "Adicionar" para criar a primeira.')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -86,20 +88,20 @@ export function TemplateCategoriesManager() {
                     <div className="min-w-0">
                       <p className="truncate font-medium">{category.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {used === 1 ? '1 template' : `${used} templates`}
+                        {used === 1 ? t('1 template') : t('{{n}} templates', { n: used })}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => setEditing(category)} aria-label={`Editar ${category.name}`}>
+                    <Button variant="ghost" size="icon" onClick={() => setEditing(category)} aria-label={t('Editar {{name}}', { name: category.name })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => setDeleting(category)}
-                      aria-label={`Remover ${category.name}`}
+                      aria-label={t('Remover {{name}}', { name: category.name })}
                       className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -120,22 +122,22 @@ export function TemplateCategoriesManager() {
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover "{deleting?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Remover "{{name}}"?', { name: deleting?.name })}</AlertDialogTitle>
             <AlertDialogDescription>
               {(counts[deleting?.id ?? ''] ?? 0) > 0
-                ? `Os ${counts[deleting?.id ?? ''] } templates desta categoria não são apagados: ficam sem categoria e pode atribuir outra depois.`
-                : 'Esta categoria não está a ser usada por nenhum template.'}
+                ? t('Os {{n}} templates desta categoria não são apagados: ficam sem categoria e pode atribuir outra depois.', { n: counts[deleting?.id ?? ''] })
+                : t('Esta categoria não está a ser usada por nenhum template.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleting) deleteCategory.mutate(deleting.id);
                 setDeleting(null);
               }}
             >
-              Remover
+              {t('Remover')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -154,6 +156,7 @@ function CategoryDialog({
 }) {
   const create = useCreateEmailTemplateCategory();
   const update = useUpdateEmailTemplateCategory();
+  const { t } = useLanguage();
 
   const existing = category && category !== 'new' ? category : null;
   const [name, setName] = useState('');
@@ -182,36 +185,36 @@ function CategoryDialog({
     <Dialog open={!!category} onOpenChange={(open) => { if (!open) { setSeeded(null); onClose(); } }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{existing ? 'Editar categoria' : 'Nova categoria'}</DialogTitle>
+          <DialogTitle>{existing ? t('Editar categoria') : t('Nova categoria')}</DialogTitle>
           <DialogDescription>
             {existing
-              ? 'O novo nome aparece em todos os templates desta categoria.'
-              : 'Fica disponível ao criar ou editar qualquer template.'}
+              ? t('O novo nome aparece em todos os templates desta categoria.')
+              : t('Fica disponível ao criar ou editar qualquer template.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="template-category-name">Nome</Label>
+            <Label htmlFor="template-category-name">{t('Nome')}</Label>
             <Input
               id="template-category-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') submit(); }}
-              placeholder="Ex.: Trial, Onboarding, Reativação"
+              placeholder={t('Ex.: Trial, Onboarding, Reativação')}
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Cor</Label>
+            <Label>{t('Cor')}</Label>
             <div className="flex flex-wrap gap-2">
               {COLORS.map((swatch) => (
                 <button
                   key={swatch}
                   type="button"
                   onClick={() => setColor(swatch)}
-                  aria-label={`Cor ${swatch}`}
+                  aria-label={t('Cor {{color}}', { color: swatch })}
                   aria-pressed={color === swatch}
                   className={
                     color === swatch
@@ -226,9 +229,9 @@ function CategoryDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { setSeeded(null); onClose(); }}>Cancelar</Button>
+          <Button variant="outline" onClick={() => { setSeeded(null); onClose(); }}>{t('Cancelar')}</Button>
           <Button onClick={submit} disabled={!valid || busy}>
-            {existing ? 'Guardar' : 'Criar'}
+            {existing ? t('Guardar') : t('Criar')}
           </Button>
         </DialogFooter>
       </DialogContent>

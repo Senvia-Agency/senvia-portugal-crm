@@ -21,6 +21,7 @@ import {
   isTaskOverdue, type InboxTask,
 } from "@/hooks/useInboxTasks";
 import { cn } from "@/lib/utils";
+import { intlLocale, tr, useLanguage } from "@/i18n";
 import {
   CalendarClock, Check, ChevronDown, ChevronRight, ClipboardList, Loader2, MoreVertical, Plus, Sparkles, Trash2, X,
 } from "lucide-react";
@@ -84,16 +85,16 @@ function presetToDate(preset: string, custom: string): Date | null {
 function formatDue(dueAt: string): { label: string; tone: "overdue" | "today" | "later" } {
   const d = new Date(dueAt);
   const now = new Date();
-  const time = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" });
   if (d.getTime() < now.getTime()) {
     const sameDay = d.toDateString() === now.toDateString();
-    return { label: sameDay ? `Venceu às ${time}` : `Venceu ${d.toLocaleDateString("pt-PT", { day: "2-digit", month: "short" })}`, tone: "overdue" };
+    return { label: sameDay ? tr("Venceu às {{time}}", { time }) : tr("Venceu {{date}}", { date: d.toLocaleDateString(intlLocale(), { day: "2-digit", month: "short" }) }), tone: "overdue" };
   }
-  if (d.toDateString() === now.toDateString()) return { label: `Hoje ${time}`, tone: "today" };
+  if (d.toDateString() === now.toDateString()) return { label: tr("Hoje {{time}}", { time }), tone: "today" };
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
-  if (d.toDateString() === tomorrow.toDateString()) return { label: `Amanhã ${time}`, tone: "later" };
-  return { label: d.toLocaleDateString("pt-PT", { day: "2-digit", month: "short" }), tone: "later" };
+  if (d.toDateString() === tomorrow.toDateString()) return { label: tr("Amanhã {{time}}", { time }), tone: "later" };
+  return { label: d.toLocaleDateString(intlLocale(), { day: "2-digit", month: "short" }), tone: "later" };
 }
 
 function firstName(name: string | null | undefined): string {
@@ -112,6 +113,7 @@ function toLocalInput(iso: string): string {
 export function ConversationTasks({
   phone, contactName, conversationId, nativeConversationId, channelId, leadId, clientId, teamMembers, prefill, onPrefillConsumed,
 }: ConversationTasksProps) {
+  const { t: tt } = useLanguage();
   const { user } = useAuth();
   const { data: tasks = [], isError: tasksFailed } = useConversationTasks(phone, channelId);
   const createTask = useCreateInboxTask();
@@ -132,10 +134,10 @@ export function ConversationTasks({
   const duePresetOptions: Array<[string, string]> = (() => {
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60;
-    const opts: Array<[string, string]> = [["1h", "Daqui a 1 hora"]];
-    if (h < 17.5) opts.push(["today", "Hoje (18h)"]);
-    else if (h < 20.5) opts.push(["tonight", "Hoje à noite (21h)"]);
-    opts.push(["tomorrow", "Amanhã (9h)"], ["monday", "Segunda (9h)"], ["custom", "Data à escolha…"], ["none", "Sem prazo"]);
+    const opts: Array<[string, string]> = [["1h", tt("Daqui a 1 hora")]];
+    if (h < 17.5) opts.push(["today", tt("Hoje (18h)")]);
+    else if (h < 20.5) opts.push(["tonight", tt("Hoje à noite (21h)")]);
+    opts.push(["tomorrow", tt("Amanhã (9h)")], ["monday", tt("Segunda (9h)")], ["custom", tt("Data à escolha…")], ["none", tt("Sem prazo")]);
     return opts;
   })();
   const [duePreset, setDuePreset] = useState(() => {
@@ -205,7 +207,7 @@ export function ConversationTasks({
 
   const memberName = (id: string | null) => {
     if (!id) return null;
-    if (id === user?.id) return "Eu";
+    if (id === user?.id) return tt("Eu");
     return firstName(teamMembers.find((m) => m.user_id === id)?.full_name) || null;
   };
 
@@ -213,22 +215,22 @@ export function ConversationTasks({
     <div className="rounded-xl border bg-card p-3">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <ClipboardList className="h-3.5 w-3.5" />
-        Tarefas{open.length > 0 ? ` (${open.length})` : ""}
+        {open.length > 0 ? tt("Tarefas ({{n}})", { n: open.length }) : tt("Tarefas")}
         <button
           type="button"
-          title={aiEnabled ? "Sugestões por IA: ligadas (clica para desligar)" : "Sugestões por IA: desligadas (clica para ligar)"}
+          title={aiEnabled ? tt("Sugestões por IA: ligadas (clica para desligar)") : tt("Sugestões por IA: desligadas (clica para ligar)")}
           onClick={() => {
             const next = !aiEnabled;
             saveAiEnabled.mutate(next, {
               onSuccess: () =>
                 toast({
-                  title: next ? "✨ Sugestões por IA ligadas" : "Sugestões por IA desligadas",
+                  title: next ? tt("✨ Sugestões por IA ligadas") : tt("Sugestões por IA desligadas"),
                   description: next
-                    ? "A IA vai sugerir tarefas a partir de promessas e pedidos nas conversas."
-                    : "A IA deixa de sugerir tarefas nesta organização.",
+                    ? tt("A IA vai sugerir tarefas a partir de promessas e pedidos nas conversas.")
+                    : tt("A IA deixa de sugerir tarefas nesta organização."),
                 }),
               onError: (err) =>
-                toast({ title: "Não foi possível alterar", description: (err as Error).message, variant: "destructive" }),
+                toast({ title: tt("Não foi possível alterar"), description: (err as Error).message, variant: "destructive" }),
             });
           }}
           className={cn(
@@ -239,22 +241,22 @@ export function ConversationTasks({
           )}
         >
           <Sparkles className="h-3 w-3" />
-          {aiEnabled ? "IA on" : "IA off"}
+          {aiEnabled ? tt("IA on") : tt("IA off")}
         </button>
       </p>
 
       {(tasksFailed || aiConfigFailed) && (
-        <p role="alert" className="mb-2 text-xs text-destructive">Não foi possível carregar as tarefas ou as definições da IA.</p>
+        <p role="alert" className="mb-2 text-xs text-destructive">{tt("Não foi possível carregar as tarefas ou as definições da IA.")}</p>
       )}
-      {analysis.isFetching && <p role="status" className="mb-2 text-xs text-muted-foreground">A IA está a analisar as mensagens…</p>}
+      {analysis.isFetching && <p role="status" className="mb-2 text-xs text-muted-foreground">{tt("A IA está a analisar as mensagens…")}</p>}
       {analysis.isError && aiEnabled && (
         <div role="alert" className="mb-2 text-xs text-destructive">
-          Não foi possível analisar esta conversa.
-          <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => void analysis.refetch()}>Tentar novamente</Button>
+          {tt("Não foi possível analisar esta conversa.")}
+          <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => void analysis.refetch()}>{tt("Tentar novamente")}</Button>
         </div>
       )}
       {aiEnabled && analysis.data?.hasMore && !analysis.isError && (
-        <Button variant="link" size="sm" className="mb-2 h-10 px-0 text-xs" disabled={analysis.isFetching} onClick={() => void analysis.refetch()}>Analisar mais mensagens</Button>
+        <Button variant="link" size="sm" className="mb-2 h-10 px-0 text-xs" disabled={analysis.isFetching} onClick={() => void analysis.refetch()}>{tt("Analisar mais mensagens")}</Button>
       )}
       {/* AI suggestions — accepted becomes a real task, dismissed disappears */}
       {suggestions.length > 0 && (
@@ -286,7 +288,7 @@ export function ConversationTasks({
                     onClick={() => acceptSuggestion.mutate(t.id)}
                   >
                     <Check className="mr-1 h-3 w-3" />
-                    Aceitar
+                    {tt("Aceitar")}
                   </Button>
                   <Button
                     size="sm"
@@ -295,7 +297,7 @@ export function ConversationTasks({
                     onClick={() => deleteTask.mutate(t.id)}
                   >
                     <X className="mr-1 h-3 w-3" />
-                    Ignorar
+                    {tt("Ignorar")}
                   </Button>
                 </div>
               </div>
@@ -313,13 +315,13 @@ export function ConversationTasks({
             <div key={t.id} className="group flex items-start gap-2 rounded-lg px-1 py-1 hover:bg-accent/50">
               <button
                 type="button"
-                title="Concluir"
+                title={tt("Concluir")}
                 onClick={() => toggleTask.mutate({ id: t.id, done: true })}
                 className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-muted-foreground/40 text-transparent transition-colors hover:border-emerald-500 hover:text-emerald-500"
               >
                 <Check className="h-3 w-3" />
               </button>
-              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(t)} title="Ver detalhes">
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(t)} title={tt("Ver detalhes")}>
                 <p className="break-words text-xs leading-snug">{t.title}</p>
                 {t.description && (
                   <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{t.description}</p>
@@ -350,20 +352,20 @@ export function ConversationTasks({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => snooze(t, "1h")}>Adiar 1 hora</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => snooze(t, "1d")}>Adiar para amanhã (9h)</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => snooze(t, "1w")}>Adiar 1 semana</DropdownMenuItem>
-                  {t.due_at && <DropdownMenuItem onClick={() => snooze(t, "clear")}>Remover prazo</DropdownMenuItem>}
+                  <DropdownMenuItem onClick={() => snooze(t, "1h")}>{tt("Adiar 1 hora")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => snooze(t, "1d")}>{tt("Adiar para amanhã (9h)")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => snooze(t, "1w")}>{tt("Adiar 1 semana")}</DropdownMenuItem>
+                  {t.due_at && <DropdownMenuItem onClick={() => snooze(t, "clear")}>{tt("Remover prazo")}</DropdownMenuItem>}
                   <DropdownMenuSeparator />
                   {teamMembers.map((m) => (
                     <DropdownMenuItem key={m.user_id} onClick={() => updateTask.mutate({ id: t.id, assignedTo: m.user_id })}>
-                      Atribuir a {firstName(m.full_name) || "membro"}
+                      {tt("Atribuir a {{name}}", { name: firstName(m.full_name) || tt("membro") })}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-destructive" onClick={() => deleteTask.mutate(t.id)}>
                     <Trash2 className="mr-2 h-3.5 w-3.5" />
-                    Apagar
+                    {tt("Apagar")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -371,7 +373,7 @@ export function ConversationTasks({
           );
         })}
         {open.length === 0 && (
-          <p className="px-1 text-[11px] text-muted-foreground">Sem tarefas — adiciona uma para não esqueceres o combinado.</p>
+          <p className="px-1 text-[11px] text-muted-foreground">{tt("Sem tarefas — adiciona uma para não esqueceres o combinado.")}</p>
         )}
       </div>
 
@@ -383,7 +385,7 @@ export function ConversationTasks({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAdd(); } }}
-            placeholder="Adicionar tarefa..."
+            placeholder={tt("Adicionar tarefa...")}
             rows={Math.min(4, Math.max(1, Math.ceil(title.length / 32)))}
             className="min-h-[32px] resize-none px-2 py-1.5 text-xs"
           />
@@ -407,11 +409,11 @@ export function ConversationTasks({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="me">Para mim</SelectItem>
+              <SelectItem value="me">{tt("Para mim")}</SelectItem>
               {teamMembers.filter((m) => m.user_id !== user?.id).map((m) => (
-                <SelectItem key={m.user_id} value={m.user_id}>{firstName(m.full_name) || "Membro"}</SelectItem>
+                <SelectItem key={m.user_id} value={m.user_id}>{firstName(m.full_name) || tt("Membro")}</SelectItem>
               ))}
-              <SelectItem value="none">Sem responsável</SelectItem>
+              <SelectItem value="none">{tt("Sem responsável")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -434,7 +436,7 @@ export function ConversationTasks({
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             {showDone ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Concluídas ({done.length})
+            {tt("Concluídas ({{n}})", { n: done.length })}
           </button>
           {showDone && (
             <div className="mt-1 space-y-0.5">
@@ -442,7 +444,7 @@ export function ConversationTasks({
                 <div key={t.id} className="group flex items-center gap-2 rounded px-1 py-0.5">
                   <button
                     type="button"
-                    title="Reabrir"
+                    title={tt("Reabrir")}
                     onClick={() => toggleTask.mutate({ id: t.id, done: false })}
                     className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-emerald-500 bg-emerald-500 text-white"
                   >
@@ -471,40 +473,40 @@ export function ConversationTasks({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <ClipboardList className="h-4 w-4" />
-              Detalhes da tarefa
+              {tt("Detalhes da tarefa")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">Tarefa</p>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{tt("Tarefa")}</p>
               <Textarea value={editTitle} onChange={(e) => setEditTitle(e.target.value)} rows={2} className="resize-none text-sm" />
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">Descrição</p>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{tt("Descrição")}</p>
               <Textarea
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
                 rows={4}
-                placeholder="Detalhes, contexto, passos..."
+                placeholder={tt("Detalhes, contexto, passos...")}
                 className="text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">Prazo</p>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">{tt("Prazo")}</p>
                 <Input type="datetime-local" value={editDue} onChange={(e) => setEditDue(e.target.value)} className="h-9 text-xs" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">Responsável</p>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">{tt("Responsável")}</p>
                 <Select value={editAssignee} onValueChange={setEditAssignee}>
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sem responsável</SelectItem>
+                    <SelectItem value="none">{tt("Sem responsável")}</SelectItem>
                     {teamMembers.map((m) => (
                       <SelectItem key={m.user_id} value={m.user_id}>
-                        {m.user_id === user?.id ? "Eu" : firstName(m.full_name) || "Membro"}
+                        {m.user_id === user?.id ? tt("Eu") : firstName(m.full_name) || tt("Membro")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -525,7 +527,7 @@ export function ConversationTasks({
                 onClick={() => { if (editing) deleteTask.mutate(editing.id); setEditing(null); }}
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Apagar
+                {tt("Apagar")}
               </Button>
               <Button
                 variant="ghost"
@@ -537,7 +539,7 @@ export function ConversationTasks({
                 }}
               >
                 <Check className="mr-1.5 h-3.5 w-3.5" />
-                {editing?.done_at ? "Reabrir tarefa" : "Marcar concluída"}
+                {editing?.done_at ? tt("Reabrir tarefa") : tt("Marcar concluída")}
               </Button>
             </div>
             <Button
@@ -555,7 +557,7 @@ export function ConversationTasks({
                 setEditing(null);
               }}
             >
-              Guardar
+              {tt("Guardar")}
             </Button>
           </DialogFooter>
         </DialogContent>

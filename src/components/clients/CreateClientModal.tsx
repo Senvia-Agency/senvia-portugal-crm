@@ -34,6 +34,7 @@ import { isKeyInvoiceActive } from "@/lib/fiscal-automation";
 import { ClientAutomaticDocuments, type ClientAutomaticDocumentsValue } from "./ClientAutomaticDocuments";
 import { COUNTRIES } from "@/lib/countries";
 import { User, Building2 } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 interface CreateClientModalProps {
   open: boolean;
@@ -50,6 +51,7 @@ interface CreateClientModalProps {
 }
 
 export function CreateClientModal({ open, onOpenChange, onCreated, initialData }: CreateClientModalProps) {
+  const { t } = useLanguage();
   const labels = useClientLabels();
   const { organization } = useAuth();
   const { data: teamMembers = [] } = useTeamMembers();
@@ -211,9 +213,9 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
         <DialogHeader className="px-4 sm:px-6 py-4 border-b shrink-0">
-          <DialogTitle>{labels.new}</DialogTitle>
+          <DialogTitle>{t(labels.new)}</DialogTitle>
           <DialogDescription>
-            Adicione um novo {labels.singular.toLowerCase()} ao seu CRM.
+            {t("Adicione um novo {{entity}} ao seu CRM.", { entity: t(labels.singular).toLowerCase() })}
           </DialogDescription>
         </DialogHeader>
 
@@ -225,20 +227,20 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                 {/* Basic Info */}
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Informações Básicas</CardTitle>
+                    <CardTitle className="text-base">{t("Informações Básicas")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {settings.name.visible && (
                         <div className="space-y-2 sm:col-span-2">
                           <Label htmlFor="name">
-                            {settings.name.label} {settings.name.required && '*'}
+                            {t(settings.name.label)} {settings.name.required && '*'}
                           </Label>
                           <Input
                             id="name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder={`Nome do ${labels.singular.toLowerCase()}`}
+                            placeholder={t("Nome do {{entity}}", { entity: t(labels.singular).toLowerCase() })}
                             required={settings.name.required}
                           />
                         </div>
@@ -247,7 +249,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                       {settings.email.visible && (
                         <div className="space-y-2">
                           <Label htmlFor="email">
-                            {settings.email.label} {settings.email.required && '*'}
+                            {t(settings.email.label)} {settings.email.required && '*'}
                           </Label>
                           <Input
                             id="email"
@@ -263,7 +265,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                       {settings.phone.visible && (
                         <div className="space-y-2">
                           <Label htmlFor="phone">
-                            {settings.phone.label} {settings.phone.required && '*'}
+                            {t(settings.phone.label)} {settings.phone.required && '*'}
                           </Label>
                           <PhoneInput
                             value={phone}
@@ -276,18 +278,18 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                       {settings.nif.visible && (
                         <div className="space-y-2">
                           <Label htmlFor="nif">
-                            NIF (Cliente) {settings.nif.required && '*'}
+                            {t("NIF (Cliente)")} {settings.nif.required && '*'}
                           </Label>
                           <Input
                             id="nif"
                             value={nif}
                             onChange={(e) => setNif(e.target.value)}
-                            placeholder="NIF pessoal"
+                            placeholder={t("NIF pessoal")}
                             required={settings.nif.required}
                           />
                           {nifValidation.isDuplicate && (
                             <p className="text-xs text-destructive mt-1">
-                              Já existe um cliente com este NIF: {nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}
+                              {t("Já existe um cliente com este NIF:")} {nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}
                             </p>
                           )}
                         </div>
@@ -302,38 +304,38 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
-                        Empresa
+                        {t("Empresa")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="company">
-                            {settings.company.label} {settings.company.required && '*'}
+                            {t(settings.company.label)} {settings.company.required && '*'}
                           </Label>
                           <Input
                             id="company"
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
-                            placeholder="Nome da empresa"
+                            placeholder={t("Nome da empresa")}
                             required={settings.company.required}
                           />
                         </div>
                         {settings.company_nif?.visible && (
                           <div className="space-y-2">
                             <Label htmlFor="company-nif">
-                              {settings.company_nif.label} {settings.company_nif.required && '*'}
+                              {t(settings.company_nif.label)} {settings.company_nif.required && '*'}
                             </Label>
                             <Input
                               id="company-nif"
                               value={companyNif}
                               onChange={(e) => setCompanyNif(e.target.value)}
-                              placeholder="NIF da empresa"
+                              placeholder={t("NIF da empresa")}
                               required={settings.company_nif.required}
                             />
                             {companyNifValidation.isDuplicate && (
                               <p className="text-xs text-destructive mt-1">
-                                Já existe um cliente com este NIF: {companyNifValidation.existingClientCode ? `${companyNifValidation.existingClientCode} - ` : ''}{companyNifValidation.existingClientName}
+                                {t("Já existe um cliente com este NIF:")} {companyNifValidation.existingClientCode ? `${companyNifValidation.existingClientCode} - ` : ''}{companyNifValidation.existingClientName}
                               </p>
                             )}
                           </div>
@@ -348,7 +350,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        {settings.address.label} {settings.address.required && '*'}
+                        {t(settings.address.label)} {settings.address.required && '*'}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -357,7 +359,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                           <Input
                             value={addressLine1}
                             onChange={(e) => setAddressLine1(e.target.value)}
-                            placeholder="Rua, número"
+                            placeholder={t("Rua, número")}
                             required={settings.address.required}
                           />
                         </div>
@@ -365,23 +367,23 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                           <Input
                             value={addressLine2}
                             onChange={(e) => setAddressLine2(e.target.value)}
-                            placeholder="Apartamento, andar (opcional)"
+                            placeholder={t("Apartamento, andar (opcional)")}
                           />
                         </div>
                         <Input
                           value={postalCode}
                           onChange={(e) => setPostalCode(e.target.value)}
-                          placeholder="Código Postal"
+                          placeholder={t("Código Postal")}
                         />
                         <Input
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
-                          placeholder="Cidade"
+                          placeholder={t("Cidade")}
                         />
                         <div className="sm:col-span-2">
                           <Select value={country} onValueChange={setCountry}>
                             <SelectTrigger>
-                              <SelectValue placeholder="País" />
+                              <SelectValue placeholder={t("País")} />
                             </SelectTrigger>
                             <SelectContent>
                               {COUNTRIES.map((c) => (
@@ -401,35 +403,35 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                 {isTelecom && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Localização / Grupo</CardTitle>
+                      <CardTitle className="text-base">{t("Localização / Grupo")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="distrito">Distrito</Label>
+                          <Label htmlFor="distrito">{t("Distrito")}</Label>
                           <Input
                             id="distrito"
                             value={distrito}
                             onChange={(e) => setDistrito(e.target.value)}
-                            placeholder="Ex: Lisboa"
+                            placeholder={t("Ex: Lisboa")}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="conselho">Concelho</Label>
+                          <Label htmlFor="conselho">{t("Concelho")}</Label>
                           <Input
                             id="conselho"
                             value={conselho}
                             onChange={(e) => setConselho(e.target.value)}
-                            placeholder="Ex: Sintra"
+                            placeholder={t("Ex: Sintra")}
                           />
                         </div>
                         <div className="space-y-2 sm:col-span-2">
-                          <Label htmlFor="grupo-economico">Grupo Económico</Label>
+                          <Label htmlFor="grupo-economico">{t("Grupo Económico")}</Label>
                           <Input
                             id="grupo-economico"
                             value={grupoEconomico}
                             onChange={(e) => setGrupoEconomico(e.target.value)}
-                            placeholder="Ex: Grupo XYZ"
+                            placeholder={t("Ex: Grupo XYZ")}
                           />
                         </div>
                       </div>
@@ -442,7 +444,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        {settings.notes.label} {settings.notes.required && '*'}
+                        {t(settings.notes.label)} {settings.notes.required && '*'}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -450,7 +452,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                         id="notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder={`Notas sobre o ${labels.singular.toLowerCase()}...`}
+                        placeholder={t("Notas sobre o {{entity}}...", { entity: t(labels.singular).toLowerCase() })}
                         rows={4}
                         required={settings.notes.required}
                       />
@@ -466,7 +468,7 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                   {invoicingEnabled && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Faturação</CardTitle>
+                      <CardTitle className="text-base">{t("Faturação")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <RadioGroup
@@ -485,8 +487,8 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                           <RadioGroupItem value="client" id="billing-client" />
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">Faturar Cliente</p>
-                            <p className="text-xs text-muted-foreground">Usa o nome e NIF do cliente</p>
+                            <p className="text-sm font-medium">{t("Faturar Cliente")}</p>
+                            <p className="text-xs text-muted-foreground">{t("Usa o nome e NIF do cliente")}</p>
                           </div>
                         </label>
                         <label
@@ -500,35 +502,35 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                           <RadioGroupItem value="company" id="billing-company" />
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">Faturar Empresa</p>
-                            <p className="text-xs text-muted-foreground">Usa o nome e contribuinte da empresa</p>
+                            <p className="text-sm font-medium">{t("Faturar Empresa")}</p>
+                            <p className="text-xs text-muted-foreground">{t("Usa o nome e contribuinte da empresa")}</p>
                           </div>
                         </label>
                       </RadioGroup>
                       {company.trim() && (
                         <div className="mt-4 space-y-3 border-t pt-4">
-                          <p className="text-sm font-medium">Morada fiscal da empresa</p>
+                          <p className="text-sm font-medium">{t("Morada fiscal da empresa")}</p>
                           <label className="flex items-center gap-2 text-sm cursor-pointer">
                             <Checkbox checked={companyAddressSameAsClient} onCheckedChange={(checked) => setCompanyAddressSameAsClient(checked === true)} />
-                            Usar a mesma morada do cliente
+                            {t("Usar a mesma morada do cliente")}
                           </label>
                           {companyAddressSameAsClient ? (
                             <p className="text-xs text-muted-foreground">
                               {addressLine1 && city && postalCode && country
                                 ? `${addressLine1}, ${postalCode} ${city}, ${COUNTRIES.find((item) => item.code === country)?.name || country}`
-                                : 'Preenche a morada do cliente para poder emitir faturas à empresa.'}
+                                : t("Preenche a morada do cliente para poder emitir faturas à empresa.")}
                             </p>
                           ) : (
                             <>
-                              <p className="text-xs text-muted-foreground">Preenche a morada própria da empresa para faturar à empresa.</p>
-                              <Input aria-label="Morada fiscal da empresa" placeholder="Morada" value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
-                              <Input aria-label="Complemento da morada da empresa" placeholder="Complemento (opcional)" value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
+                              <p className="text-xs text-muted-foreground">{t("Preenche a morada própria da empresa para faturar à empresa.")}</p>
+                              <Input aria-label={t("Morada fiscal da empresa")} placeholder={t("Morada")} value={companyAddressLine1} onChange={(e) => setCompanyAddressLine1(e.target.value)} />
+                              <Input aria-label={t("Complemento da morada da empresa")} placeholder={t("Complemento (opcional)")} value={companyAddressLine2} onChange={(e) => setCompanyAddressLine2(e.target.value)} />
                               <div className="grid grid-cols-2 gap-2">
-                                <Input aria-label="Código postal da empresa" placeholder="Código postal" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
-                                <Input aria-label="Localidade da empresa" placeholder="Localidade" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
+                                <Input aria-label={t("Código postal da empresa")} placeholder={t("Código postal")} value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} />
+                                <Input aria-label={t("Localidade da empresa")} placeholder={t("Localidade")} value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
                               </div>
                               <Select value={companyCountry} onValueChange={setCompanyCountry}>
-                                <SelectTrigger aria-label="País da empresa"><SelectValue placeholder="País da empresa" /></SelectTrigger>
+                                <SelectTrigger aria-label={t("País da empresa")}><SelectValue placeholder={t("País da empresa")} /></SelectTrigger>
                                 <SelectContent>
                                   {COUNTRIES.map((item) => (
                                     <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>
@@ -548,33 +550,32 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Classificação</CardTitle>
+                      <CardTitle className="text-base">{t("Classificação")}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label>{labels.statusFieldLabel}</Label>
+                        <Label>{t(labels.statusFieldLabel)}</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as ClientStatus)}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="active">{labels.statusActive}</SelectItem>
-                            <SelectItem value="inactive">{labels.statusInactive}</SelectItem>
-                            <SelectItem value="vip">{labels.statusVip}</SelectItem>
+                            <SelectItem value="active">{t(labels.statusActive)}</SelectItem>
+                            <SelectItem value="inactive">{t(labels.statusInactive)}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Origem</Label>
+                        <Label>{t("Origem")}</Label>
                         <Select value={source} onValueChange={setSource}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
+                            <SelectValue placeholder={t("Selecione...")} />
                           </SelectTrigger>
                           <SelectContent>
                             {Object.entries(CLIENT_SOURCE_LABELS).map(([value, label]) => (
                               <SelectItem key={value} value={value}>
-                                {label}
+                                {t(label)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -582,16 +583,16 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Comercial Responsável</Label>
+                        <Label>{t("Comercial Responsável")}</Label>
                         <Select 
                           value={assignedTo || "none"} 
                           onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Sem responsável atribuído" />
+                            <SelectValue placeholder={t("Sem responsável atribuído")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">Sem responsável</SelectItem>
+                            <SelectItem value="none">{t("Sem responsável")}</SelectItem>
                             {teamMembers
                               .filter((member) => member.user_id)
                               .map((member) => (
@@ -608,10 +609,10 @@ export function CreateClientModal({ open, onOpenChange, onCreated, initialData }
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     <Button type="submit" disabled={!isValid || createClient.isPending} className="w-full">
-                      {createClient.isPending ? "A criar..." : `Criar ${labels.singular}`}
+                      {createClient.isPending ? t("A criar...") : t("Criar {{entity}}", { entity: t(labels.singular) })}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full">
-                      Cancelar
+                      {t("Cancelar")}
                     </Button>
                   </div>
                 </div>

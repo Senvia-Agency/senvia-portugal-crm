@@ -11,9 +11,11 @@ import { ConversationList } from './ConversationList';
 import { ConversationView } from './ConversationView';
 import { NewConversationDialog } from './NewConversationDialog';
 import './chat.css';
+import { useLanguage } from '@/i18n';
 
 /** Internal messages: conversation list and the open conversation. Used by /mensagens and inside the Inbox. */
 export function ChatWorkspace({ organizationId, userId, embedded = false }: { organizationId: string; userId: string; embedded?: boolean }) {
+  const { t } = useLanguage();
   const list = useChatConversations(organizationId, userId);
   const people = useChatPeople(userId);
   const [params, setParams] = useSearchParams();
@@ -35,15 +37,15 @@ export function ChatWorkspace({ organizationId, userId, embedded = false }: { or
     return <div className={cn(shell, 'flex items-center justify-center p-6')}>
       <div role="alert" className="max-w-md rounded-3xl border bg-card p-8 text-center shadow-sm">
         <span className="chat-avatar chat-tile chat-tile--group mx-auto" style={{ width: 56, height: 56 }}><MessagesSquare className="h-7 w-7" /></span>
-        <h1 className="mt-4 text-lg font-bold">As Mensagens ainda não estão disponíveis</h1>
+        <h1 className="mt-4 text-lg font-bold">{t('As Mensagens ainda não estão disponíveis')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{describeChatError(list.error)}</p>
-        <Button variant="outline" className="mt-5 rounded-full" onClick={() => void list.refetch()}>Tentar novamente</Button>
+        <Button variant="outline" className="mt-5 rounded-full" onClick={() => void list.refetch()}>{t('Tentar novamente')}</Button>
       </div>
     </div>;
   }
 
   return <div className={shell} data-open={active ? 'conversation' : 'list'}>
-    <aside className="chat-list-pane" aria-label="Conversas">
+    <aside className="chat-list-pane" aria-label={t('Conversas')}>
       {list.isLoading
         ? <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         : <ConversationList organizationId={organizationId} conversations={conversations} activeId={activeId} filter={filter} onFilter={setFilter}
@@ -55,9 +57,9 @@ export function ChatWorkspace({ organizationId, userId, embedded = false }: { or
             focusMessageId={focusMessageId} onFocused={focused} onBack={back} onOpen={id => open(id)} />
         : <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
             <span className="chat-avatar chat-tile chat-tile--group" style={{ width: 64, height: 64 }}><MessagesSquare className="h-8 w-8" /></span>
-            <h2 className="text-lg font-bold">As suas conversas da equipa</h2>
-            <p className="max-w-sm text-sm text-muted-foreground">Escolha uma conversa ou comece uma nova com um colega ou um grupo.</p>
-            <Button className="rounded-full" onClick={() => setCreating(true)}>Nova conversa</Button>
+            <h2 className="text-lg font-bold">{t('As suas conversas da equipa')}</h2>
+            <p className="max-w-sm text-sm text-muted-foreground">{t('Escolha uma conversa ou comece uma nova com um colega ou um grupo.')}</p>
+            <Button className="rounded-full" onClick={() => setCreating(true)}>{t('Nova conversa')}</Button>
           </div>}
     </div>
     <NewConversationDialog open={creating} onOpenChange={setCreating} organizationId={organizationId} userId={userId} people={people.members}

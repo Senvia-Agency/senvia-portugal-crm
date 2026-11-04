@@ -12,6 +12,7 @@ import { EditEmailModal } from '@/components/settings/EmailManager';
 import type { EmailChannel } from '@/hooks/useEmailChannels';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/i18n';
 import type { EmailAttachment, EmailDraft, EmailMessage } from '@/hooks/useEmail';
 import { readEmailRecoveries, type EmailRecovery } from '@/lib/inbox-drafts';
 import { MailSidebar, SidebarResizer, readSidebarWidth } from '@/features/webmail/MailSidebar';
@@ -47,6 +48,7 @@ function readScope(): MailScope | null {
 export default function WebMail() {
   const { user, organization } = useAuth();
   const client = useQueryClient();
+  const { t } = useLanguage();
   const { accounts, admin, isLoading, preferencesError } = useMailAccounts();
   const preferenceActions = usePreferenceActions();
   const ids = useMemo(() => accounts.map(account => account.id), [accounts]);
@@ -128,7 +130,7 @@ export default function WebMail() {
   // Composer ------------------------------------------------------------------------------------
   const composeAccounts = useMemo(() => accounts.map(account => ({ id: account.id, name: account.name, address: account.address })), [accounts]);
   const openComposer = (next: Omit<ComposeState, 'key'>) => {
-    if (compose) { toast.info('Já tem uma mensagem aberta', { description: 'Envie ou feche essa mensagem antes de escrever outra.' }); return; }
+    if (compose) { toast.info(t('Já tem uma mensagem aberta'), { description: t('Envie ou feche essa mensagem antes de escrever outra.') }); return; }
     setCompose({ ...next, key: crypto.randomUUID() });
   };
   const writeNew = () => {
@@ -153,29 +155,35 @@ export default function WebMail() {
   const showGrid = !isLoading && (picking || accounts.length === 0);
   const openAccount = accounts.find(account => account.id === (list.data ?? []).find(message => message.id === openId)?.channel_id);
 
-  if (!user || !organization) return <p className="p-6 text-muted-foreground">Selecione uma organização para abrir o email.</p>;
+  if (!user || !organization) return <p className="p-6 text-muted-foreground">{t('Selecione uma organização para abrir o email.')}</p>;
 
   const sidebar = <MailSidebar accounts={accounts} folders={folders} unreadByAccount={unread.byAccount} scope={scope} folderKey={folderKey} admin={admin}
     onScope={chooseScope} onFolder={chooseFolder} onCompose={() => { setSheetOpen(false); writeNew(); }}
     onSettings={account => { setSheetOpen(false); setSettingsFor(account); }}
     onAddAccount={() => { setSheetOpen(false); setPicking(true); }} onContactLists={() => { setSheetOpen(false); setListsOpen(true); }}
-    onReorder={order => preferenceActions.reorder.mutate(order, { onError: () => toast.error('Não foi possível guardar a ordem das caixas.') })} />;
+    onReorder={order => preferenceActions.reorder.mutate(order, { onError: () => toast.error(t('Não foi possível guardar a ordem das caixas.')) })}
+    onCreateFolder={(channelId, name, parentId) => void actions.createFolder(channelId, name, parentId)}
+    onRenameFolder={(folder, name) => void actions.renameFolder(folder, name)}
+    onDeleteFolder={folder => {
+      if (folderKey === `custom:${folder.id}`) chooseFolder('inbox');
+      void actions.deleteFolder(folder);
+    }} />;
 
   return <div className="webmail-page">
-    {preferencesError && <p role="status" className="shrink-0 rounded-2xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-      {preferencesError} Até lá, o email funciona, mas nomes, cores, ordem, avisos, assinaturas pessoais e listas de contactos não são guardados.
+    {preferencesError && <p role="status" className="m-3 mb-0 shrink-0 rounded-2xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      {preferencesError} {t('Até lá, o email funciona, mas nomes, cores, ordem, avisos, assinaturas pessoais e listas de contactos não são guardados.')}
     </p>}
     <div className="webmail" style={{ '--webmail-sidebar': `${width}px` } as CSSProperties} data-open={openId ? 'message' : 'list'} data-selecting={selecting}>
-      <aside className="webmail-sidebar" aria-label="Email">
+      <aside className="webmail-sidebar" aria-label={t('Email')}>
         {sidebar}
         <SidebarResizer width={width} onWidth={setWidth} />
       </aside>
-      {isLoading ? <div className="col-span-full flex items-center justify-center lg:col-span-2"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="A carregar" /></div>
+      {isLoading ? <div className="col-span-full flex items-center justify-center lg:col-span-2"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t('A carregar')} /></div>
         : showGrid ? <div className="col-span-full min-h-0 overflow-y-auto lg:col-span-2">
           <ProviderGrid admin={admin} onPick={setProvider} onBack={accounts.length > 0 ? () => setPicking(false) : undefined} />
         </div>
         : <>
-          <MailList title={searching ? `Resultados para "${searchTerm}"` : folderTitle(folderKey, folders)} resetKey={viewKey}
+          <MailList title={searching ? t('Resultados para "{{term}}"', { term: searchTerm }) : folderKey.startsWith('custom:') ? folderTitle(folderKey, folders) : t(folderTitle(folderKey, folders))} resetKey={viewKey} folders={folders}
             accounts={accounts} unified={scope === 'all'} sentView={folderKey === 'sent' && !searching} trashView={folderKey === 'trash' && !searching}
             messages={messages} drafts={isDrafts ? drafts.data ?? [] : null}
             loading={isDrafts ? drafts.isLoading : list.isLoading || unread.folders.isLoading} refreshing={list.isFetching || drafts.isFetching}
@@ -184,8 +192,8 @@ export default function WebMail() {
             onRefresh={() => { void client.invalidateQueries({ queryKey: ['email-messages'] }); void client.invalidateQueries({ queryKey: ['email-folders'] }); void client.invalidateQueries({ queryKey: ['email-drafts'] }); }}
             onMenu={() => setSheetOpen(true)} onLoadMore={loadMore} loadingMore={loadingMore} onMarkAllRead={markAllRead}
             onDeleteForever={setDeleteForever} actions={actions} onSelecting={setSelecting}
-            emptyText={searching ? 'Nenhum email encontrado.' : folderKey === 'unread' ? 'Não há emails por ler.' : folderKey === 'starred' ? 'Sem emails com estrela.' : 'Esta pasta está vazia.'} />
-          <section className="webmail-reader" aria-label="Leitura">
+            emptyText={searching ? t('Nenhum email encontrado.') : folderKey === 'unread' ? t('Não há emails por ler.') : folderKey === 'starred' ? t('Sem emails com estrela.') : t('Esta pasta está vazia.')} />
+          <section className="webmail-reader" aria-label={t('Leitura')}>
             {openId ? <MailReader key={openId} messageId={openId} account={openAccount} showAccount={scope === 'all'} folders={folders} actions={actions}
               onBack={() => setOpenId(null)} onClose={() => setOpenId(null)} onOpened={onOpened} onDeleteForever={setDeleteForever}
               onCompose={(mode, message, attachments) => openComposer({ mode, channelId: message.channel_id, original: message, draft: null, attachments: mode === 'forward' ? [...attachments] : [] })} />
@@ -196,7 +204,7 @@ export default function WebMail() {
 
     <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
       <SheetContent side="left" className="webmail-sheet top-[calc(3.5rem+env(safe-area-inset-top,0px))] h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px))] w-80 p-0 lg:top-0 lg:h-full [&>button]:right-2 [&>button]:top-2 [&>button]:h-10 [&>button]:w-10" aria-describedby={undefined}>
-        <SheetHeader className="border-b px-4 py-3 pr-14 text-left"><SheetTitle>Email</SheetTitle></SheetHeader>
+        <SheetHeader className="border-b px-4 py-3 pr-14 text-left"><SheetTitle>{t('Email')}</SheetTitle></SheetHeader>
         <div className="flex h-[calc(100%-3.5rem)] flex-col">{sidebar}</div>
       </SheetContent>
     </Sheet>
@@ -217,17 +225,17 @@ export default function WebMail() {
     <AlertDialog open={deleteForever !== null} onOpenChange={open => { if (!open) setDeleteForever(null); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminar definitivamente?</AlertDialogTitle>
-          <AlertDialogDescription>{deleteForever?.length === 1 ? 'Este email é apagado do servidor de correio e não pode ser recuperado.' : `Estes ${deleteForever?.length ?? 0} emails são apagados do servidor de correio e não podem ser recuperados.`}</AlertDialogDescription>
+          <AlertDialogTitle>{t('Eliminar definitivamente?')}</AlertDialogTitle>
+          <AlertDialogDescription>{deleteForever?.length === 1 ? t('Este email é apagado do servidor de correio e não pode ser recuperado.') : t('Estes {{n}} emails são apagados do servidor de correio e não podem ser recuperados.', { n: deleteForever?.length ?? 0 })}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
           <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => {
             const targets = deleteForever ?? [];
             setDeleteForever(null);
             if (targets.some(message => message.id === openId)) setOpenId(null);
             void actions.deletePermanently(targets);
-          }}>Eliminar definitivamente</AlertDialogAction>
+          }}>{t('Eliminar definitivamente')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

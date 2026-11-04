@@ -5,8 +5,9 @@
 import { ImapFlow } from 'imapflow';
 import { imapConfig, getEmailCaixas, getEmailCaixa, smtpTransport } from './caixas.js';
 import { syncCaixaFull, syncFolderMessages, backfillBodies } from './sync.js';
-import { bodyToHtml } from './commands.js';
+import { applyInboxRules, bodyToHtml } from './commands.js';
 import { q } from './db.js';
+import { withHostSlot } from './host-slots.js';
 
 const managers = new Map();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -81,6 +82,9 @@ class CaixaManager {
     this.lastError = null;
     this.folderPollTimer = null;
     this.watchdogTimer = null;
+    // Inbox UID up to which the email rules already ran (null until the first connection).
+    this.rulesAfterUid = null;
+    this.applyingRules = false;
   }
 
   async start() {
@@ -132,15 +136,26 @@ class CaixaManager {
       client.on('close', () => {
         if (!this.stopped && (this.client === client || this.client === null)) this.scheduleReconnect();
       });
-      await client.connect();
-      log(`[${this.caixa.label}] IMAP ligado`);
-      this.reconnectMs = 5000;
-      this.lastError = null;
+      // Logging in and the first full sync are the heavy part: at most two caixas
+      // of the same server do it at once (shared hosting refuses the rest). A
+      // failed login is tried again by scheduleReconnect, 5 s later.
+      const byPath = await withHostSlot(`imap:${this.caixa.meta?.imap_server}`, async () => {
+        await client.connect();
+        log(`[${this.caixa.label}] IMAP ligado`);
+        this.reconnectMs = 5000;
+        this.lastError = null;
 
-      const byPath = await syncCaixaFull(client, this.caixa, { perFolder: 40, bodyCap: 100 });
+        // Rules start after the highest Inbox UID saved before this connection: mail that arrived
+        // while the gateway was down still goes through them, the rest of the Inbox never does.
+        if (this.rulesAfterUid == null) this.rulesAfterUid = await this.savedInboxUid();
+        return syncCaixaFull(client, this.caixa, { perFolder: 40, bodyCap: 100 });
+      });
       this.inboxFolder = [...byPath.values()].find((f) => f.role === 'inbox') || null;
 
       if (this.inboxFolder) {
+        // A caixa connected for the first time: its existing mail is left as it is.
+        if (this.rulesAfterUid == null) this.rulesAfterUid = (await this.savedInboxUid()) ?? 0;
+        await this.applyRules();
         await client.mailboxOpen(this.inboxFolder.path);
         // Only auto-reply to mail that arrives AFTER we go live — never to the
         // backlog of unread messages synced on connect (that would blast replies).
@@ -169,6 +184,32 @@ class CaixaManager {
 
   clearFolderPoll() {
     if (this.folderPollTimer) { clearInterval(this.folderPollTimer); this.folderPollTimer = null; }
+  }
+
+  async savedInboxUid() {
+    const [row] = await q(
+      `SELECT max(m.uid) AS uid FROM email_messages m JOIN email_folders f ON f.id = m.folder_id
+        WHERE f.channel_id = $1 AND f.role = 'inbox'`,
+      [this.caixa.id],
+    );
+    return row?.uid == null ? null : Number(row.uid);
+  }
+
+  // Runs the caixa's email rules on Inbox mail not seen by them yet. Returns whether it changed
+  // anything on the server (a move leaves another mailbox selected).
+  async applyRules() {
+    if (this.applyingRules || this.rulesAfterUid == null || !this.inboxFolder || !this.client?.usable) return false;
+    this.applyingRules = true;
+    try {
+      const { lastUid, touched } = await applyInboxRules(this.client, this.caixa, this.inboxFolder, this.rulesAfterUid);
+      this.rulesAfterUid = lastUid;
+      return touched;
+    } catch (e) {
+      log(`[${this.caixa.label}] regras: ${e.message}`);
+      return false;
+    } finally {
+      this.applyingRules = false;
+    }
   }
 
   // STATUS every folder (cheap — no mailbox select) and resync headers only for
@@ -207,6 +248,8 @@ class CaixaManager {
         log(`[${this.caixa.label}] poll de pastas: falha em ${folder.path}: ${e.message}`);
       }
     }
+    // Inbox mail picked up here (new mail that arrived while a sync was running) gets the rules too.
+    if (await this.applyRules()) touchedOtherMailbox = true;
     await this.reselectInbox(touchedOtherMailbox);
     // Heartbeat: every folder was just checked against IMAP. Without it,
     // last_synced_at only moved on a full sync, so a caixa that had stopped
@@ -241,9 +284,11 @@ class CaixaManager {
   async onNewMail() {
     if (!this.client || !this.inboxFolder || this.syncing) return;
     const endSync = this.beginSync();
+    let rulesTouched = false;
     try {
       await syncFolderMessages(this.client, this.caixa, this.inboxFolder, 15);
       await backfillBodies(this.client, this.caixa, 15);
+      rulesTouched = await this.applyRules();
       // Refresh the Inbox unread/total counters from IMAP so the folder badge
       // updates on new mail (syncFolderMessages alone doesn't touch the counts).
       try {
@@ -261,6 +306,8 @@ class CaixaManager {
     } finally {
       endSync();
     }
+    // A rule that moved mail left another mailbox selected: IDLE must watch the Inbox again.
+    await this.reselectInbox(rulesTouched);
     // Vacation auto-reply runs after sync, outside the sync guard.
     try { await this.maybeVacationReply(); }
     catch (err) { log(`[${this.caixa.label}] erro na resposta de férias: ${err.message}`); }

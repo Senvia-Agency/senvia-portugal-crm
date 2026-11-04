@@ -11,6 +11,7 @@ import { ImportStep1Upload } from "@/components/marketing/import/ImportStep1Uplo
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useImportLeads, type ImportLeadsResult } from "@/hooks/useImportLeads";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useLanguage } from "@/i18n";
 
 interface ImportLeadsDialogProps {
   open: boolean;
@@ -57,6 +58,7 @@ function autoMap(headers: string[]): Record<string, string> {
 }
 
 export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps) {
+  const { t } = useLanguage();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [importName, setImportName] = useState("");
   const [fileName, setFileName] = useState("");
@@ -162,7 +164,7 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
       });
       setResult(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao importar leads");
+      setError(e instanceof Error ? e.message : t("Erro ao importar leads"));
     }
   };
 
@@ -170,16 +172,16 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="flex h-full flex-col overflow-hidden p-0">
         <DialogHeader className="border-b px-4 py-4 md:px-6">
-          <DialogTitle>Importar leads</DialogTitle>
+          <DialogTitle>{t("Importar leads")}</DialogTitle>
           <DialogDescription>
-            Carrega um Excel ou CSV, mapeia as colunas e distribui pelos comerciais. Importação silenciosa (não dispara automações).
+            {t("Carrega um Excel ou CSV, mapeia as colunas e distribui pelos comerciais. Importação silenciosa (não dispara automações).")}
           </DialogDescription>
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className={step === 1 ? "font-semibold text-foreground" : ""}>1. Ficheiro</span>
+            <span className={step === 1 ? "font-semibold text-foreground" : ""}>{t("1. Ficheiro")}</span>
             <span>›</span>
-            <span className={step === 2 ? "font-semibold text-foreground" : ""}>2. Mapeamento</span>
+            <span className={step === 2 ? "font-semibold text-foreground" : ""}>{t("2. Mapeamento")}</span>
             <span>›</span>
-            <span className={step === 3 ? "font-semibold text-foreground" : ""}>3. Distribuição</span>
+            <span className={step === 3 ? "font-semibold text-foreground" : ""}>{t("3. Distribuição")}</span>
           </div>
         </DialogHeader>
 
@@ -193,14 +195,14 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
           {result && (
             <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm space-y-1">
               <div className="flex items-center justify-between">
-                <strong>Importação concluída</strong>
+                <strong>{t("Importação concluída")}</strong>
                 <span className="font-mono text-xs bg-primary/10 border border-primary/20 rounded px-2 py-0.5 select-all">{result.importCode}</span>
               </div>
-              <div className="text-muted-foreground">{result.inserted} criados{result.updated ? ` • ${result.updated} atualizados` : ""}{result.failed ? ` • ${result.failed} falhados` : ""}</div>
+              <div className="text-muted-foreground">{t("{{n}} criados", { n: result.inserted })}{result.updated ? ` • ${t("{{n}} atualizados", { n: result.updated })}` : ""}{result.failed ? ` • ${t("{{n}} falhados", { n: result.failed })}` : ""}</div>
               {result.firstError && (
-                <div className="text-xs text-muted-foreground">Primeiro erro: {result.firstError}</div>
+                <div className="text-xs text-muted-foreground">{t("Primeiro erro: {{error}}", { error: result.firstError })}</div>
               )}
-              <div className="text-xs text-muted-foreground">Guarda este código para rastrear ou corrigir este lote.</div>
+              <div className="text-xs text-muted-foreground">{t("Guarda este código para rastrear ou corrigir este lote.")}</div>
             </div>
           )}
 
@@ -208,18 +210,18 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="import-name" className="text-sm font-medium">
-                  Nome da importação <span className="text-destructive">*</span>
+                  {t("Nome da importação")} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="import-name"
-                  placeholder="Ex: Leads telecom março 2026"
+                  placeholder={t("Ex: Leads telecom março 2026")}
                   value={importName}
                   onChange={(e) => setImportName(e.target.value)}
                   maxLength={120}
                   autoFocus
                 />
                 <p className="text-xs text-muted-foreground">
-                  Identifica este lote para o conseguires encontrar/apagar mais tarde no histórico.
+                  {t("Identifica este lote para o conseguires encontrar/apagar mais tarde no histórico.")}
                 </p>
               </div>
 
@@ -236,13 +238,13 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Associa cada coluna do ficheiro ao campo correspondente no CRM. O campo <strong>Nome</strong> é obrigatório.
+                {t("Associa cada coluna do ficheiro ao campo correspondente no CRM. O campo Nome é obrigatório.")}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {TARGET_FIELDS.map((field) => (
                   <div key={field.key} className="space-y-1.5">
                     <Label className="text-xs">
-                      {field.label}
+                      {t(field.label)}
                       {field.key === "name" && <span className="ml-1 text-destructive">*</span>}
                     </Label>
                     <Select
@@ -252,10 +254,10 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                       }
                     >
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="— não importar —" />
+                        <SelectValue placeholder={t("— não importar —")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={NONE_VALUE}>— não importar —</SelectItem>
+                        <SelectItem value={NONE_VALUE}>{t("— não importar —")}</SelectItem>
                         {headers.map((h) => (
                           <SelectItem key={h} value={h}>
                             {h}
@@ -267,7 +269,7 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                 ))}
               </div>
               <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                {rows.length} linhas serão importadas.
+                {t("{{n}} linhas serão importadas.", { n: rows.length })}
               </div>
             </div>
           )}
@@ -275,10 +277,10 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
           {step === 3 && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Etapa do pipeline</Label>
+                <Label className="text-xs">{t("Etapa do pipeline")}</Label>
                 <Select value={selectedStageKey} onValueChange={setSelectedStageKey}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecionar etapa..." />
+                    <SelectValue placeholder={t("Selecionar etapa...")} />
                   </SelectTrigger>
                   <SelectContent>
                     {stages.map((s) => (
@@ -296,7 +298,7 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                 </Select>
               </div>
 
-              <p className="text-sm text-muted-foreground">Escolhe como distribuir os {rows.length} leads:</p>
+              <p className="text-sm text-muted-foreground">{t("Escolhe como distribuir os {{n}} leads:", { n: rows.length })}</p>
 
               <div className="space-y-2">
                 <button
@@ -309,9 +311,9 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                 >
                   <Shuffle className="mt-0.5 h-4 w-4 text-primary" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium">Round-robin entre todos os membros</div>
+                    <div className="text-sm font-medium">{t("Round-robin entre todos os membros")}</div>
                     <div className="text-xs text-muted-foreground">
-                      Divide igualmente entre os {activeMembers.length} comerciais ativos.
+                      {t("Divide igualmente entre os {{n}} comerciais ativos.", { n: activeMembers.length })}
                     </div>
                   </div>
                 </button>
@@ -326,9 +328,9 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                 >
                   <Users className="mt-0.5 h-4 w-4 text-primary" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium">Selecionar membros específicos</div>
+                    <div className="text-sm font-medium">{t("Selecionar membros específicos")}</div>
                     <div className="text-xs text-muted-foreground">
-                      Divide round-robin apenas entre os comerciais escolhidos.
+                      {t("Divide round-robin apenas entre os comerciais escolhidos.")}
                     </div>
                   </div>
                 </button>
@@ -343,15 +345,15 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                 >
                   <User className="mt-0.5 h-4 w-4 text-primary" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium">Atribuir todos a um único comercial</div>
-                    <div className="text-xs text-muted-foreground">Todos os leads vão para a mesma pessoa.</div>
+                    <div className="text-sm font-medium">{t("Atribuir todos a um único comercial")}</div>
+                    <div className="text-xs text-muted-foreground">{t("Todos os leads vão para a mesma pessoa.")}</div>
                   </div>
                 </button>
               </div>
 
               {distributionMode === "selected_members" && (
                 <div className="space-y-2">
-                  <Label className="text-xs">Membros selecionados ({selectedMembers.length})</Label>
+                  <Label className="text-xs">{t("Membros selecionados ({{n}})", { n: selectedMembers.length })}</Label>
                   <ScrollArea className="h-[240px] rounded-md border">
                     <div className="divide-y">
                       {activeMembers.map((m) => (
@@ -376,10 +378,10 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
 
               {distributionMode === "single_user" && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Comercial responsável</Label>
+                  <Label className="text-xs">{t("Comercial responsável")}</Label>
                   <Select value={singleUserId} onValueChange={setSingleUserId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar comercial..." />
+                      <SelectValue placeholder={t("Selecionar comercial...")} />
                     </SelectTrigger>
                     <SelectContent>
                       {activeMembers.map((m) => (
@@ -398,22 +400,22 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
         <div className="border-t px-4 py-4 md:px-6">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {step > 1 && (
                 <Button variant="outline" onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}>
-                  Voltar
+                  {t("Voltar")}
                 </Button>
               )}
               {step === 1 && (
                 <Button onClick={() => setStep(2)} disabled={!canGoStep2}>
-                  Continuar
+                  {t("Continuar")}
                 </Button>
               )}
               {step === 2 && (
                 <Button onClick={() => setStep(3)} disabled={!canGoStep3}>
-                  Continuar
+                  {t("Continuar")}
                 </Button>
               )}
               {step === 3 && (
@@ -422,7 +424,7 @@ export function ImportLeadsDialog({ open, onOpenChange }: ImportLeadsDialogProps
                   disabled={!distributionReady || !selectedStageKey || importMutation.isPending}
                 >
                   {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Importar {rows.length} leads
+                  {t("Importar {{n}} leads", { n: rows.length })}
                 </Button>
               )}
             </div>

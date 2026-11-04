@@ -4,6 +4,7 @@ import { Check, Hash, Search, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TeamMember } from '@/hooks/useTeam';
 import type { ChatKind } from './chat-model';
+import { useLanguage } from '@/i18n';
 
 // A stable hue per person, the same rule as the Feed avatars.
 const hueOf = (name: string) => [...name].reduce((hue, character) => (hue * 31 + character.charCodeAt(0)) % 360, 0);
@@ -30,15 +31,16 @@ export function ConversationAvatar({ kind, name, url, size = 44 }: { kind: ChatK
 export function PeoplePicker({ people, selected, onToggle, excludeIds = [], multiple }: {
   people: readonly TeamMember[]; selected: readonly string[]; onToggle: (userId: string) => void; excludeIds?: readonly string[]; multiple: boolean;
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const term = query.trim().toLocaleLowerCase('pt');
   const list = people.filter(person => !excludeIds.includes(person.user_id) && person.full_name.toLocaleLowerCase('pt').includes(term));
   return <div className="space-y-3">
     <label className="flex h-11 items-center gap-2 rounded-full border bg-card px-4 focus-within:ring-2 focus-within:ring-ring">
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Procurar colega…" aria-label="Procurar colega" value={query} onChange={event => setQuery(event.target.value)} />
+      <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t('Procurar colega…')} aria-label={t('Procurar colega')} value={query} onChange={event => setQuery(event.target.value)} />
     </label>
-    <div role="group" aria-label="Colegas" className="grid gap-1.5 sm:grid-cols-2">
+    <div role="group" aria-label={t('Colegas')} className="grid gap-1.5 sm:grid-cols-2">
       {list.map(person => {
         const isSelected = selected.includes(person.user_id);
         return <button key={person.user_id} type="button" aria-pressed={isSelected} aria-label={person.full_name} onClick={() => onToggle(person.user_id)}
@@ -49,7 +51,7 @@ export function PeoplePicker({ people, selected, onToggle, excludeIds = [], mult
           {multiple && <span aria-hidden="true" className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-md border', isSelected && 'border-primary bg-primary text-primary-foreground')}>{isSelected && <Check className="h-3.5 w-3.5" />}</span>}
         </button>;
       })}
-      {list.length === 0 && <p className="text-sm text-muted-foreground">Nenhum colega encontrado.</p>}
+      {list.length === 0 && <p className="text-sm text-muted-foreground">{t('Nenhum colega encontrado.')}</p>}
     </div>
   </div>;
 }

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CreditCard, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStripeSubscription } from '@/hooks/useStripeSubscription';
+import { useLanguage, intlLocale } from '@/i18n';
 
 interface PaymentOverdueBlockerProps {
   paymentFailedAt?: string;
@@ -9,6 +10,7 @@ interface PaymentOverdueBlockerProps {
 
 export function PaymentOverdueBlocker({ paymentFailedAt }: PaymentOverdueBlockerProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { openCustomerPortal, isLoading } = useStripeSubscription();
 
   // `paymentFailedAt` is now the end of the last paid Stripe period (renewal date).
@@ -24,11 +26,10 @@ export function PaymentOverdueBlocker({ paymentFailedAt }: PaymentOverdueBlocker
 
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight">
-            A tua mensalidade expirou
+            {t("A tua mensalidade expirou")}
           </h1>
           <p className="text-muted-foreground text-sm">
-            Continuas a ser cliente — só precisas de renovar a mensalidade para
-            voltares a aceder ao sistema. Os teus dados ficam intactos.
+            {t("Continuas a ser cliente — só precisas de renovar a mensalidade para voltares a aceder ao sistema. Os teus dados ficam intactos.")}
           </p>
         </div>
 
@@ -36,13 +37,13 @@ export function PaymentOverdueBlocker({ paymentFailedAt }: PaymentOverdueBlocker
           <div className="flex items-center justify-center gap-2 text-destructive">
             <CreditCard className="h-4 w-4" />
             <span className="text-sm font-semibold">
-              Acesso suspenso até regularizares o pagamento
+              {t("Acesso suspenso até regularizares o pagamento")}
             </span>
           </div>
           {renewalDate && (
             <p className="text-xs text-muted-foreground mt-2">
-              Renovação prevista para{' '}
-              {renewalDate.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+              {t("Renovação prevista para")}{' '}
+              {renewalDate.toLocaleDateString(intlLocale(), { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           )}
         </div>
@@ -55,7 +56,7 @@ export function PaymentOverdueBlocker({ paymentFailedAt }: PaymentOverdueBlocker
             disabled={isLoading}
           >
             <CreditCard className="h-4 w-4" />
-            Renovar Mensalidade
+            {t("Renovar Mensalidade")}
           </Button>
 
           <Button
@@ -65,7 +66,7 @@ export function PaymentOverdueBlocker({ paymentFailedAt }: PaymentOverdueBlocker
             onClick={() => navigate('/settings?tab=billing')}
           >
             <Settings className="h-4 w-4" />
-            Ver Faturação
+            {t("Ver Faturação")}
           </Button>
         </div>
       </div>

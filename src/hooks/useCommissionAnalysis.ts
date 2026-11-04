@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLiveCommissions, type CpeDetail } from "@/hooks/useLiveCommissions";
 import { useTeamMembers } from "@/hooks/useTeam";
+import { tr } from "@/i18n";
 
 interface ChargebackImportRecord {
   id: string;
@@ -563,7 +564,7 @@ export function useImportCommissionChargebacks() {
       referenceMonth?: string;
     }): Promise<ImportChargebackSummary> => {
       if (!organization?.id) {
-        throw new Error("Organização não encontrada");
+        throw new Error(tr("Organização não encontrada"));
       }
 
       const rpcParams: Record<string, unknown> = {
@@ -582,7 +583,7 @@ export function useImportCommissionChargebacks() {
 
       const summary = Array.isArray(data) ? data[0] : data;
       if (!summary) {
-        throw new Error("Não foi possível concluir a importação");
+        throw new Error(tr("Não foi possível concluir a importação"));
       }
 
       return summary as ImportChargebackSummary;
@@ -640,7 +641,7 @@ export function useSyncFileToSystem() {
       }
 
       if (updatedCount === 0) {
-        throw new Error(`Nenhum CPE foi atualizado. Os IDs podem estar obsoletos.`);
+        throw new Error(tr("Nenhum CPE foi atualizado. Os IDs podem estar obsoletos."));
       }
 
       console.log(`[Sync] ${updatedCount}/${items.length} CPEs atualizados com sucesso`);

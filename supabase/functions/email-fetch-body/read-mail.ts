@@ -3,20 +3,24 @@ import { simpleParser } from 'npm:mailparser@3.9.24';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import ipaddr from 'npm:ipaddr.js@2.5.0';
+import { connectWithRetry } from '../_shared/imap-retry.ts';
 
 export async function readMailboxMessage(config: { host: string; port: number; secure: boolean; user: string; password: string }, folder: string, uid: number) {
   if (config.port !== 993 || !config.secure) throw new Error('Esta leitura requer IMAP com TLS na porta 993.');
   if (!config.host || config.host.length > 253 || /[\s/@\\%\[\]]/.test(config.host)) throw new Error('Servidor IMAP inválido.');
   const addresses = isIP(config.host) ? [{address:config.host}] : await lookup(config.host,{all:true});
   if (!addresses.length || addresses.some(({address}) => ipaddr.parse(address).range() !== 'unicast')) throw new Error('Servidor IMAP não público.');
-  const client = new ImapFlow({ host: addresses[0].address, servername:config.host, port:993, secure:true,
-    tls:{rejectUnauthorized:true,servername:config.host}, auth:{user:config.user,pass:config.password}, logger:false,
-    connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000,disableAutoIdle:true });
-  // Never print connection errors: providers may include account identifiers.
-  client.on('error',()=>{});
-  const timeout=setTimeout(()=>client.close(),45000);
+  let client: ImapFlow | null = null;
+  const timeout=setTimeout(()=>client?.close(),45000);
   try {
-    await client.connect();
+    client = await connectWithRetry(() => {
+      const c = new ImapFlow({ host: addresses[0].address, servername:config.host, port:993, secure:true,
+        tls:{rejectUnauthorized:true,servername:config.host}, auth:{user:config.user,pass:config.password}, logger:false,
+        connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000,disableAutoIdle:true });
+      // Never print connection errors: providers may include account identifiers.
+      c.on('error',()=>{});
+      return c;
+    });
     await client.mailboxOpen(folder,{readOnly:true});
     const envelope=await client.fetchOne(String(uid),{size:true},{uid:true});
     const maxBytes=15*1024*1024;
@@ -30,6 +34,6 @@ export async function readMailboxMessage(config: { host: string; port: number; s
     return { html:parsed.html || parsed.textAsHtml || null, text:parsed.text || null,
       attachments:parsed.attachments.map((a: any,index: number)=>({part_id:'edge:'+index,filename:a.filename || 'anexo',content_type:a.contentType,
         size:a.size,inline:!!a.related || a.contentDisposition==='inline',content_id:a.cid || null,data_b64:a.content.toString('base64')})) };
-  } finally { clearTimeout(timeout); client.close(); }
+  } finally { clearTimeout(timeout); client?.close(); }
 }
 

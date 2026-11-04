@@ -28,6 +28,7 @@ import type { EmailTemplate } from "@/types/marketing";
 import type { CrmClient } from "@/types/clients";
 import { CLIENT_STATUS_STYLES } from "@/types/clients";
 import { useClientLabels } from "@/hooks/useClientLabels";
+import { useLanguage } from "@/i18n";
 
 interface SendTemplateModalProps {
   template: EmailTemplate | null;
@@ -47,6 +48,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
   const { data: clients = [], isLoading: loadingClients } = useClients();
   const clientLabels = useClientLabels();
   const sendTemplate = useSendTemplateEmail();
+  const { t } = useLanguage();
 
   // Filter clients based on search and status
   const filteredClients = useMemo(() => {
@@ -135,10 +137,10 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
-                Enviar Template
+                {t("Enviar Template")}
               </DialogTitle>
               <DialogDescription>
-                Selecione os clientes que receberão o email "{template.name}"
+                {t("Selecione os clientes que receberão o email \"{{name}}\"", { name: template.name })}
               </DialogDescription>
             </DialogHeader>
 
@@ -146,11 +148,11 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="individual" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  Individual
+                  {t("Individual")}
                 </TabsTrigger>
                 <TabsTrigger value="filter" className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  Por Filtro
+                  {t("Por Filtro")}
                 </TabsTrigger>
               </TabsList>
 
@@ -158,7 +160,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Pesquisar por nome, email ou empresa..."
+                    placeholder={t("Pesquisar por nome, email ou empresa...")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -173,7 +175,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
                       </div>
                     ) : filteredClients.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground text-sm">
-                        {searchQuery ? "Nenhum cliente encontrado" : "Sem clientes com email"}
+                        {searchQuery ? t("Nenhum cliente encontrado") : t("Sem clientes com email")}
                       </div>
                     ) : (
                       filteredClients.map((client) => {
@@ -204,31 +206,30 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
 
               <TabsContent value="filter" className="flex-1 overflow-hidden flex flex-col mt-4 space-y-4">
                 <div className="space-y-2">
-                  <Label>Filtrar por {clientLabels.statusFieldLabel.toLowerCase()}</Label>
+                  <Label>{t("Filtrar por {{field}}", { field: clientLabels.statusFieldLabel.toLowerCase() })}</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger>
-                      <SelectValue placeholder={`Selecionar ${clientLabels.statusFieldLabel.toLowerCase()}`} />
+                      <SelectValue placeholder={t("Selecionar {{field}}", { field: clientLabels.statusFieldLabel.toLowerCase() })} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="all">{t("Todos")}</SelectItem>
                       <SelectItem value="active">{clientLabels.statusActive}</SelectItem>
                       <SelectItem value="inactive">{clientLabels.statusInactive}</SelectItem>
-                      <SelectItem value="vip">{clientLabels.statusVip}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="text-sm">
-                    <p className="font-medium">{filteredClients.length} clientes</p>
-                    <p className="text-muted-foreground">correspondem ao filtro</p>
+                    <p className="font-medium">{t("{{n}} clientes", { n: filteredClients.length })}</p>
+                    <p className="text-muted-foreground">{t("correspondem ao filtro")}</p>
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={handleSelectAll}
                   >
-                    {selectedClients.length === filteredClients.length ? "Desmarcar" : "Selecionar"} todos
+                    {selectedClients.length === filteredClients.length ? t("Desmarcar todos") : t("Selecionar todos")}
                   </Button>
                 </div>
 
@@ -256,7 +257,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
                               color: statusStyle?.text 
                             }}
                           >
-                            {{ active: clientLabels.statusActive, inactive: clientLabels.statusInactive, vip: clientLabels.statusVip }[client.status] || client.status}
+                            {{ active: clientLabels.statusActive, inactive: clientLabels.statusInactive, vip: clientLabels.statusActive }[client.status] || client.status}
                           </Badge>
                         </div>
                       );
@@ -269,17 +270,17 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
             <DialogFooter className="mt-4">
               <div className="flex items-center justify-between w-full">
                 <p className="text-sm text-muted-foreground">
-                  {selectedClients.length} selecionado(s)
+                  {t("{{n}} selecionado(s)", { n: selectedClients.length })}
                 </p>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleClose}>
-                    Cancelar
+                    {t("Cancelar")}
                   </Button>
                   <Button 
                     onClick={() => setStep("confirm")} 
                     disabled={selectedClients.length === 0}
                   >
-                    Continuar
+                    {t("Continuar")}
                   </Button>
                 </div>
               </div>
@@ -290,30 +291,30 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
         {step === "confirm" && (
           <>
             <DialogHeader>
-              <DialogTitle>Confirmar Envio</DialogTitle>
+              <DialogTitle>{t("Confirmar Envio")}</DialogTitle>
               <DialogDescription>
-                Reveja os detalhes antes de enviar
+                {t("Reveja os detalhes antes de enviar")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               <div className="p-4 bg-muted/50 rounded-lg space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Template:</span>
+                  <span className="text-sm text-muted-foreground">{t("Template:")}</span>
                   <span className="text-sm font-medium">{template.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Assunto:</span>
+                  <span className="text-sm text-muted-foreground">{t("Assunto:")}</span>
                   <span className="text-sm font-medium truncate max-w-[200px]">{template.subject}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Destinatários:</span>
+                  <span className="text-sm text-muted-foreground">{t("Destinatários:")}</span>
                   <span className="text-sm font-medium">{selectedClients.length}</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Destinatários:</Label>
+                <Label className="text-sm text-muted-foreground">{t("Destinatários:")}</Label>
                 <ScrollArea className="h-[150px] border rounded-md">
                   <div className="p-2 space-y-1">
                     {selectedClients.map((client) => (
@@ -330,7 +331,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep("select")}>
-                Voltar
+                {t("Voltar")}
               </Button>
               <Button 
                 onClick={handleSend}
@@ -339,12 +340,12 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
                 {sendTemplate.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    A enviar...
+                    {t("A enviar...")}
                   </>
                 ) : (
                   <>
                     <Send className="mr-2 h-4 w-4" />
-                    Enviar Agora
+                    {t("Enviar Agora")}
                   </>
                 )}
               </Button>
@@ -357,7 +358,7 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-green-600">
                 <Check className="h-5 w-5" />
-                Emails Enviados
+                {t("Emails Enviados")}
               </DialogTitle>
             </DialogHeader>
 
@@ -366,16 +367,16 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
                 <Check className="h-8 w-8" />
               </div>
               <p className="text-lg font-medium">
-                {selectedClients.length} email(s) enviado(s) com sucesso!
+                {t("{{n}} email(s) enviado(s) com sucesso!", { n: selectedClients.length })}
               </p>
               <p className="text-sm text-muted-foreground">
-                Os destinatários receberão o email em breve.
+                {t("Os destinatários receberão o email em breve.")}
               </p>
             </div>
 
             <DialogFooter>
               <Button onClick={handleClose} className="w-full">
-                Fechar
+                {t("Fechar")}
               </Button>
             </DialogFooter>
           </>

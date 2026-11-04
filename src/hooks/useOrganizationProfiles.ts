@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 
 // ── Action labels ──
 export const ACTION_LABELS: Record<string, string> = {
@@ -304,9 +305,9 @@ export function useOrganizationProfiles() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-profiles', organizationId] });
-      toast.success('Perfil criado com sucesso');
+      toast.success(tr('Perfil criado com sucesso'));
     },
-    onError: () => toast.error('Erro ao criar perfil'),
+    onError: () => toast.error(tr('Erro ao criar perfil')),
   });
 
   const updateProfile = useMutation({
@@ -326,9 +327,9 @@ export function useOrganizationProfiles() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-profiles', organizationId] });
-      toast.success('Perfil atualizado');
+      toast.success(tr('Perfil atualizado'));
     },
-    onError: () => toast.error('Erro ao atualizar perfil'),
+    onError: () => toast.error(tr('Erro ao atualizar perfil')),
   });
 
   const deleteProfile = useMutation({
@@ -340,7 +341,7 @@ export function useOrganizationProfiles() {
         .limit(1);
       
       if (members && members.length > 0) {
-        throw new Error('Este perfil está em uso por colaboradores da equipa');
+        throw new Error(tr('Este perfil está em uso por colaboradores da equipa'));
       }
 
       const { error } = await supabase
@@ -351,9 +352,9 @@ export function useOrganizationProfiles() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-profiles', organizationId] });
-      toast.success('Perfil eliminado');
+      toast.success(tr('Perfil eliminado'));
     },
-    onError: (error: Error) => toast.error(error.message || 'Erro ao eliminar perfil'),
+    onError: (error: Error) => toast.error(error.message || tr('Erro ao eliminar perfil')),
   });
 
   return {

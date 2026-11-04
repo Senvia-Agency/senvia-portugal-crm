@@ -12,12 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useLanguage } from '@/i18n';
 
 interface WhatsNewDialogProps {
   organizationId?: string | null;
 }
 
 export function WhatsNewDialog({ organizationId }: WhatsNewDialogProps) {
+  const { t } = useLanguage();
   const { announcement, hasUnread, markAsSeen } = useAnnouncements();
   const isOpen = useWhatsNewStore((s) => s.isOpen);
   const autoOpenedId = useWhatsNewStore((s) => s.autoOpenedId);
@@ -71,7 +73,7 @@ export function WhatsNewDialog({ organizationId }: WhatsNewDialogProps) {
 
         <DialogFooter>
           <Button onClick={dismiss} className="w-full sm:w-auto">
-            Entendi
+            {t('Entendi')}
           </Button>
         </DialogFooter>
       </DialogContent>

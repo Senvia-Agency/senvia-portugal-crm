@@ -9,6 +9,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  MessageCircle,
   RefreshCw,
   RotateCcw,
   Settings2,
@@ -22,6 +23,8 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { openPdfInNewTab } from '@/lib/download';
+import { supabase } from '@/integrations/supabase/client';
+import { SendInvoiceEmailModal } from '@/components/sales/SendInvoiceEmailModal';
 import { RecurringFiscalSettings } from '@/components/sales/RecurringFiscalSettings';
 import {
   DEFAULT_RECURRING_FISCAL_CONFIG,
@@ -46,6 +49,7 @@ import {
   type ServiceStatus,
 } from '@/hooks/useSaleRecurrence';
 import { firstMonthState, type FirstMonthState } from '@/lib/fiscal-automation';
+import { useLanguage, intlLocale } from "@/i18n";
 
 // Serviço e cobrança são apresentados como dois crachás separados, e não como um
 // estado único, porque são mesmo coisas diferentes: um cliente pode estar em
@@ -154,10 +158,19 @@ function CycleIcon({ status }: { status: CycleStatus }) {
 }
 
 function monthLabel(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  return new Date(isoDate).toLocaleDateString(intlLocale(), { month: 'long', year: 'numeric' });
 }
 
+// The documents that can be sent, and how a message names them.
+const DOCUMENT_LABEL: Record<string, string> = {
+  invoice: 'fatura',
+  invoice_receipt: 'fatura-recibo',
+  receipt: 'recibo',
+  credit_note: 'nota de crédito',
+};
+
 export function RecurringSalePanel({ saleId }: { saleId: string }) {
+  const { t } = useLanguage();
   const { data: recurrence, isLoading } = useSaleRecurrence(saleId);
   const { createCheckout, isCreating } = useSaleCheckout();
   const cancelRecurrence = useCancelSaleRecurrence();
@@ -176,6 +189,8 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const [fiscalDraft, setFiscalDraft] = useState<RecurringFiscalConfig>(DEFAULT_RECURRING_FISCAL_CONFIG);
   const [fiscalDirty, setFiscalDirty] = useState(false);
   const [viewingFiscalDocumentId, setViewingFiscalDocumentId] = useState<string | null>(null);
+  const [emailDocument, setEmailDocument] = useState<RecurrenceFiscalDocument | null>(null);
+  const [sharingDocumentId, setSharingDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!recurrence) return;
@@ -192,7 +207,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground py-4">
         <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">A carregar recorrência...</span>
+        <span className="text-sm">{t("A carregar recorrência...")}</span>
       </div>
     );
   }
@@ -225,7 +240,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const isClosed = recurrence.service_status === 'cancelled' || recurrence.service_status === 'inactive';
   const handleReactivate = () => {
     if (!nextCycleDate) {
-      toast.error('Escolhe a próxima data de renovação');
+      toast.error(t("Escolhe a próxima data de renovação"));
       return;
     }
     reactivateRecurrence.mutate(
@@ -246,14 +261,14 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
       && !recurrence.client_email
       && !fiscalDraft.fiscal_email_config.fallback_email.trim()
     ) {
-      toast.error('O cliente não tem email. Define um email alternativo para o envio fiscal.');
+      toast.error(t("O cliente não tem email. Define um email alternativo para o envio fiscal."));
       return;
     }
     if (fiscalDraft.fiscal_auto_email) {
       const resolvedSenderEmail = fiscalDraft.fiscal_email_config.sender_email.trim()
         || organization?.brevo_sender_email?.trim();
       if (organization?.tem_brevo_api_key !== true || !resolvedSenderEmail) {
-        toast.error('Liga a Brevo e configura um email de remetente antes de ativar o envio fiscal automático.');
+        toast.error(t("Liga a Brevo e configura um email de remetente antes de ativar o envio fiscal automático."));
         return;
       }
     }
@@ -265,9 +280,49 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
     try {
       await openPdfInNewTab(pdfPath);
     } catch {
-      toast.error('Não foi possível abrir o PDF do documento fiscal.');
+      toast.error(t("Não foi possível abrir o PDF do documento fiscal."));
     } finally {
       setViewingFiscalDocumentId(null);
+    }
+  };
+
+  /**
+   * Opens WhatsApp Web (the app on phones) on the client's chat, with the PDF link
+   * (valid 7 days) already written. A link cannot attach the file itself.
+   */
+  const handleShareWhatsApp = async (document: RecurrenceFiscalDocument, reference: string) => {
+    if (!document.pdf_path) return;
+    // Opened inside the click, so the browser does not block it while the link is prepared.
+    const tab = window.open('', '_blank');
+    setSharingDocumentId(document.id);
+    try {
+      let url = document.pdf_path;
+      if (!url.startsWith('http')) {
+        const { data, error } = await supabase.storage.from('invoices').createSignedUrl(url, 60 * 60 * 24 * 7);
+        if (error || !data?.signedUrl) throw error ?? new Error('sem link');
+        url = data.signedUrl;
+      }
+      const name = recurrence?.client_name?.split(' ')[0];
+      const label = DOCUMENT_LABEL[document.document_type ?? ''] ?? 'documento';
+      const text = `Olá${name ? ` ${name}` : ''}, segue a ${label} ${reference}: ${url}`;
+      let phone = (recurrence?.client_phone ?? '').replace(/\D/g, '').replace(/^00/, '');
+      if (/^[29]\d{8}$/.test(phone)) phone = `351${phone}`; // Portuguese number without the country code
+      const onPhone = window.matchMedia('(pointer: coarse)').matches;
+      const query = `${phone ? `phone=${phone}&` : ''}text=${encodeURIComponent(text)}`;
+      const target = onPhone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+        : `https://web.whatsapp.com/send?${query}`;
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = target;
+      } else {
+        window.open(target, '_blank', 'noopener');
+      }
+    } catch {
+      tab?.close();
+      toast.error(t("Não foi possível preparar o link do documento."));
+    } finally {
+      setSharingDocumentId(null);
     }
   };
 
@@ -276,7 +331,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
       {documents.map((document) => {
         const reference = document.reference
           || [document.provider_series, document.provider_document_number].filter(Boolean).join('/')
-          || `Documento ${document.id.slice(0, 8)}`;
+          || t("Documento {{id}}", { id: document.id.slice(0, 8) });
         return (
           <div key={document.id} className="flex items-start gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs">
             <div className="min-w-0 flex-1">
@@ -285,30 +340,35 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                 <span className="truncate font-medium">{reference}</span>
               </div>
               {document.provider_atcud && (
-                <p className="mt-0.5 text-[11px] text-muted-foreground">ATCUD {document.provider_atcud}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{t("ATCUD")} {document.provider_atcud}</p>
               )}
               {document.email_status && (
                 <p className={cn('mt-0.5 text-[11px]', emailTone(document.email_status))}>
-                  Email: {EMAIL_LABEL[document.email_status]}
+                  {t("Email:")} {t(EMAIL_LABEL[document.email_status])}
                 </p>
               )}
             </div>
-            {document.pdf_path && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                title="Abrir PDF"
-                aria-label={`Abrir PDF de ${reference}`}
-                onClick={() => handleOpenFiscalPdf(document.id, document.pdf_path!)}
-                disabled={viewingFiscalDocumentId === document.id}
-              >
-                {viewingFiscalDocumentId === document.id
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <FileDown className="h-3.5 w-3.5" />}
-              </Button>
-            )}
+            {/* What to do with this document: see it, or send it to the client. */}
+            <div className="flex shrink-0 items-center">
+              {document.pdf_path && (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={t("Ver PDF")} aria-label={t("Ver PDF de {{reference}}", { reference })}
+                  onClick={() => handleOpenFiscalPdf(document.id, document.pdf_path!)} disabled={viewingFiscalDocumentId === document.id}>
+                  {viewingFiscalDocumentId === document.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+              {DOCUMENT_LABEL[document.document_type ?? ''] && (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={t("Enviar por email")} aria-label={t("Enviar {{reference}} por email", { reference })}
+                  onClick={() => setEmailDocument(document)}>
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {document.pdf_path && (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700" title={t("Enviar por WhatsApp")} aria-label={t("Enviar {{reference}} por WhatsApp", { reference })}
+                  onClick={() => void handleShareWhatsApp(document, reference)} disabled={sharingDocumentId === document.id}>
+                  {sharingDocumentId === document.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+            </div>
           </div>
         );
       })}
@@ -322,19 +382,19 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           <div>
             <div className="flex items-center gap-2">
               <RefreshCw className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Recorrência mensal</span>
+              <span className="text-sm font-medium">{t("Recorrência mensal")}</span>
             </div>
             <p className="text-2xl font-semibold mt-1">
               {formatCurrency(Number(recurrence.amount))}
-              <span className="text-sm font-normal text-muted-foreground">/mês</span>
+              <span className="text-sm font-normal text-muted-foreground">{t("/mês")}</span>
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
             <Badge variant="outline" className={serviceTone(recurrence.service_status)}>
-              {SERVICE_LABEL[recurrence.service_status]}
+              {t(SERVICE_LABEL[recurrence.service_status])}
             </Badge>
             <Badge variant="outline" className={billingTone(recurrence.billing_status)}>
-              {BILLING_LABEL[recurrence.billing_status]}
+              {t(BILLING_LABEL[recurrence.billing_status])}
             </Badge>
           </div>
         </div>
@@ -345,8 +405,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           <div className="flex gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground">
-              Há cobranças em atraso, mas o serviço continua ativo. Suspender o serviço é uma
-              decisão sua — não acontece automaticamente por um pagamento falhado.
+              {t("Há cobranças em atraso, mas o serviço continua ativo. Suspender o serviço é uma decisão sua — não acontece automaticamente por um pagamento falhado.")}
             </p>
           </div>
         )}
@@ -354,7 +413,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
         {isClosed ? (
           <div className="space-y-2 rounded-md border p-3">
             <label htmlFor={`reactivate-${saleId}`} className="text-sm font-medium">
-              Próxima data de renovação
+              {t("Próxima data de renovação")}
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
@@ -369,7 +428,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                 disabled={!nextCycleDate || reactivateRecurrence.isPending}
               >
                 {reactivateRecurrence.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Reativar recorrência
+                {t("Reativar recorrência")}
               </Button>
             </div>
           </div>
@@ -384,26 +443,26 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
             {cancelRecurrence.isPending
               ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               : <XCircle className="mr-2 h-4 w-4" />}
-            Cancelar recorrência
+            {t("Cancelar recorrência")}
           </Button>
         )}
 
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div>
-            <p className="text-xs text-muted-foreground">Liquidado</p>
+            <p className="text-xs text-muted-foreground">{t("Liquidado")}</p>
             <p className="font-medium text-green-600">{formatCurrency(totalPaid)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Por liquidar</p>
+            <p className="text-xs text-muted-foreground">{t("Por liquidar")}</p>
             <p className={`font-medium ${totalOutstanding > 0 ? 'text-amber-600' : ''}`}>
               {formatCurrency(totalOutstanding)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Próximo ciclo</p>
+            <p className="text-xs text-muted-foreground">{t("Próximo ciclo")}</p>
             <p className="font-medium">
               {recurrence.next_cycle_date
-                ? new Date(recurrence.next_cycle_date).toLocaleDateString('pt-PT')
+                ? new Date(recurrence.next_cycle_date).toLocaleDateString(intlLocale())
                 : '—'}
             </p>
           </div>
@@ -411,15 +470,14 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
 
         {recurrence.billing_provider === 'stripe' && !recurrence.stripe_subscription_id && (
           <div className="rounded-md border border-dashed p-3 space-y-2">
-            <p className="text-sm font-medium">Subscrição por ativar</p>
+            <p className="text-sm font-medium">{t("Subscrição por ativar")}</p>
             <p className="text-xs text-muted-foreground">
-              O cliente ainda não concluiu o pagamento. Envie-lhe o link para a subscrição começar
-              a ser cobrada automaticamente.
+              {t("O cliente ainda não concluiu o pagamento. Envie-lhe o link para a subscrição começar a ser cobrada automaticamente.")}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={handleCheckout} disabled={isCreating} className="gap-2">
                 {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-                {checkoutUrl ? 'Gerar novo link' : 'Gerar link de pagamento'}
+                {checkoutUrl ? t("Gerar novo link") : t("Gerar link de pagamento")}
               </Button>
               {checkoutUrl && (
                 <Button
@@ -428,11 +486,11 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                   className="gap-2"
                   onClick={() => {
                     navigator.clipboard.writeText(checkoutUrl);
-                    toast.success('Link copiado');
+                    toast.success(t("Link copiado"));
                   }}
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  Copiar link
+                  {t("Copiar link")}
                 </Button>
               )}
             </div>
@@ -445,11 +503,11 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
               <Settings2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div>
                 <p className="text-sm font-medium">
-                  Faturação fiscal recorrente
-                  {fiscalDirty && <span className="ml-2 text-xs font-normal text-amber-600">Alterações por guardar</span>}
+                  {t("Faturação fiscal recorrente")}
+                  {fiscalDirty && <span className="ml-2 text-xs font-normal text-amber-600">{t("Alterações por guardar")}</span>}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Define o documento e o envio de email para cada ciclo desta venda.
+                  {t("Define o documento e o envio de email para cada ciclo desta venda.")}
                 </p>
               </div>
             </div>
@@ -460,7 +518,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
               disabled={!fiscalDirty || configureFiscal.isPending || !canConfigureFiscal}
             >
               {configureFiscal.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Guardar
+              {t("Guardar")}
             </Button>
           </div>
           <RecurringFiscalSettings
@@ -476,24 +534,25 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           />
           {!canConfigureFiscal && (
             <p className="text-xs text-muted-foreground">
-              Precisas da permissão Financeiro → Faturas → Emitir para alterar esta configuração.
+              {t("Precisas da permissão Financeiro → Faturas → Emitir para alterar esta configuração.")}
             </p>
           )}
         </div>
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">
-            Ciclos ({cycles.length})
+            {/* The first month is the sale itself, but it is a cycle all the same. */}
+            {t("Ciclos ({{n}})", { n: cycles.length + (firstMonth ? 1 : 0) })}
           </p>
           {firstMonth && (
             <div className="rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium capitalize">{monthLabel(recurrence.anchor_date)}</p>
-                  <p className="text-xs text-muted-foreground">1.º mês · documento desta venda</p>
+                  <p className="text-xs text-muted-foreground">{t("1.º mês · documento desta venda")}</p>
                 </div>
                 <Badge variant="outline" className={cn('shrink-0', fiscalTone(FIRST_MONTH_FISCAL_STATUS[firstMonth]))}>
-                  {FIRST_MONTH_LABEL[firstMonth]}
+                  {t(FIRST_MONTH_LABEL[firstMonth])}
                 </Badge>
               </div>
               {renderFiscalDocuments(recurrence.sale_documents)}
@@ -502,7 +561,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="min-w-0 flex-1 break-words">
                     {recurrence.fiscal_sale_last_error
-                      || 'O documento desta venda ficou por confirmar. Verifique-o em Financeiro → Faturas.'}
+                      || t("O documento desta venda ficou por confirmar. Verifique-o em Financeiro → Faturas.")}
                   </span>
                   {recurrence.fiscal_sale_last_error && (
                     <Button
@@ -514,7 +573,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                       disabled={retrySaleDocument.isPending || !canConfigureFiscal}
                     >
                       <RotateCcw className={cn('h-3.5 w-3.5', retrySaleDocument.isPending && 'animate-spin')} />
-                      Tentar novamente
+                      {t("Tentar novamente")}
                     </Button>
                   )}
                 </div>
@@ -523,7 +582,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           )}
           {cycles.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Ainda não há ciclos. O primeiro é criado na data de renovação.
+              {t("A próxima renovação aparece aqui na data em que for cobrada.")}
             </p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -550,9 +609,9 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                           {monthLabel(cycle.period_start)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {CYCLE_LABEL[cycle.status]}
+                          {t(CYCLE_LABEL[cycle.status])}
                           {cycle.paid_at &&
-                            ` · ${new Date(cycle.paid_at).toLocaleDateString('pt-PT')}`}
+                            ` · ${new Date(cycle.paid_at).toLocaleDateString(intlLocale())}`}
                           {cycle.failure_reason && ` · ${cycle.failure_reason}`}
                         </p>
                       </div>
@@ -569,14 +628,14 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                         ? 'border-border bg-muted/50 text-muted-foreground'
                         : fiscalTone(cycle.fiscal_status)}>
                         {excludedFromAutomatic
-                          ? 'Excluído da emissão automática'
+                          ? t("Excluído da emissão automática")
                           : recurrence.fiscal_mode === 'manual' && cycle.fiscal_status === 'not_scheduled'
-                          ? 'Emissão manual'
+                          ? t("Emissão manual")
                           : cycle.fiscal_status === 'partial'
                             ? recurrence.fiscal_document_policy === 'invoice_then_receipt'
-                              ? 'FT emitida · RC pendente'
-                              : 'A aguardar pagamento integral'
-                            : FISCAL_LABEL[cycle.fiscal_status]}
+                              ? t("FT emitida · RC pendente")
+                              : t("A aguardar pagamento integral")
+                            : t(FISCAL_LABEL[cycle.fiscal_status])}
                       </Badge>
                     </div>
 
@@ -584,8 +643,8 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                       <Mail className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">
                         {recurrence.fiscal_auto_email
-                          ? EMAIL_LABEL[cycle.fiscal_email_status]
-                          : 'Envio automático desativado'}
+                          ? t(EMAIL_LABEL[cycle.fiscal_email_status])
+                          : t("Envio automático desativado")}
                       </span>
                     </div>
 
@@ -599,7 +658,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                         disabled={retryFiscalCycle.isPending || !canConfigureFiscal}
                       >
                         <RotateCcw className={cn('h-3.5 w-3.5', retryFiscalCycle.isPending && 'animate-spin')} />
-                        Repetir agora
+                        {t("Repetir agora")}
                       </Button>
                     )}
                   </div>
@@ -608,12 +667,12 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
 
                   {excludedFromAutomatic && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Este ciclo já existia antes da ativação. O Senvia não vai emitir uma fatura automática para este período.
+                      {t("Este ciclo já existia antes da ativação. O Senvia não vai emitir uma fatura automática para este período.")}
                     </p>
                   )}
                   {excludedFromAutomatic && cycle.fiscal_last_error && (
                     <details className="mt-2 text-xs text-muted-foreground">
-                      <summary className="cursor-pointer">Ver tentativa anterior</summary>
+                      <summary className="cursor-pointer">{t("Ver tentativa anterior")}</summary>
                       <p className="mt-1 break-words">{cycle.fiscal_last_error}</p>
                     </details>
                   )}
@@ -638,6 +697,16 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
           )}
         </div>
       </CardContent>
+      {emailDocument && organization?.id && (
+        <SendInvoiceEmailModal
+          open={!!emailDocument}
+          onOpenChange={(open) => { if (!open) setEmailDocument(null); }}
+          invoiceId={emailDocument.id}
+          documentType={emailDocument.document_type as 'invoice' | 'invoice_receipt' | 'receipt' | 'credit_note'}
+          organizationId={organization.id}
+          clientEmail={recurrence?.client_email}
+        />
+      )}
     </Card>
   );
 }

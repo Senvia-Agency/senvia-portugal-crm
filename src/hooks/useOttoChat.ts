@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,12 +11,19 @@ export type { OttoMessage } from "@/stores/useOttoStore";
 // fallback; this branch points at the new modular `otto` function.
 const OTTO_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/otto`;
 
+// The reply in progress belongs to the app, not to the component that asked:
+// closing Otto's panel (or any other caller unmounting) must not cut the answer
+// off halfway. Only a change of account or organization cancels it.
+let activeRequest: AbortController | null = null;
+
 export function useOttoChat() {
   const { messages, isLoading, pendingAttachments, addMessage, updateLastMessage, clearMessages, setLoading, clearAttachments } = useOttoStore();
   const { session, organization } = useAuth();
-  useEffect(() => { useOttoStore.getState().setScope(session?.user.id && organization?.id ? session.user.id + ':' + organization.id : null); }, [session?.user.id, organization?.id]);
-  const abortRef = useRef<AbortController | null>(null);
-  useEffect(() => () => { abortRef.current?.abort(); }, [organization?.id, session?.user.id]);
+  useEffect(() => {
+    const scope = session?.user.id && organization?.id ? session.user.id + ':' + organization.id : null;
+    if (useOttoStore.getState().scope !== scope) activeRequest?.abort();
+    useOttoStore.getState().setScope(scope);
+  }, [session?.user.id, organization?.id]);
 
   const uploadAttachments = useCallback(async (files: File[]): Promise<string[]> => {
     if (!files.length || !organization?.id) return [];
@@ -63,7 +70,7 @@ export function useOttoChat() {
 
     try {
       const controller = new AbortController();
-      abortRef.current = controller;
+      activeRequest = controller;
       attachmentPaths = filesToUpload.length ? await uploadAttachments(filesToUpload)
         : [...messages].reverse().find(message => message.attachmentPaths?.length)?.attachmentPaths || [];
       if (controller.signal.aborted || useOttoStore.getState().scope !== requestScope) return;
@@ -153,12 +160,12 @@ export function useOttoChat() {
       }
     } finally {
       if (useOttoStore.getState().scope === requestScope) setLoading(false);
-      abortRef.current = null;
+      activeRequest = null;
     }
   }, [messages, addMessage, updateLastMessage, setLoading, session, organization, pendingAttachments, uploadAttachments, clearAttachments]);
 
   const cancelStream = useCallback(() => {
-    abortRef.current?.abort();
+    activeRequest?.abort();
   }, []);
 
   return { messages, isLoading, sendMessage, clearMessages, cancelStream };

@@ -43,6 +43,7 @@ export async function syncFolders(client, channel) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now(), now())
        ON CONFLICT (channel_id, path) DO UPDATE SET
          name=EXCLUDED.name, role=EXCLUDED.role, special_use=EXCLUDED.special_use,
+         parent_path=EXCLUDED.parent_path,
          unread_count=EXCLUDED.unread_count, total_count=EXCLUDED.total_count,
          uidvalidity=EXCLUDED.uidvalidity, uidnext=EXCLUDED.uidnext,
          last_synced_at=now(), updated_at=now()

@@ -11,6 +11,7 @@ import {
   PORTUGUESE_VAT_RATES,
   type OrganizationTaxConfig,
 } from '@/lib/product-fiscal';
+import { useLanguage } from '@/i18n';
 
 export const INHERIT_TAX_RATE = '__organization__';
 
@@ -54,6 +55,7 @@ export function ProductFiscalFields({
   onRetentionRateChange,
   organizationTaxConfig,
 }: ProductFiscalFieldsProps) {
+  const { t } = useLanguage();
   const effectiveTax = effectiveProductTaxRate(taxValue, organizationTaxConfig);
   const organizationExempt = organizationTaxConfig?.tax_value === 0;
   const effectiveExemption = effectiveTaxExemptionReason(taxExemptionReason, organizationTaxConfig);
@@ -71,16 +73,16 @@ export function ProductFiscalFields({
       <div className="flex items-start gap-2">
         <Calculator className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div>
-          <p className="text-sm font-medium">Configuração fiscal</p>
+          <p className="text-sm font-medium">{t('Configuração fiscal')}</p>
           <p className="text-xs text-muted-foreground">
-            Estes valores ficam associados ao produto e são congelados em cada venda faturada.
+            {t('Estes valores ficam associados ao produto e são congelados em cada venda faturada.')}
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Taxa de IVA</Label>
+          <Label>{t('Taxa de IVA')}</Label>
           <Select
             value={organizationExempt || taxValue === null ? INHERIT_TAX_RATE : String(taxValue)}
             onValueChange={(value) => onTaxValueChange(value === INHERIT_TAX_RATE ? null : Number(value))}
@@ -91,23 +93,23 @@ export function ProductFiscalFields({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={INHERIT_TAX_RATE}>
-                Herdar da organização ({effectiveProductTaxRate(null, organizationTaxConfig)}%)
+                {t('Herdar da organização ({{rate}}%)', { rate: effectiveProductTaxRate(null, organizationTaxConfig) })}
               </SelectItem>
               {taxValue !== null && !PORTUGUESE_VAT_RATES.some((rate) => rate === taxValue) && (
-                <SelectItem value={String(taxValue)}>IVA {taxValue}%</SelectItem>
+                <SelectItem value={String(taxValue)}>{t('IVA {{rate}}%', { rate: taxValue })}</SelectItem>
               )}
               {PORTUGUESE_VAT_RATES.map((rate) => (
                 <SelectItem key={rate} value={String(rate)}>
-                  {rate === 0 ? 'Isento de IVA' : `IVA ${rate}%`}
+                  {rate === 0 ? t('Isento de IVA') : t('IVA {{rate}}%', { rate })}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {organizationExempt && <p className="text-xs text-muted-foreground">A isenção da organização prevalece sobre a taxa do produto.</p>}
+          {organizationExempt && <p className="text-xs text-muted-foreground">{t('A isenção da organização prevalece sobre a taxa do produto.')}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="retention-rate">Retenção (%)</Label>
+          <Label htmlFor="retention-rate">{t('Retenção (%)')}</Label>
           <Input
             id="retention-rate"
             type="number"
@@ -118,11 +120,11 @@ export function ProductFiscalFields({
             onChange={(event) => onRetentionRateChange(event.target.value)}
           />
           {retentionInvalid && (
-            <p className="text-xs text-destructive">A retenção tem de estar entre 0% e 100%.</p>
+            <p className="text-xs text-destructive">{t('A retenção tem de estar entre 0% e 100%.')}</p>
           )}
           {!retentionInvalid && numericRetention > 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              A retenção fica registada; a emissão automática aguarda validação manual enquanto este cenário não estiver homologado na conta demo.
+              {t('A retenção fica registada; a emissão automática aguarda validação manual enquanto este cenário não estiver homologado na conta demo.')}
             </p>
           )}
         </div>
@@ -130,33 +132,33 @@ export function ProductFiscalFields({
 
       {effectiveTax === 0 && (
         <div className="space-y-2">
-          <Label>Motivo de isenção (AT) *</Label>
+          <Label>{t('Motivo de isenção (AT) *')}</Label>
           <Select value={organizationExempt ? organizationTaxConfig?.tax_exemption_reason || '' : taxExemptionReason || organizationTaxConfig?.tax_exemption_reason || ''} onValueChange={onTaxExemptionReasonChange} disabled={organizationExempt}>
             <SelectTrigger>
-              <SelectValue placeholder="Selecionar motivo de isenção" />
+              <SelectValue placeholder={t('Selecionar motivo de isenção')} />
             </SelectTrigger>
             <SelectContent>
               {EXEMPTION_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           {!effectiveExemption && (
-            <p className="text-xs text-destructive">Obrigatório para emitir documentos com IVA a 0%.</p>
+            <p className="text-xs text-destructive">{t('Obrigatório para emitir documentos com IVA a 0%.')}</p>
           )}
           {!taxExemptionReason && organizationTaxConfig?.tax_exemption_reason && (
-            <p className="text-xs text-muted-foreground">A usar o motivo definido na organização.</p>
+            <p className="text-xs text-muted-foreground">{t('A usar o motivo definido na organização.')}</p>
           )}
         </div>
       )}
 
       <div className="flex items-center justify-between gap-4 rounded-md border bg-background p-3">
         <div>
-          <Label htmlFor="price-includes-vat" className="cursor-pointer">O preço já inclui IVA</Label>
+          <Label htmlFor="price-includes-vat" className="cursor-pointer">{t('O preço já inclui IVA')}</Label>
           <p className="text-xs text-muted-foreground">
             {priceIncludesVat
-              ? 'O Stripe mantém este preço.'
-              : `O IVA de ${effectiveTax}% é acrescentado na cobrança.`}
+              ? t('O Stripe mantém este preço.')
+              : t('O IVA de {{rate}}% é acrescentado na cobrança.', { rate: effectiveTax })}
           </p>
         </div>
         <Switch id="price-includes-vat" checked={priceIncludesVat} onCheckedChange={onPriceIncludesVatChange} />
@@ -164,7 +166,7 @@ export function ProductFiscalFields({
 
       {Number.isFinite(numericPrice) && numericPrice > 0 && (
         <p className="text-xs text-muted-foreground">
-          Valor bruto previsto para cobrança: <span className="font-medium text-foreground">{formatCurrency(grossPreview)}</span>
+          {t('Valor bruto previsto para cobrança:')} <span className="font-medium text-foreground">{formatCurrency(grossPreview)}</span>
         </p>
       )}
     </div>

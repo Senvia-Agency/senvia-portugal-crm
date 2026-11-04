@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ProductCommissionFields, ProductHeaderFields } from './ProductCommissionFields';
 import type { Operator } from '@/hooks/useOperators';
 import { catalogProductKey, type CatalogProduct } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface Member {
   user_id: string;
@@ -42,6 +43,7 @@ export function ProductEditDialog({
   onChange,
   onCommit,
 }: ProductEditDialogProps) {
+  const { t } = useLanguage();
   if (!product) return null;
 
   return (
@@ -52,7 +54,7 @@ export function ProductEditDialog({
             <Settings2 className="h-5 w-5 text-primary" />
             <DialogTitle className="text-base sm:text-lg">{product.name}</DialogTitle>
           </div>
-          <DialogDescription>Preço, operadora e regras de comissão deste produto.</DialogDescription>
+          <DialogDescription>{t('Preço, operadora e regras de comissão deste produto.')}</DialogDescription>
         </DialogHeader>
 
         {/* Fixed header: what the product is and what it pays by default.
@@ -79,7 +81,7 @@ export function ProductEditDialog({
         </div>
 
         <div className="shrink-0 border-t px-4 sm:px-6 py-3 flex justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('Fechar')}</Button>
         </div>
       </DialogContent>
     </Dialog>

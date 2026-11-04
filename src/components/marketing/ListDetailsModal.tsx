@@ -11,6 +11,7 @@ import { useContactListMembers, useRemoveListMember, useAddListMembers, useUpdat
 import { ConvertToLeadModal } from "@/components/marketing/ConvertToLeadModal";
 import { normalizeString } from "@/lib/utils";
 import type { MarketingContact } from "@/types/marketing";
+import { useLanguage } from "@/i18n";
 
 interface Props {
   list: ContactList | null;
@@ -24,6 +25,7 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
   const addMembers = useAddListMembers();
   const updateList = useUpdateContactList();
   const { data: allContacts = [] } = useMarketingContacts();
+  const { t } = useLanguage();
 
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
@@ -77,14 +79,14 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
           <DialogHeader>
             {editingList ? (
               <div className="space-y-2">
-                <Input value={listName} onChange={e => setListName(e.target.value)} placeholder="Nome da lista" className="text-lg font-semibold" />
-                <Textarea value={listDesc} onChange={e => setListDesc(e.target.value)} placeholder="Descrição (opcional)" rows={2} />
+                <Input value={listName} onChange={e => setListName(e.target.value)} placeholder={t("Nome da lista")} className="text-lg font-semibold" />
+                <Textarea value={listDesc} onChange={e => setListDesc(e.target.value)} placeholder={t("Descrição (opcional)")} rows={2} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={saveList} disabled={!listName.trim() || updateList.isPending}>
-                    <Check className="h-4 w-4 mr-1" /> Guardar
+                    <Check className="h-4 w-4 mr-1" /> {t("Guardar")}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingList(false)}>
-                    <X className="h-4 w-4 mr-1" /> Cancelar
+                    <X className="h-4 w-4 mr-1" /> {t("Cancelar")}
                   </Button>
                 </div>
               </div>
@@ -103,15 +105,15 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
           </DialogHeader>
 
           <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
-            <Badge variant="secondary">{members.length} contacto(s)</Badge>
+            <Badge variant="secondary">{t("{{n}} contacto(s)", { n: members.length })}</Badge>
             <div className="flex gap-2">
               {selectedForConvert.length > 0 && (
                 <Button size="sm" onClick={() => setShowConvertModal(true)}>
-                  <ArrowRightCircle className="h-4 w-4 mr-1" /> Converter {selectedForConvert.length} em Leads
+                  <ArrowRightCircle className="h-4 w-4 mr-1" /> {t("Converter {{n}} em Leads", { n: selectedForConvert.length })}
                 </Button>
               )}
               <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
-                <UserPlus className="h-4 w-4 mr-1" /> Adicionar
+                <UserPlus className="h-4 w-4 mr-1" /> {t("Adicionar")}
               </Button>
             </div>
           </div>
@@ -120,7 +122,7 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
             <div className="border rounded-lg p-3 space-y-2 bg-muted/30 mt-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Pesquisar contactos de marketing..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+                <Input placeholder={t("Pesquisar contactos de marketing...")} value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
               </div>
               <ScrollArea className="max-h-[150px]">
                 <div className="space-y-1">
@@ -131,18 +133,18 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
                       <span className="text-xs text-muted-foreground truncate">{c.email}</span>
                     </div>
                   ))}
-                  {filteredAvailable.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum contacto disponível</p>}
+                  {filteredAvailable.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{t("Nenhum contacto disponível")}</p>}
                 </div>
               </ScrollArea>
               <Button size="sm" onClick={handleAddSelected} disabled={selected.length === 0 || addMembers.isPending}>
-                Adicionar {selected.length} selecionado(s)
+                {t("Adicionar {{n}} selecionado(s)", { n: selected.length })}
               </Button>
             </div>
           )}
 
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Pesquisar membros por nome, email ou telefone..." value={memberSearch} onChange={e => setMemberSearch(e.target.value)} className="pl-10" />
+            <Input placeholder={t("Pesquisar membros por nome, email ou telefone...")} value={memberSearch} onChange={e => setMemberSearch(e.target.value)} className="pl-10" />
           </div>
         </div>
 
@@ -151,7 +153,7 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : filteredMembers.length === 0 ? (
-              <p className="text-center py-8 text-sm text-muted-foreground">{memberSearch ? "Nenhum resultado encontrado" : "Lista vazia"}</p>
+              <p className="text-center py-8 text-sm text-muted-foreground">{memberSearch ? t("Nenhum resultado encontrado") : t("Lista vazia")}</p>
             ) : (
               <div className="space-y-1">
                 {filteredMembers.map(m => (
@@ -170,7 +172,7 @@ export function ListDetailsModal({ list, open, onOpenChange }: Props) {
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium truncate">{m.contact?.name}</p>
                             {(m.contact as any)?.converted_to_lead && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Convertido</Badge>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{t("Convertido")}</Badge>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5">

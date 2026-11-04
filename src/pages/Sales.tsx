@@ -3,29 +3,29 @@ import { useSearchParams } from "react-router-dom";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { cn } from "@/lib/utils";
 import { matchesSaleSearch } from "@/lib/sales-search";
-import { ShoppingBag, Search, TrendingUp, Package, CheckCircle, Plus, Zap, Download, Loader2, Trash2, CalendarClock, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { ShoppingBag, Plus, Download, Loader2, Upload, Layers, RadioTower, Tag, Users, ChevronDown, Search } from "lucide-react";
 import { useProductTypes } from "@/hooks/useProductTypes";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CommissionsPanel } from "@/components/sales/CommissionsPanel";
-import { Input } from "@/components/ui/input";
+import { MinhasComissoesModal } from "@/components/finance/MinhasComissoesModal";
+import { useMyCommissions } from "@/hooks/useSalesApproval";
+import { commissionPortions } from "@/lib/commission-earnings";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useSales } from "@/hooks/useSales";
 import { useSalesRealtime } from "@/hooks/useRealtimeSubscription";
 import { SaleDetailsModal } from "@/components/sales/SaleDetailsModal";
 import { CreateSaleModal } from "@/components/sales/CreateSaleModal";
 import { EditSaleModal } from "@/components/sales/EditSaleModal";
+import { SalesTable } from "@/components/sales/SalesTable";
 import { TeamMemberFilter } from "@/components/dashboard/TeamMemberFilter";
-import { CommissionFiltersBar } from "@/components/finance/CommissionFilters";
-import { PinnedPageBar } from "@/components/layout/PinnedPageBar";
+import { FilterRow, MultiFilterPill } from "@/components/shared/FilterPills";
+import { filterChipClass, toggled } from "@/components/shared/filter-pills";
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
+import { useTeamFilter } from "@/hooks/useTeamFilter";
 import {
   DEFAULT_COMMISSION_FILTERS,
   hasCommissionFilters,
@@ -36,27 +36,14 @@ import {
 } from "@/lib/commission-filters";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { formatCurrency } from "@/lib/format";
-import { exportToExcel, mapPerfect2GetherSalesForExport } from "@/lib/export";
+import { exportToCsv, exportToExcel, mapPerfect2GetherSalesForExport, mapSalesForExport } from "@/lib/export";
+import { ExportMenu, type ExportKind } from "@/components/shared/ExportMenu";
+import { ImportSalesDialog } from "@/components/sales/ImportSalesDialog";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { format, parseISO, startOfDay, endOfDay } from "date-fns";
-import { pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
-import type { SaleWithDetails, SaleStatus, TelecomStatus } from "@/types/sales";
-import {
-  BILLING_PROVIDER_LABELS,
-  BILLING_STATUS_COLORS,
-  BILLING_STATUS_LABELS,
-  SALE_STATUS_LABELS,
-  SALE_STATUS_COLORS,
-  SALE_STATUSES,
-  TELECOM_STATUSES,
-  TELECOM_STATUS_LABELS,
-  TELECOM_STATUS_COLORS,
-  SERVICE_STATUS_COLORS,
-  SERVICE_STATUS_LABELS,
-} from "@/types/sales";
-
-
+import type { SaleWithDetails, SaleStatus } from "@/types/sales";
+import { SALE_STATUS_LABELS, SALE_STATUSES, TELECOM_STATUSES, TELECOM_STATUS_LABELS } from "@/types/sales";
 import {
   TELECOM_VIEW_LABELS,
   isTelecomViewKey,
@@ -66,73 +53,20 @@ import {
 } from "@/lib/telecom-sale-views";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useTelecomSaleMetrics } from "@/hooks/useTelecomSaleMetrics";
 import { useModules } from "@/hooks/useModules";
-import { TELECOM_TECHNOLOGY_LABELS, type TelecomTechnology } from "@/types/proposals";
+import { type TelecomTechnology } from "@/types/proposals";
 import { useOperators } from "@/hooks/useOperators";
 import type { ServicosDetails } from "@/types/proposals";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatOperationalUnits, sumOperationalSaleUnits } from "@/lib/sale-units";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PageModuleIcon } from "@/components/layout/ModuleNavIcon";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-function TelecomSalesFilters({
-  dateRange,
-  onDateRangeChange,
-  filters,
-  onFiltersChange,
-}: {
-  dateRange?: DateRange;
-  onDateRangeChange: (range: DateRange | undefined) => void;
-  filters: CommissionFilters;
-  onFiltersChange: (filters: CommissionFilters) => void;
-}) {
-  const active = !!dateRange?.from || hasCommissionFilters(filters);
-  const controls = () => (
-    <CommissionFiltersBar
-      value={filters}
-      onChange={onFiltersChange}
-      sidebar
-      periodFilter={
-        <DateRangePicker
-          value={dateRange}
-          onChange={onDateRangeChange}
-          placeholder="Todo o histórico"
-          // flex-1, not w-full: the clear (×) button sits beside it (see Finance).
-          className="h-9 min-w-0 flex-1 overflow-hidden px-3 text-xs"
-        />
-      }
-    />
-  );
-
-  return (
-    <div className="contents">
-      <aside className="hidden min-w-0 overflow-x-hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
-        </h2>
-        {controls()}
-      </aside>
-      <div className="lg:hidden">
-        <Accordion type="single" collapsible className="rounded-xl border border-border/70 bg-card px-3">
-          <AccordionItem value="sales-telecom-filters" className="border-0">
-            <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline">
-              <span className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
-                {active && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Ativos</span>}
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-3">{controls()}</AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    </div>
-  );
-}
+import { useLanguage, dateLocale, tr } from "@/i18n";
 
 /**
  * The operators a sale is under, read off the lines frozen on it. A sale can
@@ -169,31 +103,54 @@ function saleTechnologies(sale: SaleWithDetails): TelecomTechnology[] {
  */
 function saleInstallSlot(sale: SaleWithDetails): { day: string; hours: string } | null {
   if (!sale.scheduled_install_date) return null;
-  const day = format(new Date(sale.scheduled_install_date), "d MMM yyyy", { locale: pt });
+  const day = format(new Date(sale.scheduled_install_date), "d MMM yyyy", { locale: dateLocale() });
   const start = (sale.scheduled_install_date.split('T')[1] ?? '').slice(0, 5);
   const end = (sale.scheduled_install_end?.split('T')[1] ?? '').slice(0, 5);
-  if (!start || start === '00:00') return { day, hours: end ? `até ${end}` : '' };
+  if (!start || start === '00:00') return { day, hours: end ? tr("até {{time}}", { time: end }) : '' };
   return { day, hours: end ? `${start} — ${end}` : `${start}` };
 }
 
+/**
+ * The telecom switches are opt-out (CommissionFilters, shared with the Financeiro): they list
+ * what is switched OFF. The pills here list what is shown, so the two are converted.
+ */
+const shownFromExcluded = (excluded: readonly string[] | undefined, all: readonly string[]) =>
+  !excluded || excluded.length === 0 ? [] : all.filter((key) => !excluded.includes(key));
+const excludedFromShown = (shown: readonly string[], all: readonly string[]) =>
+  shown.length === 0 ? [] : all.filter((key) => !shown.includes(key));
+
+/** One figure of the summary line under the filters. */
+function Figure({ label, value, hint, tone, onClick }: { label: string; value: string; hint?: string; tone?: string; onClick?: () => void }) {
+  const Box = onClick ? 'button' : 'div';
+  return (
+    <Box {...(onClick ? { type: 'button' as const, onClick } : {})}
+      className={cn("min-w-0 rounded-xl border border-border/70 bg-card px-4 py-2.5 text-left shadow-sm", onClick && "transition-colors hover:border-primary/40 hover:bg-primary/5")}>
+      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <p className={cn("truncate text-lg font-semibold tabular-nums", tone)}>{value}</p>
+      {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
+    </Box>
+  );
+}
+
 export default function Sales() {
+  const { t } = useLanguage();
   // Subscribe to realtime updates
   useSalesRealtime();
   const { profile, organization, organizations, isSuperAdmin } = useAuth();
   const { data: sales, isLoading } = useSales();
 
   const isTelecom = organization?.niche === 'telecom';
-  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
   const isPerfect2Gether = hasPerfect2GetherAccess({
     organizationId: organization?.id,
     memberships: organizations,
     isSuperAdmin,
   });
   const { modules } = useModules();
-  const { data: telecomMetrics } = useTelecomSaleMetrics();
+  const showEnergy = isTelecom && modules.energy;
   const { data: operators = [] } = useOperators();
-  const { byId: typeById } = useProductTypes();
+  const { active: productTypes } = useProductTypes();
   const { data: teamMembers = [] } = useTeamMembers();
+  const { selectedMemberId } = useTeamFilter();
 
   const { isAdmin } = usePermissions();
   // The commission a sale is worth. A sale shows what it pays the SELLER —
@@ -209,7 +166,7 @@ export default function Sales() {
       const doVendedor = new Map<string, number>();
       const minha = new Map<string, number>();
       if (!organization?.id) return { doVendedor, minha };
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (supabase as unknown as { from: (table: string) => any })
         .from("sale_commission_splits")
         .select("sale_id, user_id, amount")
         .eq("organization_id", organization.id);
@@ -223,19 +180,21 @@ export default function Sales() {
     },
     enabled: !!organization?.id && isTelecom,
   });
+  const commissionOf = (sale: SaleWithDetails) =>
+    (isAdmin ? comissoesPorVenda?.doVendedor.get(sale.id) : comissoesPorVenda?.minha.get(sale.id)) ?? 0;
 
   const saleOperatorNames = useMemo(
     () => buildSaleOperatorNames(new Map(operators.map((o) => [o.id, o.name]))),
     [operators],
   );
-const queryClient = useQueryClient();
-const [search, setSearch] = usePersistedState("sales-search-v1", "");
-  const [statusFilter, setStatusFilter] = usePersistedState<SaleStatus | "all">("sales-status-v1", "all");
+  const queryClient = useQueryClient();
+  const [search, setSearch] = usePersistedState("sales-search-v1", "");
+  // v2: several states can be picked at once (empty = all), as on the other pages.
+  const [statusFilter, setStatusFilter] = usePersistedState<SaleStatus[]>("sales-status-v2", []);
   // Sale → product-type ids, for the "Tipos" switches.
   const saleTypeIds = useSaleTypeIds();
-  // Telecom: operators, states and seller as switches — the same bar and
-  // the same rules as the Financeiro, so the two screens agree on what a
-  // filter means. Replaces the old one-value pickers for state and operator.
+  // Telecom: operators, states, types and seller — the same filters and rules
+  // as the Financeiro, so the two screens agree on what a filter means.
   const [commissionFilters, setCommissionFilters] = usePersistedState<CommissionFilters>(
     "sales-commission-filters-v1",
     DEFAULT_COMMISSION_FILTERS,
@@ -243,26 +202,21 @@ const [search, setSearch] = usePersistedState("sales-search-v1", "");
 
   const [dateRange, setDateRange] = usePersistedState<DateRange | undefined>("sales-date-range-v1", undefined);
 
-  const activeFilterChips = useMemo(() => {
-    const chips: string[] = [];
-    if (search.trim()) chips.push(`“${search.trim()}”`);
-    if (dateRange?.from) {
-      chips.push(dateRange.to
-        ? `${format(dateRange.from, "d MMM", { locale: pt })} – ${format(dateRange.to, "d MMM", { locale: pt })}`
-        : format(dateRange.from, "d MMM yyyy", { locale: pt }));
-    }
-    const opName = new Map(operators.map((o) => [o.id, o.name]));
-    for (const id of commissionFilters.excludedOperators) chips.push(`− ${id === NO_OPERATOR ? "Sem operadora" : (opName.get(id) ?? id)}`);
-    for (const st of commissionFilters.excludedStatuses ?? []) chips.push(`− ${TELECOM_STATUS_LABELS[st as TelecomStatus] ?? st}`);
-    for (const t of commissionFilters.excludedTypes ?? []) chips.push(`− ${t === NO_TYPE ? "Sem tipo" : (typeById.get(t)?.name ?? t)}`);
-    if (commissionFilters.userId) chips.push(teamMembers.find((m) => m.user_id === commissionFilters.userId)?.full_name ?? "vendedor");
-    return chips;
-  }, [search, dateRange, operators, commissionFilters, typeById, teamMembers]);
-
-
   const [selectedSale, setSelectedSale] = useState<SaleWithDetails | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [salesTab, setSalesTab] = useState<'vendas' | 'comissoes'>('vendas');
+  const [importOpen, setImportOpen] = useState(false);
+  // What the person earned: one figure among the others, opening the detail. The
+  // team's commissions and their payment live in Financeiro → Comissões.
+  const { data: myCommissions } = useMyCommissions();
+  const [myCommissionsOpen, setMyCommissionsOpen] = useState(false);
+  const commissionByPayment = organization?.niche !== "telecom";
+  const myConfirmed = (myCommissions || []).reduce((sum, sale) => sum + (commissionByPayment
+    ? commissionPortions(sale).confirmed
+    : sale.status === "delivered" || sale.status === "fulfilled" ? Number(sale.comissao) || 0 : 0), 0);
+  const myPending = (myCommissions || []).reduce((sum, sale) => sum + (commissionByPayment
+    ? commissionPortions(sale).pending
+    : sale.status === "pending" || sale.status === "in_progress" ? Number(sale.comissao) || 0 : 0), 0);
+  const showMyCommissions = (myCommissions || []).length > 0;
   const [saleToEdit, setSaleToEdit] = useState<SaleWithDetails | null>(null);
   const [pendingSaleId, setPendingSaleId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -279,21 +233,21 @@ const [search, setSearch] = usePersistedState("sales-search-v1", "");
   const telecomTo = searchParams.get("to");
 
   // Delete sale mutation (admin only)
-const deleteSale = useMutation({
-  mutationFn: async (saleId: string) => {
-    const { error } = await supabase.from("sales").delete().eq("id", saleId);
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["sales"] });
-    toast.success("Venda excluída com sucesso");
-  },
-  onError: (err) => {
-    toast.error("Erro ao excluir venda: " + (err instanceof Error ? err.message : "Erro desconhecido"));
-  },
-});
+  const deleteSale = useMutation({
+    mutationFn: async (saleId: string) => {
+      const { error } = await supabase.from("sales").delete().eq("id", saleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      toast.success(t("Venda eliminada com sucesso"));
+    },
+    onError: (err) => {
+      toast.error(t("Erro ao eliminar venda: {{error}}", { error: err instanceof Error ? err.message : t("Erro desconhecido") }));
+    },
+  });
 
-// Deep-link: ?sale=<id> opens the sale modal directly
+  // Deep-link: ?sale=<id> opens the sale modal directly
   useEffect(() => {
     const id = searchParams.get("sale");
     if (id) setPendingSaleId(id);
@@ -320,7 +274,6 @@ const deleteSale = useMutation({
     }
   }, [sales, pendingSaleId]);
 
-
   // Sync selectedSale with fresh data from React Query cache
   useEffect(() => {
     if (selectedSale && sales) {
@@ -330,6 +283,7 @@ const deleteSale = useMutation({
       }
     }
   }, [sales]);
+
   const filteredSales = useMemo(() => {
     if (!sales) return [];
 
@@ -349,14 +303,12 @@ const deleteSale = useMutation({
         if (!matchesTelecomViewInPeriod(sale, telecomView, from ?? startOfDay(telecomReference), to)) return false;
       }
 
-      // Telecom: operator, state and seller come from the switch bar, through
-      // the same predicate the Financeiro uses (operators read off the sale's
-      // own frozen lines; seller = who the sale is assigned to).
+      // Telecom: operator, state, type and seller go through the same
+      // predicate the Financeiro uses (operators read off the sale's own
+      // frozen lines; seller = who the sale is assigned to).
       const matchesStatus = isTelecom
         ? saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds)
-        : (statusFilter === "all" || sale.status === statusFilter);
-      const matchesType = true;
-      const matchesOperator = true;
+        : (statusFilter.length === 0 || statusFilter.includes(sale.status));
 
       const matchesDate = (() => {
         // A dashboard card brings its own window (checked above, by the
@@ -367,18 +319,13 @@ const deleteSale = useMutation({
         const referenceDate = isPerfect2Gether ? sale.activation_date || sale.sale_date : sale.sale_date;
         if (!referenceDate) return false;
         const parsedDate = parseISO(referenceDate);
-        if (parsedDate < startOfDay(dateRange.from)) return false;
-        if (dateRange.to && parsedDate > endOfDay(dateRange.to)) return false;
+        if (parsedDate < startOfDay(new Date(dateRange.from))) return false;
+        if (dateRange.to && parsedDate > endOfDay(new Date(dateRange.to))) return false;
         return true;
       })();
 
-      if (!search.trim()) {
-        return matchesStatus && matchesType && matchesOperator && matchesDate;
-      }
-
-      const matchesSearchTerm = matchesSaleSearch(sale, search, isTelecom);
-
-      return matchesSearchTerm && matchesStatus && matchesType && matchesOperator && matchesDate;
+      if (!search.trim()) return matchesStatus && matchesDate;
+      return matchesSaleSearch(sale, search, isTelecom) && matchesStatus && matchesDate;
     });
   }, [sales, search, statusFilter, commissionFilters, saleTypeIds, isTelecom, dateRange, isPerfect2Gether, telecomView, telecomFrom, telecomTo]);
 
@@ -401,16 +348,31 @@ const deleteSale = useMutation({
     };
   }, [filteredSales]);
 
+  const filtering = !!search.trim() || !!dateRange?.from || (isTelecom ? hasCommissionFilters(commissionFilters) : statusFilter.length > 0);
+  const clearFilters = () => {
+    setSearch("");
+    setDateRange(undefined);
+    setStatusFilter([]);
+    setCommissionFilters(DEFAULT_COMMISSION_FILTERS);
+  };
+
+  const handleExportSales = (kind: ExportKind) => {
+    const data = mapSalesForExport(filteredSales, isTelecom);
+    const name = `vendas_${format(new Date(), "yyyy-MM-dd")}`;
+    if (kind === "excel") exportToExcel(data, name); else exportToCsv(data, name);
+    toast.success(t("{{n}} vendas exportadas", { n: data.length }));
+  };
+
   const handleExportPerfect2Gether = async () => {
     if (!isPerfect2Gether) return;
     if (!dateRange?.from) {
-      toast.error("Selecione o período por Data de Adjudicação antes de exportar.");
+      toast.error(t("Selecione o período por Data de Adjudicação antes de exportar."));
       return;
     }
 
     const exportSales = filteredSales.filter((sale) => !!sale.activation_date);
     if (exportSales.length === 0) {
-      toast.error("Não existem vendas adjudicadas no período selecionado.");
+      toast.error(t("Não existem vendas adjudicadas no período selecionado."));
       return;
     }
 
@@ -490,493 +452,238 @@ const deleteSale = useMutation({
         leadSourcesById,
       });
 
-      exportToExcel(rows, `perfect2gether-vendas-${format(dateRange.from, "yyyy-MM")}`);
-      toast.success("Exportação Perfect2Gether concluída.");
+      exportToExcel(rows, `perfect2gether-vendas-${format(new Date(dateRange.from), "yyyy-MM")}`);
+      toast.success(t("Exportação Perfect2Gether concluída."));
     } catch (error) {
       console.error("Error exporting Perfect2Gether sales:", error);
-      toast.error("Não foi possível exportar o ficheiro Perfect2Gether.");
+      toast.error(t("Não foi possível exportar o ficheiro Perfect2Gether."));
     } finally {
       setIsExporting(false);
     }
   };
 
-  const salesResults = salesTab === 'vendas' ? (
-      <>
-      {/* Sales List */}
-      <div className={isTelecom ? 'min-w-0 space-y-3 pb-nav-safe md:pb-6' : `flex-1 px-4 md:px-6 ${isGenericNiche ? 'lg:px-14' : ''} pb-nav-safe md:pb-6 space-y-3`}>
-        {isLoading ? (
-          <>
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </>
-        ) : filteredSales.length === 0 ? (
-          (search || statusFilter !== "all" || hasCommissionFilters(commissionFilters) || telecomView) ? (
-            <EmptyState icon={ShoppingBag} title="Nenhuma venda encontrada" description="Tenta ajustar os filtros de pesquisa." />
-          ) : (
-            <EmptyState
-              icon={ShoppingBag}
-              title="Ainda não tens vendas"
-              description="Regista a tua primeira venda ou aceita uma proposta para começares a faturar."
-            >
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Registar primeira venda
-              </Button>
-            </EmptyState>
-          )
-        ) : (
-          filteredSales.map((sale) => (
-            <Card 
-              key={sale.id} 
-              className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md' : 'bg-card/50 border-border/50 hover:bg-accent/50 transition-colors'} cursor-pointer`}
-              onClick={() => setSelectedSale(sale)}
-            >
-              <CardContent className={isGenericNiche ? 'p-5' : 'p-4'}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {/* Telecom shows its own lifecycle; the generic status
-                          is kept in sync behind it but never displayed here. */}
-                      {isTelecom && sale.telecom_status ? (
-                        <Badge
-                          variant="outline"
-                          className={`${TELECOM_STATUS_COLORS[sale.telecom_status as TelecomStatus]} text-xs`}
-                        >
-                          {TELECOM_STATUS_LABELS[sale.telecom_status as TelecomStatus]}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className={`${SALE_STATUS_COLORS[sale.status]} text-xs`}
-                        >
-                          {isTelecom ? 'Sem estado' : SALE_STATUS_LABELS[sale.status]}
-                        </Badge>
-                      )}
-                      {isTelecom && modules.energy && (sale as any).proposal_type && (
-                        <Badge 
-                          variant="outline" 
-                          className={(sale as any).proposal_type === 'energia' 
-                            ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-xs' 
-                            : 'bg-cyan-500/20 text-cyan-600 border-cyan-500/30 text-xs'}
-                        >
-                          {(sale as any).proposal_type === 'energia' ? '⚡ Energia' : '🔧 Serviços'}
-                        </Badge>
-                      )}
-                      {sale.recurrence && (
-                        <>
-                          <Badge
-                            variant="outline"
-                            className={`${SERVICE_STATUS_COLORS[sale.recurrence.service_status]} text-xs`}
-                          >
-                            Serviço: {SERVICE_STATUS_LABELS[sale.recurrence.service_status]}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`${BILLING_STATUS_COLORS[sale.recurrence.billing_status]} text-xs`}
-                          >
-                            Cobrança: {BILLING_STATUS_LABELS[sale.recurrence.billing_status]}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {BILLING_PROVIDER_LABELS[sale.recurrence.billing_provider]}
-                          </Badge>
-                        </>
-                      )}
-                      {sale.code && (
-                        <span className="text-xs font-medium text-primary">{sale.code}</span>
-                      )}
-                      {sale.recurrence?.billing_provider === 'stripe' && !sale.seller_id && !sale.created_by && (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                          title="Esta venda Stripe ainda não tem vendedor associado"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (isAdmin) setSaleToEdit(sale);
-                            else setSelectedSale(sale);
-                          }}
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          Associar vendedor
-                        </button>
-                      )}
-                      {/* Which operator(s) the sale is under, read off the lines
-                          frozen on it — until now this needed opening the sale. */}
-                      {saleOperatorNames(sale).map((op) => (
-                        <Badge
-                          key={op}
-                          variant="outline"
-                          className="bg-primary/10 text-primary border-primary/30 text-xs font-semibold"
-                        >
-                          {op}
-                        </Badge>
-                      ))}
-                      {/* Which technology was sold — the same product pays a
-                          different commission on Fibra and on Satélite. */}
-                      {isTelecom && saleTechnologies(sale).map((tech) => (
-                        <Badge
-                          key={tech}
-                          variant="outline"
-                          className="bg-sky-500/10 text-sky-600 border-sky-500/30 text-xs font-medium"
-                        >
-                          {TELECOM_TECHNOLOGY_LABELS[tech]}
-                        </Badge>
-                      ))}
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(sale.created_at), "d MMM yyyy", { locale: pt })}
-                      </span>
-                    </div>
-                    <p className="font-medium truncate">
-                      {sale.client?.name || sale.lead?.name || "Sem identificação"}
-                    </p>
-                    {/* The booked install slot — the field the team chases
-                        every day, until now only visible inside the sale. */}
-                    {isTelecom && (() => {
-                      const slot = saleInstallSlot(sale);
-                      return (
-                        <div
-                          className={cn(
-                            'mt-1.5 inline-flex items-center gap-1.5 rounded-md border px-2 py-1',
-                            slot
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                              : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400',
-                          )}
-                        >
-                          <CalendarClock className="h-4 w-4 shrink-0" />
-                          <span className="text-[10px] uppercase tracking-wide font-semibold opacity-70">
-                            Instalação
-                          </span>
-                          {slot ? (
-                            <>
-                              <span className="text-sm font-bold">{slot.day}</span>
-                              {slot.hours && (
-                                <span className="text-sm font-semibold tabular-nums">{slot.hours}</span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-sm font-bold">Sem data marcada</span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {sale.notes && (
-                      <p className="text-sm text-muted-foreground truncate mt-1">
-                        {sale.notes}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    {/* Telecom bills the operator, not the client: total_value is
-                        a number nobody acts on. Show the commission instead —
-                        the gross for an admin, the person's own cut otherwise. */}
-                    {isTelecom ? (
-                      <>
-                        <p className="text-lg font-semibold">
-                          {formatCurrency(isAdmin
-                            ? comissoesPorVenda?.doVendedor.get(sale.id) ?? 0
-                            : comissoesPorVenda?.minha.get(sale.id) ?? 0)}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">Comissão</p>
-                      </>
-                    ) : (
-                      <p className="text-lg font-semibold">{formatCurrency(sale.total_value)}</p>
-                    )}
-                    {sale.recurrence && (
-                      <p className="text-xs text-muted-foreground">
-                        {formatCurrency(sale.recurrence.amount)}/mês
-                      </p>
-                    )}
-                    {sale.proposal && (
-                      <p className="text-xs text-muted-foreground">Via proposta</p>
-                    )}
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSaleToDelete(sale);
-                        }}
-                        className="mt-2 rounded p-1 text-destructive/70 hover:bg-destructive/10 transition-colors"
-                        title="Excluir venda"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mx-auto" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-      </>
-      ) : null;
+  // Telecom pill options (all keys, so "shown" and "switched off" can be converted).
+  const operatorKeys = [...operators.map((o) => o.id), NO_OPERATOR];
+  const typeKeys = [...productTypes.map((t) => t.id), NO_TYPE];
+  const telecomStatusKeys = TELECOM_STATUSES as readonly string[];
+  const sellerName = commissionFilters.userId ? teamMembers.find((m) => m.user_id === commissionFilters.userId)?.full_name : null;
 
-  // Cards, search and switches — what opens under the pinned bar.
-  const salesPanel = salesTab === 'vendas' ? (
-    <>
-      {/* Generic/other-niche filters stay above their cards. Telecom renders
-          its cards first and places the tabs, search and filters underneath. */}
-      {!isTelecom && <div className={isGenericNiche
-        ? 'mx-4 md:mx-6 mt-2 space-y-3 rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4'
-        : 'px-4 md:px-6 py-3 space-y-3'}>
-        {/* Drill-down chip: says which dashboard card brought you here, and
-            clears back to the full list. */}
-        {telecomView && (
-          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-            <span className="text-muted-foreground">A mostrar:</span>
-            <span className="font-medium">{TELECOM_VIEW_LABELS[telecomView]}</span>
-            {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
-              <span className="text-xs text-muted-foreground">
-                {format(parseISO(telecomFrom), "d MMM", { locale: pt })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: pt })}
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-7 px-2 text-xs"
-              onClick={() => setSearchParams({}, { replace: true })}
-            >
-              Limpar filtro
-            </Button>
-          </div>
-        )}
-        {/* The period picker shares the filter row and sits at the end, like
-            the Financeiro. Telecom keeps its dedicated multi-row switch bar. */}
-        {!isTelecom && (
-          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${isGenericNiche ? 'xl:grid-cols-4' : 'lg:grid-cols-3'}`}>
-            {isGenericNiche && <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={isTelecom ? "Pesquisar por nome, NIF, empresa ou código..." : "Pesquisar por nome, empresa ou código..."}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-              />
-            </div>}
-            <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
-            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as SaleStatus | "all")}>
-              <SelectTrigger className="w-full bg-card/50 border-border/50">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os estados</SelectItem>
-                {SALE_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {SALE_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full" />
-          </div>
-        )}
-      </div>}
-
-      <div className={isTelecom ? "mt-[30px] grid w-full min-w-0 max-w-full items-start gap-4 lg:grid-cols-[252px_minmax(0,1fr)]" : "contents"}>
-      {isTelecom && <TelecomSalesFilters
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        filters={commissionFilters}
-        onFiltersChange={setCommissionFilters}
-      />}
-      <div className={isTelecom ? "w-full min-w-0 max-w-full" : "contents"}>
-      {isTelecom && telecomView && (
-        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm md:mx-0">
-          <span className="text-muted-foreground">A mostrar:</span>
-          <span className="font-medium">{TELECOM_VIEW_LABELS[telecomView]}</span>
-          {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
-            <span className="text-xs text-muted-foreground">
-              {format(parseISO(telecomFrom), "d MMM", { locale: pt })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: pt })}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-7 px-2 text-xs"
-            onClick={() => setSearchParams({}, { replace: true })}
-          >
-            Limpar filtro
-          </Button>
-        </div>
-      )}
-      {/* Summary cards follow the search and sidebar filters. */}
-      <div className={`${isTelecom ? 'w-full min-w-0 pt-4 pb-2' : 'px-4 md:px-6 pt-4 pb-2'} grid grid-cols-2 xl:grid-cols-4 gap-3 ${isTelecom ? 'sm:grid-cols-2 2xl:grid-cols-4' : ''}`}>
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-4' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"><TrendingUp className="h-4 w-4" /></span> : <TrendingUp className="h-4 w-4 text-muted-foreground" />}
-              <span className="text-xs text-muted-foreground">Total Vendas</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight' : 'text-xl'} font-bold leading-tight`}>{stats.total}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(stats.totalValue)} em vendas</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-3' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-blue-500" />}
-              <span className="text-xs text-muted-foreground">Em Progresso</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-amber-700 dark:text-amber-300' : 'text-xl text-blue-500'} font-bold leading-tight`}>{stats.inProgress}</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`${isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'} ${isTelecom ? 'order-2' : ''}`}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"><Package className="h-4 w-4" /></span> : <Package className="h-4 w-4 text-purple-500" />}
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Ativas' : 'Entregues'}</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-violet-600 dark:text-violet-300' : 'text-xl text-purple-500'} font-bold leading-tight`}>{stats.fulfilled}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.fulfilledValue)}</p>
-          </CardContent>
-        </Card>
-
-        <Card className={isGenericNiche ? 'rounded-xl border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md' : 'bg-card/50 border-border/50'}>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              {isGenericNiche ? <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"><CheckCircle className="h-4 w-4" /></span> : <CheckCircle className="h-4 w-4 text-green-500" />}
-              <span className="text-xs text-muted-foreground">{isTelecom ? 'Instaladas' : 'Concluídas'}</span>
-            </div>
-            <p className={`${isGenericNiche ? 'mt-2 text-2xl tracking-tight text-emerald-600 dark:text-emerald-300' : 'text-xl text-green-500'} font-bold leading-tight`}>{stats.delivered}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(stats.deliveredValue)}</p>
-          </CardContent>
-        </Card>
-      </div>
-      {isTelecom && salesResults}
-
-      </div>
-      </div>
-    </>
-  ) : undefined;
   return (
-    <div className="flex flex-col min-h-dvh bg-background">
-      {/* Title, tabs, cards and filters pinned together while the list
-          scrolls. Plain sticky on the window, opaque, nothing outside its
-          own width — the version that behaves. */}
-      <PinnedPageBar
-        icon={ShoppingBag}
-        title="Vendas"
-        storageKey="sales-filters-open-v1"
-        search={!isGenericNiche && salesTab === 'vendas' ? (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={isTelecom ? "Pesquisar por nome, NIF, empresa ou código..." : "Pesquisar por nome, empresa ou código..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={isTelecom
-                ? 'h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'
-                : 'h-8 border-primary/35 bg-primary/[0.04] pl-9 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25'}
-            />
+    <div className="crm-page">
+      <div className="space-y-4 p-4 sm:p-6 lg:px-8 lg:py-7">
+        {/* One line: title and count, the rare actions behind ⋯, and the main action. */}
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          <PageModuleIcon to="/sales" />
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{t("Vendas")}</h1>
+            <span className="text-sm tabular-nums text-muted-foreground">{formatOperationalUnits(stats.total)}</span>
           </div>
-        ) : undefined}
-        tabs={isTelecom ? (
-          <Tabs value={salesTab} onValueChange={(value) => setSalesTab(value as 'vendas' | 'comissoes')}>
-            <TabsList className="h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto">
-              <TabsTrigger value="vendas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Vendas</TabsTrigger>
-              <TabsTrigger value="comissoes" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Comissões</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        ) : !isTelecom ? (
-          <Tabs value={salesTab} onValueChange={(v) => setSalesTab(v as 'vendas' | 'comissoes')}>
-            <TabsList className={isGenericNiche ? 'h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto' : 'h-8'}>
-              <TabsTrigger value="vendas" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Vendas</TabsTrigger>
-              <TabsTrigger value="comissoes" className={isGenericNiche ? 'h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent' : 'h-7 text-xs'}>Comissões</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        ) : undefined}
-        summary={!isGenericNiche && !isTelecom && salesTab === 'vendas'
-          ? `${formatOperationalUnits(stats.total)} venda${stats.total === 1 ? '' : 's'} · ${formatCurrency(stats.totalValue)} · ${formatOperationalUnits(stats.inProgress)} em progresso${isTelecom ? ` · ${formatOperationalUnits(stats.fulfilled)} ativa${stats.fulfilled === 1 ? '' : 's'}` : ''} · ${formatOperationalUnits(stats.delivered)} ${isTelecom ? `instalada${stats.delivered === 1 ? '' : 's'}` : `concluída${stats.delivered === 1 ? '' : 's'}`}`
-          : undefined}
-        chips={salesTab === 'vendas' ? activeFilterChips : []}
-        actions={
-          <>
-            {isPerfect2Gether && (
-              <Button variant="outline" size="sm" className={isGenericNiche ? 'h-10' : 'h-8'} onClick={handleExportPerfect2Gether} disabled={isExporting}>
-                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                <span className="hidden sm:inline">Exportar Perfect2Gether</span>
-                <span className="sm:hidden">Exportar</span>
-              </Button>
-            )}
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
-              <Plus className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Nova Venda</span>
-              <span className="sm:hidden">Nova</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" className="h-9 shrink-0 rounded-full px-3" onClick={() => setImportOpen(true)} aria-label={t("Importar vendas")}>
+              <Upload className="h-4 w-4" /><span className="hidden sm:inline">{t("Importar")}</span>
             </Button>
-          </>
-        }
-        panel={salesPanel}
-        layout={isGenericNiche || isTelecom ? 'dashboard' : 'pinned'}
-        subtitle={isGenericNiche ? 'Acompanhe o desempenho, o estado e o valor das suas vendas.' : undefined}
-      />
-      {salesTab === 'comissoes' && <CommissionsPanel />}
+            <ExportMenu count={filteredSales.length} noun="vendas" onExport={handleExportSales} busy={isExporting}>
+              {isPerfect2Gether && (
+                <DropdownMenuItem onSelect={() => void handleExportPerfect2Gether()}>
+                  <Download className="mr-2 h-4 w-4" />{t("Formato Perfect2Gether")}
+                </DropdownMenuItem>
+              )}
+            </ExportMenu>
+            <Button onClick={() => setShowCreateModal(true)} className="h-9 rounded-full px-4">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">{t("Nova venda")}</span>
+            </Button>
+          </div>
+        </header>
 
-      {!isTelecom && salesResults}
+        <>
+            <FilterRow search={search} onSearch={setSearch}
+              placeholder={isTelecom ? t("Pesquisar nome, NIF, empresa ou código") : t("Pesquisar nome, empresa ou código")}
+              hasActive={filtering} onClear={clearFilters}>
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+                placeholder={isPerfect2Gether ? t("Data de adjudicação") : t("Todo o histórico")}
+                className={cn(filterChipClass(!!dateRange?.from), 'w-auto justify-start [&_svg]:mr-0')}
+              />
+              {isTelecom ? (
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className={filterChipClass(!!commissionFilters.userId)}>
+                      <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="max-w-[10rem] truncate">{sellerName ?? t("Vendedor")}</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
+                      <DropdownMenuRadioGroup value={commissionFilters.userId ?? 'all'}
+                        onValueChange={(value) => setCommissionFilters({ ...commissionFilters, userId: value === 'all' ? null : value })}>
+                        <DropdownMenuRadioItem value="all">{t("Todos os vendedores")}</DropdownMenuRadioItem>
+                        {teamMembers.map((m) => <DropdownMenuRadioItem key={m.user_id} value={m.user_id}>{m.full_name}</DropdownMenuRadioItem>)}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <MultiFilterPill icon={Layers} empty={t("Estado")} plural={t("estados")} width="w-52"
+                    options={TELECOM_STATUSES.map((s) => ({ value: s, label: t(TELECOM_STATUS_LABELS[s]) }))}
+                    picked={shownFromExcluded(commissionFilters.excludedStatuses, telecomStatusKeys)}
+                    onToggle={(value) => setCommissionFilters({ ...commissionFilters, excludedStatuses: excludedFromShown(toggled(shownFromExcluded(commissionFilters.excludedStatuses, telecomStatusKeys), value), telecomStatusKeys) })}
+                    onClear={() => setCommissionFilters({ ...commissionFilters, excludedStatuses: [] })} clearLabel={t("Todos os estados")} />
+                  <MultiFilterPill icon={RadioTower} empty={t("Operadora")} plural={t("operadoras")} width="w-56"
+                    options={[...operators.map((o) => ({ value: o.id, label: o.name })), { value: NO_OPERATOR, label: t("Sem operadora") }]}
+                    picked={shownFromExcluded(commissionFilters.excludedOperators, operatorKeys)}
+                    onToggle={(value) => setCommissionFilters({ ...commissionFilters, excludedOperators: excludedFromShown(toggled(shownFromExcluded(commissionFilters.excludedOperators, operatorKeys), value), operatorKeys) })}
+                    onClear={() => setCommissionFilters({ ...commissionFilters, excludedOperators: [] })} clearLabel={t("Todas as operadoras")} />
+                  <MultiFilterPill icon={Tag} empty={t("Tipo")} plural={t("tipos")} width="w-52"
+                    options={[...productTypes.map((t) => ({ value: t.id, label: t.name })), { value: NO_TYPE, label: t("Sem tipo") }]}
+                    picked={shownFromExcluded(commissionFilters.excludedTypes, typeKeys)}
+                    onToggle={(value) => setCommissionFilters({ ...commissionFilters, excludedTypes: excludedFromShown(toggled(shownFromExcluded(commissionFilters.excludedTypes, typeKeys), value), typeKeys) })}
+                    onClear={() => setCommissionFilters({ ...commissionFilters, excludedTypes: [] })} clearLabel={t("Todos os tipos")} />
+                </>
+              ) : (
+                <>
+                  <TeamMemberFilter className={cn(filterChipClass(!!selectedMemberId), 'w-auto gap-1 [&>svg:first-child]:mr-0')} />
+                  <MultiFilterPill icon={Layers} empty={t("Estado")} plural={t("estados")} width="w-48"
+                    options={SALE_STATUSES.map((s) => ({ value: s, label: t(SALE_STATUS_LABELS[s]) }))}
+                    picked={statusFilter} onToggle={(value) => setStatusFilter((current) => toggled(current, value as SaleStatus))}
+                    onClear={() => setStatusFilter([])} clearLabel={t("Todos os estados")} />
+                </>
+              )}
+            </FilterRow>
 
-        {/* Sale Details Modal */}
-        <SaleDetailsModal
-          sale={selectedSale}
-          open={!!selectedSale}
-          onOpenChange={(open) => !open && setSelectedSale(null)}
-          onEdit={(sale) => {
-            setSelectedSale(null);
-            setSaleToEdit(sale);
-          }}
-        />
-
-        {/* Edit Sale Modal */}
-        {saleToEdit && (
-          <EditSaleModal
-            sale={saleToEdit}
-            open={!!saleToEdit}
-            onOpenChange={(open) => !open && setSaleToEdit(null)}
-          />
-        )}
-
-        {/* Create Sale Modal */}
-        <CreateSaleModal
-          open={showCreateModal}
-          onOpenChange={setShowCreateModal}
-          onSaleCreated={(saleId) => {
-            setShowCreateModal(false);
-            setPendingSaleId(saleId);
-          }}
-        />
-
-        {/* Delete confirmation (admin only) */}
-        <AlertDialog open={!!saleToDelete} onOpenChange={(open) => !open && setSaleToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir venda?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {saleToDelete && (
-                  <>
-                    Vais excluir a venda de{" "}
-                    <span className="font-medium text-foreground">
-                      {saleToDelete.client?.name || saleToDelete.lead?.name || "Sem identificação"}
-                    </span>{" "}
-                    ({formatCurrency(saleToDelete.total_value)}). Esta ação não pode ser desfeita.
-                  </>
+            {/* Drill-down chip: says which dashboard card brought you here, and clears back to the full list. */}
+            {telecomView && (
+              <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">{t("A mostrar:")}</span>
+                <span className="font-medium">{t(TELECOM_VIEW_LABELS[telecomView])}</span>
+                {telecomFrom && telecomTo && isTelecomViewPeriodScoped(telecomView) && (
+                  <span className="text-xs text-muted-foreground">
+                    {format(parseISO(telecomFrom), "d MMM", { locale: dateLocale() })} – {format(parseISO(telecomTo), "d MMM yyyy", { locale: dateLocale() })}
+                  </span>
                 )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
-                  if (saleToDelete) deleteSale.mutate(saleToDelete.id);
-                  setSaleToDelete(null);
-                }}
+                <Button variant="ghost" size="sm" className="ml-auto h-7 rounded-full px-2 text-xs" onClick={() => setSearchParams({}, { replace: true })}>
+                  {t("Limpar filtro")}
+                </Button>
+              </div>
+            )}
+
+            {/* The figures that matter, in one compact row. */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+              <Figure label={t("Vendas")} value={formatOperationalUnits(stats.total)} hint={isTelecom ? undefined : t("{{value}} em vendas", { value: formatCurrency(stats.totalValue) })} />
+              <Figure label={t("Em progresso")} value={formatOperationalUnits(stats.inProgress)} tone="text-blue-600 dark:text-blue-400" />
+              <Figure label={isTelecom ? t("Ativas") : t("Entregues")} value={formatOperationalUnits(stats.fulfilled)} tone="text-violet-600 dark:text-violet-400"
+                hint={isTelecom ? undefined : formatCurrency(stats.fulfilledValue)} />
+              <Figure label={isTelecom ? t("Instaladas") : t("Concluídas")} value={formatOperationalUnits(stats.delivered)} tone="text-emerald-600 dark:text-emerald-400"
+                hint={isTelecom ? undefined : formatCurrency(stats.deliveredValue)} />
+              {showMyCommissions && <Figure label={t("As minhas comissões")} value={formatCurrency(myConfirmed)} tone="text-emerald-600 dark:text-emerald-400"
+                hint={myPending > 0 ? t("+ {{value}} por receber", { value: formatCurrency(myPending) }) : t("Ver detalhe")} onClick={() => setMyCommissionsOpen(true)} />}
+            </div>
+
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : filteredSales.length === 0 && (filtering || telecomView) ? (
+              <div className="flex h-56 flex-col items-center justify-center gap-3 text-muted-foreground">
+                <Search className="h-10 w-10 opacity-50" />
+                <p className="text-base font-medium">{t("Nenhuma venda corresponde aos filtros")}</p>
+                {filtering && <Button variant="outline" size="sm" className="rounded-full" onClick={clearFilters}>{t("Limpar filtros")}</Button>}
+              </div>
+            ) : filteredSales.length === 0 ? (
+              <EmptyState
+                icon={ShoppingBag}
+                title={t("Ainda não tens vendas")}
+                description={t("Regista a tua primeira venda ou aceita uma proposta para começares a faturar.")}
               >
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <Button onClick={() => setShowCreateModal(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t("Registar primeira venda")}
+                </Button>
+              </EmptyState>
+            ) : (
+              <div className="pb-nav-safe md:pb-0">
+                <SalesTable
+                  sales={filteredSales}
+                  isTelecom={isTelecom}
+                  showEnergy={showEnergy}
+                  isAdmin={isAdmin}
+                  commissionOf={commissionOf}
+                  operatorNamesOf={saleOperatorNames}
+                  technologiesOf={saleTechnologies}
+                  installSlotOf={saleInstallSlot}
+                  onOpen={setSelectedSale}
+                  onEdit={setSaleToEdit}
+                  onDelete={setSaleToDelete}
+                />
+              </div>
+            )}
+        </>
+      </div>
+
+      <MinhasComissoesModal open={myCommissionsOpen} onOpenChange={setMyCommissionsOpen} />
+
+      {/* Sale Details Modal */}
+      <SaleDetailsModal
+        sale={selectedSale}
+        open={!!selectedSale}
+        onOpenChange={(open) => !open && setSelectedSale(null)}
+        onEdit={(sale) => {
+          setSelectedSale(null);
+          setSaleToEdit(sale);
+        }}
+      />
+
+      {/* Edit Sale Modal */}
+      {saleToEdit && (
+        <EditSaleModal
+          sale={saleToEdit}
+          open={!!saleToEdit}
+          onOpenChange={(open) => !open && setSaleToEdit(null)}
+        />
+      )}
+
+      {/* Create Sale Modal */}
+      <ImportSalesDialog open={importOpen} onOpenChange={setImportOpen} />
+      <CreateSaleModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        onSaleCreated={(saleId) => {
+          setShowCreateModal(false);
+          setPendingSaleId(saleId);
+        }}
+      />
+
+      {/* Delete confirmation (admin only) */}
+      <AlertDialog open={!!saleToDelete} onOpenChange={(open) => !open && setSaleToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Eliminar venda?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {saleToDelete && (
+                <>
+                  {t("Vais eliminar a venda de")}{" "}
+                  <span className="font-medium text-foreground">
+                    {saleToDelete.client?.name || saleToDelete.lead?.name || t("Sem identificação")}
+                  </span>{" "}
+                  ({formatCurrency(saleToDelete.total_value)}). {t("Esta ação não pode ser desfeita.")}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (saleToDelete) deleteSale.mutate(saleToDelete.id);
+                setSaleToDelete(null);
+              }}
+            >
+              {t("Eliminar")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

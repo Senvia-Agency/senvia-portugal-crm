@@ -9,6 +9,7 @@ import { usesInboxTables, type MessagingChannel } from '@/hooks/useMessagingChan
 import { EmailFolderList } from '@/components/email/EmailFolderList';
 import { useEmailFolders } from '@/hooks/useEmail';
 import { useMetaUnreadTotals } from '@/hooks/useMetaInbox';
+import { useLanguage } from '@/i18n';
 
 // Pastas que NAO contam para o total da caixa.
 //
@@ -87,6 +88,7 @@ export function InboxCaixaRail({
   // Override the root layout (e.g. to render full-width inside a mobile Sheet).
   className?: string;
 }) {
+  const { t } = useLanguage();
   const { data: metaUnread } = useMetaUnreadTotals();
   const [hidden, setHidden] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('inbox-rail-hidden-v1') || '[]'); } catch { return []; }
@@ -143,16 +145,16 @@ export function InboxCaixaRail({
   return (
     <aside data-email-open={Boolean(emailChannelId) || openEmails.length > 0} className={cn("inbox-caixa-rail hidden w-56 shrink-0 flex-col border-r bg-muted/20 lg:flex", className)}>
       <div className="flex items-center justify-between border-b px-3 py-3">
-        <h1 className="px-1 text-sm font-semibold text-muted-foreground">Caixas</h1>
+        <h1 className="px-1 text-sm font-semibold text-muted-foreground">{t("Caixas")}</h1>
         {visibleCaixas.length > 1 && (
           <Popover>
             <PopoverTrigger asChild>
-              <button title="Escolher caixas a mostrar" className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              <button title={t("Escolher caixas a mostrar")} className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                 <SlidersHorizontal className="h-4 w-4" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 p-1.5">
-              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground">Mostrar caixas</p>
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground">{t("Mostrar caixas")}</p>
               <div className="max-h-72 overflow-y-auto">
                 {visibleCaixas.map((c) => (
                   <button
@@ -173,7 +175,7 @@ export function InboxCaixaRail({
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {(MESSAGING_CHANNELS_ENABLED || teamChat) && (
-          <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Mensagens</p>
+          <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Mensagens")}</p>
         )}
         {/* Secção inteira escondida com os canais desligados: sem WhatsApp nem
             Instagram, "Todas as conversas" não teria nada para mostrar. */}
@@ -186,17 +188,17 @@ export function InboxCaixaRail({
             )}
           >
             <InboxIcon className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-left">Todas as conversas</span>
+            <span className="min-w-0 flex-1 truncate text-left">{t("Todas as conversas")}</span>
             <CountBadge n={totalUnread} active={allActive} />
           </button>
         )}
         {/* Internal team messages, right after "Todas as conversas". A direct child of nav, like the
             other boxes, so the Workplace tile rail styles it the same. */}
         {teamChat && (
-          <button type="button" onClick={teamChat.onSelect} aria-current={teamChat.active ? 'true' : undefined} data-team-chat
+          <button type="button" onClick={teamChat.onSelect} aria-current={teamChat.active ? 'true' : undefined} data-team-chat data-otto-target="guide-inbox-team"
             className={cn('flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors', teamChat.active ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground/80 hover:bg-accent')}>
             <MessagesSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate text-left">Mensagens internas</span>
+            <span className="min-w-0 flex-1 truncate text-left">{t("Mensagens internas")}</span>
             <ChatUnreadBadge className="h-[18px] min-w-[18px] px-1.5 text-[10px]" />
           </button>
         )}
@@ -231,7 +233,7 @@ export function InboxCaixaRail({
                 {ch.label || 'WhatsApp'}
               </span>
               {ch.archived_at
-                ? <span className="shrink-0 text-[10px] text-muted-foreground">arquivada</span>
+                ? <span className="shrink-0 text-[10px] text-muted-foreground">{t("arquivada")}</span>
                 : <CountBadge n={unreadFor(ch)} active={active} />}
             </button>
           );
@@ -239,7 +241,7 @@ export function InboxCaixaRail({
 
         {emails.length > 0 && (
           <div className="mt-3 border-t pt-2">
-            <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">E-mails</p>
+            <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("E-mails")}</p>
             {emails.map((ch) => {
               const active = emailChannelId === ch.id;
               const expanded = isFolderOpen(ch.id);
@@ -253,7 +255,7 @@ export function InboxCaixaRail({
                     )}
                   >
                     <Mailbox className="h-4 w-4 shrink-0" style={ch.color ? { color: ch.color } : undefined} />
-                    <span className="min-w-0 flex-1 truncate text-left">{ch.label || 'Email'}</span>
+                    <span className="min-w-0 flex-1 truncate text-left">{ch.label || t('E-mail')}</span>
                     <EmailChannelBadge channelId={ch.id} />
                     {expanded
                       ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -275,11 +277,11 @@ export function InboxCaixaRail({
             })}
           </div>
         )}
-        {webmailLink && <p className="mt-3 border-t px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">E-mails</p>}
+        {webmailLink && <p className="mt-3 border-t px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("E-mails")}</p>}
         {webmailLink && (
           <Link to="/webmail" data-webmail-link className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/80 transition-colors hover:bg-accent">
             <AtSign className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate text-left">Email</span>
+            <span className="min-w-0 flex-1 truncate text-left">{t("E-mail")}</span>
             <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           </Link>
         )}

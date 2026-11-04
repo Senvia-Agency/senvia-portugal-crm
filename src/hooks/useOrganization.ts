@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 
 import { FormSettings } from '@/types';
 import { Json } from '@/integrations/supabase/types';
@@ -73,7 +74,7 @@ export function useUpdateOrganization(options?: { silent?: boolean }) {
   return useMutation({
     mutationFn: async (data: UpdateOrganizationData) => {
       if (!organization?.id) {
-        throw new Error('Organização não encontrada');
+        throw new Error(tr('Organização não encontrada'));
       }
 
       const { error } = await supabase
@@ -88,15 +89,15 @@ export function useUpdateOrganization(options?: { silent?: boolean }) {
       refetchUserData();
       if (options?.silent) return;
       toast({
-        title: 'Guardado',
-        description: 'Definições atualizadas com sucesso.',
+        title: tr('Guardado'),
+        description: tr('Definições atualizadas com sucesso.'),
       });
     },
     onError: (error) => {
       console.error('Error updating organization:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar as definições.',
+        title: tr('Erro'),
+        description: tr('Não foi possível atualizar as definições.'),
         variant: 'destructive',
       });
     },
@@ -110,11 +111,11 @@ export function useTestWebhook() {
   return useMutation({
     mutationFn: async (webhookUrl: string) => {
       if (!webhookUrl) {
-        throw new Error('URL do webhook não definido');
+        throw new Error(tr('URL do webhook não definido'));
       }
 
       if (!organization?.id) {
-        throw new Error('Organização não encontrada');
+        throw new Error(tr('Organização não encontrada'));
       }
 
       // Fetch form settings (for sample custom fields in the test payload).
@@ -152,7 +153,7 @@ export function useTestWebhook() {
 
       if (createError) {
         console.error('Error creating test lead:', createError);
-        throw new Error('Não foi possível criar lead de teste');
+        throw new Error(tr('Não foi possível criar lead de teste'));
       }
 
       // Gerar custom_data dinâmico baseado nos campos personalizados
@@ -230,15 +231,15 @@ export function useTestWebhook() {
         if (response.status === 404 && isWebhookTest) {
           throw new Error('404_WEBHOOK_TEST');
         }
-        throw new Error(`Webhook retornou status ${response.status}`);
+        throw new Error(tr('Webhook retornou status {{status}}', { status: response.status }));
       }
 
       return response;
     },
     onSuccess: () => {
       toast({
-        title: 'Webhook testado',
-        description: 'O webhook respondeu com sucesso! Um lead de teste foi criado no Kanban.',
+        title: tr('Webhook testado'),
+        description: tr('O webhook respondeu com sucesso! Um lead de teste foi criado no Kanban.'),
       });
     },
     onError: (error: Error) => {
@@ -246,14 +247,14 @@ export function useTestWebhook() {
       
       if (error.message === '404_WEBHOOK_TEST') {
         toast({
-          title: 'Endpoint de teste inativo',
-          description: 'URLs com /webhook-test/ (ex.: n8n em modo Teste) só respondem com o fluxo aberto. Para produção, use a URL definitiva (/webhook/).',
+          title: tr('Endpoint de teste inativo'),
+          description: tr('URLs com /webhook-test/ (ex.: n8n em modo Teste) só respondem com o fluxo aberto. Para produção, use a URL definitiva (/webhook/).'),
           variant: 'destructive',
         });
       } else {
         toast({
-          title: 'Erro no teste',
-          description: 'O webhook não respondeu corretamente. Verifique o URL.',
+          title: tr('Erro no teste'),
+          description: tr('O webhook não respondeu corretamente. Verifique o URL.'),
           variant: 'destructive',
         });
       }

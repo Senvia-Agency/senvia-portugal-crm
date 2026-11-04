@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useActivationObjectives } from "@/hooks/useActivationObjectives";
+import { useLanguage } from "@/i18n";
 
 interface Member {
   user_id: string;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function EditActivationObjectivesModal({ open, onOpenChange, periodType, proposalType, members }: Props) {
+  const { t } = useLanguage();
   const { getTarget, saveObjective } = useActivationObjectives();
   const [values, setValues] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export function EditActivationObjectivesModal({ open, onOpenChange, periodType, 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base">
-            Objetivo {periodLabel} — {typeLabel}
+            {t("Objetivo {{period}} — {{type}}", { period: t(periodLabel), type: t(typeLabel) })}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
@@ -80,10 +82,10 @@ export function EditActivationObjectivesModal({ open, onOpenChange, periodType, 
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "A guardar..." : "Guardar"}
+            {saving ? t("A guardar...") : t("Guardar")}
           </Button>
         </div>
       </DialogContent>

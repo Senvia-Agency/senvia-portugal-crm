@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { REQUEST_TYPE_LABELS, REQUEST_STATUS_LABELS, REQUEST_STATUS_COLORS } from '@/types/internal-requests';
 import type { InternalRequest, RequestType, RequestStatus } from '@/types/internal-requests';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   requests: InternalRequest[];
@@ -23,6 +24,7 @@ interface Props {
 
 export function RequestsTable({ requests, isLoading, onSelect, onDelete, filterType, filterStatus, onFilterType, onFilterStatus }: Props) {
   const { session } = useAuth();
+  const { t } = useLanguage();
 
   if (isLoading) {
     return <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
@@ -34,44 +36,44 @@ export function RequestsTable({ requests, isLoading, onSelect, onDelete, filterT
       <div className="flex flex-wrap gap-2">
         <Select value={filterType} onValueChange={(v) => onFilterType(v as RequestType | 'all')}>
           <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Tipo" />
+            <SelectValue placeholder={t("Tipo")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            <SelectItem value="expense">Despesa</SelectItem>
-            <SelectItem value="vacation">Férias</SelectItem>
-            <SelectItem value="invoice">Fatura</SelectItem>
+            <SelectItem value="all">{t("Todos os tipos")}</SelectItem>
+            <SelectItem value="expense">{t("Despesa")}</SelectItem>
+            <SelectItem value="vacation">{t("Férias")}</SelectItem>
+            <SelectItem value="invoice">{t("Fatura")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={(v) => onFilterStatus(v as RequestStatus | 'all')}>
           <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Estado" />
+            <SelectValue placeholder={t("Estado")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os estados</SelectItem>
-            <SelectItem value="pending">Pendente</SelectItem>
-            <SelectItem value="approved">Aprovado</SelectItem>
-            <SelectItem value="paid">Pago</SelectItem>
-            <SelectItem value="rejected">Rejeitado</SelectItem>
+            <SelectItem value="all">{t("Todos os estados")}</SelectItem>
+            <SelectItem value="pending">{t("Pendente")}</SelectItem>
+            <SelectItem value="approved">{t("Aprovado")}</SelectItem>
+            <SelectItem value="paid">{t("Pago")}</SelectItem>
+            <SelectItem value="rejected">{t("Rejeitado")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {requests.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <p className="text-sm">Nenhum pedido encontrado</p>
+          <p className="text-sm">{t("Nenhum pedido encontrado")}</p>
         </div>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead className="hidden md:table-cell">Submetido por</TableHead>
-                <TableHead className="hidden sm:table-cell">Valor</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead>{t("Data")}</TableHead>
+                <TableHead>{t("Tipo")}</TableHead>
+                <TableHead>{t("Título")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Submetido por")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("Valor")}</TableHead>
+                <TableHead>{t("Estado")}</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -79,13 +81,13 @@ export function RequestsTable({ requests, isLoading, onSelect, onDelete, filterT
               {requests.map((r) => (
                 <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.submitted_at)}</TableCell>
-                  <TableCell className="text-xs">{REQUEST_TYPE_LABELS[r.request_type]}</TableCell>
+                  <TableCell className="text-xs">{t(REQUEST_TYPE_LABELS[r.request_type])}</TableCell>
                   <TableCell className="font-medium max-w-[200px] truncate">{r.title}</TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{r.submitter?.full_name || '—'}</TableCell>
                   <TableCell className="hidden sm:table-cell">{r.amount != null ? formatCurrency(r.amount) : '-'}</TableCell>
                   <TableCell>
                     <Badge className={REQUEST_STATUS_COLORS[r.status]} variant="secondary">
-                      {REQUEST_STATUS_LABELS[r.status]}
+                      {t(REQUEST_STATUS_LABELS[r.status])}
                     </Badge>
                   </TableCell>
                   <TableCell>

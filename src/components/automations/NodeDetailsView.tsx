@@ -19,6 +19,7 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useContactLists } from '@/hooks/useContactLists';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
+import { tr, useLanguage } from '@/i18n';
 import type {
   AutomationGraph, AutomationGraphNode, AutomationNodeConfig, AutomationNodeStats,
   AutomationReentryPolicy, AutomationRun, AutomationTriggerType,
@@ -66,6 +67,7 @@ export function NodeDetailsView({
   node, isEntry, flowId, graph, triggerType, stats, onChange, onChangeTrigger,
   reentryPolicy, onReentryChange, onDelete, onClose, runId,
 }: NodeDetailsViewProps) {
+  const { t } = useLanguage();
   const [pane, setPane] = useState<Pane>('params');
 
   const definition = node ? getNodeDefinition(node.type) : undefined;
@@ -83,10 +85,10 @@ export function NodeDetailsView({
   const { data: stages } = usePipelineStages();
   const lookups = useMemo<StepDetailLookups>(() => ({
     templateNameById: Object.fromEntries((templates ?? []).map((t) => [t.id, t.name])),
-    memberNameById: Object.fromEntries((members ?? []).map((m) => [m.user_id, m.full_name || m.email || 'utilizador'])),
+    memberNameById: Object.fromEntries((members ?? []).map((m) => [m.user_id, m.full_name || m.email || tr('utilizador')])),
     listNameById: Object.fromEntries((lists ?? []).map((l) => [l.id, l.name])),
     stageNameByKey: Object.fromEntries((stages ?? []).map((s) => [s.key, s.name])),
-  }), [templates, members, lists, stages]);
+  }), [templates, members, lists, stages, t]);
 
   // The sample for the input column: the run of the most recent step through
   // this node, else the flow's most recent run at all.
@@ -124,25 +126,25 @@ export function NodeDetailsView({
       <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
         {/* Header */}
         <div className="flex shrink-0 items-start gap-3 border-b border-border px-4 py-3 pr-14 sm:px-6">
-          <Button variant="ghost" size="sm" className="-ml-2 h-8 shrink-0 gap-1 px-2" onClick={onClose}>
+          <Button variant="back" size="sm" className="-ml-2 h-8 shrink-0 gap-1 px-2" onClick={onClose}>
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Voltar ao fluxo</span>
+            <span className="hidden sm:inline">{t('Voltar ao fluxo')}</span>
           </Button>
           <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-[2.5px]', style.bg, style.ring)}>
             <Icon className={cn('h-5 w-5', style.icon)} />
           </span>
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate text-base">
-              {definition?.label ?? humanizeNodeType(node.type)}
-              {isEntry && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Gatilho</span>}
+              {definition?.label ? t(definition.label) : humanizeNodeType(node.type)}
+              {isEntry && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">{t('Gatilho')}</span>}
             </DialogTitle>
-            <DialogDescription className="line-clamp-2 text-xs">{definition?.description}</DialogDescription>
+            <DialogDescription className="line-clamp-2 text-xs">{definition?.description ? t(definition.description) : undefined}</DialogDescription>
           </div>
           {stats && (
             <div className="hidden items-center gap-1.5 md:flex">
-              <StatChip label="passaram" value={stats.passed} className="text-success" />
-              <StatChip label="à espera" value={stats.waiting} className="text-warning" />
-              <StatChip label="falharam" value={stats.failed} className={stats.failed > 0 ? 'text-destructive' : 'text-muted-foreground'} />
+              <StatChip label={t('passaram')} value={stats.passed} className="text-success" />
+              <StatChip label={t('à espera')} value={stats.waiting} className="text-warning" />
+              <StatChip label={t('falharam')} value={stats.failed} className={stats.failed > 0 ? 'text-destructive' : 'text-muted-foreground'} />
             </div>
           )}
         </div>
@@ -162,7 +164,7 @@ export function NodeDetailsView({
                 )}
               >
                 <PaneIcon className="h-3.5 w-3.5" />
-                {item.label}
+                {t(item.label, { context: item.key })}
               </button>
             );
           })}
@@ -173,13 +175,13 @@ export function NodeDetailsView({
           {/* Input */}
           <section className={cn('flex min-h-0 flex-col border-border bg-muted/20 lg:border-r', pane !== 'input' && 'hidden lg:flex')}>
             <div className="shrink-0 border-b border-border/60 px-4 pb-3 pt-4">
-            <ColumnTitle icon={Database}>Entrada</ColumnTitle>
+            <ColumnTitle icon={Database}>{t('Entrada', { context: 'input' })}</ColumnTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               {isEntry
-                ? (trigger ? `${trigger.source}. É isto que cada percurso recebe à partida.` : 'O que o gatilho entrega ao fluxo.')
+                ? (trigger ? t('{{source}}. É isto que cada percurso recebe à partida.', { source: trigger.source }) : t('O que o gatilho entrega ao fluxo.'))
                 : trigger
-                  ? `Vem do gatilho «${getNodeLabel(effectiveTrigger ?? '')}»: ${trigger.source.toLowerCase()}, mais o que os passos anteriores juntaram.`
-                  : 'O que este passo recebe do anterior.'}
+                  ? t('Vem do gatilho «{{trigger}}»: {{source}}, mais o que os passos anteriores juntaram.', { trigger: getNodeLabel(effectiveTrigger ?? ''), source: trigger.source.toLowerCase() })
+                  : t('O que este passo recebe do anterior.')}
             </p>
             {trigger?.note && (
               <p className="mt-2 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-[11px] text-foreground">
@@ -191,9 +193,9 @@ export function NodeDetailsView({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Variáveis <span className="tabular-nums normal-case opacity-60">{inputFields.length}</span>
+              {t('Variáveis')} <span className="tabular-nums normal-case opacity-60">{inputFields.length}</span>
             </h4>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">Arrasta uma variável para um campo de texto, ou clica no nome dela nos botões por baixo do campo. O exemplo vem do último contacto que passou aqui.</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t('Arrasta uma variável para um campo de texto, ou clica no nome dela nos botões por baixo do campo. O exemplo vem do último contacto que passou aqui.')}</p>
             <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
               {inputFields.map((field) => {
                 const sample = sampleValueFor(sampleRun, field.key);
@@ -209,7 +211,7 @@ export function NodeDetailsView({
                       event.dataTransfer.setData('text/plain', `{{${field.key}}}`);
                       event.dataTransfer.effectAllowed = 'copy';
                     }}
-                    title={`Arrasta {{${field.key}}} para um campo de texto`}
+                    title={t('Arrasta {{token}} para um campo de texto', { token: `{{${field.key}}}` })}
                     className="flex cursor-grab items-start justify-between gap-2 px-2 py-2 active:cursor-grabbing hover:bg-primary/5"
                   >
                     <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" />
@@ -226,15 +228,15 @@ export function NodeDetailsView({
               })}
             </ul>
 
-            <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registo completo</h4>
+            <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Registo completo')}</h4>
             {!sampleRun ? (
               <p className="mt-2 rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
-                Ainda não passou nenhum contacto por aqui. Os exemplos aparecem depois da primeira execução.
+                {t('Ainda não passou nenhum contacto por aqui. Os exemplos aparecem depois da primeira execução.')}
               </p>
             ) : (
               <>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Exemplo: {sampleRun.contact_name || sampleRun.contact_phone || sampleRun.contact_email || 'contacto'}
+                  {t('Exemplo: {{name}}', { name: sampleRun.contact_name || sampleRun.contact_phone || sampleRun.contact_email || t('contacto') })}
                   {sampleRun.started_at ? ` · ${formatDateTime(sampleRun.started_at)}` : ''}
                 </p>
                 <dl className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-background text-[11px]">
@@ -254,7 +256,7 @@ export function NodeDetailsView({
           <section className={cn('flex min-h-0 flex-col', pane !== 'params' && 'hidden lg:flex')}>
             <div className="shrink-0 border-b border-border/60 px-4 py-3 sm:px-6">
               <div className="mx-auto max-w-2xl">
-                <ColumnTitle icon={SlidersHorizontal}>Parâmetros</ColumnTitle>
+                <ColumnTitle icon={SlidersHorizontal}>{t('Parâmetros')}</ColumnTitle>
               </div>
             </div>
             {/* No padding on the scrolling box itself: Chrome offsets sticky
@@ -278,7 +280,7 @@ export function NodeDetailsView({
           {/* Output */}
           <section className={cn('flex min-h-0 flex-col border-border bg-muted/20 lg:border-l', pane !== 'output' && 'hidden lg:flex')}>
             <div className="shrink-0 border-b border-border/60 px-4 pb-3 pt-4">
-              <ColumnTitle icon={Waypoints}>Saída</ColumnTitle>
+              <ColumnTitle icon={Waypoints}>{t('Saída')}</ColumnTitle>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
             {output && (
@@ -287,7 +289,7 @@ export function NodeDetailsView({
                 {output.branches && output.branches.length > 0 && (
                   <div className="mt-2">
                     <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                      <GitBranch className="h-3 w-3" /> Caminhos possíveis
+                      <GitBranch className="h-3 w-3" /> {t('Caminhos possíveis')}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {output.branches.map((branch, i) => (
@@ -298,7 +300,7 @@ export function NodeDetailsView({
                 )}
                 {output.fields.length > 0 && (
                   <div className="mt-3">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acrescenta ao percurso</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Acrescenta ao percurso')}</h4>
                     <ul className="mt-1.5 divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
                       {output.fields.map((field) => (
                         <li key={field.key} className="px-3 py-2">
@@ -312,7 +314,7 @@ export function NodeDetailsView({
                 )}
                 {isEntry && (
                   <p className="mt-2 text-[11px] text-muted-foreground">
-                    Passa {inputFields.length} variáveis ao passo seguinte — as da Entrada.
+                    {t('Passa {{n}} variáveis ao passo seguinte — as da Entrada.', { n: inputFields.length })}
                   </p>
                 )}
               </>
@@ -320,25 +322,25 @@ export function NodeDetailsView({
 
             {stats && (
               <div className="mt-4 grid grid-cols-3 gap-2">
-                <MiniStat label="Passaram" value={stats.passed} className="text-success" />
-                <MiniStat label="À espera" value={stats.waiting} className="text-warning" />
-                <MiniStat label="Falharam" value={stats.failed} className={stats.failed > 0 ? 'text-destructive' : 'text-muted-foreground'} />
+                <MiniStat label={t('Passaram')} value={stats.passed} className="text-success" />
+                <MiniStat label={t('À espera')} value={stats.waiting} className="text-warning" />
+                <MiniStat label={t('Falharam')} value={stats.failed} className={stats.failed > 0 ? 'text-destructive' : 'text-muted-foreground'} />
               </div>
             )}
 
-            <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Últimas execuções</h4>
+            <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Últimas execuções')}</h4>
             <div className="mt-2">
               {loadingSteps ? (
                 <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
               ) : !nodeSteps?.length ? (
                 <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
-                  Este passo ainda não correu. Testa a automação, ou ativa-a, e o resultado aparece aqui.
+                  {t('Este passo ainda não correu. Testa a automação, ou ativa-a, e o resultado aparece aqui.')}
                 </p>
               ) : (
                 <>
                 {runId && !ranInViewedRun && (
                   <p className="mb-2 rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
-                    Na execução que está no fluxo, este passo não correu. Em baixo, as vezes anteriores.
+                    {t('Na execução que está no fluxo, este passo não correu. Em baixo, as vezes anteriores.')}
                   </p>
                 )}
                 <ol className="space-y-2">
@@ -351,13 +353,13 @@ export function NodeDetailsView({
                       <li key={step.id} className={cn('rounded-xl border bg-background p-3', step.status === 'failed' ? 'border-destructive/40' : 'border-border', isViewed && 'ring-2 ring-primary/40')}>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           {isViewed && (
-                            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-semibold text-primary">Nesta execução</span>
+                            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-semibold text-primary">{t('Nesta execução')}</span>
                           )}
                           <StepIcon className={cn('h-3.5 w-3.5 shrink-0', meta.className)} />
                           <span className="text-xs font-semibold text-foreground">
-                            {run?.contact_name || run?.contact_phone || run?.contact_email || 'Contacto'}
+                            {run?.contact_name || run?.contact_phone || run?.contact_email || t('Contacto')}
                           </span>
-                          <span className={cn('text-[11px] font-medium', meta.className)}>{meta.label}</span>
+                          <span className={cn('text-[11px] font-medium', meta.className)}>{t(meta.label)}</span>
                           <span className="ml-auto text-[11px] text-muted-foreground">{formatDateTime(step.created_at)}</span>
                         </div>
                         {/* The run broke on THIS step: run it again from here, as n8n's retry does. */}
@@ -369,7 +371,7 @@ export function NodeDetailsView({
                             disabled={retryRun.isPending}
                             onClick={() => retryRun.mutate({ runId: run.id, from: 'failed_step' })}
                           >
-                            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repetir daqui
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t('Repetir daqui')}
                           </Button>
                         )}
                         {rows.length > 0 && (
@@ -396,16 +398,16 @@ export function NodeDetailsView({
         {/* Footer */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-6">
           <p className="text-[11px] text-muted-foreground">
-            As alterações ficam no fluxo. Carrega em <strong>Guardar</strong> no editor para as gravar.
+            {t('As alterações ficam no fluxo. Carrega em')} <strong>{t('Guardar')}</strong> {t('no editor para as gravar.')}
           </p>
           <div className="flex items-center gap-2">
             {!isEntry && (
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={onDelete}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar passo
+                {t('Eliminar passo')}
               </Button>
             )}
-            <Button onClick={onClose}>Concluído</Button>
+            <Button onClick={onClose}>{t('Concluído', { context: 'done' })}</Button>
           </div>
         </div>
       </DialogContent>

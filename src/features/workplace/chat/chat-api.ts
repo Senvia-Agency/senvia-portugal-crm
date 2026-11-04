@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { tr } from '@/i18n';
 import type { Tables } from '@/integrations/supabase/types';
 import { CHAT_BUCKET, kindForFile, type ChatConversation, type ChatMember, type ChatMessage, type ChatMessageKind, type ChatReaction } from './chat-model';
 
@@ -35,10 +36,11 @@ const knownErrors: readonly (readonly [RegExp, string])[] = [
 ];
 export function describeChatError(error: unknown) {
   const parsed = z.object({ message: z.string(), code: z.string().optional() }).safeParse(error);
-  const message = error instanceof Error ? error.message : parsed.success ? `${parsed.data.message} ${parsed.data.code ?? ''}` : 'Erro desconhecido';
-  return knownErrors.find(([pattern]) => pattern.test(message))?.[1] ?? message;
+  const message = error instanceof Error ? error.message : parsed.success ? `${parsed.data.message} ${parsed.data.code ?? ''}` : tr('Erro desconhecido');
+  const known = knownErrors.find(([pattern]) => pattern.test(message))?.[1];
+  return known ? tr(known) : message;
 }
-export const isMissingMigration = (error: unknown) => describeChatError(error).startsWith('Falta aplicar a migration');
+export const isMissingMigration = (error: unknown) => describeChatError(error) === tr('Falta aplicar a migration 20261026150000_workplace_chat.sql no Supabase.');
 
 export async function bootstrapChat(organizationId: string) {
   const { data, error } = await supabase.rpc('workplace_chat_bootstrap', { _organization_id: organizationId });

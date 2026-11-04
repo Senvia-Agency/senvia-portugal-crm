@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/i18n";
+import { Trans } from "react-i18next";
 
 interface CancelInvoiceDialogProps {
   open: boolean;
@@ -29,6 +31,7 @@ export function CancelInvoiceDialog({
   invoiceReference,
   createsCreditNote = false,
 }: CancelInvoiceDialogProps) {
+  const { t } = useLanguage();
   const [reason, setReason] = useState("");
 
   const handleConfirm = () => {
@@ -46,21 +49,21 @@ export function CancelInvoiceDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{createsCreditNote ? "Emitir Nota de Crédito" : "Anular Fatura"}</AlertDialogTitle>
+          <AlertDialogTitle>{createsCreditNote ? t("Emitir Nota de Crédito") : t("Anular Fatura")}</AlertDialogTitle>
           <AlertDialogDescription>
             {createsCreditNote ? (
-              <>O KeyInvoice vai emitir uma nota de crédito para a fatura <strong>{invoiceReference}</strong>. O documento fiscal original continuará no histórico. Esta operação não pode ser desfeita.</>
+              <Trans i18nKey="O KeyInvoice vai emitir uma nota de crédito para a fatura <b>{{reference}}</b>. O documento fiscal original continuará no histórico. Esta operação não pode ser desfeita." values={{ reference: invoiceReference }} components={{ b: <strong /> }} />
             ) : (
-              <>Tem a certeza que deseja anular a fatura <strong>{invoiceReference}</strong>? Esta ação será refletida no sistema de faturação e não pode ser desfeita.</>
+              <Trans i18nKey="Tem a certeza que deseja anular a fatura <b>{{reference}}</b>? Esta ação será refletida no sistema de faturação e não pode ser desfeita." values={{ reference: invoiceReference }} components={{ b: <strong /> }} />
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className="space-y-2 py-2">
-          <Label htmlFor="cancel-reason">{createsCreditNote ? "Motivo da nota de crédito *" : "Motivo de anulação *"}</Label>
+          <Label htmlFor="cancel-reason">{createsCreditNote ? t("Motivo da nota de crédito *") : t("Motivo de anulação *")}</Label>
           <Textarea
             id="cancel-reason"
-            placeholder={createsCreditNote ? "Indique o motivo da nota de crédito..." : "Indique o motivo da anulação..."}
+            placeholder={createsCreditNote ? t("Indique o motivo da nota de crédito...") : t("Indique o motivo da anulação...")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
@@ -68,13 +71,13 @@ export function CancelInvoiceDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>{t("Cancelar")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={!reason.trim() || isLoading}
             className="bg-destructive hover:bg-destructive/90"
           >
-            {isLoading ? (createsCreditNote ? "A emitir..." : "A anular...") : (createsCreditNote ? "Emitir Nota de Crédito" : "Anular Fatura")}
+            {isLoading ? (createsCreditNote ? t("A emitir...") : t("A anular...")) : (createsCreditNote ? t("Emitir Nota de Crédito") : t("Anular Fatura"))}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

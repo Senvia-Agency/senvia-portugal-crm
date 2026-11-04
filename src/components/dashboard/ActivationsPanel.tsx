@@ -14,6 +14,7 @@ import { PrintCardButton } from "./PrintCardButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { EditActivationObjectivesModal } from "./EditActivationObjectivesModal";
+import { intlLocale, useLanguage } from "@/i18n";
 
 function percentColor(pct: number) {
   if (pct >= 100) return "text-green-500";
@@ -58,14 +59,15 @@ function ActivationBlock({
   onEdit,
   unit: unitOverride,
 }: ActivationBlockProps) {
+  const { t } = useLanguage();
   const unit = unitOverride || (proposalType === "energia" ? "MWh" : "kWp");
-  const formatVal = (v: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(v);
+  const formatVal = (v: number) => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(v);
 
   const rows = filteredMembers.map((m) => {
     const target = getTarget(m.user_id, periodType, proposalType);
     const actual = countActivations(m.user_id, periodType, proposalType);
     const pct = target > 0 ? Math.round((actual / target) * 100) : 0;
-    return { userId: m.user_id, name: m.full_name + (m.user_id === currentUserId ? " (eu)" : ""), target, actual, pct };
+    return { userId: m.user_id, name: m.full_name + (m.user_id === currentUserId ? t(" (eu)") : ""), target, actual, pct };
   });
 
   const totalTarget = rows.reduce((a, r) => a + r.target, 0);
@@ -121,7 +123,7 @@ function ActivationBlock({
               <span className={`text-2xl font-bold ${percentColor(totalPct)}`}>{totalPct}%</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {formatVal(totalActual)} de {formatVal(totalTarget)} {unit}
+              {t("{{actual}} de {{target}} {{unit}}", { actual: formatVal(totalActual), target: formatVal(totalTarget), unit })}
             </p>
           </div>
         </div>
@@ -131,9 +133,9 @@ function ActivationBlock({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Consultor</TableHead>
-                <TableHead className="text-xs text-right">Obj.</TableHead>
-                <TableHead className="text-xs text-right">Ativ.</TableHead>
+                <TableHead className="text-xs">{t("Consultor")}</TableHead>
+                <TableHead className="text-xs text-right">{t("Obj.")}</TableHead>
+                <TableHead className="text-xs text-right">{t("Ativ.")}</TableHead>
                 <TableHead className="text-xs text-right">%</TableHead>
               </TableRow>
             </TableHeader>
@@ -150,7 +152,7 @@ function ActivationBlock({
               ))}
               {showTotals && (
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
-                  <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                  <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
                   <TableCell className="text-xs text-right font-semibold py-1.5">{formatVal(totalTarget)}</TableCell>
                   <TableCell className="text-xs text-right font-semibold py-1.5">{formatVal(totalActual)}</TableCell>
                   <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(totalPct)}`}>
@@ -167,6 +169,7 @@ function ActivationBlock({
 }
 
 export function ActivationsPanel() {
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [] } = useTeamMembers();
@@ -186,7 +189,7 @@ export function ActivationsPanel() {
   const memberList = members.length > 0
     ? members
     : user?.id
-      ? [{ user_id: user.id, full_name: profile?.full_name || "Eu" }]
+      ? [{ user_id: user.id, full_name: profile?.full_name || t("Eu") }]
       : [];
 
   const filteredMembers = selectedMemberId
@@ -203,7 +206,7 @@ export function ActivationsPanel() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Ativações</CardTitle>
+            <CardTitle className="text-base">{t("Ativações")}</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -217,7 +220,7 @@ export function ActivationsPanel() {
     );
   }
 
-  const servicosUnit = showEnergy ? "kWp" : "contratos";
+  const servicosUnit = showEnergy ? "kWp" : t("contratos");
   const servicosCountActivations = showEnergy
     ? countActivations
     : (
@@ -241,14 +244,14 @@ export function ActivationsPanel() {
       <div className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <Zap className="h-4 w-4" />
-          Ativações
+          {t("Ativações")}
         </h3>
 
         {/* Monthly row */}
         <div className={`grid grid-cols-1 ${showEnergy ? 'md:grid-cols-2' : ''} gap-4`}>
           {showEnergy && (
             <ActivationBlock
-              title="Energia — Mensal"
+              title={t("Energia — Mensal")}
               periodType="monthly"
               proposalType="energia"
               {...blockProps}
@@ -256,7 +259,7 @@ export function ActivationsPanel() {
             />
           )}
           <ActivationBlock
-            title="Serviços — Mensal"
+            title={t("Serviços — Mensal")}
             periodType="monthly"
             proposalType="servicos"
             {...blockProps}
@@ -270,7 +273,7 @@ export function ActivationsPanel() {
         <div className={`grid grid-cols-1 ${showEnergy ? 'md:grid-cols-2' : ''} gap-4`}>
           {showEnergy && (
             <ActivationBlock
-              title="Energia — Anual"
+              title={t("Energia — Anual")}
               periodType="annual"
               proposalType="energia"
               {...blockProps}
@@ -278,7 +281,7 @@ export function ActivationsPanel() {
             />
           )}
           <ActivationBlock
-            title="Serviços — Anual"
+            title={t("Serviços — Anual")}
             periodType="annual"
             proposalType="servicos"
             {...blockProps}

@@ -118,6 +118,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   mark_folder_read: 'Marcar pasta como lida', load_older: 'Carregar mais antigos',
   sync_unread: 'Procurar não lidos', fetch_attachment: 'Obter anexo',
   fetch_body: 'Carregar conteúdo do email',
+  create_folder: 'Criar pasta', rename_folder: 'Renomear pasta', delete_folder: 'Apagar pasta',
 };
 
 export function emailCommandErrorMessage(error: string | null | undefined): string | undefined {

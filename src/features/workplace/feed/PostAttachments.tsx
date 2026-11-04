@@ -4,12 +4,14 @@ import { ChevronLeft, ChevronRight, Download, FileText, Loader2 } from 'lucide-r
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { feedFileUrl, fileLabel, isImageMime, type FeedAttachment } from './feed-files';
+import { useLanguage } from '@/i18n';
 
 const useFileUrl = (path: string) => useQuery({ queryKey: ['workplace-feed', 'file', path], queryFn: () => feedFileUrl(path), staleTime: 50 * 60 * 1000 });
 
 function ImageTile({ attachment, onOpen, className }: { attachment: FeedAttachment; onOpen: () => void; className?: string }) {
+  const { t } = useLanguage();
   const url = useFileUrl(attachment.path);
-  return <button type="button" onClick={onOpen} aria-label={`Ver ${attachment.name}`}
+  return <button type="button" onClick={onOpen} aria-label={t('Ver {{name}}', { name: attachment.name })}
     className={cn('relative block overflow-hidden rounded-2xl bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}>
     {url.data ? <img src={url.data} alt={attachment.name} className="h-full w-full object-cover" /> : <Loader2 className="absolute inset-0 m-auto h-5 w-5 animate-spin text-muted-foreground" />}
   </button>;
@@ -26,6 +28,7 @@ function DocumentCard({ attachment }: { attachment: FeedAttachment }) {
 }
 
 function Viewer({ images, index, onIndex, onClose }: { images: FeedAttachment[]; index: number | null; onIndex: (index: number) => void; onClose: () => void }) {
+  const { t } = useLanguage();
   const current = index === null ? null : images[index];
   const url = useQuery({ queryKey: ['workplace-feed', 'file', current?.path], enabled: !!current, queryFn: () => feedFileUrl(current!.path), staleTime: 50 * 60 * 1000 });
   const step = (delta: number) => { if (index !== null) onIndex((index + delta + images.length) % images.length); };
@@ -33,17 +36,17 @@ function Viewer({ images, index, onIndex, onClose }: { images: FeedAttachment[];
     <DialogContent className="max-w-5xl border-0 bg-black/95 p-3 text-white sm:rounded-3xl"
       onKeyDown={event => { if (event.key === 'ArrowRight') step(1); if (event.key === 'ArrowLeft') step(-1); }}>
       <DialogTitle className="sr-only">{current?.name}</DialogTitle>
-      <DialogDescription className="sr-only">Fotografia {index !== null ? index + 1 : 0} de {images.length}</DialogDescription>
+      <DialogDescription className="sr-only">{t('Fotografia {{n}} de {{total}}', { n: index !== null ? index + 1 : 0, total: images.length })}</DialogDescription>
       <div className="relative flex min-h-[50vh] items-center justify-center">
         {url.data ? <img src={url.data} alt={current?.name} className="max-h-[80vh] max-w-full rounded-xl object-contain" /> : <Loader2 className="h-6 w-6 animate-spin" />}
         {images.length > 1 && <>
-          <button type="button" aria-label="Fotografia anterior" onClick={() => step(-1)} className="absolute left-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"><ChevronLeft className="h-6 w-6" /></button>
-          <button type="button" aria-label="Fotografia seguinte" onClick={() => step(1)} className="absolute right-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"><ChevronRight className="h-6 w-6" /></button>
+          <button type="button" aria-label={t('Fotografia anterior')} onClick={() => step(-1)} className="absolute left-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"><ChevronLeft className="h-6 w-6" /></button>
+          <button type="button" aria-label={t('Fotografia seguinte')} onClick={() => step(1)} className="absolute right-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"><ChevronRight className="h-6 w-6" /></button>
         </>}
       </div>
       <div className="flex items-center justify-between gap-3 px-1 pt-2 text-sm">
         <span className="min-w-0 truncate">{current?.name}{images.length > 1 ? ` · ${(index ?? 0) + 1}/${images.length}` : ''}</span>
-        {url.data && <a href={url.data} download={current?.name} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25"><Download className="h-4 w-4" />Descarregar</a>}
+        {url.data && <a href={url.data} download={current?.name} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25"><Download className="h-4 w-4" />{t('Descarregar')}</a>}
       </div>
     </DialogContent>
   </Dialog>;

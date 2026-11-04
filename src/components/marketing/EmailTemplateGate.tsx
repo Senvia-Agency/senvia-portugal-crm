@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { EMAIL_TEMPLATE_TRIGGER_LABELS } from '@/lib/email-template-triggers';
 import { useEmailTemplateRequirement } from '@/hooks/useEmailTemplateRequirement';
+import { useLanguage } from '@/i18n';
 
 interface EmailTemplateGateProps {
   triggerType: string;
@@ -14,10 +15,11 @@ interface EmailTemplateGateProps {
 }
 
 export function EmailTemplateGate({ triggerType, children, className, message, noticePosition = 'overlay' }: EmailTemplateGateProps) {
+  const { t } = useLanguage();
   const { isConfigured, isLoading } = useEmailTemplateRequirement(triggerType);
   const blocked = isLoading || !isConfigured;
-  const triggerLabel = EMAIL_TEMPLATE_TRIGGER_LABELS[triggerType] || 'este tipo de envio';
-  const notice = message || `Configure um template de email ativo com o gatilho «${triggerLabel}» em Marketing → Templates antes de enviar.`;
+  const triggerLabel = EMAIL_TEMPLATE_TRIGGER_LABELS[triggerType] ? t(EMAIL_TEMPLATE_TRIGGER_LABELS[triggerType]) : t('este tipo de envio');
+  const notice = message || t('Configure um template de email ativo com o gatilho «{{trigger}}» em Marketing → Templates antes de enviar.', { trigger: triggerLabel });
 
   return (
     <div className={cn('flex items-center gap-1', noticePosition === 'overlay' && 'relative', className)}>

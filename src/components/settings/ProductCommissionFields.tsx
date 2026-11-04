@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { productTechnologies } from '@/types/proposals';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CommissionSplitsEditor } from './CommissionSplitsEditor';
+import { useLanguage } from '@/i18n';
 import { QuantityTiersEditor } from './QuantityTiersEditor';
 import type { Operator } from '@/hooks/useOperators';
 import type { CatalogProduct, CommissionSplit, QuantityTier, TelecomTechnology } from '@/types/proposals';
@@ -77,15 +78,16 @@ export function OperatorField({
   operators: Operator[];
   onCommit: (updates: Partial<CatalogProduct>) => void;
 }) {
+  const { t } = useLanguage();
   return (
-    <TonedField tone="neutral" icon={<Radio className="h-3 w-3 shrink-0" />} label="Operadora">
+    <TonedField tone="neutral" icon={<Radio className="h-3 w-3 shrink-0" />} label={t('Operadora')}>
       <Select
         value={product.operator_id ?? NO_OPERATOR}
         onValueChange={(v) => onCommit({ operator_id: v === NO_OPERATOR ? undefined : v })}
       >
-        <SelectTrigger className={cn(tonedInputClass, 'w-full font-normal')}><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+        <SelectTrigger className={cn(tonedInputClass, 'w-full font-normal')}><SelectValue placeholder={t('Nenhuma')} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={NO_OPERATOR}>Nenhuma</SelectItem>
+          <SelectItem value={NO_OPERATOR}>{t('Nenhuma')}</SelectItem>
           {operators.map(op => (
             <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>
           ))}
@@ -104,8 +106,9 @@ export function PriceField({
   onChange: (updates: Partial<CatalogProduct>) => void;
   onCommit: (updates: Partial<CatalogProduct>) => void;
 }) {
+  const { t } = useLanguage();
   return (
-    <TonedField tone="price" icon={<Tag className="h-3 w-3 shrink-0" />} label="Preço Base (€)">
+    <TonedField tone="price" icon={<Tag className="h-3 w-3 shrink-0" />} label={t('Preço Base (€)')}>
       <Input
         type="number"
         step="0.01"
@@ -137,9 +140,10 @@ export function IncludedCardsField({
   onChange: (updates: Partial<CatalogProduct>) => void;
   onCommit: (updates: Partial<CatalogProduct>) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-1.5">
-      <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label="Cartões incluídos">
+      <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label={t('Cartões incluídos')}>
         <Input
           type="number"
           step="1"
@@ -152,8 +156,7 @@ export function IncludedCardsField({
         />
       </TonedField>
       <p className="text-[11px] text-muted-foreground">
-        Quantos cartões já vêm incluídos em cada unidade vendida deste produto. Deixe em branco se este produto não representa cartões (ex.: Alarme, Energia).
-        Soma-se aos cartões extra da venda para o total no perfil do cliente.
+        {t('Quantos cartões já vêm incluídos em cada unidade vendida deste produto. Deixe em branco se este produto não representa cartões (ex.: Alarme, Energia). Soma-se aos cartões extra da venda para o total no perfil do cliente.')}
       </p>
     </div>
   );
@@ -183,9 +186,10 @@ export function ExtraCardField({
   onChange: (updates: Partial<CatalogProduct>) => void;
   onCommit: (updates: Partial<CatalogProduct>) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-1.5">
-      <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Comissão do vendedor por cartão extra (€)">
+      <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label={t('Comissão do vendedor por cartão extra (€)')}>
         <Input
           type="number"
           step="0.01"
@@ -197,7 +201,7 @@ export function ExtraCardField({
           className={cn(tonedInputClass, 'w-full')}
         />
       </TonedField>
-      <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label="Valor pago pela operadora por cartão extra (€)">
+      <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label={t('Valor pago pela operadora por cartão extra (€)')}>
         <Input
           type="number"
           step="0.01"
@@ -210,7 +214,7 @@ export function ExtraCardField({
         />
       </TonedField>
       <p className="text-[11px] text-muted-foreground">
-        São valores separados: a operadora acrescenta o valor indicado à comissão bruta, e o vendedor recebe a sua comissão por cartão extra.
+        {t('São valores separados: a operadora acrescenta o valor indicado à comissão bruta, e o vendedor recebe a sua comissão por cartão extra.')}
       </p>
     </div>
   );
@@ -236,6 +240,7 @@ export function OperatorPaysField({
   // keeps its two columns in the commission lines.)
   const fields: { key: 'operator_pays'; label: string }[] =
     [{ key: 'operator_pays', label: 'Operadora paga (€)' }];
+  const { t } = useLanguage();
 
   return (
     <>
@@ -244,7 +249,7 @@ export function OperatorPaysField({
             key={f.key}
             tone="operator"
             icon={<Banknote className="h-3 w-3 shrink-0" />}
-            label={f.label}
+            label={t(f.label)}
           >
             <Input
               type="number"
@@ -264,10 +269,10 @@ export function OperatorPaysField({
 
 /** The one line under the header that says what "Operadora paga" means. */
 export function OperatorPaysHint() {
+  const { t } = useLanguage();
   return (
     <p className="text-[11px] text-muted-foreground">
-      Quanto a operadora paga à organização por unidade. A comissão do vendedor sai daqui; o que sobra
-      é o Valor da Organização. Em branco, a venda não sabe dizer quanto fica para a empresa.
+      {t('Quanto a operadora paga à organização por unidade. A comissão do vendedor sai daqui; o que sobra é o Valor da Organização. Em branco, a venda não sabe dizer quanto fica para a empresa.')}
     </p>
   );
 }
@@ -297,10 +302,11 @@ export function CommissionSection({
   onChange: (updates: Partial<CatalogProduct>) => void;
   onCommit: (updates: Partial<CatalogProduct>) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Label className="text-sm font-medium">Comissão</Label>
+        <Label className="text-sm font-medium">{t('Comissão')}</Label>
         {/* The same switch on every product, Digi included. ON keeps the
             bands stored while showing them; OFF keeps them stored while the
             calculator ignores them — flipping back loses nothing. */}
@@ -336,7 +342,7 @@ export function CommissionSection({
             }}
           />
           <Label htmlFor="tiered-commission" className="text-xs text-muted-foreground">
-            Comissão por escalão de quantidade
+            {t('Comissão por escalão de quantidade')}
           </Label>
         </div>
         {/* Which quantity the band is read off. Per sale: this sale's own
@@ -356,9 +362,9 @@ export function CommissionSection({
           >
             <SelectTrigger className="h-8 w-full text-xs sm:w-[300px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="per_sale">Quantidade conta por venda</SelectItem>
-              <SelectItem value="monthly_org_total">Quantidade conta ao mês — organização</SelectItem>
-              <SelectItem value="monthly_per_seller">Quantidade conta ao mês — por vendedor</SelectItem>
+              <SelectItem value="per_sale">{t('Quantidade conta por venda')}</SelectItem>
+              <SelectItem value="monthly_org_total">{t('Quantidade conta ao mês — organização')}</SelectItem>
+              <SelectItem value="monthly_per_seller">{t('Quantidade conta ao mês — por vendedor')}</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -369,8 +375,7 @@ export function CommissionSection({
           Gás are "the operator pays X, the seller gets Y", like fibre. */}
       {operator?.kind === 'energia' && !isTiered && !(product.type_ids?.length) ? (
         <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-          Este produto usa a operadora <strong>{operator.name}</strong> (energia) — a comissão configura-se em
-          Matriz de Comissões, não aqui.
+          {t('Este produto usa a operadora {{name}} (energia) — a comissão configura-se em Matriz de Comissões, não aqui.', { name: operator.name })}
         </div>
       ) : isTiered ? (
         <QuantityTiersEditor
@@ -448,6 +453,7 @@ export function ProductTypesField({
   hint?: boolean;
 }) {
   const { active, byId } = useProductTypes();
+  const { t: tl } = useLanguage();
   const selected = new Set(product.type_ids ?? []);
   // An archived type stays visible while this product still carries it.
   const shown = [
@@ -468,7 +474,7 @@ export function ProductTypesField({
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
         <Tags className="h-3.5 w-3.5" />
-        Tipos
+        {tl('Tipos')}
       </Label>
       <div className="flex flex-wrap items-center gap-1.5">
         {shown.map((t) => {
@@ -488,15 +494,14 @@ export function ProductTypesField({
               )}
             >
               {t.name}
-              {t.archived && ' (arquivado)'}
+              {t.archived && ` (${tl('arquivado')})`}
             </Toggle>
           );
         })}
       </div>
       {hint && (
         <p className="text-[11px] text-muted-foreground">
-          O tipo decide a forma da comissão e é por ele que a venda começa. Um produto pode ter mais do que um —
-          um pacote que leve fibra e cartões paga os dois.
+          {tl('O tipo decide a forma da comissão e é por ele que a venda começa. Um produto pode ter mais do que um — um pacote que leve fibra e cartões paga os dois.')}
         </p>
       )}
     </div>
@@ -543,6 +548,7 @@ export function ProductCommissionFields({
   onCommit,
 }: ProductCommissionFieldsProps) {
   const { operator, isTiered, operatorRequiresTiers, scopeLabel, tierBasis, tierScope } = useProductOperatorContext(product, operators);
+  const { t } = useLanguage();
 
   return (
     <>
@@ -553,7 +559,7 @@ export function ProductCommissionFields({
       {!isTiered && <OperatorPaysHint />}
       {isTiered && (
         <p className="text-xs text-muted-foreground -mt-3">
-          Preço e "Operadora paga" acima são os valores por defeito. Cada escalão abaixo pode ter os seus, e esses ganham.
+          {t('Preço e "Operadora paga" acima são os valores por defeito. Cada escalão abaixo pode ter os seus, e esses ganham.')}
         </p>
       )}
       <CommissionSection

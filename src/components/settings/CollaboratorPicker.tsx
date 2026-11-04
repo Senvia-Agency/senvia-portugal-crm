@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 export interface CollaboratorOption {
   user_id: string;
@@ -28,9 +29,10 @@ export function CollaboratorPicker({
   emptyHint,
 }: CollaboratorPickerProps) {
   const [q, setQ] = useState('');
+  const { t } = useLanguage();
 
   if (members.length === 0) {
-    return <p className="text-xs text-muted-foreground">Não há colaboradores na equipa.</p>;
+    return <p className="text-xs text-muted-foreground">{t('Não há colaboradores na equipa.')}</p>;
   }
 
   const term = q.trim().toLowerCase();
@@ -53,14 +55,14 @@ export function CollaboratorPicker({
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Procurar colaborador..."
+          placeholder={t('Procurar colaborador...')}
           className="h-9 pl-8"
         />
       </div>
 
       <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
         {filtered.length === 0 ? (
-          <p className="text-xs text-muted-foreground p-3 text-center">Ninguém encontrado.</p>
+          <p className="text-xs text-muted-foreground p-3 text-center">{t('Ninguém encontrado.')}</p>
         ) : (
           filtered.map((m) => {
             const checked = value.includes(m.user_id);
@@ -96,7 +98,7 @@ export function CollaboratorPicker({
 
       {value.length > 0 ? (
         <p className="text-[11px] text-muted-foreground">
-          {value.length} selecionado{value.length > 1 ? 's' : ''}
+          {t(value.length > 1 ? '{{n}} selecionados' : '{{n}} selecionado', { n: value.length })}
         </p>
       ) : emptyHint ? (
         <p className="text-[11px] text-muted-foreground">{emptyHint}</p>

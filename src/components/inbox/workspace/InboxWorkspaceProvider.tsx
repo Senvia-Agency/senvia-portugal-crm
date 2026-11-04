@@ -5,6 +5,7 @@ import { InboxWorkspaceContext } from './InboxWorkspaceContext';
 import { InboxWorkspaceSurface } from './InboxWorkspaceSurface';
 import { InboxDialogBoundary } from './InboxDialogBoundary';
 import { useInboxWindow } from './useInboxWindow';
+import { useTourStore } from '@/stores/useTourStore';
 
 export function InboxWorkspaceProvider({ children, scope }: { readonly children: ReactNode; readonly scope: string }) {
   const preferenceKey = `senvia-inbox-workspace:${scope}`;
@@ -26,7 +27,10 @@ export function InboxWorkspaceProvider({ children, scope }: { readonly children:
     change();
     return () => query.removeEventListener('change', change);
   }, []);
-  useLayoutEffect(() => { if (enabled && onInbox) setPinned(true); }, [enabled, onInbox]);
+  // A guided tour only passes through the Inbox: it must not leave it docked on
+  // every other page afterwards.
+  const touring = useTourStore((s) => !!s.tourId);
+  useLayoutEffect(() => { if (enabled && onInbox && !touring) setPinned(true); }, [enabled, onInbox, touring]);
   const returnToInbox = useCallback(() => {
     close();
     setMinimized(false);

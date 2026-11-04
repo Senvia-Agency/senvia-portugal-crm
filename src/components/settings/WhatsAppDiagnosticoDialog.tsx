@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Achado, RelatorioDiagnostico } from "@/hooks/useWhatsAppDiagnostico";
+import { useLanguage } from "@/i18n";
 
 /**
  * O relatório do diagnóstico do WhatsApp, em linguagem de gente.
@@ -51,6 +52,7 @@ interface Props {
 }
 
 export function WhatsAppDiagnosticoDialog({ open, onOpenChange, relatorio, aCarregar, erro }: Props) {
+  const { t } = useLanguage();
   // Quantas verificações falharam mesmo (as por verificar não contam).
   const falhas = relatorio
     ? [...relatorio.achados, ...relatorio.caixas.flatMap((c) => c.achados)]
@@ -61,27 +63,27 @@ export function WhatsAppDiagnosticoDialog({ open, onOpenChange, relatorio, aCarr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Diagnóstico do WhatsApp</DialogTitle>
+          <DialogTitle>{t("Diagnóstico do WhatsApp")}</DialogTitle>
           <DialogDescription>
             {aCarregar
-              ? "A perguntar à Meta o estado da ligação…"
+              ? t("A perguntar à Meta o estado da ligação…")
               : relatorio
                 ? falhas === 0
-                  ? "Está tudo como devia. Se mesmo assim não chegam mensagens, avisa — o problema é outro."
-                  : `${falhas} ${falhas === 1 ? "problema encontrado" : "problemas encontrados"}. Cada linha a vermelho diz o que corrigir.`
-                : "Nada verificado ainda."}
+                  ? t("Está tudo como devia. Se mesmo assim não chegam mensagens, avisa — o problema é outro.")
+                  : t(falhas === 1 ? "{{n}} problema encontrado. Cada linha a vermelho diz o que corrigir." : "{{n}} problemas encontrados. Cada linha a vermelho diz o que corrigir.", { n: falhas })
+                : t("Nada verificado ainda.")}
           </DialogDescription>
         </DialogHeader>
 
         {aCarregar && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> A verificar…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("A verificar…")}
           </div>
         )}
 
         {erro && !aCarregar && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-sm font-medium text-destructive">Não foi possível correr o diagnóstico</p>
+            <p className="text-sm font-medium text-destructive">{t("Não foi possível correr o diagnóstico")}</p>
             <p className="mt-0.5 text-xs text-muted-foreground break-words">{erro}</p>
           </div>
         )}
@@ -90,7 +92,7 @@ export function WhatsAppDiagnosticoDialog({ open, onOpenChange, relatorio, aCarr
           <div className="space-y-5">
             <section>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                A app da Senvia
+                {t("A app da Senvia")}
               </h4>
               {/* Isto vale para TODOS os clientes de uma vez. Se falhar aqui,
                   não vale a pena olhar para as caixas. */}
@@ -100,7 +102,7 @@ export function WhatsAppDiagnosticoDialog({ open, onOpenChange, relatorio, aCarr
             {relatorio.caixas.map((c) => (
               <section key={c.id}>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {c.label || "Caixa sem nome"}
+                  {c.label || t("Caixa sem nome")}
                 </h4>
                 <Lista achados={c.achados} />
               </section>

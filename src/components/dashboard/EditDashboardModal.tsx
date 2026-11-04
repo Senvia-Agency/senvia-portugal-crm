@@ -15,6 +15,7 @@ import {
   type WidgetType,
 } from '@/lib/dashboard-templates';
 import type { ProfileDashboardWidget } from '@/hooks/useOrganizationProfiles';
+import { useLanguage } from '@/i18n';
 
 interface EditDashboardModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface EditDashboardModalProps {
  * and saving without touching anything changes nothing.
  */
 export function EditDashboardModal({ open, onOpenChange }: EditDashboardModalProps) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const { data: target, isLoading: targetLoading } = useDashboardEditorTarget();
   const { widgets: currentWidgets, niche } = useDashboardWidgets();
@@ -104,9 +106,9 @@ export function EditDashboardModal({ open, onOpenChange }: EditDashboardModalPro
             />
             <widget.icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <p className="text-sm leading-tight">{getWidgetTitle(widget.type, niche as NicheType)}</p>
+              <p className="text-sm leading-tight">{t(getWidgetTitle(widget.type, niche as NicheType))}</p>
               {widget.description && (
-                <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{widget.description}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{t(widget.description)}</p>
               )}
             </div>
           </label>
@@ -121,12 +123,12 @@ export function EditDashboardModal({ open, onOpenChange }: EditDashboardModalPro
         <DialogHeader className="p-4 md:p-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <LayoutDashboard className="h-5 w-5 text-primary" />
-            Editar Dashboard
+            {t("Editar painel")}
           </DialogTitle>
           <DialogDescription>
-            Escolhe o que aparece no painel.
+            {t("Escolhe o que aparece no painel.")}
             {target && (
-              <> Aplica-se a toda a gente com o perfil <strong>{target.name}</strong>.</>
+              <> {t("Aplica-se a toda a gente com o perfil")} <strong>{target.name}</strong>.</>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -138,22 +140,21 @@ export function EditDashboardModal({ open, onOpenChange }: EditDashboardModalPro
             </div>
           ) : !target ? (
             <p className="text-sm text-muted-foreground py-4">
-              Não foi encontrado um perfil onde guardar esta configuração. Cria um perfil em
-              Definições → Perfis e volta aqui.
+              {t("Não foi encontrado um perfil onde guardar esta configuração. Cria um perfil em Definições → Perfis e volta aqui.")}
             </p>
           ) : (
             <>
-              {panels.length > 0 && renderGroup('Painéis', panels)}
-              {indicators.length > 0 && renderGroup('Indicadores', indicators)}
+              {panels.length > 0 && renderGroup(t('Painéis'), panels)}
+              {indicators.length > 0 && renderGroup(t('Indicadores'), indicators)}
             </>
           )}
         </div>
 
         <DialogFooter className="p-4 md:p-6 pt-3 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
           <Button onClick={handleSave} disabled={!target || save.isPending}>
             {save.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Guardar
+            {t("Guardar")}
           </Button>
         </DialogFooter>
       </DialogContent>

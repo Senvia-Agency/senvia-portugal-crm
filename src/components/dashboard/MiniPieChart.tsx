@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { useLanguage } from "@/i18n";
 
 interface MiniPieChartProps {
   data: { name: string; value: number; color?: string }[];
@@ -14,10 +15,11 @@ const COLORS = [
 ];
 
 export function MiniPieChart({ data, size = 80 }: MiniPieChartProps) {
+  const { t } = useLanguage();
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center text-muted-foreground text-xs" style={{ width: size, height: size }}>
-        Sem dados
+        {t("Sem dados")}
       </div>
     );
   }

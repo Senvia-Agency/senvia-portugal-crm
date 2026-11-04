@@ -3,9 +3,11 @@ import { useEffect } from "react";
 import { Home, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SEO } from "@/components/SEO";
+import { useLanguage } from "@/i18n";
 
 const NotFound = () => {
   const location = useLocation();
+  const { t } = useLanguage();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -14,8 +16,8 @@ const NotFound = () => {
   return (
     <>
       <SEO 
-        title="Página não encontrada" 
-        description="A página que procura não existe ou foi movida."
+        title={t("Página não encontrada")} 
+        description={t("A página que procura não existe ou foi movida.")}
         noindex={true}
       />
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
@@ -27,18 +29,18 @@ const NotFound = () => {
           </div>
           
           <h1 className="mb-4 text-2xl font-bold text-white">
-            Página não encontrada
+            {t("Página não encontrada")}
           </h1>
           
           <p className="mb-8 text-slate-400">
-            A página que procura não existe ou foi movida para outro endereço.
+            {t("A página que procura não existe ou foi movida para outro endereço.")}
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="outline" className="border-slate-700" asChild>
               <Link to="/">
                 <Home className="mr-2 h-4 w-4" />
-                Página Inicial
+                {t("Página Inicial")}
               </Link>
             </Button>
             
@@ -48,7 +50,7 @@ const NotFound = () => {
               onClick={() => window.history.back()}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
+              {t("Voltar")}
             </Button>
           </div>
         </div>

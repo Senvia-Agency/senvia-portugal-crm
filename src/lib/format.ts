@@ -1,4 +1,5 @@
-// PT-PT Formatting Utilities
+// Formatting utilities. Dates and numbers follow the chosen language (pt-PT by default).
+import { intlLocale, tr } from "@/i18n";
 
 /**
  * Parse a localized number string (PT/EN formats) into a JS number.
@@ -27,7 +28,7 @@ export function parseLocalizedNumber(value: string): number {
  */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('pt-PT', {
+  return d.toLocaleDateString(intlLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -52,8 +53,8 @@ export function billingPeriodLabel(start?: string | null, end?: string | null): 
   const [sY, sM, sD] = start.split('-').map(Number);
   const [eY, eM, eD] = end.split('-').map(Number);
   const opts: Intl.DateTimeFormatOptions = { month: 'short', year: 'numeric' };
-  const sLabel = new Date(sY, sM - 1, sD).toLocaleDateString('pt-PT', opts);
-  const eLabel = new Date(eY, eM - 1, eD).toLocaleDateString('pt-PT', opts);
+  const sLabel = new Date(sY, sM - 1, sD).toLocaleDateString(intlLocale(), opts);
+  const eLabel = new Date(eY, eM - 1, eD).toLocaleDateString(intlLocale(), opts);
   return sLabel === eLabel ? sLabel : `${sLabel} – ${eLabel}`;
 }
 
@@ -62,7 +63,7 @@ export function billingPeriodLabel(start?: string | null, end?: string | null): 
  */
 export function formatDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('pt-PT', {
+  return d.toLocaleDateString(intlLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -75,7 +76,7 @@ export function formatDateTime(date: Date | string): string {
  * Format currency to Euro (€)
  */
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-PT', {
+  return new Intl.NumberFormat(intlLocale(), {
     style: 'currency',
     currency: 'EUR',
   }).format(value);
@@ -151,10 +152,10 @@ export function formatRelativeTime(date: Date | string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'Agora mesmo';
-  if (diffMins < 60) return `Há ${diffMins} minuto${diffMins !== 1 ? 's' : ''}`;
-  if (diffHours < 24) return `Há ${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-  if (diffDays < 7) return `Há ${diffDays} dia${diffDays !== 1 ? 's' : ''}`;
+  if (diffMins < 1) return tr('Agora mesmo');
+  if (diffMins < 60) return tr(diffMins === 1 ? 'Há {{n}} minuto' : 'Há {{n}} minutos', { n: diffMins });
+  if (diffHours < 24) return tr(diffHours === 1 ? 'Há {{n}} hora' : 'Há {{n}} horas', { n: diffHours });
+  if (diffDays < 7) return tr(diffDays === 1 ? 'Há {{n}} dia' : 'Há {{n}} dias', { n: diffDays });
   
   return formatDate(d);
 }

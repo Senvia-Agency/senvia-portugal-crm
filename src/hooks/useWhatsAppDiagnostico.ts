@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { tr } from '@/i18n';
 
 /**
  * Diagnóstico da ligação de WhatsApp.
@@ -53,7 +54,7 @@ export function useWhatsAppDiagnostico() {
 
   return useMutation({
     mutationFn: async (): Promise<RelatorioDiagnostico> => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { data, error } = await supabase.functions.invoke('meta-connect', {
         body: { action: 'whatsapp_diagnostico', organization_id: organization.id },

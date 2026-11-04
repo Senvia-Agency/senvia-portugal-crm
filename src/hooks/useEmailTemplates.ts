@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import type { EmailTemplate, EmailTemplateCategory } from '@/types/marketing';
 
 interface CreateEmailTemplateData {
@@ -111,11 +112,11 @@ export function useCreateEmailTemplate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
-      toast.success('Template criado com sucesso');
+      toast.success(tr('Template criado com sucesso'));
     },
     onError: (error) => {
       console.error('Error creating template:', error);
-      toast.error('Erro ao criar template');
+      toast.error(tr('Erro ao criar template'));
     },
   });
 }
@@ -155,11 +156,11 @@ export function useUpdateEmailTemplate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
       queryClient.invalidateQueries({ queryKey: ['email-template'] });
-      toast.success('Template atualizado com sucesso');
+      toast.success(tr('Template atualizado com sucesso'));
     },
     onError: (error) => {
       console.error('Error updating template:', error);
-      toast.error('Erro ao atualizar template');
+      toast.error(tr('Erro ao atualizar template'));
     },
   });
 }
@@ -182,11 +183,11 @@ export function useDeleteEmailTemplate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
-      toast.success('Template eliminado');
+      toast.success(tr('Template eliminado'));
     },
     onError: (error) => {
       console.error('Error deleting template:', error);
-      toast.error('Erro ao eliminar template');
+      toast.error(tr('Erro ao eliminar template'));
     },
   });
 }
@@ -231,11 +232,11 @@ export function useDuplicateEmailTemplate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
-      toast.success('Template duplicado');
+      toast.success(tr('Template duplicado'));
     },
     onError: (error) => {
       console.error('Error duplicating template:', error);
-      toast.error('Erro ao duplicar template');
+      toast.error(tr('Erro ao duplicar template'));
     },
   });
 }

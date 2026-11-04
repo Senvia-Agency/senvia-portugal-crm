@@ -80,6 +80,9 @@ export interface SaleRecurrenceDetail extends RecurringFiscalConfig {
   stripe_subscription_id: string | null;
   stripe_checkout_session_id: string | null;
   client_email: string | null;
+  /** For sending a document by WhatsApp. */
+  client_phone: string | null;
+  client_name: string | null;
   fiscal_auto_start_after: string | null;
   /** The sale itself (its first month) is issued automatically like the cycles. */
   fiscal_include_sale: boolean;
@@ -275,7 +278,7 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
 
       const { data: sale } = await supabase
         .from('sales')
-        .select('client:crm_clients(email)')
+        .select('client:crm_clients(email, phone, name)')
         .eq('id', saleId)
         .maybeSingle();
 
@@ -302,6 +305,8 @@ export function useSaleRecurrence(saleId: string | null | undefined) {
         ...(recurrence as unknown as Omit<SaleRecurrenceDetail, 'cycles'>),
         ...fiscalConfig,
         client_email: (sale?.client as { email?: string | null } | null)?.email ?? null,
+        client_phone: (sale?.client as { phone?: string | null } | null)?.phone ?? null,
+        client_name: (sale?.client as { name?: string | null } | null)?.name ?? null,
         fiscal_include_sale: includesSale,
         fiscal_sale_last_error: typeof recurrence.fiscal_sale_last_error === 'string'
           ? recurrence.fiscal_sale_last_error

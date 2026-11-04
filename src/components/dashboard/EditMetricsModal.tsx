@@ -9,6 +9,7 @@ import { useMonthlyMetrics, MonthlyMetric, MetricValues } from "@/hooks/useMonth
 import { useAuth } from "@/contexts/AuthContext";
 import { useModules } from "@/hooks/useModules";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 interface EditMetricsModalProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface EditMetricsModalProps {
 }
 
 export function EditMetricsModal({ open, onOpenChange, metrics }: EditMetricsModalProps) {
+  const { t } = useLanguage();
   const { data: members = [] } = useTeamMembers();
   const { saveMetric } = useMonthlyMetrics();
   const { organization } = useAuth();
@@ -67,15 +69,15 @@ export function EditMetricsModal({ open, onOpenChange, metrics }: EditMetricsMod
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md w-full">
         <DialogHeader>
-          <DialogTitle>Definir Métricas Mensais</DialogTitle>
+          <DialogTitle>{t("Definir Métricas Mensais")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Colaborador</Label>
+            <Label>{t("Colaborador")}</Label>
             <Select value={selectedUser} onValueChange={setSelectedUser}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar" />
+                <SelectValue placeholder={t("Selecionar")} />
               </SelectTrigger>
               <SelectContent>
                 {members.map((m) => (
@@ -89,11 +91,11 @@ export function EditMetricsModal({ open, onOpenChange, metrics }: EditMetricsMod
             {showEnergy && (
               <>
                 <div className="space-y-1">
-                  <Label className="text-xs">OP Energia</Label>
+                  <Label className="text-xs">{t("OP Energia")}</Label>
                   <Input type="number" value={values.op_energia} onChange={(e) => handleChange("op_energia", e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Energia (MWh)</Label>
+                  <Label className="text-xs">{t("Energia (MWh)")}</Label>
                   <Input type="number" step="0.01" value={values.energia} onChange={(e) => handleChange("energia", e.target.value)} />
                 </div>
                 <div className="space-y-1">
@@ -107,21 +109,21 @@ export function EditMetricsModal({ open, onOpenChange, metrics }: EditMetricsMod
               </>
             )}
             <div className="space-y-1">
-              <Label className="text-xs">OP Comissão</Label>
+              <Label className="text-xs">{t("OP Comissão")}</Label>
               <Input type="number" value={values.op_comissao} onChange={(e) => handleChange("op_comissao", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Comissão (€)</Label>
+              <Label className="text-xs">{t("Comissão (€)")}</Label>
               <Input type="number" step="0.01" value={values.comissao} onChange={(e) => handleChange("comissao", e.target.value)} />
             </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
           <Button onClick={handleSave} disabled={saveMetric.isPending || !selectedUser}>
             {saveMetric.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Guardar
+            {t("Guardar")}
           </Button>
         </DialogFooter>
       </DialogContent>

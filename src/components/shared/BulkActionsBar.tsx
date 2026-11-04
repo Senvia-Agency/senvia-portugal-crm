@@ -12,6 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useLanguage } from "@/i18n";
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -36,6 +37,7 @@ export function BulkActionsBar({
   onClearSelection,
   entityLabel = "selecionados",
 }: BulkActionsBarProps) {
+  const { t } = useLanguage();
   const hasExportOptions = onExportCsv || onExportExcel;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
@@ -54,7 +56,7 @@ export function BulkActionsBar({
         >
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             <CheckSquare className="h-4 w-4" />
-            <span>{selectedCount} {entityLabel}</span>
+            <span>{selectedCount} {t(entityLabel)}</span>
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -65,8 +67,8 @@ export function BulkActionsBar({
               className="flex-1 sm:flex-none"
             >
               <UserPlus className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Atribuir Comercial Responsável</span>
-              <span className="sm:hidden">Atribuir</span>
+              <span className="hidden sm:inline">{t("Atribuir Comercial Responsável")}</span>
+              <span className="sm:hidden">{t("Atribuir")}</span>
             </Button>
             
             {hasExportOptions && (
@@ -74,20 +76,20 @@ export function BulkActionsBar({
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" size="sm" className="flex-1 sm:flex-none">
                     <Download className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Exportar</span>
+                    <span className="hidden sm:inline">{t("Exportar")}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {onExportCsv && (
                     <DropdownMenuItem onClick={onExportCsv}>
                       <FileText className="h-4 w-4 mr-2" />
-                      Exportar CSV
+                      {t("Exportar CSV")}
                     </DropdownMenuItem>
                   )}
                   {onExportExcel && (
                     <DropdownMenuItem onClick={onExportExcel}>
                       <FileSpreadsheet className="h-4 w-4 mr-2" />
-                      Exportar Excel
+                      {t("Exportar Excel")}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -102,7 +104,7 @@ export function BulkActionsBar({
                 className="flex-1 sm:flex-none"
               >
                 <Archive className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Arquivar</span>
+                <span className="hidden sm:inline">{t("Arquivar")}</span>
               </Button>
             )}
 
@@ -114,7 +116,7 @@ export function BulkActionsBar({
                 className="flex-1 sm:flex-none"
               >
                 <ArchiveRestore className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Restaurar</span>
+                <span className="hidden sm:inline">{t("Restaurar")}</span>
               </Button>
             )}
 
@@ -126,7 +128,7 @@ export function BulkActionsBar({
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Apagar</span>
+                <span className="hidden sm:inline">{t("Apagar")}</span>
               </Button>
             )}
 
@@ -137,7 +139,7 @@ export function BulkActionsBar({
               className="text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only sm:ml-1">Limpar</span>
+              <span className="sr-only sm:not-sr-only sm:ml-1">{t("Limpar")}</span>
             </Button>
           </div>
         </motion.div>
@@ -147,16 +149,16 @@ export function BulkActionsBar({
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Apagar {selectedCount} {entityLabel}?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Apagar {{n}} {{label}}?", { n: selectedCount, label: t(entityLabel) })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Esta ação não pode ser desfeita.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { setConfirmOpen(false); onDelete?.(); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Apagar
+              {t("Apagar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -165,15 +167,15 @@ export function BulkActionsBar({
       <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Arquivar {selectedCount} {entityLabel}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Arquivar {{n}} {{label}}?", { n: selectedCount, label: t(entityLabel) })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ficam ocultas das vistas e contagens, mas não são apagadas. Podes restaurá-las depois em "Ver arquivadas".
+              {t("Ficam ocultas das vistas e contagens, mas não são apagadas. Podes restaurá-las depois em \"Ver arquivadas\".")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setArchiveConfirmOpen(false); onArchive?.(); }}>
-              Arquivar
+              {t("Arquivar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

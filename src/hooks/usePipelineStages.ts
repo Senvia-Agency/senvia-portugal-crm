@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { tr } from "@/i18n";
 import { NicheType, getNicheTemplate, PipelineStageTemplate, DefaultModules } from "@/lib/pipeline-templates";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -72,10 +73,10 @@ export function useCreatePipelineStage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
-      toast.success("Etapa criada com sucesso");
+      toast.success(tr("Etapa criada com sucesso"));
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar etapa: ${error.message}`);
+      toast.error(tr("Erro ao criar etapa: {{message}}", { message: error.message }));
     },
   });
 }
@@ -97,10 +98,10 @@ export function useUpdatePipelineStage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
-      toast.success("Etapa atualizada com sucesso");
+      toast.success(tr("Etapa atualizada com sucesso"));
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao atualizar etapa: ${error.message}`);
+      toast.error(tr("Erro ao atualizar etapa: {{message}}", { message: error.message }));
     },
   });
 }
@@ -119,10 +120,10 @@ export function useDeletePipelineStage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
-      toast.success("Etapa eliminada com sucesso");
+      toast.success(tr("Etapa eliminada com sucesso"));
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao eliminar etapa: ${error.message}`);
+      toast.error(tr("Erro ao eliminar etapa: {{message}}", { message: error.message }));
     },
   });
 }
@@ -144,14 +145,14 @@ export function useReorderPipelineStages() {
       const errors = results.filter(r => r.error);
       
       if (errors.length > 0) {
-        throw new Error("Erro ao reordenar etapas");
+        throw new Error(tr("Erro ao reordenar etapas"));
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao reordenar: ${error.message}`);
+      toast.error(tr("Erro ao reordenar: {{message}}", { message: error.message }));
     },
   });
 }
@@ -234,10 +235,10 @@ export function useApplyNicheTemplate() {
       queryClient.invalidateQueries({ queryKey: ["organization"] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["modules"] });
-      toast.success("Template aplicado e leads migrados com sucesso");
+      toast.success(tr("Template aplicado e leads migrados com sucesso"));
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao aplicar template: ${error.message}`);
+      toast.error(tr("Erro ao aplicar template: {{message}}", { message: error.message }));
     },
   });
 }

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Plus, Trash2, Percent, DollarSign, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,9 +44,11 @@ import {
 import { useDiscountCodes, useCreateDiscountCode, useUpdateDiscountCode, useDeleteDiscountCode } from "@/hooks/ecommerce/useDiscountCodes";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
+import { useLanguage, dateLocale } from "@/i18n";
 
 export function DiscountsTable() {
   const { data: discounts, isLoading } = useDiscountCodes();
+  const { t } = useLanguage();
   const createMutation = useCreateDiscountCode();
   const updateMutation = useUpdateDiscountCode();
   const deleteMutation = useDeleteDiscountCode();
@@ -68,7 +69,7 @@ export function DiscountsTable() {
   const handleCopyCode = async (code: string) => {
     await navigator.clipboard.writeText(code);
     setCopiedCode(code);
-    toast.success("Código copiado!");
+    toast.success(t("Código copiado!"));
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
@@ -78,7 +79,7 @@ export function DiscountsTable() {
 
   const handleCreate = async () => {
     if (!formData.code || !formData.value) {
-      toast.error("Preencha o código e o valor");
+      toast.error(t("Preencha o código e o valor"));
       return;
     }
 
@@ -130,21 +131,21 @@ export function DiscountsTable() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <p className="text-sm text-muted-foreground">
-                {discounts?.length || 0} códigos de desconto
+                {t((discounts?.length || 0) === 1 ? "{{n}} código de desconto" : "{{n}} códigos de desconto", { n: discounts?.length || 0 })}
               </p>
             </div>
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Novo Código
+              {t("Novo Código")}
             </Button>
           </div>
 
           {!discounts?.length ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Percent className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="font-medium text-lg">Sem códigos de desconto</h3>
+              <h3 className="font-medium text-lg">{t("Sem códigos de desconto")}</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Crie o primeiro código de desconto
+                {t("Crie o primeiro código de desconto")}
               </p>
             </div>
           ) : (
@@ -152,13 +153,13 @@ export function DiscountsTable() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead className="hidden md:table-cell">Mín. Compra</TableHead>
-                    <TableHead className="hidden md:table-cell">Usos</TableHead>
-                    <TableHead className="hidden md:table-cell">Expira</TableHead>
-                    <TableHead>Ativo</TableHead>
+                    <TableHead>{t("Código")}</TableHead>
+                    <TableHead>{t("Tipo")}</TableHead>
+                    <TableHead>{t("Valor")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Mín. Compra")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Usos")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("Expira")}</TableHead>
+                    <TableHead>{t("Ativo")}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -187,11 +188,11 @@ export function DiscountsTable() {
                       <TableCell>
                         <Badge variant="outline">
                           {discount.type === "percentage" ? (
-                            <><Percent className="h-3 w-3 mr-1" /> Percentagem</>
+                            <><Percent className="h-3 w-3 mr-1" /> {t("Percentagem")}</>
                           ) : discount.type === "fixed_amount" ? (
-                            <><DollarSign className="h-3 w-3 mr-1" /> Fixo</>
+                            <><DollarSign className="h-3 w-3 mr-1" /> {t("Fixo")}</>
                           ) : (
-                            <>Envio Grátis</>
+                            <>{t("Envio Grátis")}</>
                           )}
                         </Badge>
                       </TableCell>
@@ -211,7 +212,7 @@ export function DiscountsTable() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {discount.expires_at
-                          ? format(new Date(discount.expires_at), "dd MMM yyyy", { locale: pt })
+                          ? format(new Date(discount.expires_at), "dd MMM yyyy", { locale: dateLocale() })
                           : "-"}
                       </TableCell>
                       <TableCell>
@@ -243,13 +244,13 @@ export function DiscountsTable() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Novo Código de Desconto</DialogTitle>
-            <DialogDescription>Crie um código promocional para os seus clientes</DialogDescription>
+            <DialogTitle>{t("Novo Código de Desconto")}</DialogTitle>
+            <DialogDescription>{t("Crie um código promocional para os seus clientes")}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Código *</Label>
+              <Label>{t("Código *")}</Label>
               <Input
                 placeholder="PROMO20"
                 value={formData.code}
@@ -259,7 +260,7 @@ export function DiscountsTable() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo *</Label>
+                <Label>{t("Tipo *")}</Label>
                 <Select
                   value={formData.type}
                   onValueChange={(value: string) =>
@@ -270,14 +271,14 @@ export function DiscountsTable() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="percentage">Percentagem</SelectItem>
-                    <SelectItem value="fixed_amount">Valor Fixo</SelectItem>
+                    <SelectItem value="percentage">{t("Percentagem")}</SelectItem>
+                    <SelectItem value="fixed_amount">{t("Valor Fixo")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Valor *</Label>
+                <Label>{t("Valor *")}</Label>
                 <Input
                   type="number"
                   placeholder={formData.type === "percentage" ? "20" : "10.00"}
@@ -289,7 +290,7 @@ export function DiscountsTable() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Compra Mínima</Label>
+                <Label>{t("Compra Mínima")}</Label>
                 <Input
                   type="number"
                   placeholder="50.00"
@@ -299,7 +300,7 @@ export function DiscountsTable() {
               </div>
 
               <div className="space-y-2">
-                <Label>Máx. Usos</Label>
+                <Label>{t("Máx. Usos")}</Label>
                 <Input
                   type="number"
                   placeholder="100"
@@ -310,7 +311,7 @@ export function DiscountsTable() {
             </div>
 
             <div className="space-y-2">
-              <Label>Data de Expiração</Label>
+              <Label>{t("Data de Expiração")}</Label>
               <Input
                 type="date"
                 value={formData.expires_at}
@@ -321,10 +322,10 @@ export function DiscountsTable() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button onClick={handleCreate} disabled={createMutation.isPending}>
-              {createMutation.isPending ? "A criar..." : "Criar Código"}
+              {createMutation.isPending ? t("A criar...") : t("Criar Código")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -334,18 +335,18 @@ export function DiscountsTable() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar código de desconto?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar código de desconto?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser revertida. O código deixará de funcionar imediatamente.
+              {t("Esta ação não pode ser revertida. O código deixará de funcionar imediatamente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

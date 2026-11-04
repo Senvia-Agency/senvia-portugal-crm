@@ -5,6 +5,7 @@ import { useModalStore, type OttoManagedModal } from "@/stores/useModalStore";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useOttoChat } from "@/hooks/useOttoChat";
 import type { OttoSetupTask } from "@/hooks/useOttoOnboarding";
+import { tr } from "@/i18n";
 
 // Shared dispatcher for a setup task's action, used by both the dashboard card and
 // the in-chat kickoff so they behave identically:
@@ -24,7 +25,7 @@ export function useRunSetupTask() {
       case "modal": setOpen(false); openModal(task.target as Exclude<OttoManagedModal, null>); break;
       case "tour": setOpen(false); startTour(task.target); break;
       case "nav": setOpen(false); navigate(task.target); break;
-      case "chat": setOpen(true); sendMessage(task.target); break;
+      case "chat": setOpen(true); sendMessage(tr(task.target)); break;
     }
   }, [navigate, startTour, openModal, setOpen, sendMessage]);
 }

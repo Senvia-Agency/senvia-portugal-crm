@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AdminTopBar } from "./AdminTopBar";
+import { useLanguage } from "@/i18n";
 
 // Shared chrome for every System Admin page: one header vocabulary, one
 // container, one back affordance. Keeps the surface consistent (product register:
@@ -38,15 +38,15 @@ export function AdminShell({
   maxWidth = "6xl",
   children,
 }: AdminShellProps) {
+  const { t } = useLanguage();
   return (
-    <div className="min-h-dvh bg-background">
-      <AdminTopBar containerClass={MAXW[maxWidth]} />
+    <div className="crm-page">
       <div className={cn("mx-auto px-4 py-6 lg:px-8 lg:py-8", MAXW[maxWidth])}>
         <header className="mb-7 flex items-start gap-3 sm:gap-4">
           {back && (
             <Link
               to="/system-admin"
-              aria-label="Voltar ao painel"
+              aria-label={t("Voltar ao painel")}
               className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />

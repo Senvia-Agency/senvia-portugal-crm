@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, LifeBuoy, Ticket } from 'lucide-react';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 
 const priorityMap: Record<string, { label: string; className: string }> = {
   low: { label: 'Baixa', className: 'bg-muted text-muted-foreground' },
@@ -20,6 +20,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export function SupportTicketsTab() {
   const { tickets, isLoading } = useSupportTickets();
+  const { t } = useLanguage();
 
   if (isLoading) {
     return (
@@ -35,9 +36,9 @@ export function SupportTicketsTab() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <LifeBuoy className="h-12 w-12 text-muted-foreground/40 mb-4" />
-        <h3 className="text-lg font-semibold text-foreground">Nenhum ticket de suporte</h3>
+        <h3 className="text-lg font-semibold text-foreground">{t('Nenhum ticket de suporte')}</h3>
         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Quando precisar de ajuda, abra o Otto e peça para criar um ticket de suporte.
+          {t('Quando precisar de ajuda, abra o Otto e peça para criar um ticket de suporte.')}
         </p>
       </div>
     );
@@ -60,15 +61,15 @@ export function SupportTicketsTab() {
                       {ticket.ticket_code || '—'}
                     </span>
                     <Badge variant="outline" className={priority.className}>
-                      {priority.label}
+                      {t(priority.label)}
                     </Badge>
                     <Badge variant="outline" className={status.className}>
-                      {status.label}
+                      {t(status.label, { context: 'ticket' })}
                     </Badge>
                   </div>
                   <p className="font-medium text-foreground truncate mt-1">{ticket.subject}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {format(new Date(ticket.created_at), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: pt })}
+                    {format(new Date(ticket.created_at), t("d 'de' MMMM 'de' yyyy, HH:mm"), { locale: dateLocale() })}
                   </p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />

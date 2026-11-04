@@ -17,7 +17,7 @@ import {
   type EventType,
 } from '@/types/calendar';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import {
   Video,
   Phone,
@@ -62,6 +62,7 @@ interface EventDetailsModalProps {
 export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDetailsModalProps) {
   // Workplace opens the event in a side sheet, as Realize does; Versão antiga keeps the modal.
   const legacy = useInterfaceStore((state) => state.legacy);
+  const { t } = useLanguage();
   const deleteEvent = useDeleteEvent();
   const updateEvent = useUpdateEvent();
   const queryClient = useQueryClient();
@@ -117,7 +118,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
 
         if (leadError) {
           console.error('Error updating lead status:', leadError);
-          toast.error('Erro ao atualizar status do lead');
+          toast.error(t('Erro ao atualizar o estado do lead'));
           setIsUpdatingLead(false);
           return;
         }
@@ -150,7 +151,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
     });
   };
 
-  const reminderLabel = REMINDER_OPTIONS.find((opt) => opt.value === event.reminder_minutes)?.label || 'Sem lembrete';
+  const reminderLabel = t(REMINDER_OPTIONS.find((opt) => opt.value === event.reminder_minutes)?.label || 'Sem lembrete');
 
   const statusClass = cn(
     event.status === 'completed' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -186,36 +187,36 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
                 </span>
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="break-words text-[22px] font-extrabold leading-tight">{event.title}</SheetTitle>
-                  <SheetDescription className="sr-only">Detalhes do evento</SheetDescription>
+                  <SheetDescription className="sr-only">{t('Detalhes do evento')}</SheetDescription>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="rounded-full">{EVENT_TYPE_LABELS[event.event_type]}</Badge>
-                    <Badge className={cn('rounded-full', statusClass)}>{EVENT_STATUS_LABELS[event.status]}</Badge>
+                    <Badge variant="secondary" className="rounded-full">{t(EVENT_TYPE_LABELS[event.event_type])}</Badge>
+                    <Badge className={cn('rounded-full', statusClass)}>{t(EVENT_STATUS_LABELS[event.status])}</Badge>
                   </div>
                 </div>
               </div>
               <div className="space-y-2.5">
-                {row(Calendar, <span className="first-letter:uppercase">{format(new Date(event.start_time), "EEEE, d 'de' MMMM 'de' yyyy", { locale: pt })}</span>)}
-                {row(Clock, event.all_day ? 'Dia todo' : `${format(new Date(event.start_time), 'HH:mm', { locale: pt })}${event.end_time ? ` – ${format(new Date(event.end_time), 'HH:mm', { locale: pt })}` : ''}`)}
+                {row(Calendar, <span className="first-letter:uppercase">{format(new Date(event.start_time), t("EEEE, d 'de' MMMM 'de' yyyy"), { locale: dateLocale() })}</span>)}
+                {row(Clock, event.all_day ? t('Dia todo') : `${format(new Date(event.start_time), 'HH:mm', { locale: dateLocale() })}${event.end_time ? ` – ${format(new Date(event.end_time), 'HH:mm', { locale: dateLocale() })}` : ''}`)}
                 {row(Bell, reminderLabel)}
-                {row(User, <>Comercial: <span className="font-semibold">{event.user?.full_name || 'Comercial não identificado'}</span></>)}
-                {event.lead && row(User, <>Lead: <span className="font-semibold">{event.lead.name}</span></>)}
+                {row(User, <>{t('Comercial:')} <span className="font-semibold">{event.user?.full_name || t('Comercial não identificado')}</span></>)}
+                {event.lead && row(User, <>{t('Lead:')} <span className="font-semibold">{event.lead.name}</span></>)}
               </div>
               {event.description && <p className="whitespace-pre-wrap rounded-2xl bg-muted/60 p-4 text-[14px]">{event.description}</p>}
               <div className="flex flex-wrap gap-2 border-t pt-4">
                 <button type="button" className={cn(pill, 'bg-muted hover:bg-muted/70')} onClick={handleMarkComplete} disabled={updateEvent.isPending}>
                   {updateEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : event.status === 'completed' ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-                  {event.status === 'completed' ? 'Reabrir' : 'Concluir'}
+                  {event.status === 'completed' ? t('Reabrir') : t('Concluir')}
                 </button>
                 {event.status !== 'cancelled' && (
                   <button type="button" className={cn(pill, 'bg-muted hover:bg-muted/70')} onClick={handleCancelClick} disabled={updateEvent.isPending}>
-                    <X className="h-4 w-4" /> Cancelar
+                    <X className="h-4 w-4" /> {t('Cancelar')}
                   </button>
                 )}
                 <button type="button" className={cn(pill, 'bg-muted hover:bg-muted/70')} onClick={onEdit}>
-                  <Edit className="h-4 w-4" /> Editar
+                  <Edit className="h-4 w-4" /> {t('Editar')}
                 </button>
                 <button type="button" className={cn(pill, 'ml-auto text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10')} onClick={handleDeleteClick} disabled={deleteEvent.isPending}>
-                  {deleteEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Eliminar
+                  {deleteEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} {t('Eliminar')}
                 </button>
               </div>
             </div>
@@ -238,7 +239,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
               <div className="flex-1">
                 <DialogTitle className="text-lg">{event.title}</DialogTitle>
                 <Badge variant="secondary" className="mt-1">
-                  {EVENT_TYPE_LABELS[event.event_type]}
+                  {t(EVENT_TYPE_LABELS[event.event_type])}
                 </Badge>
               </div>
             </div>
@@ -247,9 +248,9 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
           <div className="space-y-4 py-4">
             {/* Status */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Estado</span>
+              <span className="text-sm text-muted-foreground">{t('Estado')}</span>
               <Badge className={statusClass}>
-                {EVENT_STATUS_LABELS[event.status]}
+                {t(EVENT_STATUS_LABELS[event.status])}
               </Badge>
             </div>
 
@@ -257,7 +258,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
             <div className="flex items-center gap-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
-                {format(new Date(event.start_time), "EEEE, d 'de' MMMM 'de' yyyy", { locale: pt })}
+                {format(new Date(event.start_time), t("EEEE, d 'de' MMMM 'de' yyyy"), { locale: dateLocale() })}
               </span>
             </div>
 
@@ -265,8 +266,8 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
               <div className="flex items-center gap-3">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">
-                  {format(new Date(event.start_time), 'HH:mm', { locale: pt })}
-                  {event.end_time && ` - ${format(new Date(event.end_time), 'HH:mm', { locale: pt })}`}
+                  {format(new Date(event.start_time), 'HH:mm', { locale: dateLocale() })}
+                  {event.end_time && ` - ${format(new Date(event.end_time), 'HH:mm', { locale: dateLocale() })}`}
                 </span>
               </div>
             )}
@@ -279,14 +280,14 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
 
             <div className="flex items-center gap-3">
               <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">Comercial: {event.user?.full_name || 'Comercial não identificado'}</span>
+              <span className="text-sm">{t('Comercial: {{name}}', { name: event.user?.full_name || t('Comercial não identificado') })}</span>
             </div>
 
             {/* Lead */}
             {event.lead && (
               <div className="flex items-center gap-3">
                 <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Lead: {event.lead.name}</span>
+                <span className="text-sm">{t('Lead: {{name}}', { name: event.lead.name })}</span>
               </div>
             )}
 
@@ -313,7 +314,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
               ) : (
                 <Check className="h-4 w-4 mr-1" />
               )}
-              {event.status === 'completed' ? 'Reabrir' : 'Concluir'}
+              {event.status === 'completed' ? t('Reabrir') : t('Concluir')}
             </Button>
 
             {event.status !== 'cancelled' && (
@@ -324,13 +325,13 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
                 disabled={updateEvent.isPending}
               >
                 <X className="h-4 w-4 mr-1" />
-                Cancelar
+                {t('Cancelar')}
               </Button>
             )}
 
             <Button variant="outline" size="sm" onClick={onEdit}>
               <Edit className="h-4 w-4 mr-1" />
-              Editar
+              {t('Editar')}
             </Button>
 
             <Button
@@ -341,7 +342,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
             >
               {deleteEvent.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               <Trash2 className="h-4 w-4 mr-1" />
-              Eliminar
+              {t('Eliminar')}
             </Button>
           </div>
         </DialogContent>

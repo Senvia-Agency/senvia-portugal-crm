@@ -12,6 +12,7 @@
 import {
   corsHeaders, json, getConfig, authOrgAdmin,
 } from '../_shared/multicanal.ts';
+import { checkImapLogin, isMicrosoftHost } from '../_shared/imap-check.ts';
 
 interface EmailConfig {
   email_address: string;
@@ -62,6 +63,15 @@ Deno.serve(async (req) => {
       if (!email_config?.smtp_password) return json({ error: 'Password SMTP obrigatória' }, 400);
 
       const emailNorm = email_config.email_address.toLowerCase().trim();
+
+      // Só se guarda uma caixa que abre mesmo: entra-se uma vez por IMAP antes de a criar.
+      // A Microsoft (Outlook/Hotmail/365) é recusada aqui também, não só no ecrã.
+      if (isMicrosoftHost(email_config.smtp_server)) return json({ error: 'As caixas Outlook, Hotmail e Microsoft 365 ainda não podem ser ligadas.' }, 400);
+      const check = await checkImapLogin(
+        email_config.imap_server, Number(email_config.imap_port) || 993, email_config.imap_ssl !== false,
+        (email_config.imap_login || emailNorm).trim(), email_config.imap_password,
+      );
+      if (check.ok === false) return json({ error: check.message, reason: check.reason }, 400);
 
       // Já existe uma caixa com este endereço nesta organização?
       const { data: dup } = await admin

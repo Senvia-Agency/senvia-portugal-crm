@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useLanguage } from "@/i18n";
 
 interface ShortcutItem {
   keys: string;
@@ -28,7 +29,7 @@ const SHORTCUT_GROUPS: { title: string; items: ShortcutItem[] }[] = [
       { keys: "C", description: "Nova conversa" },
       { keys: "Cmd/Ctrl+Enter", description: "Enviar mensagem" },
       { keys: "Cmd/Ctrl+K", description: "Command palette" },
-      { keys: "Cmd/Ctrl+/", description: "Mostrar este atalhos" },
+      { keys: "Cmd/Ctrl+/", description: "Mostrar estes atalhos" },
     ],
   },
 ];
@@ -40,17 +41,18 @@ export function ShortcutsOverlay({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Atalhos de teclado</DialogTitle>
+          <DialogTitle>{t("Atalhos de teclado")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title}>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.title}
+                {t(group.title)}
               </h3>
               <div className="space-y-1.5">
                 {group.items.map((item) => (
@@ -58,7 +60,7 @@ export function ShortcutsOverlay({
                     key={item.keys}
                     className="flex items-center justify-between gap-3 text-sm"
                   >
-                    <span className="text-muted-foreground">{item.description}</span>
+                    <span className="text-muted-foreground">{t(item.description)}</span>
                     <kbd className="shrink-0 rounded-md border bg-muted px-2 py-0.5 font-mono text-xs font-medium text-foreground">
                       {item.keys}
                     </kbd>

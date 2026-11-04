@@ -1,59 +1,74 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePersistedState } from "@/hooks/usePersistedState";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
-import { useProposals, useUpdateProposal } from '@/hooks/useProposals';
+import { useProposals } from '@/hooks/useProposals';
 import { useProposalsRealtime } from '@/hooks/useRealtimeSubscription';
 import { TeamMemberFilter } from '@/components/dashboard/TeamMemberFilter';
-import { PinnedPageBar } from '@/components/layout/PinnedPageBar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { FilterRow, MultiFilterPill } from '@/components/shared/FilterPills';
+import { filterChipClass, toggled } from '@/components/shared/filter-pills';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Toggle } from '@/components/ui/toggle';
-import { FileText, Search, Filter, Plus, Zap, Wrench } from 'lucide-react';
+import { FileText, Plus, Search, Layers, Wrench, RadioTower, Upload } from 'lucide-react';
+import { ImportProposalsDialog } from '@/components/proposals/ImportProposalsDialog';
 import { EmptyState } from '@/components/ui/empty-state';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { DateRange } from 'react-day-picker';
 import { ProposalDetailsModal } from '@/components/proposals/ProposalDetailsModal';
 import { CreateProposalModal } from '@/components/proposals/CreateProposalModal';
+import { ProposalsTable } from '@/components/proposals/ProposalsTable';
+import { formatEuro } from '@/components/proposals/proposal-display';
 import { CreateSaleModal } from '@/components/sales/CreateSaleModal';
-import { 
-  PROPOSAL_STATUS_LABELS, 
-  PROPOSAL_STATUS_COLORS, 
-  PROPOSAL_STATUSES,
-  PROPOSAL_TYPE_LABELS,
-} from '@/types/proposals';
+import { PROPOSAL_STATUS_LABELS, PROPOSAL_STATUSES, PROPOSAL_TYPE_LABELS } from '@/types/proposals';
 import type { Proposal, ProposalStatus, ProposalType } from '@/types/proposals';
 import { cn, matchesSearch } from '@/lib/utils';
-import { format } from 'date-fns';
-import { useTelecomProposalMetrics } from '@/hooks/useTelecomProposalMetrics';
+import { useTeamFilter } from '@/hooks/useTeamFilter';
 import { useOperators } from '@/hooks/useOperators';
-import { pt } from 'date-fns/locale';
+import { PageModuleIcon } from '@/components/layout/ModuleNavIcon';
+import { ExportMenu, type ExportKind } from '@/components/shared/ExportMenu';
+import { exportToCsv, exportToExcel, mapProposalsForExport } from '@/lib/export';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { useLanguage } from "@/i18n";
+
+const NO_OPERATOR = '__none__';
+
+/** One figure of the summary line under the filters; with onClick it filters the list down to what it counts. */
+function Figure({ label, value, tone, hint, onClick }: { label: string; value: string; tone?: string; hint?: string; onClick?: () => void }) {
+  const body = (
+    <>
+      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <p className={cn("truncate text-lg font-semibold tabular-nums", tone)}>{value}</p>
+      {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
+    </>
+  );
+  const box = "min-w-0 rounded-xl border border-border/70 bg-card px-4 py-2.5 text-left shadow-sm";
+  return onClick
+    ? <button type="button" onClick={onClick} className={cn(box, "transition-colors hover:border-primary/40 hover:bg-primary/[0.03]")}>{body}</button>
+    : <div className={box}>{body}</div>;
+}
 
 export default function Proposals() {
+  const { t } = useLanguage();
   // Subscribe to realtime updates
   useProposalsRealtime();
-  const { profile, organization } = useAuth();
+  const navigate = useNavigate();
+  const { organization } = useAuth();
   const { data: proposals = [], isLoading } = useProposals();
   const isTelecom = organization?.niche === 'telecom';
-  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
-  const { data: telecomMetrics } = useTelecomProposalMetrics();
   const { data: operators = [] } = useOperators();
-  
+  const { selectedMemberId } = useTeamFilter();
+
   const [search, setSearch] = usePersistedState('proposals-search-v1', '');
-  const [excludedStatuses, setExcludedStatuses] = usePersistedState<ProposalStatus[]>('proposals-status-excluded-v1', []);
-  const [excludedTypes, setExcludedTypes] = usePersistedState<ProposalType[]>('proposals-type-excluded-v1', []);
-  const [excludedOperators, setExcludedOperators] = usePersistedState<string[]>('proposals-operators-v1', []);
+  // v2: the filters list what is shown (empty = everything), like leads and clients.
+  const [statuses, setStatuses] = usePersistedState<ProposalStatus[]>('proposals-status-v2', []);
+  const [types, setTypes] = usePersistedState<ProposalType[]>('proposals-type-v2', []);
+  const [operatorIds, setOperatorIds] = usePersistedState<string[]>('proposals-operators-v2', []);
   const [dateRange, setDateRange] = usePersistedState<DateRange | undefined>('proposals-date-range-v1', undefined);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  // "Criar Venda" from the list: open a fully prefilled sale for this proposal.
+  const [importOpen, setImportOpen] = useState(false);
+  // "Criar venda" from the list: open a fully prefilled sale for this proposal.
   const [saleProposal, setSaleProposal] = useState<Proposal | null>(null);
   const [searchParams] = useSearchParams();
 
@@ -66,10 +81,10 @@ export default function Proposals() {
     }
   }, [searchParams, proposals]);
 
-  const filteredProposals = proposals.filter((proposal) => {
+  const filteredProposals = useMemo(() => proposals.filter((proposal) => {
     // Hide proposals that already have a sale created (telecom)
-    if (isTelecom && (proposal as any).has_sale) return false;
-    
+    if (isTelecom && (proposal as { has_sale?: boolean }).has_sale) return false;
+
     const matchesSearchTerm = matchesSearch(
       search,
       proposal.client?.name,
@@ -77,291 +92,126 @@ export default function Proposals() {
       proposal.code,
       proposal.notes,
     );
-    const matchesStatus = !excludedStatuses.includes(proposal.status);
-    const matchesType = !isTelecom || (!!proposal.proposal_type && !excludedTypes.includes(proposal.proposal_type));
-    const operatorKeys = Object.values(proposal.servicos_details ?? {}).map((detail: any) => detail?.operator_id || '__none__');
-    if (operatorKeys.length === 0) operatorKeys.push('__none__');
-    const matchesOperator = excludedOperators.length === 0 || operatorKeys.some((key) => !excludedOperators.includes(key));
+    const matchesStatus = statuses.length === 0 || statuses.includes(proposal.status);
+    const matchesType = !isTelecom || types.length === 0 || (!!proposal.proposal_type && types.includes(proposal.proposal_type));
+    const operatorKeys = Object.values(proposal.servicos_details ?? {}).map((detail) => (detail as { operator_id?: string } | null)?.operator_id || NO_OPERATOR);
+    if (operatorKeys.length === 0) operatorKeys.push(NO_OPERATOR);
+    const matchesOperator = operatorIds.length === 0 || operatorKeys.some((key) => operatorIds.includes(key));
     const proposalDate = new Date(proposal.proposal_date);
-    const matchesDate = !dateRange?.from || (
-      proposalDate >= dateRange.from &&
-      (!dateRange.to || proposalDate <= dateRange.to)
-    );
+    const from = dateRange?.from ? new Date(dateRange.from) : null;
+    const to = dateRange?.to ? new Date(dateRange.to) : null;
+    const matchesDate = !from || (proposalDate >= from && (!to || proposalDate <= to));
     return matchesSearchTerm && matchesStatus && matchesType && matchesDate && matchesOperator;
-  });
+  }), [proposals, isTelecom, search, statuses, types, operatorIds, dateRange]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(value);
+  const filtering = !!search.trim() || statuses.length > 0 || types.length > 0 || operatorIds.length > 0 || !!dateRange?.from;
+  const clearFilters = () => {
+    setSearch('');
+    setStatuses([]);
+    setTypes([]);
+    setOperatorIds([]);
+    setDateRange(undefined);
   };
 
-  // Group proposals by status for summary (use filtered)
-  const proposalsByStatus = PROPOSAL_STATUSES.reduce((acc, status) => {
-    acc[status] = filteredProposals.filter(p => p.status === status);
-    return acc;
-  }, {} as Record<ProposalStatus, Proposal[]>);
-
   const totalValue = filteredProposals.reduce((sum, p) => sum + Number(p.total_value), 0);
-  const pendingValue = filteredProposals
-    .filter(p => ['sent', 'negotiating'].includes(p.status))
-    .reduce((sum, p) => sum + Number(p.total_value), 0);
+  // Still open: sent and not answered yet, or being negotiated.
+  const OPEN_STATUSES: ProposalStatus[] = ['sent', 'negotiating'];
+  const openProposals = filteredProposals.filter(p => OPEN_STATUSES.includes(p.status));
+  const pendingValue = openProposals.reduce((sum, p) => sum + Number(p.total_value), 0);
+  const acceptedCount = filteredProposals.filter(p => p.status === 'accepted').length;
 
-  const filterControls = (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Período</span>
-        <DateRangePicker
-          value={dateRange}
-          onChange={setDateRange}
-          placeholder="Todo o histórico"
-          className="w-full"
-        />
-      </div>
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Vendedor</span>
-        <TeamMemberFilter className="w-full bg-card/50 border-border/50" />
-      </div>
-      {isTelecom && (
-        <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Operadoras</span>
-          <div className="flex flex-wrap gap-1">
-            {[...operators.map((operator) => ({ key: operator.id, label: operator.name })), { key: '__none__', label: 'Sem operadora' }].map((operator, index) => {
-              const active = !excludedOperators.includes(operator.key);
-              const tones = [
-                'border-violet-500/40 bg-violet-500/15 text-violet-600 data-[state=on]:bg-violet-500/15 data-[state=on]:text-violet-600',
-                'border-sky-500/40 bg-sky-500/15 text-sky-600 data-[state=on]:bg-sky-500/15 data-[state=on]:text-sky-600',
-                'border-teal-500/40 bg-teal-500/15 text-teal-600 data-[state=on]:bg-teal-500/15 data-[state=on]:text-teal-600',
-                'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-600 data-[state=on]:bg-fuchsia-500/15 data-[state=on]:text-fuchsia-600',
-                'border-orange-500/40 bg-orange-500/15 text-orange-600 data-[state=on]:bg-orange-500/15 data-[state=on]:text-orange-600',
-              ];
-              return (
-                <Toggle
-                  key={operator.key}
-                  size="sm"
-                  variant="outline"
-                  pressed={active}
-                  onPressedChange={() => setExcludedOperators((current) => active ? [...current, operator.key] : current.filter((key) => key !== operator.key))}
-                  className={cn('h-7 rounded-full px-2.5 text-[11px] font-medium', active ? tones[index % tones.length] : 'border-dashed border-border bg-transparent text-muted-foreground line-through opacity-55')}
-                >
-                  {operator.label}
-                </Toggle>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Estado</span>
-        <div className="flex flex-wrap gap-1">
-          {PROPOSAL_STATUSES.map((status, index) => {
-            const active = !excludedStatuses.includes(status);
-            const tones = [
-              'border-slate-400/40 bg-slate-400/15 text-slate-600 data-[state=on]:bg-slate-400/15 data-[state=on]:text-slate-600',
-              'border-blue-500/40 bg-blue-500/15 text-blue-600 data-[state=on]:bg-blue-500/15 data-[state=on]:text-blue-600',
-              'border-amber-500/40 bg-amber-500/15 text-amber-600 data-[state=on]:bg-amber-500/15 data-[state=on]:text-amber-600',
-              'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 data-[state=on]:bg-emerald-500/15 data-[state=on]:text-emerald-600',
-              'border-red-500/40 bg-red-500/15 text-red-600 data-[state=on]:bg-red-500/15 data-[state=on]:text-red-600',
-              'border-slate-500/40 bg-slate-500/15 text-slate-600 data-[state=on]:bg-slate-500/15 data-[state=on]:text-slate-600',
-            ];
-            return (
-              <Toggle
-                key={status}
-                size="sm"
-                variant="outline"
-                pressed={active}
-                onPressedChange={() => setExcludedStatuses((current) => active ? [...current, status] : current.filter((item) => item !== status))}
-                className={cn('h-7 rounded-full px-2.5 text-[11px] font-medium', active ? tones[index % tones.length] : 'border-dashed border-border bg-transparent text-muted-foreground line-through opacity-55')}
-              >
-                {PROPOSAL_STATUS_LABELS[status]}
-              </Toggle>
-            );
-          })}
-        </div>
-      </div>
-      {isTelecom && (
-        <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Tipo</span>
-          <div className="flex flex-wrap gap-1">
-            {(['energia', 'servicos'] as ProposalType[]).map((type, index) => {
-              const active = !excludedTypes.includes(type);
-              const tone = index === 0
-                ? 'border-violet-500/40 bg-violet-500/15 text-violet-600 data-[state=on]:bg-violet-500/15 data-[state=on]:text-violet-600'
-                : 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-600 data-[state=on]:bg-fuchsia-500/15 data-[state=on]:text-fuchsia-600';
-              return (
-                <Toggle
-                  key={type}
-                  size="sm"
-                  variant="outline"
-                  pressed={active}
-                  onPressedChange={() => setExcludedTypes((current) => active ? [...current, type] : current.filter((item) => item !== type))}
-                  className={cn('h-7 rounded-full px-2.5 text-[11px] font-medium', active ? tone : 'border-dashed border-border bg-transparent text-muted-foreground line-through opacity-55')}
-                >
-                  {PROPOSAL_TYPE_LABELS[type]}
-                </Toggle>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const proposalsList = isLoading ? (
-    <div className="flex items-center justify-center py-12">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  ) : filteredProposals.length === 0 ? (
-    proposals.length === 0 ? (
-      <EmptyState
-        icon={FileText}
-        title="Ainda não tens propostas"
-        description="Cria a tua primeira proposta para enviares aos teus clientes."
-      >
-        <Button onClick={() => setCreateModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Criar primeira proposta
-        </Button>
-      </EmptyState>
-    ) : (
-      <EmptyState icon={FileText} title="Nenhuma proposta encontrada" description="Nenhuma proposta corresponde aos filtros." />
-    )
-  ) : (
-    <div className="space-y-3">
-      {filteredProposals.map((proposal) => (
-        <Card
-          key={proposal.id}
-          className={cn(
-            'cursor-pointer relative transition-all',
-            isGenericNiche
-              ? 'rounded-xl border-border/70 bg-card shadow-sm hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md'
-              : 'hover:bg-muted/50',
-          )}
-          onClick={() => setSelectedProposal(proposal)}
-        >
-          {proposal.status === 'accepted' && !(proposal as any).has_sale && (
-            <Button
-              variant="default"
-              size="sm"
-              className="absolute top-2 right-2 z-10 h-7 text-xs"
-              onClick={(e) => { e.stopPropagation(); setSaleProposal(proposal); }}
-            >
-              Criar Venda
-            </Button>
-          )}
-          <CardContent className={cn('flex items-center justify-between', isGenericNiche ? 'p-5' : 'p-4')}>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <Badge className={cn('text-xs', PROPOSAL_STATUS_COLORS[proposal.status])}>
-                  {PROPOSAL_STATUS_LABELS[proposal.status]}
-                </Badge>
-                {isTelecom && proposal.proposal_type && (
-                  <Badge className={cn('text-xs', proposal.proposal_type === 'energia' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-violet-500/20 text-violet-400')}>
-                    {proposal.proposal_type === 'energia' ? <Zap className="h-3 w-3 mr-1" /> : <Wrench className="h-3 w-3 mr-1" />}
-                    {PROPOSAL_TYPE_LABELS[proposal.proposal_type]}
-                  </Badge>
-                )}
-                {proposal.code && <span className="text-xs font-mono text-primary font-medium">{proposal.code}</span>}
-                <span className="text-xs text-muted-foreground">
-                  {format(new Date(proposal.proposal_date), "d MMM yyyy", { locale: pt })}
-                </span>
-              </div>
-              <p className="font-medium truncate">{proposal.client?.name || proposal.lead?.name || 'Proposta Avulsa'}</p>
-              {proposal.notes && <p className="text-sm text-muted-foreground truncate">{proposal.notes}</p>}
-            </div>
-            <div className="ml-4 shrink-0 text-right">
-              <p className="text-lg font-bold text-primary">{formatCurrency(proposal.total_value)}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  const handleExport = (kind: ExportKind) => {
+    const data = mapProposalsForExport(filteredProposals, isTelecom);
+    const name = `propostas_${format(new Date(), 'yyyy-MM-dd')}`;
+    if (kind === 'excel') exportToExcel(data, name); else exportToCsv(data, name);
+    toast.success(t("{{n}} propostas exportadas", { n: data.length }));
+  };
 
   return (
     <>
-      <div className={isGenericNiche || isTelecom ? 'space-y-6' : 'space-y-6 p-4 sm:p-6 lg:p-8'}>
-        <PinnedPageBar
-          icon={FileText}
-          title="Propostas"
-          storageKey="proposals-filters-open-v1"
-          search={(
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar por cliente, empresa ou código..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-              />
+      <div className="crm-page">
+        <div className="space-y-4 p-4 sm:p-6 lg:px-8 lg:py-7">
+          {/* One line: title and count, and the one main action. */}
+          <header className="flex flex-wrap items-center gap-x-3 gap-y-3">
+            <PageModuleIcon to="/proposals" />
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">{t("Propostas")}</h1>
+              <span className="text-sm tabular-nums text-muted-foreground">
+                {filtering ? t("{{n}} de {{total}}", { n: filteredProposals.length, total: proposals.length }) : filteredProposals.length}
+              </span>
             </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" className="h-9 shrink-0 rounded-full px-3" onClick={() => setImportOpen(true)} aria-label={t("Importar propostas")}>
+                <Upload className="h-4 w-4" /><span className="hidden sm:inline">{t("Importar")}</span>
+              </Button>
+              <ExportMenu count={filteredProposals.length} noun="propostas" onExport={handleExport} />
+              <Button onClick={() => setCreateModalOpen(true)} className="h-9 rounded-full px-4">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("Nova proposta")}</span>
+              </Button>
+            </div>
+          </header>
+
+          <FilterRow search={search} onSearch={setSearch} placeholder={t("Pesquisar cliente, lead, código ou notas")}
+            hasActive={filtering} onClear={clearFilters}>
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              placeholder={t("Todo o histórico")}
+              className={cn(filterChipClass(!!dateRange?.from), 'w-auto justify-start [&_svg]:mr-0')}
+            />
+            <TeamMemberFilter className={cn(filterChipClass(!!selectedMemberId), 'w-auto gap-1 [&>svg:first-child]:mr-0')} />
+            <MultiFilterPill icon={Layers} empty={t("Estado")} plural={t("estados")} width="w-52"
+              options={PROPOSAL_STATUSES.map(status => ({ value: status, label: t(PROPOSAL_STATUS_LABELS[status]) }))}
+              picked={statuses} onToggle={value => setStatuses(current => toggled(current, value as ProposalStatus))}
+              onClear={() => setStatuses([])} clearLabel={t("Todos os estados")} />
+            {isTelecom && <MultiFilterPill icon={Wrench} empty={t("Tipo")} plural={t("tipos")} width="w-48"
+              options={(['energia', 'servicos'] as ProposalType[]).map(type => ({ value: type, label: t(PROPOSAL_TYPE_LABELS[type]) }))}
+              picked={types} onToggle={value => setTypes(current => toggled(current, value as ProposalType))}
+              onClear={() => setTypes([])} clearLabel={t("Todos os tipos")} />}
+            {isTelecom && <MultiFilterPill icon={RadioTower} empty={t("Operadora")} plural={t("operadoras")} width="w-56"
+              options={[...operators.map(operator => ({ value: operator.id, label: operator.name })), { value: NO_OPERATOR, label: t("Sem operadora") }]}
+              picked={operatorIds} onToggle={value => setOperatorIds(current => toggled(current, value))}
+              onClear={() => setOperatorIds([])} clearLabel={t("Todas as operadoras")} />}
+          </FilterRow>
+
+          {/* The figures that matter, in one compact row. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Figure label={t("Propostas")} value={String(filteredProposals.length)} />
+            <Figure label={t("Valor total")} value={formatEuro(totalValue)} />
+            <Figure label={t("Em aberto")} value={formatEuro(pendingValue)} tone="text-amber-600 dark:text-amber-400"
+              hint={t(openProposals.length === 1 ? "{{n}} enviada ou em negociação" : "{{n}} enviadas ou em negociação", { n: openProposals.length })} onClick={() => setStatuses(OPEN_STATUSES)} />
+            <Figure label={t("Aceites")} value={String(acceptedCount)} tone="text-emerald-600 dark:text-emerald-400" onClick={() => setStatuses(['accepted'])} />
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+            </div>
+          ) : filteredProposals.length === 0 && filtering ? (
+            <div className="flex h-56 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <Search className="h-10 w-10 opacity-50" />
+              <p className="text-base font-medium">{t("Nenhuma proposta corresponde aos filtros")}</p>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={clearFilters}>{t("Limpar filtros")}</Button>
+            </div>
+          ) : filteredProposals.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={t("Ainda não tens propostas")}
+              description={t("Cria a tua primeira proposta para enviares aos teus clientes.")}
+            >
+              <Button onClick={() => setCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t("Criar primeira proposta")}
+              </Button>
+            </EmptyState>
+          ) : (
+            <ProposalsTable proposals={filteredProposals} isTelecom={isTelecom} onOpen={setSelectedProposal} onCreateSale={setSaleProposal} />
           )}
-          chips={[
-            search.trim() ? `“${search.trim()}”` : null,
-            dateRange?.from ? 'Período' : null,
-            excludedStatuses.length ? `${excludedStatuses.length} estados ocultos` : null,
-            isTelecom && excludedTypes.length ? `${excludedTypes.length} tipos ocultos` : null,
-          ].filter((c): c is string => !!c)}
-          actions={
-            <Button onClick={() => setCreateModalOpen(true)} size="sm" className={isGenericNiche ? 'h-10 px-4' : 'h-8'}>
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Nova Proposta</span>
-              <span className="sm:hidden">Nova</span>
-            </Button>
-          }
-          panel={
-            <div className="mt-[30px] grid w-full min-w-0 max-w-full items-start gap-4 lg:grid-cols-[252px_minmax(0,1fr)]">
-              <aside className="hidden rounded-xl border border-border/70 bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
-                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                  <Filter className="h-4 w-4 text-primary" />Filtros
-                </h2>
-                {filterControls}
-              </aside>
-              <div className="lg:hidden">
-                <Accordion type="single" collapsible className="rounded-xl border border-border/70 bg-card px-3">
-                  <AccordionItem value="proposal-filters" className="border-0">
-                    <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline">
-                      <span className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" />Filtros</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-3">{filterControls}</AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </div>
-              <div className="w-full min-w-0 max-w-full space-y-4">
-                <div className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
-                  <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
-                    <CardContent className="p-3 sm:p-4">
-                      <p className="text-xs text-muted-foreground sm:text-sm">Total Propostas</p>
-                      <p className="text-xl font-bold sm:text-2xl">{filteredProposals.length}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
-                    <CardContent className="p-3 sm:p-4">
-                      <p className="text-xs text-muted-foreground sm:text-sm">Valor Total</p>
-                      <p className="text-lg font-bold text-primary sm:text-2xl">{formatCurrency(totalValue)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
-                    <CardContent className="p-3 sm:p-4">
-                      <p className="text-xs text-muted-foreground sm:text-sm">Em Negociação</p>
-                      <p className="text-lg font-bold text-amber-500 sm:text-2xl">{formatCurrency(pendingValue)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={isGenericNiche ? 'rounded-xl border-border/70 shadow-sm' : undefined}>
-                    <CardContent className="p-3 sm:p-4">
-                      <p className="text-xs text-muted-foreground sm:text-sm">Aceites</p>
-                      <p className="text-xl font-bold text-green-500 sm:text-2xl">{proposalsByStatus.accepted?.length || 0}</p>
-                    </CardContent>
-                  </Card>
-                </div>
-                {proposalsList}
-              </div>
-            </div>
-          }
-          layout={isGenericNiche || isTelecom ? 'dashboard' : 'pinned'}
-          subtitle={isGenericNiche ? 'Crie, envie e acompanhe propostas comerciais num só lugar.' : undefined}
-        />
-        {!isGenericNiche && !isTelecom && proposalsList}
+        </div>
       </div>
 
+      <ImportProposalsDialog open={importOpen} onOpenChange={setImportOpen} />
       <CreateProposalModal
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
@@ -376,7 +226,7 @@ export default function Proposals() {
         />
       )}
 
-      {/* "Criar Venda" from the list — a fully prefilled sale (client, items,
+      {/* "Criar venda" from the list — a fully prefilled sale (client, items,
           values, commission, energy/CPEs, notes) via the proposal object. */}
       {saleProposal && (
         <CreateSaleModal

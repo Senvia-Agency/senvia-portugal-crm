@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { startOfMonth, endOfMonth, isSameDay, format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, tr } from "@/i18n";
 
 /**
  * Período do dashboard: um intervalo de datas real.
@@ -58,11 +58,11 @@ export function useDashboardPeriod() {
  * dar a entender que se está a ver um mês quando não se está.
  */
 export function formatPeriodLabel(from: Date | null, to: Date | null): string {
-  if (!from) return "todo o histórico";
+  if (!from) return tr("todo o histórico");
   const end = to ?? from;
   if (isSameDay(from, startOfMonth(from)) && isSameDay(end, endOfMonth(from))) {
-    return format(from, "MMMM yyyy", { locale: pt });
+    return format(from, "MMMM yyyy", { locale: dateLocale() });
   }
-  if (isSameDay(from, end)) return format(from, "dd/MM/yyyy", { locale: pt });
-  return `${format(from, "dd/MM/yy", { locale: pt })} — ${format(end, "dd/MM/yy", { locale: pt })}`;
+  if (isSameDay(from, end)) return format(from, "dd/MM/yyyy", { locale: dateLocale() });
+  return `${format(from, "dd/MM/yy", { locale: dateLocale() })} — ${format(end, "dd/MM/yy", { locale: dateLocale() })}`;
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, User, Mail, Phone, Globe, Thermometer, DollarSign, MessageSquare, Save, Eye, EyeOff, AlertCircle, FileText, Building2, ClipboardList, Zap } from 'lucide-react';
 import { useLeadFieldsSettings, useUpdateLeadFieldsSettings } from '@/hooks/useLeadFieldsSettings';
 import { LeadFieldKey, LeadFieldsSettings, DEFAULT_LEAD_FIELDS_SETTINGS, LEAD_FIELD_ORDER } from '@/types/field-settings';
+import { useLanguage } from '@/i18n';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const FIELD_ICONS: Record<LeadFieldKey, React.ReactNode> = {
@@ -26,6 +27,7 @@ const FIELD_ICONS: Record<LeadFieldKey, React.ReactNode> = {
 export function LeadFieldsEditor() {
   const { data: savedSettings, isLoading } = useLeadFieldsSettings();
   const updateSettings = useUpdateLeadFieldsSettings();
+  const { t } = useLanguage();
   const [settings, setSettings] = useState<LeadFieldsSettings>(DEFAULT_LEAD_FIELDS_SETTINGS);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -75,14 +77,14 @@ export function LeadFieldsEditor() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <User className="h-5 w-5" />
-          Campos de Leads
+          {t('Campos de Leads')}
         </CardTitle>
-        <CardDescription>Configure quais campos são visíveis e obrigatórios ao criar ou editar leads.</CardDescription>
+        <CardDescription>{t('Configure quais campos são visíveis e obrigatórios ao criar ou editar leads.')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-2 border-b">
-          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>Visível</span></div>
-          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>Obrigatório</span></div>
+          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>{t('Visível')}</span></div>
+          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>{t('Obrigatório')}</span></div>
         </div>
 
         <div className="space-y-3">
@@ -116,16 +118,16 @@ export function LeadFieldsEditor() {
         {!hasIdentificationField && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Pelo menos um campo de identificação (<strong>Nome</strong>, <strong>Nome Empresa</strong> ou <strong>NIF Empresa</strong>) deve ser visível e obrigatório.</AlertDescription>
+            <AlertDescription>{t('Pelo menos um campo de identificação (Nome, Nome Empresa ou NIF Empresa) deve ser visível e obrigatório.')}</AlertDescription>
           </Alert>
         )}
 
-        <p className="text-xs text-muted-foreground">Pelo menos um campo de identificação (<strong>Nome</strong>, <strong>Nome Empresa</strong> ou <strong>NIF</strong>) é necessário para identificar cada lead.</p>
+        <p className="text-xs text-muted-foreground">{t('Pelo menos um campo de identificação (Nome, Nome Empresa ou NIF) é necessário para identificar cada lead.')}</p>
 
         <div className="flex justify-end pt-4">
           <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending || !hasIdentificationField}>
             {updateSettings.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Guardar Alterações
+            {t('Guardar Alterações')}
           </Button>
         </div>
       </CardContent>

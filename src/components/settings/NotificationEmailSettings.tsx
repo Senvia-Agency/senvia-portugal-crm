@@ -8,12 +8,14 @@ import { useFidelizationSettings, useUpdateFidelizationSettings } from '@/hooks/
 import { useOrganization, useUpdateOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 import { Mail, Loader2, Banknote } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 export function NotificationEmailSettings() {
   const { data: settings, isLoading } = useFidelizationSettings();
   const updateSettings = useUpdateFidelizationSettings();
   const { data: orgData, isLoading: orgLoading } = useOrganization();
   const updateOrg = useUpdateOrganization();
+  const { t } = useLanguage();
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [alertEmail, setAlertEmail] = useState('');
@@ -34,12 +36,12 @@ export function NotificationEmailSettings() {
 
   const handleSave = () => {
     if (emailEnabled && !alertEmail.trim()) {
-      toast.error('Introduza um email para receber os alertas');
+      toast.error(t('Introduza um email para receber os alertas'));
       return;
     }
 
     if (emailEnabled && !alertEmail.includes('@')) {
-      toast.error('Email inválido');
+      toast.error(t('Email inválido'));
       return;
     }
 
@@ -47,14 +49,14 @@ export function NotificationEmailSettings() {
       fidelization_email_enabled: emailEnabled,
       fidelization_email: emailEnabled ? alertEmail.trim() : null,
     }, {
-      onSuccess: () => toast.success('Definições de email guardadas'),
-      onError: () => toast.error('Erro ao guardar definições'),
+      onSuccess: () => toast.success(t('Definições de email guardadas')),
+      onError: () => toast.error(t('Erro ao guardar definições')),
     });
   };
 
   const handleSaveFinance = () => {
     if (financeEmail && !financeEmail.includes('@')) {
-      toast.error('Email financeiro inválido');
+      toast.error(t('Email financeiro inválido'));
       return;
     }
 
@@ -76,10 +78,10 @@ export function NotificationEmailSettings() {
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Mail className="h-5 w-5 text-primary" />
-          Alertas por Email
+          {t('Alertas por Email')}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure os emails para receber alertas automáticos (calendário, fidelização, financeiro, etc.).
+          {t('Configure os emails para receber alertas automáticos (calendário, fidelização, financeiro, etc.).')}
         </p>
       </div>
 
@@ -87,18 +89,18 @@ export function NotificationEmailSettings() {
         <CardHeader className="pb-4">
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            Configuração de Email
+            {t('Configuração de Email')}
           </CardTitle>
           <CardDescription>
-            Aplica-se a todos os alertas do sistema (calendário, fidelização, etc.).
+            {t('Aplica-se a todos os alertas do sistema (calendário, fidelização, etc.).')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Receber alertas por email</Label>
+              <Label>{t('Receber alertas por email')}</Label>
               <p className="text-xs text-muted-foreground">
-                Usa as definições Brevo da organização
+                {t('Usa as definições Brevo da organização')}
               </p>
             </div>
             <Switch
@@ -109,13 +111,13 @@ export function NotificationEmailSettings() {
 
           {emailEnabled && (
             <div className="space-y-2">
-              <Label htmlFor="alert-email">Email para alertas</Label>
+              <Label htmlFor="alert-email">{t('Email para alertas')}</Label>
               <Input
                 id="alert-email"
                 type="email"
                 value={alertEmail}
                 onChange={(e) => setAlertEmail(e.target.value)}
-                placeholder="comercial@empresa.pt"
+                placeholder={t('comercial@empresa.pt')}
               />
             </div>
           )}
@@ -126,7 +128,7 @@ export function NotificationEmailSettings() {
             className="w-full sm:w-auto"
           >
             {updateSettings.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Guardar
+            {t('Guardar')}
           </Button>
         </CardContent>
       </Card>
@@ -135,24 +137,24 @@ export function NotificationEmailSettings() {
         <CardHeader className="pb-4">
           <CardTitle className="text-base flex items-center gap-2">
             <Banknote className="h-4 w-4" />
-            Email Financeiro
+            {t('Email Financeiro')}
           </CardTitle>
           <CardDescription>
-            Este email recebe notificações quando um colaborador submete um pedido interno (despesas, faturas, férias).
+            {t('Este email recebe notificações quando um colaborador submete um pedido interno (despesas, faturas, férias).')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="finance-email">Email do responsável financeiro</Label>
+            <Label htmlFor="finance-email">{t('Email do responsável financeiro')}</Label>
             <Input
               id="finance-email"
               type="email"
               value={financeEmail}
               onChange={(e) => setFinanceEmail(e.target.value)}
-              placeholder="financeiro@empresa.pt"
+              placeholder={t('financeiro@empresa.pt')}
             />
             <p className="text-xs text-muted-foreground">
-              Deixe em branco para desativar as notificações financeiras.
+              {t('Deixe em branco para desativar as notificações financeiras.')}
             </p>
           </div>
 
@@ -162,7 +164,7 @@ export function NotificationEmailSettings() {
             className="w-full sm:w-auto"
           >
             {updateOrg.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Guardar
+            {t('Guardar')}
           </Button>
         </CardContent>
       </Card>

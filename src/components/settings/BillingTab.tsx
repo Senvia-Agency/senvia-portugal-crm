@@ -11,7 +11,7 @@ import { useStripeSubscription } from '@/hooks/useStripeSubscription';
 import { STRIPE_PLANS, type StripePlan, type BillingPeriod } from '@/lib/stripe-plans';
 import { PricingPlans, PricingCtaButton } from '@/components/billing/PricingPlans';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { monthlyPrice } from '@/lib/stripe-plans';
@@ -27,6 +27,7 @@ const INTEGRATION_ICONS: Record<string, React.ElementType> = {
 export function BillingTab() {
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const { isLoading, subscriptionStatus, hasChecked, checkSubscription, createCheckout, openCustomerPortal } = useStripeSubscription();
   const [checkingPlan, setCheckingPlan] = useState<string | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>('monthly');
@@ -102,7 +103,7 @@ export function BillingTab() {
         if (upgradeCost < currentExtraCost && nextPlanUsers >= activeMembers) {
           return {
             type: 'upgrade' as const,
-            message: `Com ${memberOverage} utilizadores extra (${currentExtraCost}€/mês), compensa fazer upgrade para ${nextPlan.name} (mais ${upgradeCost - currentExtraCost}€/mês) e ganhar mais funcionalidades.`,
+            message: t('Com {{n}} utilizadores extra ({{cost}}€/mês), compensa fazer upgrade para {{plan}} (mais {{diff}}€/mês) e ganhar mais funcionalidades.', { n: memberOverage, cost: currentExtraCost, plan: nextPlan.name, diff: upgradeCost - currentExtraCost }),
             plan: nextPlan,
             savings: currentExtraCost - upgradeCost,
           };
@@ -113,14 +114,14 @@ export function BillingTab() {
         // Almost worth upgrading but not yet
         return {
           type: 'info' as const,
-          message: `Com mais ${seatsNeeded - memberOverage} utilizador(es) extra (${extraSeatCost}€/mês no total), talvez compense fazer upgrade para ${nextPlan.name} (+${upgradeCost}€/mês) com mais funcionalidades.`,
+          message: t('Com mais {{n}} utilizador(es) extra ({{cost}}€/mês no total), talvez compense fazer upgrade para {{plan}} (+{{upgrade}}€/mês) com mais funcionalidades.', { n: seatsNeeded - memberOverage, cost: extraSeatCost, plan: nextPlan.name, upgrade: upgradeCost }),
           plan: nextPlan,
         };
       }
     }
     
     return null;
-  }, [currentPlanIdFromOrg, activeMembers, baseUsers, currentSeats]);
+  }, [currentPlanIdFromOrg, activeMembers, baseUsers, currentSeats, t]);
 
   const handleBuyExtraSeats = async (quantity: number) => {
     setExtraSeatsLoading(true);
@@ -140,8 +141,8 @@ export function BillingTab() {
       setExtraSeatsDelta(0);
     } catch (err: any) {
       toast({
-        title: 'Erro',
-        description: err.message || 'Erro ao adquirir utilizadores extra',
+        title: t('Erro'),
+        description: err.message || t('Erro ao adquirir utilizadores extra'),
         variant: 'destructive',
       });
     } finally {
@@ -187,22 +188,22 @@ export function BillingTab() {
   return (
     <div className="space-y-6">
       <Link to="/settings?og=account&os=account-referrals" className="block rounded-xl border bg-card p-4 text-sm hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-        <span className="font-semibold text-primary">Indicações e meses gratuitos →</span>
-        <span className="mt-1 block text-muted-foreground">Copia o teu link, acompanha os pagamentos das empresas indicadas e consulta o próximo bónus.</span>
+        <span className="font-semibold text-primary">{t('Indicações e meses gratuitos →')}</span>
+        <span className="mt-1 block text-muted-foreground">{t('Copia o teu link, acompanha os pagamentos das empresas indicadas e consulta o próximo bónus.')}</span>
       </Link>
       {/* Billing Exempt Status */}
       {subscriptionStatus?.billing_exempt && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 md:p-5">
           <div className="flex items-center gap-2 mb-1">
             <Crown className="h-4 w-4 text-emerald-500" />
-            <span className="font-semibold text-sm">Plano Vitalício</span>
+            <span className="font-semibold text-sm">{t('Plano Vitalício')}</span>
             <Badge className="bg-emerald-500 text-white text-[10px] px-2.5 py-1">
               <Sparkles className="h-3 w-3 mr-1" />
-              Isento
+              {t('Isento')}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            A sua organização tem acesso vitalício ao SENVIA OS sem necessidade de pagamento.
+            {t('A sua organização tem acesso vitalício ao SENVIA OS sem necessidade de pagamento.')}
           </p>
         </div>
       )}
@@ -212,13 +213,13 @@ export function BillingTab() {
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 md:p-5">
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-4 w-4 text-amber-500" />
-            <span className="font-semibold text-sm">Período de Teste</span>
+            <span className="font-semibold text-sm">{t('Período de Teste')}</span>
             <Badge className="bg-amber-500 text-white text-[10px] px-2.5 py-1">
-              {subscriptionStatus.days_remaining} {subscriptionStatus.days_remaining === 1 ? 'dia restante' : 'dias restantes'}
+              {t(subscriptionStatus.days_remaining === 1 ? '{{n}} dia restante' : '{{n}} dias restantes', { n: subscriptionStatus.days_remaining })}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tem acesso total a todos os módulos. Escolha um plano antes do fim do período de teste.
+            {t('Tem acesso total a todos os módulos. Escolha um plano antes do fim do período de teste.')}
           </p>
         </div>
       )}
@@ -228,10 +229,10 @@ export function BillingTab() {
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:p-5">
           <div className="flex items-center gap-2 mb-1">
             <Crown className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm">Subscrição Ativa</span>
+            <span className="font-semibold text-sm">{t('Subscrição Ativa')}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Próxima renovação: {format(new Date(subscriptionStatus.subscription_end), "d 'de' MMMM 'de' yyyy", { locale: pt })}
+            {t('Próxima renovação: {{date}}', { date: format(new Date(subscriptionStatus.subscription_end), t("d 'de' MMMM 'de' yyyy"), { locale: dateLocale() }) })}
           </p>
           <Button
             variant="outline"
@@ -241,7 +242,7 @@ export function BillingTab() {
             disabled={isLoading}
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Gerir Subscrição
+            {t('Gerir Subscrição')}
           </Button>
         </div>
       )}
@@ -251,18 +252,17 @@ export function BillingTab() {
         <div className="rounded-xl border border-primary/10 bg-card p-4 md:p-5">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm">Utilizadores Adicionais</span>
-            <Badge variant="secondary" className="text-[10px]">{currentSeats} extra</Badge>
+            <span className="font-semibold text-sm">{t('Utilizadores Adicionais')}</span>
+            <Badge variant="secondary" className="text-[10px]">{t('{{n}} extra', { n: currentSeats })}</Badge>
           </div>
 
           <div className="flex items-center justify-between gap-4 mb-3">
             <div>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{activeMembers}</span> de{" "}
-                <span className="font-medium">{planLimit}</span> utilizadores em uso
+                {t('{{used}} de {{total}} utilizadores em uso', { used: activeMembers, total: planLimit })}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Base do plano: {baseUsers} utilizadores + {currentSeats} extra{currentSeats > 1 ? 's' : ''}
+                {t(currentSeats > 1 ? 'Base do plano: {{base}} utilizadores + {{n}} extras' : 'Base do plano: {{base}} utilizadores + {{n}} extra', { base: baseUsers, n: currentSeats })}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -292,8 +292,7 @@ export function BillingTab() {
 
           {/* Price per extra seat */}
           <p className="text-xs text-muted-foreground mb-3">
-            5€/mês por utilizador extra. Ao fazer upgrade para um plano superior,
-            os utilizadores extra são automaticamente absorvidos — não paga a dobrar.
+            {t('5€/mês por utilizador extra. Ao fazer upgrade para um plano superior, os utilizadores extra são automaticamente absorvidos — não paga a dobrar.')}
           </p>
 
           {/* Smart recommendation */}
@@ -317,7 +316,7 @@ export function BillingTab() {
                     className="h-auto p-0 text-xs mt-1"
                     onClick={() => handleSelectPlan(smartRecommendation.plan!)}
                   >
-                    Fazer upgrade para {smartRecommendation.plan.name}
+                    {t('Fazer upgrade para {{plan}}', { plan: smartRecommendation.plan.name })}
                     <ArrowRight className="h-3 w-3 ml-1" />
                   </Button>
                 )}
@@ -338,12 +337,12 @@ export function BillingTab() {
               ) : extraSeatsDelta > 0 ? (
                 <>
                   <Plus className="h-4 w-4" />
-                  Adicionar {extraSeatsDelta} utilizador{extraSeatsDelta > 1 ? 'es' : ''} extra
+                  {t(extraSeatsDelta > 1 ? 'Adicionar {{n}} utilizadores extra' : 'Adicionar {{n}} utilizador extra', { n: extraSeatsDelta })}
                 </>
               ) : (
                 <>
                   <Minus className="h-4 w-4" />
-                  Remover {Math.abs(extraSeatsDelta)} utilizador{Math.abs(extraSeatsDelta) > 1 ? 'es' : ''} extra
+                  {t(Math.abs(extraSeatsDelta) > 1 ? 'Remover {{n}} utilizadores extra' : 'Remover {{n}} utilizador extra', { n: Math.abs(extraSeatsDelta) })}
                 </>
               )}
             </Button>
@@ -361,7 +360,7 @@ export function BillingTab() {
           if (subscriptionStatus?.billing_exempt) {
             return (
               <PricingCtaButton popular={popular} disabled>
-                Incluído no vitalício
+                {t('Incluído no vitalício')}
               </PricingCtaButton>
             );
           }
@@ -381,15 +380,15 @@ export function BillingTab() {
               {busy ? (
                 <Loader2 className="mx-auto h-5 w-5 animate-spin" />
               ) : isCurrent ? (
-                'Plano Atual'
+                t('Plano Atual')
               ) : blockAnnual ? (
-                'Anual em breve'
+                t('Anual em breve')
               ) : hasNoSubscription ? (
-                'Selecionar'
+                t('Selecionar')
               ) : isUpgrade ? (
-                'Fazer Upgrade'
+                t('Fazer Upgrade')
               ) : (
-                'Fazer Downgrade'
+                t('Fazer Downgrade')
               )}
             </PricingCtaButton>
           );

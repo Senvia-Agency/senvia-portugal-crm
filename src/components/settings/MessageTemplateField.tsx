@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 export interface TemplateVariable {
   token: string;
@@ -46,6 +47,7 @@ export function MessageTemplateField({
   variables = WELCOME_VARIABLES,
 }: MessageTemplateFieldProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const { t } = useLanguage();
 
   const insert = (token: string) => {
     const el = ref.current;
@@ -75,10 +77,10 @@ export function MessageTemplateField({
               key={v.token}
               type="button"
               onClick={() => insert(v.token)}
-              title={`Inserir ${v.token}`}
+              title={t('Inserir {{token}}', { token: v.token })}
               className="text-[11px] rounded-full border bg-muted/50 px-2 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             >
-              {v.label}
+              {t(v.label)}
             </button>
           ))}
         </div>

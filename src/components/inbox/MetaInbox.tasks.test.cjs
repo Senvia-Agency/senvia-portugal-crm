@@ -12,7 +12,7 @@ function evaluate(code, context) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(code, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText, { exports, require: () => jsx, ...context });
+  }).outputText, { exports, require: () => jsx, useLanguage: () => ({ t: text => text }), t: text => text, tr: text => text, ...context });
   return exports;
 }
 function nodes(tree) {

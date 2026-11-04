@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { tr } from "@/i18n";
 import type { SalePayment, PaymentMethod, PaymentRecordStatus } from "@/types/sales";
 
 export interface SalePaymentWithCycle extends SalePayment {
@@ -116,11 +117,11 @@ export function useCreateSalePayment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sale-payments", variables.sale_id] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      toast.success("Pagamento adicionado com sucesso");
+      toast.success(tr("Pagamento adicionado com sucesso"));
     },
     onError: (error) => {
       console.error("Error creating payment:", error);
-      toast.error("Erro ao adicionar pagamento");
+      toast.error(tr("Erro ao adicionar pagamento"));
     },
   });
 }
@@ -158,11 +159,11 @@ export function useUpdateSalePayment() {
       queryClient.invalidateQueries({ queryKey: ["recurring-sales"] });
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
       queryClient.invalidateQueries({ queryKey: ["finance-stats"] });
-      toast.success("Pagamento atualizado com sucesso");
+      toast.success(tr("Pagamento atualizado com sucesso"));
     },
     onError: (error) => {
       console.error("Error updating payment:", error);
-      toast.error("Erro ao atualizar pagamento");
+      toast.error(tr("Erro ao atualizar pagamento"));
     },
   });
 }
@@ -187,11 +188,11 @@ export function useDeleteSalePayment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sale-payments", variables.saleId] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      toast.success("Pagamento eliminado com sucesso");
+      toast.success(tr("Pagamento eliminado com sucesso"));
     },
     onError: (error) => {
       console.error("Error deleting payment:", error);
-      toast.error("Erro ao eliminar pagamento");
+      toast.error(tr("Erro ao eliminar pagamento"));
     },
   });
 }

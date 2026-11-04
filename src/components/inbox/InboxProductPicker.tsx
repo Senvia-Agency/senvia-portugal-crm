@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Search, Package, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Product } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface InboxProductPickerProps {
   onSelectProduct: (product: Product) => void;
@@ -69,6 +70,7 @@ function ProductCardWithImage({
 }
 
 export function InboxProductPicker({ onSelectProduct, onClose, limit }: InboxProductPickerProps) {
+  const { t } = useLanguage();
   const { data: products = [], isLoading } = useActiveProducts();
 
   const [search, setSearch] = useState('');
@@ -89,7 +91,7 @@ export function InboxProductPicker({ onSelectProduct, onClose, limit }: InboxPro
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisar produto..."
+            placeholder={t("Pesquisar produto...")}
             className="h-8 pl-7 text-xs"
           />
         </div>
@@ -111,7 +113,7 @@ export function InboxProductPicker({ onSelectProduct, onClose, limit }: InboxPro
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">
-            {search ? 'Nenhum produto encontrado.' : 'Sem produtos ativos.'}
+            {search ? t('Nenhum produto encontrado.') : t('Sem produtos ativos.')}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
@@ -134,6 +136,7 @@ export function InboxProductSection({
 }: {
   onSelectProduct: (product: Product) => void;
 }) {
+  const { t } = useLanguage();
   const { data: products = [], isLoading } = useActiveProducts();
   const [expanded, setExpanded] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -154,10 +157,10 @@ export function InboxProductSection({
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Package className="h-3.5 w-3.5" />
-            Produtos
+            {t("Produtos")}
           </span>
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            {products.length} {products.length === 1 ? 'produto' : 'produtos'}
+            {t(products.length === 1 ? '{{n}} produto' : '{{n}} produtos', { n: products.length })}
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </span>
         </button>
@@ -180,7 +183,7 @@ export function InboxProductSection({
             onClick={() => setShowAll(true)}
             className="mt-2 w-full rounded-lg border border-dashed py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent"
           >
-            Ver todos ({products.length})
+            {t("Ver todos ({{n}})", { n: products.length })}
           </button>
         )}
       </div>
@@ -189,7 +192,7 @@ export function InboxProductSection({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="flex h-[80dvh] w-full max-w-md flex-col rounded-xl bg-background shadow-lg">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <h3 className="text-sm font-semibold">Produtos</h3>
+              <h3 className="text-sm font-semibold">{t("Produtos")}</h3>
               <button
                 type="button"
                 onClick={() => setShowAll(false)}

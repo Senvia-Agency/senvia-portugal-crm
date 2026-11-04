@@ -3,6 +3,7 @@ import { Loader2, StickyNote, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage, intlLocale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
   useContactNotes,
@@ -27,6 +28,7 @@ export function ContactNotes({
   const addNote = useAddContactNote();
   const deleteNote = useDeleteContactNote();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [draft, setDraft] = useState("");
   const phoneKey = notePhoneKey(phone);
   const canWrite = phoneKey.length >= 6;
@@ -38,7 +40,7 @@ export function ContactNotes({
       {
         onSuccess: () => setDraft(""),
         onError: (e) =>
-          toast({ title: "Falha ao guardar a nota", description: (e as Error).message, variant: "destructive" }),
+          toast({ title: t("Falha ao guardar a nota"), description: (e as Error).message, variant: "destructive" }),
       },
     );
   };
@@ -46,7 +48,7 @@ export function ContactNotes({
   return (
     <div className={cn("rounded-xl border bg-card p-3", className)}>
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <StickyNote className="h-3.5 w-3.5 text-amber-500" /> Notas
+        <StickyNote className="h-3.5 w-3.5 text-amber-500" /> {t("Notas")}
         {notes.length > 0 && (
           <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
             {notes.length}
@@ -59,7 +61,7 @@ export function ContactNotes({
           <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Escreve uma nota… (Ctrl+Enter para guardar)"
+            placeholder={t("Escreve uma nota… (Ctrl+Enter para guardar)")}
             rows={2}
             className="min-h-[60px] resize-none text-sm"
             onKeyDown={(e) => {
@@ -76,16 +78,16 @@ export function ContactNotes({
             onClick={submit}
           >
             {addNote.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-            Adicionar
+            {t("Adicionar")}
           </Button>
         </div>
       )}
 
       {isLoading ? (
-        <p className="text-[11px] text-muted-foreground">A carregar notas…</p>
+        <p className="text-[11px] text-muted-foreground">{t("A carregar notas…")}</p>
       ) : notes.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">
-          {canWrite ? "Ainda não há notas. Escreve a primeira acima." : "Sem número de telefone — não é possível guardar notas."}
+          {canWrite ? t("Ainda não há notas. Escreve a primeira acima.") : t("Sem número de telefone — não é possível guardar notas.")}
         </p>
       ) : (
         <div className="space-y-1.5">
@@ -97,19 +99,19 @@ export function ContactNotes({
               <p className="whitespace-pre-wrap break-words">{n.content}</p>
               <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-amber-600/80 dark:text-amber-400/70">
                 <span className="truncate">
-                  {n.author_name || (n.source === "import" ? "Importada" : "Equipa")} ·{" "}
-                  {new Date(n.created_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "2-digit" })}{" "}
-                  {new Date(n.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
+                  {n.author_name || (n.source === "import" ? t("Importada") : t("Equipa"))} ·{" "}
+                  {new Date(n.created_at).toLocaleDateString(intlLocale(), { day: "2-digit", month: "2-digit", year: "2-digit" })}{" "}
+                  {new Date(n.created_at).toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" })}
                 </span>
                 <button
                   type="button"
-                  title="Apagar nota"
+                  title={t("Apagar nota")}
                   disabled={deleteNote.isPending}
                   onClick={() => {
-                    if (!window.confirm("Apagar esta nota?")) return;
+                    if (!window.confirm(t("Apagar esta nota?"))) return;
                     deleteNote.mutate(
                       { id: n.id, phoneKey },
-                      { onError: (e) => toast({ title: "Falha ao apagar", description: (e as Error).message, variant: "destructive" }) },
+                      { onError: (e) => toast({ title: t("Falha ao apagar"), description: (e as Error).message, variant: "destructive" }) },
                     );
                   }}
                   className="shrink-0 rounded p-0.5 text-amber-600/70 opacity-70 transition-opacity hover:bg-red-500/10 hover:text-red-600 hover:opacity-100"

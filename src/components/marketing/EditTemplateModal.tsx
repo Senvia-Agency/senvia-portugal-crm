@@ -34,6 +34,7 @@ import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import type { EmailTemplate } from "@/types/marketing";
 import { isManualEmailTrigger } from "@/lib/email-template-triggers";
 import { FileText, Save } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -53,6 +54,7 @@ interface EditTemplateModalProps {
 
 export function EditTemplateModal({ template, open, onOpenChange }: EditTemplateModalProps) {
   const updateTemplate = useUpdateEmailTemplate();
+  const { t } = useLanguage();
 
   // Automation state
   const [automationEnabled, setAutomationEnabled] = useState(false);
@@ -124,14 +126,14 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
         <DialogHeader className="flex-row items-center justify-between gap-4 border-b bg-background px-5 py-4 pr-14 md:px-8">
           <div className="min-w-0">
             <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
-              <FileText className="h-3.5 w-3.5" /> Editor de email
+              <FileText className="h-3.5 w-3.5" /> {t("Editor de email")}
             </div>
-            <DialogTitle className="truncate text-xl">Editar template</DialogTitle>
-            <DialogDescription className="mt-1 truncate">{template?.name || 'Configure o conteúdo, a apresentação e a automação.'}</DialogDescription>
+            <DialogTitle className="truncate text-xl">{t("Editar template")}</DialogTitle>
+            <DialogDescription className="mt-1 truncate">{template?.name || t('Configure o conteúdo, a apresentação e a automação.')}</DialogDescription>
           </div>
           <div className="hidden items-center gap-2 text-xs text-muted-foreground md:flex">
             <span className={hasUnsavedChanges ? "h-2 w-2 rounded-full bg-warning" : "h-2 w-2 rounded-full bg-success"} />
-            {hasUnsavedChanges ? 'Alterações não guardadas' : 'Tudo guardado'}
+            {hasUnsavedChanges ? t('Alterações não guardadas') : t('Tudo guardado')}
           </div>
         </DialogHeader>
 
@@ -143,7 +145,7 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                 name="name"
                 render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome do Template</FormLabel>
+                      <FormLabel>{t("Nome do Template")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -157,18 +159,18 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoria</FormLabel>
+                    <FormLabel>{t("Categoria")}</FormLabel>
                     <Select
                       onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
                       value={field.value ?? "__none__"}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Sem categoria" />
+                          <SelectValue placeholder={t("Sem categoria")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__none__">Sem categoria</SelectItem>
+                        <SelectItem value="__none__">{t("Sem categoria")}</SelectItem>
                         {(categories ?? []).map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
@@ -178,7 +180,7 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                     </Select>
                     {!categories?.length && (
                       <p className="text-xs text-muted-foreground">
-                        Ainda não há categorias. Crie-as em Definições, Categorias de Templates.
+                        {t("Ainda não há categorias. Crie-as em Definições, Categorias de Templates.")}
                       </p>
                     )}
                     <FormMessage />
@@ -195,11 +197,11 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                     name="subject"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Assunto do email</FormLabel>
+                        <FormLabel>{t("Assunto do email")}</FormLabel>
                         <FormControl>
                           <Input className="h-11 text-base" {...field} />
                         </FormControl>
-                        <p className="text-xs text-muted-foreground">Personaliza o assunto com variáveis, por exemplo: <code className="rounded bg-muted px-1 py-0.5">{'{{nome}}'}</code>.</p>
+                        <p className="text-xs text-muted-foreground">{t("Personalize o assunto com variáveis, por exemplo:")} <code className="rounded bg-muted px-1 py-0.5">{'{{nome}}'}</code>.</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -211,8 +213,8 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                       <FormItem>
                         <div className="flex items-center justify-between gap-4">
                           <div>
-                            <FormLabel className="text-base">Conteúdo do email</FormLabel>
-                            <p className="mt-1 text-sm text-muted-foreground">Escreve, edita HTML e confirma o resultado antes de guardar.</p>
+                            <FormLabel className="text-base">{t("Conteúdo do email")}</FormLabel>
+                            <p className="mt-1 text-sm text-muted-foreground">{t("Escreva, edite o HTML e confirme o resultado antes de guardar.")}</p>
                           </div>
                         </div>
                         <FormControl>
@@ -232,8 +234,8 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
                     render={({ field }) => (
                       <FormItem className="flex items-center justify-between gap-4 rounded-xl border bg-background p-4">
                         <div>
-                          <FormLabel className="text-sm font-semibold">Template ativo</FormLabel>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">Fica disponível para envio e automações.</p>
+                          <FormLabel className="text-sm font-semibold">{t("Template ativo")}</FormLabel>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("Fica disponível para envio e automações.")}</p>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -259,11 +261,11 @@ export function EditTemplateModal({ template, open, onOpenChange }: EditTemplate
 
             <footer className="flex shrink-0 flex-col-reverse gap-3 border-t bg-background px-5 py-4 sm:flex-row sm:items-center sm:justify-end md:px-8">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={updateTemplate.isPending}>
                 <Save className="mr-2 h-4 w-4" />
-                {updateTemplate.isPending ? "A guardar..." : "Guardar alterações"}
+                {updateTemplate.isPending ? t("A guardar...") : t("Guardar alterações")}
               </Button>
             </footer>
           </form>

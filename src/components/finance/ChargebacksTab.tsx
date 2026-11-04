@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, dateLocale, intlLocale } from '@/i18n';
 import { AlertTriangle, Check, Plus, Undo2, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -40,6 +40,7 @@ const STATUS_STYLES: Record<ChargebackStatus, string> = {
  * which is what "Confirmar" / "Descartar" record.
  */
 export function ChargebacksTab() {
+  const { t } = useLanguage();
   const { data: chargebacks = [], isLoading } = useSaleChargebacks();
   const updateStatus = useUpdateChargebackStatus();
   const { isAdmin } = usePermissions();
@@ -72,23 +73,23 @@ export function ChargebacksTab() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              Por confirmar
+              {t("Por confirmar")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{formatCurrency(totals.pending)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {totals.pendingCount} CB por confirmar
+              {t("{{n}} CB por confirmar", { n: totals.pendingCount })}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Confirmados</CardDescription>
+            <CardDescription>{t("Confirmados")}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold text-red-500">{formatCurrency(totals.reconciled)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Associados ao mês de comissão escolhido</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("Associados ao mês de comissão escolhido")}</p>
           </CardContent>
         </Card>
       </div>
@@ -97,26 +98,25 @@ export function ChargebacksTab() {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="text-base">Chargebacks (CB)</CardTitle>
+              <CardTitle className="text-base">{t("Chargebacks (CB)")}</CardTitle>
               <CardDescription>
-                Gerados automaticamente quando uma venda passa a "Cancelado" (cancelada após a instalação).
-                Vendas anuladas antes da instalação não geram CB.
+                {t("Gerados automaticamente quando uma venda passa a \"Cancelado\" (cancelada após a instalação). Vendas anuladas antes da instalação não geram CB.")}
               </CardDescription>
             </div>
             {canCreateManual && (
               <Dialog open={manualOpen} onOpenChange={setManualOpen}>
                 <DialogTrigger asChild>
                       <Button type="button" size="sm">
-                        <Plus className="mr-1.5 h-4 w-4" />Chargeback manual
+                        <Plus className="mr-1.5 h-4 w-4" />{t("Chargeback manual")}
                       </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader><DialogTitle>Registar chargeback manual</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle>{t("Registar chargeback manual")}</DialogTitle></DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Comercial que vendeu *</Label>
+                      <Label>{t("Comercial que vendeu *")}</Label>
                       <Select value={sellerId} onValueChange={setSellerId}>
-                        <SelectTrigger><SelectValue placeholder="Selecionar comercial" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={t("Selecionar comercial")} /></SelectTrigger>
                         <SelectContent>
                           {teamMembers.filter(member => !member.is_banned && member.role !== 'viewer').map(member => (
                             <SelectItem key={member.user_id} value={member.user_id}>{member.full_name}</SelectItem>
@@ -125,16 +125,16 @@ export function ChargebacksTab() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="manual-chargeback-amount">Valor (€) *</Label>
+                      <Label htmlFor="manual-chargeback-amount">{t("Valor (€) *")}</Label>
                       <Input id="manual-chargeback-amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={event => setAmount(event.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="manual-chargeback-client">Cliente (opcional)</Label>
+                      <Label htmlFor="manual-chargeback-client">{t("Cliente (opcional)")}</Label>
                       <Input
                         id="manual-chargeback-client"
                         type="text"
                         list="manual-chargeback-client-options"
-                        placeholder="Escrever nome do cliente"
+                        placeholder={t("Escrever nome do cliente")}
                         value={clientName}
                         onChange={event => setClientName(event.target.value)}
                       />
@@ -142,7 +142,7 @@ export function ChargebacksTab() {
                         {clients.map(client => <option key={client.id} value={client.name} />)}
                       </datalist>
                       <p className="text-xs text-muted-foreground">
-                        Pode escrever um nome antigo que não esteja no CRM. O registo não cria um cliente.
+                        {t("Pode escrever um nome antigo que não esteja no CRM. O registo não cria um cliente.")}
                       </p>
                     </div>
                   </div>
@@ -155,7 +155,7 @@ export function ChargebacksTab() {
                           setSellerId(''); setAmount(''); setClientName('');
                         },
                       });
-                    }}>Registar por confirmar</Button>
+                    }}>{t("Registar por confirmar")}</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -169,18 +169,18 @@ export function ChargebacksTab() {
             </div>
           ) : chargebacks.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Sem chargebacks. Aparecem aqui assim que uma venda for marcada como cancelada após a instalação.
+              {t("Sem chargebacks. Aparecem aqui assim que uma venda for marcada como cancelada após a instalação.")}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Venda / cliente</TableHead>
-                    <TableHead>Beneficiário</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Mês de desconto</TableHead>
+                    <TableHead>{t("Venda / cliente")}</TableHead>
+                    <TableHead>{t("Beneficiário")}</TableHead>
+                    <TableHead className="text-right">{t("Valor")}</TableHead>
+                    <TableHead>{t("Estado")}</TableHead>
+                    <TableHead>{t("Mês de desconto")}</TableHead>
                     {isAdmin && <TableHead className="w-32" />}
                   </TableRow>
                 </TableHeader>
@@ -188,13 +188,13 @@ export function ChargebacksTab() {
                   {chargebacks.map(cb => (
                     <TableRow key={cb.id}>
                       <TableCell className="text-sm">
-                        <span className="font-medium">{cb.reason === 'manual' ? 'Manual' : (cb.sale?.code ?? '—')}</span>
+                        <span className="font-medium">{cb.reason === 'manual' ? t('Manual') : (cb.sale?.code ?? '—')}</span>
                         {cb.reason === 'manual' && (cb.client_name || cb.client?.name) && (
                           <span className="ml-2 text-xs text-muted-foreground">{cb.client_name || cb.client?.name}</span>
                         )}
                         {cb.sale?.sale_date && (
                           <span className="ml-2 text-xs text-muted-foreground">
-                            {new Date(cb.sale.sale_date).toLocaleDateString('pt-PT')}
+                            {new Date(cb.sale.sale_date).toLocaleDateString(intlLocale())}
                           </span>
                         )}
                       </TableCell>
@@ -204,11 +204,11 @@ export function ChargebacksTab() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={STATUS_STYLES[cb.status]}>
-                          {CHARGEBACK_STATUS_LABELS[cb.status]}
+                          {t(CHARGEBACK_STATUS_LABELS[cb.status])}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {cb.application_month ? format(parseISO(cb.application_month), 'MMMM yyyy', { locale: pt }) : '—'}
+                        {cb.application_month ? format(parseISO(cb.application_month), 'MMMM yyyy', { locale: dateLocale() }) : '—'}
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
@@ -220,7 +220,7 @@ export function ChargebacksTab() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7"
-                                  title="Confirmar — a operadora cobrou mesmo"
+                                  title={t("Confirmar — a operadora cobrou mesmo")}
                                   onClick={() => { setConfirmTarget(cb); setApplicationMonth(''); }}
                                 >
                                   <Check className="h-3.5 w-3.5 text-green-600" />
@@ -230,7 +230,7 @@ export function ChargebacksTab() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7"
-                                  title="Descartar — não se aplica"
+                                  title={t("Descartar — não se aplica")}
                                   onClick={() => updateStatus.mutate({ id: cb.id, status: 'dismissed', manual: cb.reason === 'manual' })}
                                 >
                                   <X className="h-3.5 w-3.5 text-destructive" />
@@ -242,7 +242,7 @@ export function ChargebacksTab() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                title="Voltar a por confirmar"
+                                title={t("Voltar a por confirmar")}
                                 onClick={() => updateStatus.mutate({ id: cb.id, status: 'pending', manual: cb.reason === 'manual' })}
                               >
                                 <Undo2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -262,11 +262,11 @@ export function ChargebacksTab() {
       <Dialog open={!!confirmTarget} onOpenChange={(open) => { if (!open) setConfirmTarget(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar chargeback</DialogTitle>
-            <DialogDescription>Escolhe o mês da comissão em que este valor será descontado.</DialogDescription>
+            <DialogTitle>{t("Confirmar chargeback")}</DialogTitle>
+            <DialogDescription>{t("Escolhe o mês da comissão em que este valor será descontado.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="chargeback-application-month">Mês de desconto</Label>
+            <Label htmlFor="chargeback-application-month">{t("Mês de desconto")}</Label>
             <Input id="chargeback-application-month" type="month" value={applicationMonth} onChange={(event) => setApplicationMonth(event.target.value)} />
           </div>
           <DialogFooter>
@@ -275,7 +275,7 @@ export function ChargebacksTab() {
               updateStatus.mutate({ id: confirmTarget.id, status: 'reconciled', manual: confirmTarget.reason === 'manual', applicationMonth }, {
                 onSuccess: () => { setConfirmTarget(null); setApplicationMonth(''); },
               });
-            }}>Confirmar desconto</Button>
+            }}>{t("Confirmar desconto")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

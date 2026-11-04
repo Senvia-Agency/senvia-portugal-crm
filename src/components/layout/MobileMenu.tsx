@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useLanguage } from "@/i18n";
 import { useSubscription } from "@/hooks/useSubscription";
 import { APP_VERSION } from "@/lib/constants";
 import type { AppRole } from "@/types";
@@ -33,7 +34,8 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
   const navigate = useNavigate();
   const { signOut, roles, isSuperAdmin, organization, organizations } = useAuth();
   const { modules } = useModules();
-  const { canViewModule } = usePermissions();
+  const { canViewModule, isAdmin } = usePermissions();
+  const { t } = useLanguage();
   const { isModuleLocked } = useSubscription();
   const hasPerfect2GetherModuleAccess = hasPerfect2GetherAccess({
     organizationId: organization?.id,
@@ -43,6 +45,7 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
 
   // Same visibility rule as the desktop sidebar (module enabled + viewable).
   const navItems = allNavItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return false;
     if (!modules[item.moduleKey]) return false;
@@ -91,7 +94,7 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
         {/* Navigation */}
         <nav className="flex-1 py-6 space-y-2">
           {workspaceNavigationGroups.map(group => <div key={group} className="space-y-1 pb-3">
-            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group}</p>
+            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(group)}</p>
             {navItems.filter(item => item.group === group).map((item) => (
             <NavLink
               key={item.to}
@@ -105,7 +108,7 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               )}
             >
               <ModuleNavIcon icon={item.icon} to={item.to} />
-              {item.label}
+              {t(item.label)}
             </NavLink>
           ))}</div>)}
           

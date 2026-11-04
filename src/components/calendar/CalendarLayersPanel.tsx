@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CALENDAR_LAYERS, type CalendarLayer } from './calendar-layers';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   readonly hidden: readonly CalendarLayer[];
@@ -9,9 +10,10 @@ interface Props {
 
 /** Which calendars are visible, as in Realize's calendar sidebar. */
 export function CalendarLayersPanel({ hidden, onToggle }: Props) {
+  const { t } = useLanguage();
   return (
-    <section className="calendar-layers rounded-[1.6rem] border bg-card p-4 shadow-sm" aria-label="Calendários">
-      <p className="mb-2 px-1 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Calendários</p>
+    <section className="calendar-layers rounded-[1.6rem] border bg-card p-4 shadow-sm" aria-label={t("Calendários")}>
+      <p className="mb-2 px-1 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{t("Calendários")}</p>
       <ul className="space-y-0.5">
         {CALENDAR_LAYERS.map((layer) => {
           const visible = !hidden.includes(layer.key);
@@ -22,7 +24,7 @@ export function CalendarLayersPanel({ hidden, onToggle }: Props) {
                 <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-md', visible ? layer.dot : 'ring-2 ring-border')}>
                   {visible && <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden="true" />}
                 </span>
-                <span className={cn(!visible && 'text-muted-foreground')}>{layer.label}</span>
+                <span className={cn(!visible && 'text-muted-foreground')}>{t(layer.label)}</span>
               </button>
             </li>
           );

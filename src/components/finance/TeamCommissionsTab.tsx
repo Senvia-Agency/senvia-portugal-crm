@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { format, subMonths, startOfMonth } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import type { CommissionFilters } from '@/lib/commission-filters';
-import { pt } from 'date-fns/locale';
+import { useLanguage, dateLocale } from '@/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,15 +35,21 @@ function generateMonthOptions() {
     const d = startOfMonth(subMonths(now, i));
     options.push({
       value: format(d, 'yyyy-MM-dd'),
-      label: format(d, 'MMMM yyyy', { locale: pt }),
+      label: format(d, 'MMMM yyyy', { locale: dateLocale() }),
     });
   }
   return options;
 }
 
-export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { dateRange?: DateRange; commissionFilters?: CommissionFilters } } = {}) {
+export function TeamCommissionsTab({ financeOptions, search }: {
+  financeOptions?: { dateRange?: DateRange; commissionFilters?: CommissionFilters };
+  /** Typed in the page's own filter line; the tab then hides its search box. */
+  search?: string;
+} = {}) {
+  const { t, language } = useLanguage();
   const { effectiveUserIds, canFilterByTeam } = useTeamFilter();
-  const monthOptions = useMemo(() => generateMonthOptions(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const monthOptions = useMemo(() => generateMonthOptions(), [language]);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -52,7 +58,8 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
   // Which pending commissions are ticked for payment (keyed by `${kind}-${id}`).
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useCommercialCommissions(selectedMonth, effectiveUserIds, financeOptions);
+  // In the finance page the seller comes from its own filters, so the team filter stays out.
+  const { data, isLoading } = useCommercialCommissions(selectedMonth, financeOptions ? null : effectiveUserIds, financeOptions);
   const payMutation = usePayCommercialCommissions();
   const markPaidMutation = useMarkCommissionPaid();
 
@@ -67,7 +74,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
   const commercials = data?.commercials || [];
   const total = data?.total || 0;
   const totalPending = data?.totalPending || 0;
-  const filtered = commercials.filter(c => matchesSearch(searchTerm, c.name));
+  const filtered = commercials.filter(c => matchesSearch(search ?? searchTerm, c.name));
 
   const itemKey = (item: { kind: string; id: string }) => `${item.kind}-${item.id}`;
 
@@ -133,25 +140,25 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
             ))}
           </SelectContent>
         </Select>}
-        {canFilterByTeam && <TeamMemberFilter />}
-        <div className="relative flex-1 sm:max-w-[300px]">
+        {canFilterByTeam && !financeOptions && <TeamMemberFilter />}
+        {search === undefined && <div className="relative flex-1 sm:max-w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar comercial..."
+            placeholder={t("Pesquisar comercial...")}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="pl-9"
           />
-        </div>
+        </div>}
       </div>
 
       {commercials.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <FileX className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium mb-1">Sem comissões neste mês</h3>
+            <h3 className="text-lg font-medium mb-1">{t("Sem comissões neste mês")}</h3>
             <p className="text-sm text-muted-foreground max-w-md">
-              Entram aqui as comissões de vendas entregues e de subscrições (recorrentes) deste período.
+              {t("Entram aqui as comissões de vendas entregues e de subscrições (recorrentes) deste período.")}
             </p>
           </CardContent>
         </Card>
@@ -162,13 +169,13 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
               <div className="flex items-center gap-3">
                 <Wallet className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Comissões do Mês</p>
+                  <p className="text-sm font-medium text-muted-foreground">{financeOptions ? t("Comissões do período") : t("Comissões do Mês")}</p>
                   <p className="text-2xl font-bold">{formatCurrency(total)}</p>
                 </div>
               </div>
               {totalPending > 0 && (
                 <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600 text-sm">
-                  {formatCurrency(totalPending)} por pagar
+                  {t("{{value}} por pagar", { value: formatCurrency(totalPending) })}
                 </Badge>
               )}
             </CardContent>
@@ -180,10 +187,10 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
-                    <TableHead>Comercial</TableHead>
-                    <TableHead className="text-right">Comissão</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead>{t("Comercial")}</TableHead>
+                    <TableHead className="text-right">{t("Comissão")}</TableHead>
+                    <TableHead>{t("Estado")}</TableHead>
+                    <TableHead className="text-right">{t("Ação")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -208,11 +215,11 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                           <TableCell>
                             {isPending ? (
                               <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600">
-                                {formatCurrency(entry.totalPending)} por pagar
+                                {t("{{value}} por pagar", { value: formatCurrency(entry.totalPending) })}
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="border-green-500/30 bg-green-500/20 text-green-600">
-                                Pago
+                                {t("Pago")}
                               </Badge>
                             )}
                           </TableCell>
@@ -222,7 +229,7 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                 size="sm"
                                 onClick={(e) => { e.stopPropagation(); openPay(entry); }}
                               >
-                                Pagar
+                                {t("Pagar")}
                               </Button>
                             )}
                           </TableCell>
@@ -234,12 +241,12 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                 <Table>
                                   <TableHeader>
                                     <TableRow>
-                                      <TableHead>Tipo</TableHead>
-                                      <TableHead>Cliente / Venda</TableHead>
-                                      <TableHead>Data</TableHead>
-                                      <TableHead className="text-right">Recebido / venda</TableHead>
-                                      <TableHead className="text-right">Comissão</TableHead>
-                                      <TableHead>Estado</TableHead>
+                                      <TableHead>{t("Tipo")}</TableHead>
+                                      <TableHead>{t("Cliente / Venda")}</TableHead>
+                                      <TableHead>{t("Data")}</TableHead>
+                                      <TableHead className="text-right">{t("Recebido / venda")}</TableHead>
+                                      <TableHead className="text-right">{t("Comissão")}</TableHead>
+                                      <TableHead>{t("Estado")}</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -248,30 +255,36 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                         <TableCell className="text-xs">
                                           {item.kind === 'recurring' ? (
                                             <span className="inline-flex items-center gap-1 text-muted-foreground">
-                                              <RefreshCw className="h-3 w-3" /> Recorrente
+                                              <RefreshCw className="h-3 w-3" /> {t("Recorrente")}
                                             </span>
                                           ) : item.kind === 'chargeback' ? (
-                                            <span className="text-red-600">Chargeback</span>
+                                            <span className="text-red-600">{t("Chargeback")}</span>
                                           ) : item.kind === 'organization' ? (
-                                            <span className="text-muted-foreground">Organização</span>
+                                            <span className="text-muted-foreground">{t("Organização")}</span>
                                           ) : (
-                                            <span className="text-muted-foreground">Direta</span>
+                                            <span className="text-muted-foreground">{t("Direta")}</span>
                                           )}
                                           {item.proportional && (
                                             <span className="ml-1 inline-flex items-center rounded border border-blue-500/30 bg-blue-500/10 px-1 py-0.5 text-[9px] font-medium text-blue-600">
-                                              Proporcional
+                                              {t("Proporcional")}
                                             </span>
                                           )}
                                         </TableCell>
                                         <TableCell className="text-xs">{item.label}</TableCell>
                                         <TableCell className="text-xs">
-                                          {item.date ? format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt }) : '—'}
+                                          {/* Telecom: the installation day, and the month the commission falls in under it. */}
+                                          {item.installDate ? (
+                                            <>
+                                              <span className="block">{t("Instalada {{date}}", { date: format(new Date(item.installDate), 'dd/MM/yyyy') })}</span>
+                                              {item.date && <span className="block text-[11px] text-muted-foreground">{t("Comissão de {{month}}", { month: format(new Date(item.date), 'MMM yyyy', { locale: dateLocale() }) })}</span>}
+                                            </>
+                                          ) : item.date ? format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: dateLocale() }) : '—'}
                                         </TableCell>
                                         <TableCell className="text-right text-xs">
                                           {/* A proportional commission shows what the client paid this month out of the sale. */}
                                           {item.saleValue == null ? '—'
                                             : item.proportional && item.received != null
-                                              ? `${formatCurrency(item.received)} de ${formatCurrency(item.saleValue)}`
+                                              ? t("{{received}} de {{total}}", { received: formatCurrency(item.received), total: formatCurrency(item.saleValue) })
                                               : formatCurrency(item.saleValue)}
                                         </TableCell>
                                         <TableCell className="text-right text-xs font-medium">{formatCurrency(item.amount)}</TableCell>
@@ -286,12 +299,12 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                                                   : 'border-amber-500/30 bg-amber-500/20 text-amber-600',
                                               )}
                                             >
-                                              {item.kind === 'chargeback' ? (item.paid ? 'Aplicado' : 'Por aplicar') : (item.paid ? 'Pago' : 'Por pagar')}
+                                              {item.kind === 'chargeback' ? (item.paid ? t('Aplicado') : t('Por aplicar')) : (item.paid ? t('Pago') : t('Por pagar'))}
                                             </Badge>
                                             {!item.paid && item.kind !== 'chargeback' && (
                                               <button
                                                 type="button"
-                                                title="Marcar como paga"
+                                                title={t("Marcar como paga")}
                                                 disabled={markPaidMutation.isPending}
                                                 onClick={() => item.kind === 'organization'
                                                   ? markPaidMutation.mutate({ kind: item.kind, id: item.id, sourceSaleIds: item.sourceSaleIds ?? [] })
@@ -322,17 +335,17 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
       )}
 
       <Dialog open={!!payTarget} onOpenChange={(o) => !o && setPayTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pagar comissões — {payTarget?.name}</DialogTitle>
+        <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
+          <DialogHeader className="border-b px-4 py-4 md:px-6">
+            <DialogTitle>{t("Pagar comissões — {{name}}", { name: payTarget?.name ?? "" })}</DialogTitle>
             <DialogDescription>
-              Escolhe quais comissões pagar. As selecionadas são marcadas como pagas e é registada a despesa.
+              {t("Escolhe quais comissões pagar. As selecionadas são marcadas como pagas e é registada a despesa.")}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-1">
+          <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6"><div className="mx-auto max-w-2xl space-y-4">
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium text-muted-foreground">{pendingItems.length} pendente(s)</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("{{n}} pendente(s)", { n: pendingItems.length })}</span>
               <button
                 type="button"
                 className="text-xs font-medium text-primary hover:underline"
@@ -344,11 +357,11 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                   )
                 }
               >
-                {selectedItems.length === pendingItems.length ? 'Desmarcar todas' : 'Selecionar todas'}
+                {selectedItems.length === pendingItems.length ? t('Desmarcar todas') : t('Selecionar todas')}
               </button>
             </div>
 
-            <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border p-2">
+            <div className="space-y-1 rounded-lg border p-2">
               {pendingItems.map(item => {
                 const key = itemKey(item);
                 return (
@@ -361,8 +374,9 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{item.label}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {item.kind === 'chargeback' ? 'Desconto obrigatório' : item.kind === 'recurring' ? 'Recorrente' : item.kind === 'organization' ? 'Organização' : 'Direta'}
-                        {item.date ? ` · ${format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })}` : ''}
+                        {item.kind === 'chargeback' ? t('Desconto obrigatório') : item.kind === 'recurring' ? t('Recorrente') : item.kind === 'organization' ? t('Organização') : t('Direta')}
+                        {item.installDate ? ` · ${t('instalada {{date}}', { date: format(new Date(item.installDate), 'dd/MM/yyyy') })}`
+                          : item.date ? ` · ${format(new Date(item.date), item.expectedMonth || item.kind === 'chargeback' ? 'MMM yyyy' : 'dd MMM yyyy', { locale: dateLocale() })}` : ''}
                       </span>
                     </span>
                     <span className="text-sm font-medium">{formatCurrency(item.amount)}</span>
@@ -373,20 +387,20 @@ export function TeamCommissionsTab({ financeOptions }: { financeOptions?: { date
 
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
               <span className="text-sm font-medium text-muted-foreground">
-                Selecionadas ({selectedItems.length}/{pendingItems.length})
+                {t("Selecionadas ({{selected}}/{{total}})", { selected: selectedItems.length, total: pendingItems.length })}
               </span>
               <span className="text-xl font-bold text-primary">{formatCurrency(selectedTotal)}</span>
             </div>
 
-            <BankAccountSelect value={bankAccount} onChange={setBankAccount} label="Conta de onde sai" />
-          </div>
+            <BankAccountSelect value={bankAccount} onChange={setBankAccount} label={t("Conta de onde sai")} />
+          </div></div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t px-4 py-4 md:px-6">
             <Button variant="outline" onClick={() => setPayTarget(null)} disabled={payMutation.isPending}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button onClick={confirmPay} disabled={payMutation.isPending || selectedItems.length === 0 || selectedTotal < 0}>
-              {payMutation.isPending ? 'A processar...' : `Pagar ${formatCurrency(selectedTotal)}`}
+              {payMutation.isPending ? t('A processar...') : t('Pagar {{value}}', { value: formatCurrency(selectedTotal) })}
             </Button>
           </DialogFooter>
         </DialogContent>

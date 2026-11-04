@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import type { InternalRequest, RequestType, RequestStatus } from '@/types/internal-requests';
 
 interface Filters {
@@ -88,7 +89,7 @@ export function useInternalRequests(filters?: Filters) {
       return input;
     },
     onSuccess: (_, input) => {
-      toast.success('Pedido submetido com sucesso');
+      toast.success(tr('Pedido submetido com sucesso'));
       queryClient.invalidateQueries({ queryKey: ['internal-requests'] });
       queryClient.invalidateQueries({ queryKey: ['internal-requests-pending-count'] });
       // Notify finance email silently
@@ -100,7 +101,7 @@ export function useInternalRequests(filters?: Filters) {
         },
       }).catch(() => {});
     },
-    onError: () => toast.error('Erro ao submeter pedido'),
+    onError: () => toast.error(tr('Erro ao submeter pedido')),
   });
 
   const reviewRequest = useMutation({
@@ -128,8 +129,8 @@ export function useInternalRequests(filters?: Filters) {
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
-      const labels = { approved: 'aprovado', rejected: 'rejeitado', paid: 'marcado como pago' };
-      toast.success(`Pedido ${labels[vars.status]}`);
+      const labels = { approved: 'Pedido aprovado', rejected: 'Pedido rejeitado', paid: 'Pedido marcado como pago' };
+      toast.success(tr(labels[vars.status]));
       queryClient.invalidateQueries({ queryKey: ['internal-requests'] });
       queryClient.invalidateQueries({ queryKey: ['internal-requests-pending-count'] });
       // Notify submitter via email
@@ -144,7 +145,7 @@ export function useInternalRequests(filters?: Filters) {
         }).catch(() => {});
       }
     },
-    onError: () => toast.error('Erro ao processar pedido'),
+    onError: () => toast.error(tr('Erro ao processar pedido')),
   });
 
   const deleteRequest = useMutation({
@@ -153,11 +154,11 @@ export function useInternalRequests(filters?: Filters) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Pedido eliminado');
+      toast.success(tr('Pedido eliminado'));
       queryClient.invalidateQueries({ queryKey: ['internal-requests'] });
       queryClient.invalidateQueries({ queryKey: ['internal-requests-pending-count'] });
     },
-    onError: () => toast.error('Erro ao eliminar pedido'),
+    onError: () => toast.error(tr('Erro ao eliminar pedido')),
   });
 
   const uploadFile = async (file: File): Promise<string> => {

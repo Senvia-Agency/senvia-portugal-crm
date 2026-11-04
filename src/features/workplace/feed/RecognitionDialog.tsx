@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { FeedAvatar, FeedKindTile, FeedPostContent, feedPostFrame, tileStyle } from './FeedPostCard';
 import type { FeedEntry } from './feed-model';
 import { recognitionReason, recognitionType, recognitionTypes, type RecognitionKey } from './recognition-types';
+import { useLanguage } from '@/i18n';
 
 export interface RecognitionInput {
   readonly id: string;
@@ -26,6 +27,7 @@ interface Props {
   readonly describeError: (error: unknown) => string;
 }
 export function RecognitionDialog({ open, onOpenChange, members, selfId, selfName, onSubmit, describeError }: Props) {
+  const { t } = useLanguage();
   const [recipientId, setRecipientId] = useState<string | null>(null);
   const [type, setType] = useState<RecognitionKey | null>(null);
   const [reason, setReason] = useState('');
@@ -47,9 +49,9 @@ export function RecognitionDialog({ open, onOpenChange, members, selfId, selfNam
       await onSubmit({ id: attemptId, recipientId, recognitionType: type, body: reason.trim() });
       setRecipientId(null); setType(null); setReason(''); setQuery(''); setAttemptId(crypto.randomUUID());
       onOpenChange(false);
-      toast.success('Reconhecimento publicado');
+      toast.success(t('Reconhecimento publicado'));
     } catch (failure) {
-      setError(`${describeError(failure)} A escolha foi mantida.`);
+      setError(`${describeError(failure)} ${t('A escolha foi mantida.')}`);
     } finally {
       setSubmitting(false);
     }
@@ -58,25 +60,25 @@ export function RecognitionDialog({ open, onOpenChange, members, selfId, selfNam
   // Nothing is saved for the preview: it is the real card, read as a colleague will see it.
   const preview: FeedEntry | null = recipient && type ? {
     id: 'recognition-preview', author: { id: selfId, name: selfName }, kind: 'recognition', pinned: false, createdAt: new Date().toISOString(),
-    text: reason.trim() || 'O que a pessoa fez aparece aqui.', reactions: [], comments: [], attachments: [],
+    text: reason.trim() || t('O que a pessoa fez aparece aqui.'), reactions: [], comments: [], attachments: [],
     recipient: { id: recipient.user_id, name: recipient.full_name }, recognitionType: type,
   } : null;
   return <Dialog open={open} onOpenChange={next => { if (!submitting) onOpenChange(next); }}>
     <DialogContent variant="fullScreen" className="recognition-dialog flex flex-col gap-0 p-0">
       <DialogHeader className="border-b px-5 py-4 text-left md:px-8">
-        <DialogTitle className="flex items-center gap-2 text-xl"><Award className="h-5 w-5 text-primary" aria-hidden="true" />Reconhecer o trabalho de alguém</DialogTitle>
-        <DialogDescription>O reconhecimento fica visível para toda a organização.</DialogDescription>
+        <DialogTitle className="flex items-center gap-2 text-xl"><Award className="h-5 w-5 text-primary" aria-hidden="true" />{t('Reconhecer o trabalho de alguém')}</DialogTitle>
+        <DialogDescription>{t('O reconhecimento fica visível para toda a organização.')}</DialogDescription>
       </DialogHeader>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={event => { event.preventDefault(); void submit(); }}>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8">
           <div className="mx-auto flex max-w-4xl flex-col gap-8">
             <fieldset className="space-y-3" disabled={submitting}>
-              <legend className="text-base font-semibold">1. Quem quer reconhecer?</legend>
+              <legend className="text-base font-semibold">{t('1. Quem quer reconhecer?')}</legend>
               <label className="flex h-11 items-center gap-2 rounded-full border bg-card px-4 focus-within:ring-2 focus-within:ring-ring">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Procurar colega…" aria-label="Procurar colega" value={query} onChange={event => setQuery(event.target.value)} />
+                <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t('Procurar colega…')} aria-label={t('Procurar colega')} value={query} onChange={event => setQuery(event.target.value)} />
               </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Colegas">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label={t('Colegas')}>
                 {people.map(member => <button key={member.user_id} type="button" aria-label={member.full_name} aria-pressed={recipientId === member.user_id}
                   onClick={() => edit(() => setRecipientId(member.user_id))}
                   className={cn('flex min-h-14 items-center gap-3 rounded-2xl border bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -85,44 +87,44 @@ export function RecognitionDialog({ open, onOpenChange, members, selfId, selfNam
                   <span className="min-w-0 flex-1 truncate font-medium">{member.full_name}</span>
                   {recipientId === member.user_id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
                 </button>)}
-                {people.length === 0 && <p className="text-sm text-muted-foreground">Nenhum colega encontrado.</p>}
+                {people.length === 0 && <p className="text-sm text-muted-foreground">{t('Nenhum colega encontrado.')}</p>}
               </div>
             </fieldset>
             <fieldset className="space-y-3" disabled={submitting}>
-              <legend className="text-base font-semibold">2. O que quer reconhecer?</legend>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group" aria-label="Tipo de reconhecimento">
+              <legend className="text-base font-semibold">{t('2. O que quer reconhecer?')}</legend>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group" aria-label={t('Tipo de reconhecimento')}>
                 {recognitionTypes.map(option => <button key={option.key} type="button" aria-pressed={type === option.key} style={tileStyle(option.tile)}
                   onClick={() => edit(() => setType(option.key))}
                   className={cn('flex min-h-[112px] flex-col items-center justify-center gap-2 rounded-2xl border bg-card p-3 text-center text-sm font-medium transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     type === option.key && 'border-primary bg-primary/10 ring-1 ring-primary')}>
                   <FeedKindTile className="feed-kind-tile--small"><option.icon /></FeedKindTile>
-                  {option.label}
+                  {t(option.label)}
                 </button>)}
               </div>
             </fieldset>
             <fieldset className="space-y-2" disabled={submitting}>
-              <legend className="text-base font-semibold">3. Conte o que a pessoa fez</legend>
-              <Textarea rows={4} aria-label="O que a pessoa fez" maxLength={recognitionReason.max} value={reason} onChange={event => edit(() => setReason(event.target.value))}
-                aria-describedby="recognition-reason-hint" placeholder="Ex.: Fechou a proposta da semana com um acompanhamento impecável ao cliente." />
+              <legend className="text-base font-semibold">{t('3. Conte o que a pessoa fez')}</legend>
+              <Textarea rows={4} aria-label={t('O que a pessoa fez')} maxLength={recognitionReason.max} value={reason} onChange={event => edit(() => setReason(event.target.value))}
+                aria-describedby="recognition-reason-hint" placeholder={t('Ex.: Fechou a proposta da semana com um acompanhamento impecável ao cliente.')} />
               <p id="recognition-reason-hint" className={cn('text-xs', length > 0 && length < recognitionReason.min ? 'text-destructive' : 'text-muted-foreground')}>
-                {length < recognitionReason.min ? `Mínimo ${recognitionReason.min} caracteres (faltam ${recognitionReason.min - length}).` : `${length}/${recognitionReason.max}`}
+                {length < recognitionReason.min ? t('Mínimo {{min}} caracteres (faltam {{left}}).', { min: recognitionReason.min, left: recognitionReason.min - length }) : `${length}/${recognitionReason.max}`}
               </p>
             </fieldset>
-            <section className="space-y-3" aria-label="Pré-visualização">
-              <h3 className="text-base font-semibold">Pré-visualização <span className="text-sm font-normal text-muted-foreground">· assim aparece para a equipa</span></h3>
+            <section className="space-y-3" aria-label={t('Pré-visualização')}>
+              <h3 className="text-base font-semibold">{t('Pré-visualização')} <span className="text-sm font-normal text-muted-foreground">· {t('assim aparece para a equipa')}</span></h3>
               {preview ? <div className="workplace-feed workplace-feed--embedded"><article {...feedPostFrame(preview)}><FeedPostContent post={preview} viewerId="" /></article></div>
-                : <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">Escolha a pessoa e o motivo para ver o card.</p>}
+                : <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">{t('Escolha a pessoa e o motivo para ver o cartão.')}</p>}
             </section>
           </div>
         </div>
         <div className="border-t bg-background px-5 py-4 md:px-8">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3">
             <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-              {recipient && chosen ? <>Vai reconhecer <strong className="text-foreground">{recipient.full_name}</strong> por <strong className="text-foreground">{chosen.label}</strong>.</> : 'Escolha a pessoa, o motivo e escreva o que ela fez.'}
+              {recipient && chosen ? <>{t('Vai reconhecer')} <strong className="text-foreground">{recipient.full_name}</strong> {t('por')} <strong className="text-foreground">{t(chosen.label)}</strong>.</> : t('Escolha a pessoa, o motivo e escreva o que ela fez.')}
             </p>
             {error && <p role="alert" className="w-full text-sm text-destructive">{error}</p>}
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={!valid || submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reconhecer</Button>
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>{t('Cancelar')}</Button>
+            <Button type="submit" disabled={!valid || submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('Reconhecer')}</Button>
           </div>
         </div>
       </form>

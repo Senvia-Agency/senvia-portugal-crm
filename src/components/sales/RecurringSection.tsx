@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { format, differenceInDays, isPast, isToday } from "date-fns";
-import { pt } from "date-fns/locale";
 import { RefreshCw, XCircle, AlertTriangle, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,7 @@ import { formatCurrency } from "@/lib/format";
 import { useRenewSale, useCancelRecurrence } from "@/hooks/useRecurringSales";
 import { useSalePayments } from "@/hooks/useSalePayments";
 import { RECURRING_STATUS_LABELS, RECURRING_STATUS_COLORS, type RecurringStatus } from "@/types/sales";
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface RecurringSectionProps {
   saleId: string;
@@ -37,6 +37,7 @@ export function RecurringSection({
   nextRenewalDate,
   lastRenewalDate,
 }: RecurringSectionProps) {
+  const { t } = useLanguage();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const renewSale = useRenewSale();
   const cancelRecurrence = useCancelRecurrence();
@@ -73,7 +74,7 @@ export function RecurringSection({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          <Label className="text-muted-foreground">Recorrência</Label>
+          <Label className="text-muted-foreground">{t("Recorrência")}</Label>
         </div>
         <div className="p-4 rounded-lg border bg-muted/30">
           <div className="flex items-center gap-2">
@@ -81,7 +82,7 @@ export function RecurringSection({
               {RECURRING_STATUS_LABELS.cancelled}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              Esta recorrência foi cancelada
+              {t("Esta recorrência foi cancelada")}
             </span>
           </div>
         </div>
@@ -94,18 +95,18 @@ export function RecurringSection({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4 text-primary" />
-          <Label className="text-muted-foreground">Recorrência</Label>
+          <Label className="text-muted-foreground">{t("Recorrência")}</Label>
         </div>
         
         <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
           {/* Status and value */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">Valor Mensal</p>
-              <p className="text-lg font-semibold">{formatCurrency(recurringValue)}/mês</p>
+              <p className="text-xs text-muted-foreground">{t("Valor Mensal")}</p>
+              <p className="text-lg font-semibold">{formatCurrency(recurringValue)}{t("/mês")}</p>
             </div>
             <Badge className={RECURRING_STATUS_COLORS[recurringStatus || 'active']}>
-              {RECURRING_STATUS_LABELS[recurringStatus || 'active']}
+              {t(RECURRING_STATUS_LABELS[recurringStatus || 'active'])}
             </Badge>
           </div>
 
@@ -126,15 +127,15 @@ export function RecurringSection({
                 <CheckCircle className="h-4 w-4 text-green-500" />
               )}
               <div className="flex-1">
-                <p className="text-xs text-muted-foreground">Próxima Renovação</p>
+                <p className="text-xs text-muted-foreground">{t("Próxima Renovação")}</p>
                 <p className={`text-sm font-medium ${
                   isOverdue ? 'text-red-500' : 
                   isDueToday ? 'text-amber-500' : ''
                 }`}>
-                  {format(new Date(nextRenewalDate), "d 'de' MMMM yyyy", { locale: pt })}
-                  {isOverdue && ` (vencida há ${Math.abs(daysUntilRenewal!)} dias)`}
-                  {isDueToday && ' (vence hoje)'}
-                  {isDueSoon && ` (em ${daysUntilRenewal} dias)`}
+                  {format(new Date(nextRenewalDate), t("d 'de' MMMM yyyy"), { locale: dateLocale() })}
+                  {isOverdue && ` ${t("(vencida há {{n}} dias)", { n: Math.abs(daysUntilRenewal!) })}`}
+                  {isDueToday && ` ${t("(vence hoje)")}`}
+                  {isDueSoon && ` ${t("(em {{n}} dias)", { n: daysUntilRenewal })}`}
                 </p>
               </div>
             </div>
@@ -143,9 +144,9 @@ export function RecurringSection({
           {/* Last renewal */}
           {lastRenewalDate && (
             <div>
-              <p className="text-xs text-muted-foreground">Última Renovação</p>
+              <p className="text-xs text-muted-foreground">{t("Última Renovação")}</p>
               <p className="text-sm">
-                {format(new Date(lastRenewalDate), "d 'de' MMMM yyyy", { locale: pt })}
+                {format(new Date(lastRenewalDate), t("d 'de' MMMM yyyy"), { locale: dateLocale() })}
               </p>
             </div>
           )}
@@ -153,12 +154,12 @@ export function RecurringSection({
           {/* Renewal history */}
           {renewalPayments.length > 0 && (
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Histórico de Renovações</p>
+              <p className="text-xs text-muted-foreground mb-2">{t("Histórico de Renovações")}</p>
               <div className="space-y-1 max-h-24 overflow-y-auto">
                 {renewalPayments.slice(0, 5).map((payment) => (
                   <div key={payment.id} className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      {format(new Date(payment.payment_date), "dd/MM/yyyy", { locale: pt })}
+                      {format(new Date(payment.payment_date), "dd/MM/yyyy", { locale: dateLocale() })}
                     </span>
                     <span className="font-medium">{formatCurrency(payment.amount)}</span>
                   </div>
@@ -176,7 +177,7 @@ export function RecurringSection({
               size="sm"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${renewSale.isPending ? 'animate-spin' : ''}`} />
-              Renovar Agora
+              {t("Renovar Agora")}
             </Button>
             <Button
               variant="outline"
@@ -185,7 +186,7 @@ export function RecurringSection({
               size="sm"
             >
               <XCircle className="h-4 w-4 mr-2" />
-              Cancelar
+              {t("Cancelar")}
             </Button>
           </div>
         </div>
@@ -195,18 +196,18 @@ export function RecurringSection({
       <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Recorrência?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Cancelar Recorrência?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ao cancelar a recorrência, esta venda deixará de gerar alertas de renovação e não será mais cobrada mensalmente ao cliente.
+              {t("Ao cancelar a recorrência, esta venda deixará de gerar alertas de renovação e não será mais cobrada mensalmente ao cliente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Voltar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCancel}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Cancelar Recorrência
+              {t("Cancelar Recorrência")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

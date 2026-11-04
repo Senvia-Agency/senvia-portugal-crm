@@ -226,7 +226,9 @@ serve(async (req) => {
 
         if (plan) await updateOrgPlan(supabase, orgId, plan);
         if (sub.status === "past_due") await recordPaymentFailed(supabase, orgId);
-        if (sub.status === "active") {
+        // `trialing` here is an annual plan pushed forward by a referral month
+        // (trial_end past the paid year): the renewal date moved with it.
+        if (sub.status === "active" || sub.status === "trialing") {
           await clearPaymentFailed(supabase, orgId);
           await setCurrentPeriodEnd(supabase, orgId, subPeriodEnd(sub));
         }

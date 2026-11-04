@@ -2,11 +2,11 @@
 .webmail-page {
   display: flex;
   flex-direction: column;
-  gap: .75rem;
-  height: calc(100dvh - 11.5rem - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px));
+  /* Edge to edge, as in Realize: the whole area under the header (and above the mobile nav). */
+  height: calc(100dvh - 8.5rem - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px));
   min-height: 26rem;
 }
-@media (min-width: 768px) { .webmail-page { height: calc(100dvh - 7.75rem); } }
+@media (min-width: 768px) { .webmail-page { height: var(--workplace-page-height, calc(100dvh - 4rem)); } }
 .webmail {
   --webmail-sidebar: 250px;
   display: grid;
@@ -14,10 +14,7 @@
   min-height: 0;
   grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid hsl(var(--workplace-line, var(--border)));
-  border-radius: 24px;
   background: hsl(var(--card));
-  box-shadow: 0 1px 2px hsl(222 47% 20% / .04), 0 12px 32px -18px hsl(222 47% 20% / .18);
 }
 @media (min-width: 768px) {
   .webmail { grid-template-columns: 340px minmax(0, 1fr); }
@@ -26,7 +23,7 @@
   .webmail { grid-template-columns: var(--webmail-sidebar) 340px minmax(0, 1fr); }
 }
 @media (min-width: 1280px) {
-  .webmail { grid-template-columns: var(--webmail-sidebar) 400px minmax(0, 1fr); }
+  .webmail { grid-template-columns: var(--webmail-sidebar) 380px minmax(0, 1fr); }
 }
 .webmail-sidebar { position: relative; display: none; min-height: 0; flex-direction: column; border-right: 1px solid hsl(var(--workplace-line, var(--border))); background: hsl(var(--workplace-canvas, var(--muted)) / .55); }
 @media (min-width: 1024px) { .webmail > .webmail-sidebar { display: flex; } }
@@ -73,7 +70,7 @@
 .webmail-dot { height: 10px; width: 10px; flex-shrink: 0; border-radius: 999px; box-shadow: 0 0 0 2px hsl(var(--card)); }
 
 /* List rows */
-.webmail-row { position: relative; display: flex; width: 100%; cursor: pointer; gap: 10px; border-bottom: 1px solid hsl(var(--workplace-line, var(--border)) / .7); padding: 11px 14px 11px 12px; text-align: left; transition: background .1s; }
+.webmail-row { position: relative; display: flex; width: 100%; align-items: center; cursor: pointer; gap: 10px; border-bottom: 1px solid hsl(var(--workplace-line, var(--border)) / .7); padding: 6px 12px 6px 12px; text-align: left; transition: background .1s; }
 .webmail-row:hover { background: hsl(var(--foreground) / .035); }
 .webmail-row[data-unread='true'] { background: hsl(var(--primary) / .035); }
 .webmail-row[data-active='true'] { background: hsl(var(--primary) / .09); }
@@ -86,8 +83,13 @@
 .webmail-row:hover .webmail-row-hover, .webmail-row:focus-within .webmail-row-hover { opacity: 1; }
 @media (hover: none) { .webmail-row .webmail-row-hover { opacity: 1; } }
 
-/* Reader */
-.webmail-paper { border: 1px solid hsl(var(--workplace-line, var(--border))); border-radius: 20px; background: hsl(var(--card)); box-shadow: 0 1px 2px hsl(222 47% 20% / .04); }
+/* Reader. Toolbar labels only when the reader itself is wide enough, so it stays on one line. */
+.webmail-reader { container-type: inline-size; }
+.webmail-tool-label { display: none; }
+@container (min-width: 1004px) { .webmail-tool-label { display: inline; } }
+/* The messages of a conversation read as one page, as in Gmail: a line between them, no boxes. */
+.webmail-thread-item { border-bottom: 1px solid hsl(var(--workplace-line, var(--border))); }
+.webmail-thread-item:last-child { border-bottom: 0; }
 .webmail-thread-item[data-open='false'] { cursor: pointer; }
 .webmail-thread-item[data-open='false']:hover { background: hsl(var(--foreground) / .03); }
 .webmail-tile { position: relative; display: flex; height: 120px; width: 120px; flex-direction: column; overflow: hidden; border: 1px solid hsl(var(--workplace-line, var(--border))); border-radius: 16px; background: hsl(var(--card)); text-align: left; transition: box-shadow .15s, transform .15s; }
@@ -108,8 +110,11 @@
 .webmail-tab svg { height: 16px; width: 16px; }
 
 /* Signature editor */
-.webmail-signature-editor { min-height: 180px; padding: 14px 16px; font-size: 14px; line-height: 1.55; outline: none; }
+.webmail-signature-editor { min-height: 300px; resize: vertical; overflow: auto; padding: 14px 16px; font-size: 14px; line-height: 1.55; outline: none; }
 .webmail-signature-editor img { display: inline-block; max-width: 100%; height: auto; cursor: pointer; }
+/* Inside a table (signatures built in tables) an image keeps the width its HTML gives it: with
+   max-width:100% the column collapsed and the image was squeezed sideways at its fixed height. */
+.webmail-signature-editor table img { max-width: none; }
 .webmail-signature-editor img[data-selected='true'] { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
 .webmail-signature-editor ul { list-style: disc; padding-left: 1.25rem; }
 .webmail-signature-editor ol { list-style: decimal; padding-left: 1.25rem; }

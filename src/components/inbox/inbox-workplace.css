@@ -95,6 +95,9 @@
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-thread-header > button:last-child { border: 0; background: transparent; box-shadow: none; color: hsl(var(--muted-foreground)); }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble.bg-primary,
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble.bg-muted { border-radius: 26px; padding: 13px 16px 10px; line-height: 1.5; box-shadow: 0 1px 2px hsl(var(--foreground) / .025); }
+/* A photo or video fills its bubble: only a thin frame around it, as in WhatsApp. */
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble.inbox-message-bubble--media { padding: 4px 4px 8px; }
+:is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-bubble--media :is(img,video) { border-radius: 22px; }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-viewport { padding: 22px 24px; }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-message-viewport > .group\/msg { gap: 6px; margin-top: 6px; }
 :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-composer { border: 0; background: var(--inbox-canvas); padding: 16px 20px 18px; }

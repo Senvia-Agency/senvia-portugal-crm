@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useUpdateCategory } from "@/hooks/ecommerce";
 import { ProductCategory } from "@/types/ecommerce";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -42,6 +43,7 @@ interface EditCategoryModalProps {
 
 export function EditCategoryModal({ category, open, onOpenChange }: EditCategoryModalProps) {
   const updateCategory = useUpdateCategory();
+  const { t } = useLanguage();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -79,7 +81,7 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Categoria</DialogTitle>
+          <DialogTitle>{t("Editar Categoria")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -89,9 +91,9 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome *</FormLabel>
+                  <FormLabel>{t("Nome *")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome da categoria" {...field} />
+                    <Input placeholder={t("Nome da categoria")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -107,7 +109,7 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
                   <FormControl>
                     <Input placeholder="categoria-url" {...field} />
                   </FormControl>
-                  <FormDescription>URL amigável</FormDescription>
+                  <FormDescription>{t("URL amigável")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -118,9 +120,9 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição</FormLabel>
+                  <FormLabel>{t("Descrição")}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Descrição da categoria" {...field} />
+                    <Textarea placeholder={t("Descrição da categoria")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -132,11 +134,11 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
               name="position"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Posição</FormLabel>
+                  <FormLabel>{t("Posição")}</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
-                  <FormDescription>Ordem de exibição (menor = primeiro)</FormDescription>
+                  <FormDescription>{t("Ordem de exibição (menor = primeiro)")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -148,8 +150,8 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <FormLabel>Ativa</FormLabel>
-                    <FormDescription>Categoria visível na loja</FormDescription>
+                    <FormLabel>{t("Ativa")}</FormLabel>
+                    <FormDescription>{t("Categoria visível na loja")}</FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -160,10 +162,10 @@ export function EditCategoryModal({ category, open, onOpenChange }: EditCategory
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={updateCategory.isPending}>
-                {updateCategory.isPending ? "A guardar..." : "Guardar Alterações"}
+                {updateCategory.isPending ? t("A guardar...") : t("Guardar Alterações")}
               </Button>
             </div>
           </form>

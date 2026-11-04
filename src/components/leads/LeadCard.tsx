@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { Lead, LeadTemperature, LeadTipologia, TEMPERATURE_LABELS, TEMPERATURE_STYLES, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES } from "@/types";
+import { Lead, LeadTemperature, TEMPERATURE_LABELS, TEMPERATURE_STYLES, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES } from "@/types";
 import { formatRelativeTime, getInboxUrl, formatCurrency } from "@/lib/format";
 import { useNavigate } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useModules } from "@/hooks/useModules";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Phone, Mail, MoreVertical, GripVertical, Thermometer, CalendarClock, Zap, Archive } from "lucide-react";
+import { MessageCircle, Phone, Mail, MoreHorizontal, CalendarClock, Archive, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -22,6 +21,8 @@ import { SendLeadEmailModal } from "./SendLeadEmailModal";
 import { isPlaceholderEmail } from "@/lib/leadUtils";
 import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
 import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
+import { initialsOf, TEMPERATURE_PILLS } from "./lead-display";
+import { intlLocale, tr, useLanguage } from "@/i18n";
 
 interface UpcomingEvent {
   id: string;
@@ -34,6 +35,8 @@ interface LeadCardProps {
   lead: Lead;
   proposalValue?: number;
   upcomingEvent?: UpcomingEvent | null;
+  /** Who the lead is assigned to, shown as initials. */
+  assigneeName?: string | null;
   onStatusChange?: (leadId: string, newStatus: string) => void;
   onTemperatureChange?: (leadId: string, temperature: LeadTemperature) => void;
   onViewDetails?: (lead: Lead) => void;
@@ -44,11 +47,28 @@ interface LeadCardProps {
   isLocked?: boolean;
 }
 
-export function LeadCard({ 
-  lead, 
+function formatEventTime(dateStr: string) {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const time = date.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
+  if (date.toDateString() === today.toDateString()) return tr("Hoje às {{time}}", { time });
+  if (date.toDateString() === yesterday.toDateString()) return tr("Ontem às {{time}}", { time });
+  if (date.toDateString() === tomorrow.toDateString()) return tr("Amanhã às {{time}}", { time });
+  return tr("{{date}} às {{time}}", { date: date.toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short' }), time });
+}
+
+const actionClass = "h-7 w-7 rounded-full text-muted-foreground hover:text-foreground";
+
+export function LeadCard({
+  lead,
   proposalValue,
   upcomingEvent,
-  onStatusChange, 
+  assigneeName,
+  onStatusChange,
   onTemperatureChange,
   onViewDetails,
   onDelete,
@@ -58,120 +78,141 @@ export function LeadCard({
   isLocked = false,
 }: LeadCardProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { canDeleteLeads } = usePermissions();
   const { organization } = useAuth();
   const [showEmailModal, setShowEmailModal] = useState(false);
   const isTelecom = organization?.niche === 'telecom';
   const { modules } = useModules();
   const showEnergy = isTelecom && modules.energy;
-  
+
   const temperature = lead.temperature || 'cold';
-  const tempStyle = TEMPERATURE_STYLES[temperature];
-  
-  const formatEventTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  const title = isTelecom ? (lead.company_name || lead.name) : lead.name;
+  const secondName = isTelecom
+    ? (lead.name && lead.name !== lead.company_name ? lead.name : null)
+    : lead.company_name || null;
+  const meta = [secondName, lead.source, formatRelativeTime(lead.created_at)].filter(Boolean).join(' · ');
+  const eventPast = upcomingEvent ? new Date(upcomingEvent.start_time) < new Date() : false;
+  const amount = showEnergy
+    ? (lead.consumo_anual ? `${new Intl.NumberFormat(intlLocale()).format(lead.consumo_anual)} kWh` : null)
+    : (proposalValue || lead.value ? formatCurrency(proposalValue || lead.value || 0) : null);
+  const emailBlocked = !lead.email || isPlaceholderEmail(lead.email);
 
-    const isToday = date.toDateString() === today.toDateString();
-    const isYesterday = date.toDateString() === yesterday.toDateString();
-    const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-    const time = date.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-    
-    if (isToday) return `Hoje às ${time}`;
-    if (isYesterday) return `Ontem às ${time}`;
-    if (isTomorrow) return `Amanhã às ${time}`;
-    return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }) + ` às ${time}`;
-  };
-
-  const isEventPast = (dateStr: string) => {
-    return new Date(dateStr) < new Date();
-  };
-  
   return (
-    <div 
+    <div
       className={cn(
-        "group rounded-lg border bg-card p-4 shadow-card transition-all duration-200",
-        "hover:shadow-card-hover cursor-pointer",
-        isDragging && "rotate-2 scale-105 shadow-lg"
+        "group cursor-pointer rounded-xl border border-border/70 bg-card px-3 py-2.5 shadow-sm transition-all duration-150",
+        "hover:border-border hover:shadow-md",
+        isDragging && "rotate-1 scale-[1.02] shadow-lg"
       )}
       onClick={() => onViewDetails?.(lead)}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-4 w-4 text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100" />
-          {/* Temperature Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={cn("h-7 px-2 gap-1.5", tempStyle.color)}
-              >
-                <Thermometer className="h-4 w-4" />
-                <span className="text-xs font-medium">{TEMPERATURE_LABELS[temperature]}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-32">
-              {(Object.keys(TEMPERATURE_LABELS) as LeadTemperature[]).map((temp) => (
-                <DropdownMenuItem 
-                  key={temp}
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    onTemperatureChange?.(lead.id, temp); 
-                  }}
-                  disabled={temperature === temp}
-                >
-                  <span className="mr-2">{TEMPERATURE_STYLES[temp].emoji}</span>
-                  {TEMPERATURE_LABELS[temp]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <div className="flex items-start gap-1.5">
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-sm font-semibold leading-snug text-card-foreground">{title}</h4>
+          <p className="truncate text-xs text-muted-foreground">{meta}</p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon-sm" className="opacity-0 transition-opacity group-hover:opacity-100">
-              <MoreVertical className="h-4 w-4" />
+            <button type="button" title={t("Mudar temperatura")}
+              className={cn("mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 transition-opacity hover:opacity-80", TEMPERATURE_PILLS[temperature])}>
+              {t(TEMPERATURE_LABELS[temperature])}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            {(Object.keys(TEMPERATURE_LABELS) as LeadTemperature[]).map((temp) => (
+              <DropdownMenuItem
+                key={temp}
+                onClick={(e) => { e.stopPropagation(); onTemperatureChange?.(lead.id, temp); }}
+                disabled={temperature === temp}
+              >
+                <span className="mr-2">{TEMPERATURE_STYLES[temp].emoji}</span>
+                {t(TEMPERATURE_LABELS[temp])}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {(amount || (showEnergy && lead.tipologia && TIPOLOGIA_STYLES[lead.tipologia])) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {amount && (
+            <span className="text-sm font-semibold tabular-nums text-primary">
+              {amount}
+              {!showEnergy && proposalValue ? <span className="ml-1 text-[11px] font-normal text-muted-foreground">{t("propostas")}</span> : null}
+            </span>
+          )}
+          {showEnergy && lead.tipologia && TIPOLOGIA_STYLES[lead.tipologia] && (
+            <span className={cn("rounded-full border px-1.5 text-[11px] leading-4", TIPOLOGIA_STYLES[lead.tipologia].color, TIPOLOGIA_STYLES[lead.tipologia].bgClass)}>
+              {TIPOLOGIA_STYLES[lead.tipologia].emoji} {TIPOLOGIA_LABELS[lead.tipologia] ? t(TIPOLOGIA_LABELS[lead.tipologia]) : lead.tipologia}
+            </span>
+          )}
+        </div>
+      )}
+
+      {upcomingEvent && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className={cn("mt-1.5 flex items-center gap-1 text-xs", eventPast ? "font-medium text-red-600 dark:text-red-400" : "text-primary")}>
+                <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{formatEventTime(upcomingEvent.start_time)}{eventPast && ` · ${t("passou")}`}</span>
+              </p>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-medium">{upcomingEvent.title}</p>
+              <p className="text-xs text-muted-foreground">{formatEventTime(upcomingEvent.start_time)}{eventPast && ` - ${t("Evento passado")}`}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      <div className="mt-1.5 flex items-center gap-0.5">
+        <Button variant="ghost" size="icon" className={cn(actionClass, "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400")}
+          aria-label="WhatsApp" title="WhatsApp" onClick={(e) => { e.stopPropagation(); navigate(getInboxUrl(lead.phone)); }}>
+          <MessageCircle className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className={actionClass} aria-label={t("Ligar")} title={t("Ligar")}
+          onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${lead.phone}`; }}>
+          <Phone className="h-4 w-4" />
+        </Button>
+        <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead} noticePosition="inline">
+          <Button variant="ghost" size="icon" className={actionClass} aria-label={t("Enviar email")} title={emailBlocked ? t("Sem email") : t("Enviar email")}
+            disabled={emailBlocked} onClick={(e) => { e.stopPropagation(); setShowEmailModal(true); }}>
+            <Mail className="h-4 w-4" />
+          </Button>
+        </EmailTemplateGate>
+        <div className="flex-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className={cn(actionClass, "opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100")} aria-label={t("Mais ações")}>
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails?.(lead); }}>
-              Ver detalhes
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails?.(lead); }}>{t("Ver ficha")}</DropdownMenuItem>
             <DropdownMenuSeparator />
             {!isLocked && pipelineStages.map((stage) => (
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 key={stage.key}
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  onStatusChange?.(lead.id, stage.key); 
-                }}
+                onClick={(e) => { e.stopPropagation(); onStatusChange?.(lead.id, stage.key); }}
                 disabled={lead.status === stage.key}
               >
-                <span 
-                  className="w-2 h-2 rounded-full mr-2"
-                  style={{ backgroundColor: stage.color }}
-                />
-                Mover para {stage.name}
+                <span className="mr-2 h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                {t("Mover para {{stage}}", { stage: stage.name })}
               </DropdownMenuItem>
             ))}
             {isLocked && (
               <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                🔒 Estado bloqueado (apenas admin)
+                <Lock className="mr-2 h-3.5 w-3.5" />{t("Estado bloqueado (apenas admin)")}
               </DropdownMenuItem>
             )}
             {onArchive && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchive(lead.id); }}>
-                  <Archive className="h-4 w-4 mr-2" />
-                  Arquivar
+                  <Archive className="mr-2 h-4 w-4" />
+                  {t("Arquivar")}
                 </DropdownMenuItem>
               </>
             )}
@@ -182,139 +223,18 @@ export function LeadCard({
                   className="text-destructive focus:text-destructive"
                   onClick={(e) => { e.stopPropagation(); onDelete?.(lead.id); }}
                 >
-                  Eliminar lead
+                  {t("Eliminar lead")}
                 </DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Upcoming Event Badge */}
-      {upcomingEvent && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge 
-                variant="secondary" 
-                className={cn(
-                  "mt-3 w-full justify-start gap-1.5",
-                  isEventPast(upcomingEvent.start_time)
-                    ? "bg-muted text-muted-foreground"
-                    : "bg-primary/10 text-primary hover:bg-primary/20"
-                )}
-              >
-                <CalendarClock className="h-3.5 w-3.5" />
-                <span className="truncate text-xs">
-                  {formatEventTime(upcomingEvent.start_time)}
-                  {isEventPast(upcomingEvent.start_time) && " (passou)"}
-                </span>
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="font-medium">{upcomingEvent.title}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatEventTime(upcomingEvent.start_time)}
-                {isEventPast(upcomingEvent.start_time) && " - Evento passado"}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-
-      {/* Content */}
-      <div className="mt-3">
-        <h4 className="font-semibold text-card-foreground">
-          {isTelecom ? (lead.company_name || lead.name) : lead.name}
-        </h4>
-        {isTelecom ? (
-          lead.name && lead.name !== lead.company_name && (
-            <p className="text-xs text-muted-foreground">{lead.name}</p>
-          )
-        ) : (
-          lead.company_name && (
-            <p className="text-xs text-muted-foreground">{lead.company_name}</p>
-          )
-        )}
-        
-        {/* Tipologia badge for Telecom */}
-        {showEnergy && lead.tipologia && TIPOLOGIA_STYLES[lead.tipologia] && (
-          <Badge
-            variant="outline"
-            className={cn("mt-2 gap-1", TIPOLOGIA_STYLES[lead.tipologia].color, TIPOLOGIA_STYLES[lead.tipologia].bgClass)}
-          >
-            <span>{TIPOLOGIA_STYLES[lead.tipologia].emoji}</span>
-            {TIPOLOGIA_LABELS[lead.tipologia] || lead.tipologia}
-          </Badge>
-        )}
-        
-        {/* Conditional: Show consumo_anual for Telecom, value for others */}
-        {showEnergy ? (
-          lead.consumo_anual ? (
-            <p className="mt-1 text-lg font-bold text-primary">
-              {new Intl.NumberFormat('pt-PT').format(lead.consumo_anual)} kWh
-            </p>
-          ) : null
-        ) : (
-          (proposalValue || lead.value) ? (
-            <p className="mt-1 text-lg font-bold text-primary">
-              {formatCurrency(proposalValue || lead.value || 0)}
-              {proposalValue ? (
-                <span className="text-xs font-normal text-muted-foreground ml-1">(propostas)</span>
-              ) : null}
-            </p>
-          ) : null
-        )}
-        
-        <div className="mt-2 flex items-center gap-2">
-          {lead.source && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-              {lead.source}
-            </Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(lead.created_at)}
+        {assigneeName && (
+          <span title={t("Responsável: {{name}}", { name: assigneeName })}
+            className="ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+            {initialsOf(assigneeName)}
           </span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="mt-4 flex items-center gap-2">
-        <Button
-          variant="whatsapp"
-          size="sm"
-          className="flex-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(getInboxUrl(lead.phone));
-          }}
-        >
-          <MessageCircle className="h-4 w-4" />
-          WhatsApp
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            window.location.href = `tel:${lead.phone}`;
-          }}
-        >
-          <Phone className="h-4 w-4" />
-        </Button>
-        <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead} noticePosition="inline">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={!lead.email || isPlaceholderEmail(lead.email)}
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowEmailModal(true);
-            }}
-          >
-            <Mail className="h-4 w-4" />
-          </Button>
-        </EmailTemplateGate>
+        )}
       </div>
 
       {showEmailModal && (

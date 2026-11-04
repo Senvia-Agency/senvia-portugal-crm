@@ -16,6 +16,14 @@ Deno.test('accepts a message attachment identity', () => {
   if (!parseAudioInput(input).success) throw new Error('Valid attachment rejected');
 });
 
+Deno.test('accepts a WhatsApp QR attachment id', () => {
+  if (!parseAudioInput({ ...input, media_id: '3A21965641AA9360AD2B' }).success) throw new Error('QR id rejected');
+});
+
+Deno.test('rejects an id with path characters', () => {
+  if (parseAudioInput({ ...input, media_id: '../secret' }).success) throw new Error('Path-like id accepted');
+});
+
 Deno.test('rejects an excessive declared audio size', async () => {
   const response = new Response('audio', { headers: { 'content-length': '100' } });
   try {

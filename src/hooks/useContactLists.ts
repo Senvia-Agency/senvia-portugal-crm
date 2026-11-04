@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import type { MarketingContact } from '@/types/marketing';
 
 export interface ContactList {
@@ -97,9 +98,9 @@ export function useCreateContactList() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-lists'] });
-      toast.success('Lista criada com sucesso');
+      toast.success(tr('Lista criada com sucesso'));
     },
-    onError: () => toast.error('Erro ao criar lista'),
+    onError: () => toast.error(tr('Erro ao criar lista')),
   });
 }
 
@@ -116,9 +117,9 @@ export function useUpdateContactList() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-lists'] });
-      toast.success('Lista atualizada');
+      toast.success(tr('Lista atualizada'));
     },
-    onError: () => toast.error('Erro ao atualizar lista'),
+    onError: () => toast.error(tr('Erro ao atualizar lista')),
   });
 }
 
@@ -134,9 +135,9 @@ export function useDeleteContactList() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-lists'] });
-      toast.success('Lista eliminada');
+      toast.success(tr('Lista eliminada'));
     },
-    onError: () => toast.error('Erro ao eliminar lista'),
+    onError: () => toast.error(tr('Erro ao eliminar lista')),
   });
 }
 
@@ -154,9 +155,9 @@ export function useAddListMembers() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-list-members'] });
       qc.invalidateQueries({ queryKey: ['contact-lists'] });
-      toast.success('Contactos adicionados');
+      toast.success(tr('Contactos adicionados'));
     },
-    onError: () => toast.error('Erro ao adicionar contactos'),
+    onError: () => toast.error(tr('Erro ao adicionar contactos')),
   });
 }
 
@@ -175,9 +176,9 @@ export function useRemoveListMember() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-list-members'] });
       qc.invalidateQueries({ queryKey: ['contact-lists'] });
-      toast.success('Contacto removido da lista');
+      toast.success(tr('Contacto removido da lista'));
     },
-    onError: () => toast.error('Erro ao remover contacto'),
+    onError: () => toast.error(tr('Erro ao remover contacto')),
   });
 }
 

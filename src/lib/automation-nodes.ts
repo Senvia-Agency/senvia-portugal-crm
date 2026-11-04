@@ -17,6 +17,7 @@ import type {
   AutomationTriggerType, AutomationGraphNode,
 } from '@/types/automations';
 import { formatDateTime } from '@/lib/format';
+import { tr } from '@/i18n';
 
 /**
  * Tailwind classes per category. Everything resolves through the app's CSS
@@ -665,7 +666,8 @@ export function humanizeNodeType(type: string): string {
 }
 
 export function getNodeLabel(type: string): string {
-  return getNodeDefinition(type)?.label ?? humanizeNodeType(type);
+  const label = getNodeDefinition(type)?.label;
+  return label ? tr(label) : humanizeNodeType(type);
 }
 
 /** Branch keys a node emits, derived from its config. */
@@ -680,9 +682,9 @@ function replyBranches(node: AutomationGraphNode): NodeBranch[] {
   return [
     ...rules.map((rule, index) => ({
       key: rule.id,
-      label: rule.label?.trim() || `Regra ${index + 1}`,
+      label: rule.label?.trim() || tr('Regra {{n}}', { n: index + 1 }),
     })),
-    { key: 'timeout', label: 'Sem resposta' },
+    { key: 'timeout', label: tr('Sem resposta') },
   ];
 }
 
@@ -719,8 +721,8 @@ export function getNodeBranches(node: AutomationGraphNode | undefined): NodeBran
 
   if (node.type === 'condition') {
     return [
-      { key: 'yes', label: 'Sim' },
-      { key: 'no', label: 'Não' },
+      { key: 'yes', label: tr('Sim') },
+      { key: 'no', label: tr('Não') },
     ];
   }
 
@@ -826,20 +828,21 @@ export function getNodeSubtitle(node: AutomationGraphNode): string {
   switch (node.type) {
     case 'send_whatsapp': {
       // The wait is part of this node now, so the canvas has to say so.
-      const suffix = isWaitingWhatsapp(node) ? ' · espera resposta' : '';
+      const suffix = isWaitingWhatsapp(node) ? ` · ${tr('espera resposta')}` : '';
       if (config.message) return `${truncate(String(config.message), 46 - suffix.length)}${suffix}`;
       const attachment = config.media?.filename ?? config.media_url;
-      if (attachment) return `${truncate(`Anexo: ${attachment}`, 46 - suffix.length)}${suffix}`;
-      return `Sem mensagem definida${suffix}`;
+      if (attachment) return `${truncate(tr('Anexo: {{name}}', { name: attachment }), 46 - suffix.length)}${suffix}`;
+      return `${tr('Sem mensagem definida')}${suffix}`;
     }
 
     case 'send_email':
-      if (config.template_id) return 'Template de email';
-      return config.subject ? truncate(String(config.subject)) : 'Sem assunto definido';
+      if (config.template_id) return tr('Modelo de email');
+      return config.subject ? truncate(String(config.subject)) : tr('Sem assunto definido');
 
     case 'wait': {
       const value = config.amount ?? config.duration ?? 0;
-      return `Espera ${value} ${WAIT_UNIT_LABELS[config.unit ?? 'hours'] ?? ''}`.trim();
+      const unitLabel = WAIT_UNIT_LABELS[config.unit ?? 'hours'];
+      return tr('Espera {{value}} {{unit}}', { value, unit: unitLabel ? tr(unitLabel) : '' }).trim();
     }
 
     case 'wait_reply': {
@@ -847,38 +850,40 @@ export function getNodeSubtitle(node: AutomationGraphNode): string {
       const count = config.rules?.length ?? 0;
       const amount = config.timeout_amount ?? config.timeout?.value ?? 24;
       const unit = config.timeout_unit ?? config.timeout?.unit ?? 'hours';
-      const mode = count === 1 ? 'regra' : 'regras';
-      return `${count} ${mode} · ${amount} ${WAIT_UNIT_LABELS[unit] ?? ''}`.trimEnd();
+      const mode = tr(count === 1 ? '{{n}} regra' : '{{n}} regras', { n: count });
+      return `${mode} · ${amount} ${WAIT_UNIT_LABELS[unit] ? tr(WAIT_UNIT_LABELS[unit]) : ''}`.trimEnd();
     }
 
     case 'condition': {
-      const field = CONDITION_FIELD_OPTIONS.find((o) => o.value === config.field)?.label ?? config.field;
+      const fieldLabel = CONDITION_FIELD_OPTIONS.find((o) => o.value === config.field)?.label;
+      const field = fieldLabel ? tr(fieldLabel) : config.field;
       const operator = normalizeConditionOperator(config.operator);
-      const op = CONDITION_OPERATOR_OPTIONS.find((o) => o.value === operator)?.label ?? '';
-      if (!field) return 'Condição por definir';
+      const opLabel = CONDITION_OPERATOR_OPTIONS.find((o) => o.value === operator)?.label;
+      const op = opLabel ? tr(opLabel) : '';
+      if (!field) return tr('Condição por definir');
       if (VALUELESS_OPERATORS.includes(operator)) return truncate(`${field} ${op.toLowerCase()}`);
       return truncate(`${field} ${op.toLowerCase()} ${config.value ?? ''}`);
     }
 
     case 'webhook':
-      return config.url ? truncate(String(config.url)) : 'Sem URL definido';
+      return config.url ? truncate(String(config.url)) : tr('Sem URL definido');
 
     case 'create_task':
-      return config.title ? truncate(String(config.title)) : 'Sem título definido';
+      return config.title ? truncate(String(config.title)) : tr('Sem título definido');
 
     case 'whatsapp_keyword': {
       const keywords = config.keywords ?? [];
-      return keywords.length ? truncate(keywords.join(', ')) : 'Sem palavras-chave';
+      return keywords.length ? truncate(keywords.join(', ')) : tr('Sem palavras-chave');
     }
 
     case 'message_received':
-      return config.channel_id ? 'Na caixa escolhida' : 'Em qualquer caixa de WhatsApp';
+      return config.channel_id ? tr('Na caixa escolhida') : tr('Em qualquer caixa de WhatsApp');
 
     case 'form_submitted':
-      return config.form_slug ? truncate(String(config.form_slug)) : 'Qualquer formulário';
+      return config.form_slug ? truncate(String(config.form_slug)) : tr('Qualquer formulário');
 
     default:
-      return getNodeDefinition(node.type)?.description ?? 'Tipo de passo desconhecido';
+      return tr(getNodeDefinition(node.type)?.description ?? 'Tipo de passo desconhecido');
   }
 }
 
@@ -986,19 +991,19 @@ export function describeStepDetail(
     if (SKIP_DETAIL_KEYS.has(key) || raw === null || raw === undefined || raw === '') continue;
 
     let value: string;
-    if (key === 'canal') value = CHANNEL_LABELS[String(raw)] ?? String(raw);
-    else if (key === 'template') value = lookups.templateNameById?.[String(raw)] ?? 'Modelo removido';
+    if (key === 'canal') value = CHANNEL_LABELS[String(raw)] ? tr(CHANNEL_LABELS[String(raw)]) : String(raw);
+    else if (key === 'template') value = lookups.templateNameById?.[String(raw)] ?? tr('Modelo removido');
     else if (key === 'atribuido_a') value = lookups.memberNameById?.[String(raw)] ?? String(raw);
     else if (key === 'lista') value = lookups.listNameById?.[String(raw)] ?? String(raw);
     else if (key === 'nova_etapa') value = lookups.stageNameByKey?.[String(raw)] ?? String(raw);
-    else if (key === 'campo') value = CONDITION_FIELD_OPTIONS.find((o) => o.value === raw)?.label ?? String(raw);
-    else if (key === 'operador') value = CONDITION_OPERATOR_OPTIONS.find((o) => o.value === raw)?.label ?? String(raw);
-    else if (key === 'ramo' && raw === 'timeout') value = 'Sem resposta (esgotou o prazo)';
+    else if (key === 'campo') { const label = CONDITION_FIELD_OPTIONS.find((o) => o.value === raw)?.label; value = label ? tr(label) : String(raw); }
+    else if (key === 'operador') { const label = CONDITION_OPERATOR_OPTIONS.find((o) => o.value === raw)?.label; value = label ? tr(label) : String(raw); }
+    else if (key === 'ramo' && raw === 'timeout') value = tr('Sem resposta (esgotou o prazo)');
     else if (DATE_DETAIL_KEYS.has(key)) value = formatDateTime(String(raw));
-    else if (BOOLEAN_DETAIL_KEYS.has(key)) value = raw ? 'Sim' : 'Não';
+    else if (BOOLEAN_DETAIL_KEYS.has(key)) value = raw ? tr('Sim') : tr('Não');
     else value = String(raw);
 
-    rows.push({ key, label: STEP_DETAIL_LABELS[key] ?? humanizeNodeType(key), value });
+    rows.push({ key, label: STEP_DETAIL_LABELS[key] ? tr(STEP_DETAIL_LABELS[key]) : humanizeNodeType(key), value });
   }
   return rows;
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfileNames } from '@/hooks/useTeam';
+import { tr } from '@/i18n';
 import type { FeedEntry, FeedKind } from './feed-model';
 import { isReactionEmoji, isRecognitionKey } from './recognition-types';
 import { parseAttachments } from './feed-files';
@@ -19,8 +20,9 @@ const knownErrors: readonly (readonly [RegExp, string])[] = [
 ];
 export function describeFeedError(error: unknown) {
   const parsed = z.object({ message: z.string() }).safeParse(error);
-  const message = error instanceof Error ? error.message : parsed.success ? parsed.data.message : 'Erro desconhecido';
-  return knownErrors.find(([pattern]) => pattern.test(message))?.[1] ?? message;
+  const message = error instanceof Error ? error.message : parsed.success ? parsed.data.message : tr('Erro desconhecido');
+  const known = knownErrors.find(([pattern]) => pattern.test(message))?.[1];
+  return tr(known ?? message);
 }
 const feedKinds: readonly FeedKind[] = ['publication', 'announcement', 'recognition'];
 export function useOrganizationFeed(scope: FeedScope) {
@@ -36,7 +38,7 @@ export function useOrganizationFeed(scope: FeedScope) {
     ...(query.data?.comments.map(comment => comment.author_id) ?? []),
     ...(query.data?.reactions.map(reaction => reaction.user_id) ?? []),
   ]);
-  const nameFor = (id: string) => names.data?.[id] || 'Membro da equipa';
+  const nameFor = (id: string) => names.data?.[id] || tr('Membro da equipa');
   const posts: FeedEntry[] = (query.data?.posts ?? []).map(post => {
     const stored = feedKinds.find(value => value === post.kind) ?? 'publication';
     const recipientId = post.recipient_id;

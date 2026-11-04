@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
-import { pt } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import {
   AlertDialog,
@@ -26,6 +25,8 @@ import { formatCurrency } from "@/lib/format";
 import type { PaymentMethod } from "@/types/sales";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/types/sales";
 import type { DraftPayment } from "./AddDraftPaymentModal";
+import { useLanguage, dateLocale } from "@/i18n";
+import { Trans } from "react-i18next";
 
 // Divide um total em N parcelas (última absorve o arredondamento).
 function evenSplit(total: number, n: number): number[] {
@@ -48,6 +49,7 @@ export function DraftScheduleModal({
   remainingAmount,
   onAdd,
 }: DraftScheduleModalProps) {
+  const { t } = useLanguage();
   const [installmentCount, setInstallmentCount] = useState(2);
   const [dates, setDates] = useState<Date[]>(() =>
     Array.from({ length: 4 }, (_, i) => addDays(new Date(), (i + 1) * 30))
@@ -98,16 +100,16 @@ export function DraftScheduleModal({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>Pagamento Parcelado</AlertDialogTitle>
+          <AlertDialogTitle>{t("Pagamento Parcelado")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Dividir <strong>{formatCurrency(remainingAmount)}</strong> em parcelas.
+            <Trans i18nKey="Dividir <b>{{amount}}</b> em parcelas." values={{ amount: formatCurrency(remainingAmount) }} components={{ b: <strong /> }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className="space-y-5">
           {/* Installment count selector */}
           <div className="space-y-2">
-            <Label>Número de parcelas</Label>
+            <Label>{t("Número de parcelas")}</Label>
             <div className="grid grid-cols-4 gap-2">
               {[1, 2, 3, 4].map((n) => (
                 <Button
@@ -130,7 +132,7 @@ export function DraftScheduleModal({
                 key={i}
                 className="flex items-center gap-2 p-3 rounded-lg border bg-card"
               >
-                <span className="text-sm font-medium whitespace-nowrap">Parcela {i + 1}</span>
+                <span className="text-sm font-medium whitespace-nowrap">{t("Parcela")} {i + 1}</span>
                 <div className="relative flex-1 min-w-0">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                   <Input
@@ -153,7 +155,7 @@ export function DraftScheduleModal({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                      {format(dates[i], "dd/MM/yyyy", { locale: pt })}
+                      {format(dates[i], "dd/MM/yyyy", { locale: dateLocale() })}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">
@@ -161,7 +163,7 @@ export function DraftScheduleModal({
                       mode="single"
                       selected={dates[i]}
                       onSelect={(d) => d && updateDate(i, d)}
-                      locale={pt}
+                      locale={dateLocale()}
                       disabled={(d) => d < new Date()}
                     />
                   </PopoverContent>
@@ -172,12 +174,12 @@ export function DraftScheduleModal({
 
           {/* Total das parcelas vs restante */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Total das parcelas</span>
+            <span className="text-muted-foreground">{t("Total das parcelas")}</span>
             <span className={cn("font-semibold", diff !== 0 && "text-amber-600")}>
               {formatCurrency(total)}
               {diff !== 0 && (
                 <span className="ml-1 text-xs font-normal">
-                  ({diff > 0 ? "+" : ""}{formatCurrency(diff)} vs restante)
+                  ({t("{{diff}} vs restante", { diff: `${diff > 0 ? "+" : ""}${formatCurrency(diff)}` })})
                 </span>
               )}
             </span>
@@ -185,18 +187,18 @@ export function DraftScheduleModal({
 
           {/* Payment method */}
           <div className="space-y-2">
-            <Label>Método de pagamento</Label>
+            <Label>{t("Método de pagamento")}</Label>
             <Select
               value={paymentMethod}
               onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar método..." />
+                <SelectValue placeholder={t("Selecionar método...")} />
               </SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((m) => (
                   <SelectItem key={m} value={m}>
-                    {PAYMENT_METHOD_LABELS[m]}
+                    {t(PAYMENT_METHOD_LABELS[m])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -211,14 +213,14 @@ export function DraftScheduleModal({
               className="flex-1"
               onClick={() => onOpenChange(false)}
             >
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               className="flex-1"
               onClick={handleSubmit}
               disabled={hasInvalid}
             >
-              {`Adicionar ${installmentCount} Parcela${installmentCount > 1 ? "s" : ""}`}
+              {t(installmentCount > 1 ? "Adicionar {{n}} Parcelas" : "Adicionar {{n}} Parcela", { n: installmentCount })}
             </Button>
           </div>
         </div>

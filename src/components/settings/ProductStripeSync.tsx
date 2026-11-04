@@ -11,14 +11,16 @@ import {
   useStripeProductSync,
   type ProductStripeMappingSummary,
 } from '@/hooks/useStripeProductSync';
+import { intlLocale, useLanguage } from '@/i18n';
 
 /** Crachá compacto para a listagem de produtos. */
 export function ProductStripeBadge({ mapping }: { mapping: ProductStripeMappingSummary | undefined }) {
+  const { t } = useLanguage();
   if (!mapping || mapping.status === 'not_synced' || mapping.status === 'disabled') return null;
   if (mapping.status === 'error') {
     return (
       <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px]">
-        Erro Stripe
+        {t('Erro Stripe')}
       </Badge>
     );
   }
@@ -44,6 +46,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
   const { connection } = useStripeConnection();
   const { data: mappings = {} } = useStripeProductMappings();
   const { sync, isSyncing } = useStripeProductSync();
+  const { t } = useLanguage();
 
   if (!isRecurring) return null;
 
@@ -51,7 +54,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
   if (!productId) {
     return (
       <p className="text-xs text-muted-foreground">
-        Guarde o produto primeiro para o poder sincronizar com o Stripe.
+        {t('Guarde o produto primeiro para o poder sincronizar com o Stripe.')}
       </p>
     );
   }
@@ -59,11 +62,11 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
   if (!connection.connected) {
     return (
       <div className="rounded-md border border-dashed p-3 space-y-1">
-        <p className="text-sm font-medium">Sincronizar com Stripe</p>
+        <p className="text-sm font-medium">{t('Sincronizar com Stripe')}</p>
         <p className="text-xs text-muted-foreground">
-          Ligue a conta Stripe da sua empresa para cobrar este serviço automaticamente todos os meses.{' '}
+          {t('Ligue a conta Stripe da sua empresa para cobrar este serviço automaticamente todos os meses.')}{' '}
           <Link to="/settings?tab=integrations" className="text-primary underline">
-            Ir a Definições
+            {t('Ir a Definições')}
           </Link>
         </p>
       </div>
@@ -78,10 +81,10 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
       <div className="flex items-center justify-between gap-3">
         <div className="space-y-0.5">
           <Label htmlFor={`stripe-sync-${productId}`} className="text-sm font-medium">
-            Sincronizar com Stripe
+            {t('Sincronizar com Stripe')}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Cria o produto no Stripe e cobra o preço bruto, acrescentando IVA apenas quando o preço base não o inclui.
+            {t('Cria o produto no Stripe e cobra o preço bruto, acrescentando IVA apenas quando o preço base não o inclui.')}
           </p>
         </div>
         <Switch
@@ -98,8 +101,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-            Sincronizado
-            {mapping.syncedAt && ` em ${new Date(mapping.syncedAt).toLocaleDateString('pt-PT')}`}
+            {mapping.syncedAt ? t('Sincronizado em {{date}}', { date: new Date(mapping.syncedAt).toLocaleDateString(intlLocale()) }) : t('Sincronizado')}
           </div>
           <Button
             type="button"
@@ -110,7 +112,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
             onClick={() => sync({ productId, action: 'sync' })}
           >
             {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Atualizar
+            {t('Atualizar')}
           </Button>
         </div>
       )}
@@ -119,7 +121,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
         <div className="space-y-2">
           <div className="flex items-start gap-2 text-xs text-destructive">
             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>{mapping.syncError ?? 'A última sincronização falhou.'}</span>
+            <span>{mapping.syncError ?? t('A última sincronização falhou.')}</span>
           </div>
           <Button
             type="button"
@@ -130,7 +132,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
             onClick={() => sync({ productId, action: 'sync' })}
           >
             {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Tentar novamente
+            {t('Tentar novamente')}
           </Button>
         </div>
       )}

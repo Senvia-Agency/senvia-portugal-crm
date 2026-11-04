@@ -9,6 +9,7 @@ import { useSaleFieldsSettings, useUpdateSaleFieldsSettings } from '@/hooks/useS
 import { SaleFieldKey, SaleFieldsSettings, DEFAULT_SALE_FIELDS_SETTINGS, SALE_FIELD_ORDER } from '@/types/field-settings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModules } from '@/hooks/useModules';
+import { useLanguage } from '@/i18n';
 
 const FIELD_ICONS: Record<SaleFieldKey, React.ReactNode> = {
   value: <DollarSign className="h-4 w-4" />,
@@ -19,6 +20,7 @@ const FIELD_ICONS: Record<SaleFieldKey, React.ReactNode> = {
 };
 
 export function SaleFieldsEditor() {
+  const { t } = useLanguage();
   const { data: savedSettings, isLoading } = useSaleFieldsSettings();
   const updateSettings = useUpdateSaleFieldsSettings();
   const { organization } = useAuth();
@@ -52,13 +54,13 @@ export function SaleFieldsEditor() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Campos de Vendas</CardTitle>
-        <CardDescription>Configure quais campos são visíveis e obrigatórios ao criar vendas.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" />{t('Campos de Vendas')}</CardTitle>
+        <CardDescription>{t('Configure quais campos são visíveis e obrigatórios ao criar vendas.')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-2 border-b">
-          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>Visível</span></div>
-          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>Obrigatório</span></div>
+          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>{t('Visível')}</span></div>
+          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>{t('Obrigatório')}</span></div>
         </div>
 
         <div className="space-y-3">
@@ -88,7 +90,7 @@ export function SaleFieldsEditor() {
         <div className="flex justify-end pt-4">
           <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
             {updateSettings.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Guardar Alterações
+            {t('Guardar Alterações')}
           </Button>
         </div>
       </CardContent>

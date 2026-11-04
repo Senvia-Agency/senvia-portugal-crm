@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { searchEmojis } from '@/lib/emoji';
 import { emojiShortcutAt, insertComposerEmoji } from './emoji-shortcut';
+import { useLanguage } from '@/i18n';
 
 const FullPicker = lazy(() => import('./EmojiPicker').then(module => ({ default: module.EmojiPicker })));
 const FREQUENT = ['😀', '😂', '😊', '❤️', '👍', '🙏', '🎉', '☀️'];
@@ -18,6 +19,7 @@ type Props = Omit<ComponentProps<typeof Textarea>, 'value' | 'onChange'> & {
 };
 
 export function EmojiComposer({ value, onValueChange, composerRef, onKeyDown, onSelect, ...props }: Props) {
+  const { t } = useLanguage();
   const [cursor, setCursor] = useState(0);
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -55,22 +57,22 @@ export function EmojiComposer({ value, onValueChange, composerRef, onKeyDown, on
   return <>
     <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label="Escolher emoji" title="Escolher emoji">
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label={t("Escolher emoji")} title={t("Escolher emoji")}>
           <Smile className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-auto max-w-[calc(100vw-1rem)] overflow-auto p-0" style={{ maxHeight: 'var(--radix-popover-content-available-height)' }}
         onCloseAutoFocus={event => { event.preventDefault(); composerRef.current?.focus({ preventScroll: true }); }}>
-        <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">A carregar emojis…</p>}><FullPicker onSelect={emoji => insert(emoji, false)} /></Suspense>
+        <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">{t("A carregar emojis…")}</p>}><FullPicker onSelect={emoji => insert(emoji, false)} /></Suspense>
       </PopoverContent>
     </Popover>
     <div className="relative min-w-0 flex-1">
-      {suggestionsOpen && <div id={listId} role="listbox" aria-label="Sugestões de emojis" className="absolute bottom-full left-0 z-50 mb-2 flex max-w-full flex-wrap gap-1 rounded-xl border border-border bg-popover p-2 shadow-lg">
+      {suggestionsOpen && <div id={listId} role="listbox" aria-label={t("Sugestões de emojis")} className="absolute bottom-full left-0 z-50 mb-2 flex max-w-full flex-wrap gap-1 rounded-xl border border-border bg-popover p-2 shadow-lg">
         {results.map((emoji, index) => <button key={emoji} id={`${listId}-${index}`} type="button" role="option" aria-label={emoji} aria-selected={index === selected}
           className={`flex h-10 w-10 items-center justify-center rounded-lg text-2xl focus-visible:ring-2 focus-visible:ring-primary ${index === selected ? 'bg-primary/15' : 'hover:bg-secondary'}`}
           onMouseDown={event => event.preventDefault()} onClick={() => insert(emoji, true)}><EmojiGlyph emoji={emoji} size="1.5rem" /></button>)}
       </div>}
-      <Textarea {...props} ref={composerRef} value={value} aria-label="Mensagem" aria-autocomplete="list" aria-controls={suggestionsOpen ? listId : undefined}
+      <Textarea {...props} ref={composerRef} value={value} aria-label={t("Mensagem")} aria-autocomplete="list" aria-controls={suggestionsOpen ? listId : undefined}
         aria-activedescendant={suggestionsOpen ? `${listId}-${selected}` : undefined}
         onChange={event => { onValueChange(event.target.value); setCursor(event.target.selectionStart); setDismissed(false); }}
         onSelect={event => { setCursor(event.currentTarget.selectionStart); onSelect?.(event); }}

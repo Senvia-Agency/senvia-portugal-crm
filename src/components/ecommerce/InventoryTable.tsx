@@ -24,9 +24,11 @@ import { useEcommerceProducts, useLowStockProducts } from "@/hooks/ecommerce";
 import { useAdjustStock } from "@/hooks/ecommerce";
 import { EcommerceProduct } from "@/types/ecommerce";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLanguage } from "@/i18n";
 
 export function InventoryTable() {
   const { data: allProducts, isLoading } = useEcommerceProducts();
+  const { t } = useLanguage();
   const { data: lowStockProducts } = useLowStockProducts();
   const adjustStock = useAdjustStock();
   
@@ -77,9 +79,9 @@ export function InventoryTable() {
       return (
         <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed p-8">
           <Package className="h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 font-semibold">Sem produtos</h3>
+          <h3 className="mt-4 font-semibold">{t("Sem produtos")}</h3>
           <p className="text-sm text-muted-foreground">
-            Não há produtos com controlo de inventário.
+            {t("Não há produtos com controlo de inventário.")}
           </p>
         </div>
       );
@@ -90,12 +92,12 @@ export function InventoryTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Produto</TableHead>
+              <TableHead>{t("Produto")}</TableHead>
               <TableHead>SKU</TableHead>
-              <TableHead>Em Stock</TableHead>
-              <TableHead>Alerta</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead>{t("Em Stock")}</TableHead>
+              <TableHead>{t("Alerta")}</TableHead>
+              <TableHead>{t("Estado")}</TableHead>
+              <TableHead className="text-right">{t("Ações")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -134,12 +136,12 @@ export function InventoryTable() {
                     {isOutOfStock ? (
                       <Badge variant="destructive" className="gap-1">
                         <AlertTriangle className="h-3 w-3" />
-                        Esgotado
+                        {t("Esgotado")}
                       </Badge>
                     ) : isLowStock ? (
                       <Badge className="gap-1 bg-amber-500/10 text-amber-600 border-amber-500/20" variant="outline">
                         <AlertTriangle className="h-3 w-3" />
-                        Stock Baixo
+                        {t("Stock Baixo")}
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="bg-green-500/10 text-green-600">
@@ -154,7 +156,7 @@ export function InventoryTable() {
                       onClick={() => handleAdjust(product)}
                     >
                       <RefreshCw className="mr-2 h-3 w-3" />
-                      Ajustar
+                      {t("Ajustar")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -171,11 +173,11 @@ export function InventoryTable() {
       <Tabs defaultValue="all">
         <TabsList>
           <TabsTrigger value="all">
-            Todos ({inventoryProducts?.length || 0})
+            {t("Todos ({{n}})", { n: inventoryProducts?.length || 0 })}
           </TabsTrigger>
           <TabsTrigger value="low" className="gap-1">
             <AlertTriangle className="h-3 w-3" />
-            Stock Baixo ({lowStockProducts?.length || 0})
+            {t("Stock Baixo ({{n}})", { n: lowStockProducts?.length || 0 })}
           </TabsTrigger>
         </TabsList>
 
@@ -192,7 +194,7 @@ export function InventoryTable() {
       <Dialog open={!!adjustProduct} onOpenChange={(open) => !open && setAdjustProduct(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Ajustar Stock</DialogTitle>
+            <DialogTitle>{t("Ajustar Stock")}</DialogTitle>
           </DialogHeader>
           
           {adjustProduct && (
@@ -232,7 +234,7 @@ export function InventoryTable() {
               </div>
               
               <div className="text-center text-sm text-muted-foreground">
-                Stock atual: {adjustProduct.stock_quantity ?? 0}
+                {t("Stock atual: {{n}}", { n: adjustProduct.stock_quantity ?? 0 })}
                 {newQuantity !== (adjustProduct.stock_quantity ?? 0) && (
                   <span className={newQuantity > (adjustProduct.stock_quantity ?? 0) ? "text-green-600" : "text-red-600"}>
                     {" "}→ {newQuantity} ({newQuantity > (adjustProduct.stock_quantity ?? 0) ? "+" : ""}{newQuantity - (adjustProduct.stock_quantity ?? 0)})
@@ -241,9 +243,9 @@ export function InventoryTable() {
               </div>
 
               <div className="space-y-2">
-                <Label>Notas (opcional)</Label>
+                <Label>{t("Notas (opcional)")}</Label>
                 <Textarea
-                  placeholder="Motivo do ajuste..."
+                  placeholder={t("Motivo do ajuste...")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -251,10 +253,10 @@ export function InventoryTable() {
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setAdjustProduct(null)}>
-                  Cancelar
+                  {t("Cancelar")}
                 </Button>
                 <Button onClick={submitAdjustment} disabled={adjustStock.isPending}>
-                  {adjustStock.isPending ? "A guardar..." : "Confirmar"}
+                  {adjustStock.isPending ? t("A guardar...") : t("Confirmar")}
                 </Button>
               </div>
             </div>

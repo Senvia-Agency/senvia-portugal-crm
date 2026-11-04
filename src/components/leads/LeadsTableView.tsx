@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, intlLocale, useLanguage } from '@/i18n';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { MessageCircle, Eye, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
@@ -34,7 +34,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-import { Lead, LeadTemperature, LeadTipologia, TEMPERATURE_STYLES, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES } from '@/types';
+import { Lead, LeadTemperature, TEMPERATURE_LABELS, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES } from '@/types';
+import { initialsOf, TEMPERATURE_PILLS } from './lead-display';
 import { formatCurrency, formatPhoneForWhatsApp } from '@/lib/format';
 import { isPlaceholderEmail } from '@/lib/leadUtils';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,7 @@ export function LeadsTableView({
   selectedIds = [],
   onSelectionChange,
 }: LeadsTableViewProps) {
+  const { t } = useLanguage();
   const { data: stages = [], isLoading: stagesLoading } = usePipelineStages();
   const { data: proposalValues } = useLeadProposalValues();
   const { organization } = useAuth();
@@ -159,7 +161,7 @@ export function LeadsTableView({
 
   const virtualizer = useWindowVirtualizer({
     count: sortedLeads.length,
-    estimateSize: () => 64,
+    estimateSize: () => 52,
     overscan: 10,
     scrollMargin,
     getItemKey: (index) => sortedLeads[index]?.id ?? index,
@@ -189,7 +191,7 @@ export function LeadsTableView({
 
   const getStatusLabel = (statusKey: string): string => {
     const stage = getStageByKey(statusKey);
-    return stage?.name || statusKey || 'Desconhecido';
+    return stage?.name || statusKey || t('Desconhecido');
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -232,9 +234,9 @@ export function LeadsTableView({
     : 0;
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card">
       <div className="overflow-x-auto">
-        <Table className="leads-table">
+        <Table className="leads-table [&_td]:py-2 [&_th]:h-10">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               {onSelectionChange && (
@@ -247,49 +249,49 @@ export function LeadsTableView({
                       }
                     }}
                     onCheckedChange={handleSelectAll}
-                    aria-label="Selecionar todos"
+                    aria-label={t("Selecionar todos")}
                   />
                 </TableHead>
               )}
               <TableHead className="w-[200px]">
-                <SortableHeader field="name">Nome</SortableHeader>
+                <SortableHeader field="name">{t("Nome")}</SortableHeader>
               </TableHead>
               <TableHead className="leads-column-email hidden md:table-cell">
-                <SortableHeader field="email">Email</SortableHeader>
+                <SortableHeader field="email">{t("Email")}</SortableHeader>
               </TableHead>
-              <TableHead className="leads-column-phone">Telefone</TableHead>
+              <TableHead className="leads-column-phone">{t("Telefone")}</TableHead>
               <TableHead>
-                <SortableHeader field="status">Status</SortableHeader>
+                <SortableHeader field="status">{t("Estado")}</SortableHeader>
               </TableHead>
               <TableHead className="leads-column-secondary hidden sm:table-cell">
-                <SortableHeader field="temperature">Temp.</SortableHeader>
+                <SortableHeader field="temperature">{t("Temperatura")}</SortableHeader>
               </TableHead>
               {showEnergy && (
                 <TableHead className="leads-column-secondary hidden sm:table-cell">
-                  <SortableHeader field="tipologia">Tipologia</SortableHeader>
+                  <SortableHeader field="tipologia">{t("Tipologia")}</SortableHeader>
                 </TableHead>
               )}
               <TableHead className="leads-column-secondary hidden lg:table-cell">
                 {showEnergy ? (
-                  <SortableHeader field="consumo_anual">Consumo (kWh)</SortableHeader>
+                  <SortableHeader field="consumo_anual">{t("Consumo (kWh)")}</SortableHeader>
                 ) : (
-                  <SortableHeader field="value">Valor</SortableHeader>
+                  <SortableHeader field="value">{t("Valor")}</SortableHeader>
                 )}
               </TableHead>
               <TableHead className="leads-column-secondary hidden lg:table-cell">
-                <SortableHeader field="source">Fonte</SortableHeader>
+                <SortableHeader field="source">{t("Fonte")}</SortableHeader>
               </TableHead>
               <TableHead className="leads-column-secondary hidden lg:table-cell">
-                <SortableHeader field="created_at">Criado</SortableHeader>
+                <SortableHeader field="created_at">{t("Criado")}</SortableHeader>
               </TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead className="text-right">{t("Ações")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody ref={tableBodyRef}>
             {sortedLeads.length === 0 ? (
             <TableRow>
                 <TableCell colSpan={colSpan} className="h-24 text-center text-muted-foreground">
-                  Nenhum lead encontrado.
+                  {t("Nenhum lead encontrado.")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -320,12 +322,14 @@ export function LeadsTableView({
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={(checked) => handleSelectOne(lead.id, !!checked)}
-                          aria-label={`Selecionar ${lead.name}`}
+                          aria-label={t("Selecionar {{name}}", { name: lead.name })}
                         />
                       </TableCell>
                     )}
                     <TableCell>
-                      <div className="leads-name">
+                      <div className="leads-name flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary" aria-hidden="true">{initialsOf(isTelecom ? (lead.company_name || lead.name) : lead.name)}</span>
+                        <div className="min-w-0">
                         <span className="font-medium truncate max-w-[150px] block">
                           {isTelecom ? (lead.company_name || lead.name) : lead.name}
                         </span>
@@ -338,6 +342,7 @@ export function LeadsTableView({
                             <span className="text-xs text-muted-foreground truncate max-w-[150px] block">{lead.company_name}</span>
                           )
                         )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="leads-column-email hidden md:table-cell">
@@ -397,18 +402,15 @@ export function LeadsTableView({
                         value={lead.temperature || 'warm'}
                         onValueChange={(value) => onTemperatureChange(lead.id, value as LeadTemperature)}
                       >
-                        <SelectTrigger className="w-[90px] h-8 border-0 bg-transparent p-0">
-                          <span className="text-lg">
-                            {TEMPERATURE_STYLES[lead.temperature as LeadTemperature || 'warm'].emoji}
+                        <SelectTrigger className="h-8 w-[96px] border-0 bg-transparent p-0">
+                          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TEMPERATURE_PILLS[(lead.temperature as LeadTemperature) || 'warm'])}>
+                            {t(TEMPERATURE_LABELS[(lead.temperature as LeadTemperature) || 'warm'])}
                           </span>
                         </SelectTrigger>
                         <SelectContent>
                           {(['cold', 'warm', 'hot'] as LeadTemperature[]).map((temp) => (
                             <SelectItem key={temp} value={temp}>
-                              <div className="flex items-center gap-2">
-                                <span>{TEMPERATURE_STYLES[temp].emoji}</span>
-                                <span className="capitalize">{temp}</span>
-                              </div>
+                              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TEMPERATURE_PILLS[temp])}>{t(TEMPERATURE_LABELS[temp])}</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -423,7 +425,7 @@ export function LeadsTableView({
                             className={cn("text-xs gap-1", TIPOLOGIA_STYLES[lead.tipologia].color, TIPOLOGIA_STYLES[lead.tipologia].bgClass)}
                           >
                             <span>{TIPOLOGIA_STYLES[lead.tipologia].emoji}</span>
-                            {TIPOLOGIA_LABELS[lead.tipologia] || lead.tipologia}
+                            {TIPOLOGIA_LABELS[lead.tipologia] ? t(TIPOLOGIA_LABELS[lead.tipologia]) : lead.tipologia}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -435,7 +437,7 @@ export function LeadsTableView({
                       {showEnergy ? (
                         lead.consumo_anual ? (
                           <span className="font-medium text-primary">
-                            {new Intl.NumberFormat('pt-PT').format(lead.consumo_anual)} kWh
+                            {new Intl.NumberFormat(intlLocale()).format(lead.consumo_anual)} kWh
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -449,7 +451,7 @@ export function LeadsTableView({
                             <span className="font-medium text-primary">
                               {formatCurrency(displayValue)}
                               {pValue && (
-                                <span className="text-xs font-normal text-muted-foreground ml-1">(propostas)</span>
+                                <span className="text-xs font-normal text-muted-foreground ml-1">{t("(propostas)")}</span>
                               )}
                             </span>
                           );
@@ -464,7 +466,7 @@ export function LeadsTableView({
                     <TableCell className="leads-column-secondary hidden lg:table-cell">
                       <span className="text-muted-foreground text-sm">
                         {lead.created_at
-                          ? format(new Date(lead.created_at), 'dd MMM yyyy', { locale: pt })
+                          ? format(new Date(lead.created_at), 'dd MMM yyyy', { locale: dateLocale() })
                           : '-'}
                       </span>
                     </TableCell>
@@ -490,18 +492,18 @@ export function LeadsTableView({
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminar Lead</AlertDialogTitle>
+                              <AlertDialogTitle>{t("Eliminar Lead")}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Tens a certeza que queres eliminar {lead.name}? Esta ação não pode ser revertida.
+                                {t("Tens a certeza que queres eliminar {{name}}? Esta ação não pode ser revertida.", { name: lead.name })}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => onDelete(lead.id)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
-                                Eliminar
+                                {t("Eliminar")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

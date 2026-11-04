@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { Calculator, Info, Plus, Trash2, Sun, Battery, Gauge, Home, Save, FileSpreadsheet, Zap } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +67,7 @@ export function CommissionMatrixTab() {
   const isTelecom = (org as { niche?: string } | undefined)?.niche === "telecom";
   const updateOrg = useUpdateOrganization();
   const { products: SERVICOS_PRODUCTS } = useServicosProducts();
+  const { t } = useLanguage();
   const [localMatrix, setLocalMatrix] = useState<CommissionMatrix>({});
   const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [openEnergy, setOpenEnergy] = useState(false);
@@ -104,17 +106,17 @@ export function CommissionMatrixTab() {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Calculator className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold">Matriz de Comissões</h2>
+        <h2 className="text-lg font-semibold">{t('Matriz de Comissões')}</h2>
       </div>
       <p className="text-sm text-muted-foreground -mt-4">
-        Configure como a comissão é calculada para cada produto. Clique num card para editar.
+        {t('Configure como a comissão é calculada para cada produto. Clique num card para editar.')}
       </p>
 
       <CommissionGlobalSettings />
 
       {isTelecom && (<>
       <div>
-        <h3 className="text-sm font-medium mb-3">Por produto / serviço</h3>
+        <h3 className="text-sm font-medium mb-3">{t('Por produto / serviço')}</h3>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -125,12 +127,12 @@ export function CommissionMatrixTab() {
         >
           <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
             <Zap className="h-8 w-8 text-amber-500" />
-            <span className="text-sm font-medium leading-tight">EE & Gás</span>
+            <span className="text-sm font-medium leading-tight">{t('EE & Gás')}</span>
             <Badge variant="secondary" className="text-[10px]">
-              Bandas de Margem
+              {t('Bandas de Margem')}
             </Badge>
             <span className="text-[10px] text-muted-foreground">
-              {localEnergy.bands.length} banda(s)
+              {t('{{n}} banda(s)', { n: localEnergy.bands.length })}
             </span>
           </CardContent>
         </Card>
@@ -150,11 +152,11 @@ export function CommissionMatrixTab() {
                 <Icon className="h-8 w-8 text-primary" />
                 <span className="text-sm font-medium leading-tight">{product}</span>
                 <Badge variant="secondary" className="text-[10px]">
-                  {METHOD_LABELS[rule.method] ?? rule.method}
+                  {METHOD_LABELS[rule.method] ? t(METHOD_LABELS[rule.method]) : rule.method}
                 </Badge>
                 {tierCount !== null && (
                   <span className="text-[10px] text-muted-foreground">
-                    {tierCount} escalão(ões)
+                    {t('{{n}} escalão(ões)', { n: tierCount })}
                   </span>
                 )}
               </CardContent>
@@ -213,6 +215,7 @@ function ProductModal({
   onClose: () => void;
 }) {
   const Icon = getProductIcon(product);
+  const { t } = useLanguage();
 
   const renderEditor = () => {
     switch (rule.method) {
@@ -237,19 +240,19 @@ function ProductModal({
             <Icon className="h-5 w-5 text-primary" />
             <DialogTitle className="text-base sm:text-lg">{product}</DialogTitle>
           </div>
-          <DialogDescription>Configure o método de cálculo da comissão.</DialogDescription>
+          <DialogDescription>{t('Configure o método de cálculo da comissão.')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
           <div className="space-y-1.5 max-w-xs">
-            <Label className="text-xs text-muted-foreground">Método de Cálculo</Label>
+            <Label className="text-xs text-muted-foreground">{t('Método de Cálculo')}</Label>
             <Select value={rule.method} onValueChange={onMethodChange}>
               <SelectTrigger className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ALL_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>{METHOD_LABELS[m]}</SelectItem>
+                  <SelectItem key={m} value={m}>{t(METHOD_LABELS[m])}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -259,17 +262,17 @@ function ProductModal({
 
           <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
             <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
-            <span>{getFormulaPreview(rule)}</span>
+            <span>{t(getFormulaPreview(rule))}</span>
           </div>
         </div>
 
         <div className="shrink-0 border-t px-4 sm:px-6 py-3 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button onClick={onSave} disabled={isSaving} className="gap-1.5">
             <Save className="h-4 w-4" />
-            {isSaving ? 'A guardar...' : 'Guardar'}
+            {isSaving ? t('A guardar...') : t('Guardar')}
           </Button>
         </div>
       </DialogContent>
@@ -281,35 +284,36 @@ function ProductModal({
 
 function BasePlusKwpEditor({ rule, onChange }: { rule: CommissionRule; onChange: (r: CommissionRule) => void }) {
   const update = (field: keyof CommissionRule, value: number) => onChange({ ...rule, [field]: value });
+  const { t } = useLanguage();
 
   return (
     <div className="space-y-5">
-      <div className="text-sm font-medium">Configuração da Fórmula</div>
+      <div className="text-sm font-medium">{t('Configuração da Fórmula')}</div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Transacional</Label>
+          <Label className="text-xs text-muted-foreground">{t('Transacional')}</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Base (€)</span>
+            <span className="text-sm text-muted-foreground">{t('Base (€)')}</span>
             <DecimalInput className="h-9 w-24" value={rule.baseTrans ?? 0} onChange={(v) => update('baseTrans', v)} />
             <span className="text-sm text-muted-foreground">+</span>
             <span className="text-sm text-muted-foreground">€/kWp</span>
             <DecimalInput className="h-9 w-24" value={rule.ratePerKwpTrans ?? 0} onChange={(v) => update('ratePerKwpTrans', v)} />
             <span className="text-sm text-muted-foreground">×</span>
-            <Badge variant="outline" className="text-xs">kWp (auto)</Badge>
+            <Badge variant="outline" className="text-xs">{t('kWp (auto)')}</Badge>
           </div>
         </div>
 
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">AAS</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Base (€)</span>
+            <span className="text-sm text-muted-foreground">{t('Base (€)')}</span>
             <DecimalInput className="h-9 w-24" value={rule.baseAas ?? 0} onChange={(v) => update('baseAas', v)} />
             <span className="text-sm text-muted-foreground">+</span>
             <span className="text-sm text-muted-foreground">€/kWp</span>
             <DecimalInput className="h-9 w-24" value={rule.ratePerKwpAas ?? 0} onChange={(v) => update('ratePerKwpAas', v)} />
             <span className="text-sm text-muted-foreground">×</span>
-            <Badge variant="outline" className="text-xs">kWp (auto)</Badge>
+            <Badge variant="outline" className="text-xs">{t('kWp (auto)')}</Badge>
           </div>
         </div>
       </div>
@@ -321,16 +325,17 @@ function BasePlusKwpEditor({ rule, onChange }: { rule: CommissionRule; onChange:
 
 function FormulaPercentageEditor({ rule, onChange }: { rule: CommissionRule; onChange: (r: CommissionRule) => void }) {
   const update = (field: keyof CommissionRule, value: number) => onChange({ ...rule, [field]: value });
+  const { t } = useLanguage();
 
   return (
     <div className="space-y-5">
-      <div className="text-sm font-medium">Derivação do kWp</div>
+      <div className="text-sm font-medium">{t('Derivação do kWp')}</div>
 
       <div className="space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground">kWp =</span>
           <span className="text-sm text-muted-foreground">(</span>
-          <Badge variant="outline" className="text-xs">Valor (auto)</Badge>
+          <Badge variant="outline" className="text-xs">{t('Valor (auto)')}</Badge>
           <span className="text-sm text-muted-foreground">×</span>
           <DecimalInput className="h-9 w-24" value={rule.factor ?? 0} onChange={(v) => update('factor', v)} />
           <span className="text-sm text-muted-foreground">)</span>
@@ -338,13 +343,13 @@ function FormulaPercentageEditor({ rule, onChange }: { rule: CommissionRule; onC
           <DecimalInput className="h-9 w-24" value={rule.divisor ?? 0} onChange={(v) => update('divisor', v)} />
         </div>
 
-        <div className="text-sm font-medium pt-2">Comissão</div>
+        <div className="text-sm font-medium pt-2">{t('Comissão')}</div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Transacional</Label>
+          <Label className="text-xs text-muted-foreground">{t('Transacional')}</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Comissão =</span>
-            <Badge variant="outline" className="text-xs">kWp resultado</Badge>
+            <span className="text-sm text-muted-foreground">{t('Comissão =')}</span>
+            <Badge variant="outline" className="text-xs">{t('kWp resultado')}</Badge>
             <span className="text-sm text-muted-foreground">×</span>
             <DecimalInput className="h-9 w-20" value={rule.pctTrans ?? 0} onChange={(v) => update('pctTrans', v)} />
             <span className="text-sm text-muted-foreground">%</span>
@@ -354,8 +359,8 @@ function FormulaPercentageEditor({ rule, onChange }: { rule: CommissionRule; onC
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">AAS</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Comissão =</span>
-            <Badge variant="outline" className="text-xs">kWp resultado</Badge>
+            <span className="text-sm text-muted-foreground">{t('Comissão =')}</span>
+            <Badge variant="outline" className="text-xs">{t('kWp resultado')}</Badge>
             <span className="text-sm text-muted-foreground">×</span>
             <DecimalInput className="h-9 w-20" value={rule.pctAas ?? 0} onChange={(v) => update('pctAas', v)} />
             <span className="text-sm text-muted-foreground">%</span>
@@ -370,31 +375,32 @@ function FormulaPercentageEditor({ rule, onChange }: { rule: CommissionRule; onC
 
 function PercentageValorEditor({ rule, onChange }: { rule: CommissionRule; onChange: (r: CommissionRule) => void }) {
   const update = (field: keyof CommissionRule, value: number) => onChange({ ...rule, [field]: value });
+  const { t } = useLanguage();
 
   return (
     <div className="space-y-5">
-      <div className="text-sm font-medium">Percentagem sobre o Valor</div>
+      <div className="text-sm font-medium">{t('Percentagem sobre o Valor')}</div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Transacional</Label>
+          <Label className="text-xs text-muted-foreground">{t('Transacional')}</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className="text-xs">Valor (auto)</Badge>
+            <Badge variant="outline" className="text-xs">{t('Valor (auto)')}</Badge>
             <span className="text-sm text-muted-foreground">×</span>
             <DecimalInput className="h-9 w-20" value={rule.pctTrans ?? 0} onChange={(v) => update('pctTrans', v)} />
             <span className="text-sm text-muted-foreground">%</span>
-            <span className="text-sm text-muted-foreground">→ Comissão</span>
+            <span className="text-sm text-muted-foreground">{t('→ Comissão')}</span>
           </div>
         </div>
 
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">AAS</Label>
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className="text-xs">Valor (auto)</Badge>
+            <Badge variant="outline" className="text-xs">{t('Valor (auto)')}</Badge>
             <span className="text-sm text-muted-foreground">×</span>
             <DecimalInput className="h-9 w-20" value={rule.pctAas ?? 0} onChange={(v) => update('pctAas', v)} />
             <span className="text-sm text-muted-foreground">%</span>
-            <span className="text-sm text-muted-foreground">→ Comissão</span>
+            <span className="text-sm text-muted-foreground">{t('→ Comissão')}</span>
           </div>
         </div>
       </div>
@@ -427,6 +433,7 @@ function TieredTableEditor({
 }) {
   const tiers = rule.tiers || [];
   const fileRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const updateTier = (index: number, field: keyof SolarTier, value: number) => {
     const newTiers = tiers.map((t, i) => (i === index ? { ...t, [field]: value } : t));
@@ -474,7 +481,7 @@ function TieredTableEditor({
         const wb = XLSX.read(data, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-        if (json.length === 0) { toast.error('Ficheiro vazio'); return; }
+        if (json.length === 0) { toast.error(t('Ficheiro vazio')); return; }
 
         const headers = Object.keys(json[0]);
         const fieldMap: Record<string, keyof SolarTier> = {};
@@ -484,7 +491,7 @@ function TieredTableEditor({
         });
 
         if (Object.keys(fieldMap).length === 0) {
-          toast.error('Nenhuma coluna reconhecida. Use: kWp Min, kWp Max, Base Trans., Adic. Trans., Base AAS, Adic. AAS');
+          toast.error(t('Nenhuma coluna reconhecida. Use: kWp Min, kWp Max, Base Trans., Adic. Trans., Base AAS, Adic. AAS'));
           return;
         }
 
@@ -497,9 +504,9 @@ function TieredTableEditor({
         });
 
         onChange({ ...rule, tiers: [...tiers, ...imported] });
-        toast.success(`${imported.length} escalão(ões) importados`);
+        toast.success(t('{{n}} escalão(ões) importados', { n: imported.length }));
       } catch {
-        toast.error('Erro ao ler o ficheiro');
+        toast.error(t('Erro ao ler o ficheiro'));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -507,14 +514,14 @@ function TieredTableEditor({
 
   return (
     <div className="space-y-3">
-      <div className="text-sm font-medium">Escalões</div>
+      <div className="text-sm font-medium">{t('Escalões')}</div>
 
       <div className="relative w-full overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               {TIERED_COLUMNS.map((col) => (
-                <TableHead key={col.field} className="text-xs whitespace-nowrap">{col.label}</TableHead>
+                <TableHead key={col.field} className="text-xs whitespace-nowrap">{t(col.label)}</TableHead>
               ))}
               <TableHead className="w-10" />
             </TableRow>
@@ -523,7 +530,7 @@ function TieredTableEditor({
             {tiers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={TIERED_COLUMNS.length + 1} className="text-center text-sm text-muted-foreground py-6">
-                  Nenhum escalão configurado. Adicione uma linha ou importe um ficheiro.
+                  {t('Nenhum escalão configurado. Adicione uma linha ou importe um ficheiro.')}
                 </TableCell>
               </TableRow>
             )}
@@ -552,7 +559,7 @@ function TieredTableEditor({
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addTier} className="gap-1.5">
           <Plus className="h-3.5 w-3.5" />
-          Adicionar Linha
+          {t('Adicionar Linha')}
         </Button>
         <Button
           type="button"
@@ -562,7 +569,7 @@ function TieredTableEditor({
           className="gap-1.5"
         >
           <FileSpreadsheet className="h-3.5 w-3.5" />
-          Importar Escalões
+          {t('Importar Escalões')}
         </Button>
         <input
           ref={fileRef}
@@ -608,6 +615,7 @@ function EnergyModal({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const bands = config.bands;
+  const { t } = useLanguage();
   const tierRules: TierRules = config.tierRules ?? DEFAULT_TIER_RULES;
 
   const updateTierRules = (newRules: TierRules) => {
@@ -685,7 +693,7 @@ function EnergyModal({
         const wb = XLSX.read(data, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-        if (json.length === 0) { toast.error('Ficheiro vazio'); return; }
+        if (json.length === 0) { toast.error(t('Ficheiro vazio')); return; }
 
         const parseNum = (val: any): number => {
           if (typeof val === 'number') return val;
@@ -709,9 +717,9 @@ function EnergyModal({
         });
 
         onChange({ ...config, bands: [...bands, ...imported] });
-        toast.success(`${imported.length} banda(s) importadas`);
+        toast.success(t('{{n}} banda(s) importadas', { n: imported.length }));
       } catch {
-        toast.error('Erro ao ler o ficheiro');
+        toast.error(t('Erro ao ler o ficheiro'));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -723,10 +731,10 @@ function EnergyModal({
         <DialogHeader className="shrink-0 border-b px-4 sm:px-6 py-4 pr-14">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-amber-500" />
-            <DialogTitle className="text-base sm:text-lg">EE & Gás — Comissões por Margem</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{t('EE & Gás — Comissões por Margem')}</DialogTitle>
           </div>
           <DialogDescription>
-            Configure as bandas de margem e comissões para cada faixa de volume.
+            {t('Configure as bandas de margem e comissões para cada faixa de volume.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -734,8 +742,8 @@ function EnergyModal({
 
           {/* Tier derivation rules */}
           <div className="space-y-3">
-            <div className="text-sm font-medium">Regras de Derivação por Volume</div>
-            <p className="text-xs text-muted-foreground">Selecione a coluna de referência e, opcionalmente, uma operação (× ou ÷) com um valor para derivar automaticamente.</p>
+            <div className="text-sm font-medium">{t('Regras de Derivação por Volume')}</div>
+            <p className="text-xs text-muted-foreground">{t('Selecione a coluna de referência e, opcionalmente, uma operação (× ou ÷) com um valor para derivar automaticamente.')}</p>
             <div className="grid gap-3">
               {([
                 { key: 'low' as const, label: '0-300 MWh', selfSource: 'from_low' as const },
@@ -800,31 +808,31 @@ function EnergyModal({
 
           {/* Bands table */}
           <div className="space-y-3">
-            <div className="text-sm font-medium">Bandas de Margem</div>
+            <div className="text-sm font-medium">{t('Bandas de Margem')}</div>
             <div className="relative w-full overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead rowSpan={2} className="text-xs whitespace-nowrap align-bottom border-r">Banda de Margem (€)</TableHead>
+                    <TableHead rowSpan={2} className="text-xs whitespace-nowrap align-bottom border-r">{t('Banda de Margem (€)')}</TableHead>
                      <TableHead colSpan={2} className="text-xs text-center border-r">300 MWh</TableHead>
                      <TableHead colSpan={2} className="text-xs text-center border-r">301-600 MWh</TableHead>
                      <TableHead colSpan={2} className="text-xs text-center border-r">601+ MWh</TableHead>
                      <TableHead rowSpan={2} className="w-10 align-bottom" />
                    </TableRow>
                    <TableRow>
-                     <TableHead className="text-[10px] text-center">Pond. (%)</TableHead>
-                     <TableHead className="text-[10px] text-center border-r">Valor (€)</TableHead>
-                     <TableHead className="text-[10px] text-center">Pond. (%)</TableHead>
-                     <TableHead className="text-[10px] text-center border-r">Valor (€)</TableHead>
-                     <TableHead className="text-[10px] text-center">Pond. (%)</TableHead>
-                     <TableHead className="text-[10px] text-center border-r">Valor (€)</TableHead>
+                     <TableHead className="text-[10px] text-center">{t('Pond. (%)')}</TableHead>
+                     <TableHead className="text-[10px] text-center border-r">{t('Valor (€)')}</TableHead>
+                     <TableHead className="text-[10px] text-center">{t('Pond. (%)')}</TableHead>
+                     <TableHead className="text-[10px] text-center border-r">{t('Valor (€)')}</TableHead>
+                     <TableHead className="text-[10px] text-center">{t('Pond. (%)')}</TableHead>
+                     <TableHead className="text-[10px] text-center border-r">{t('Valor (€)')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {bands.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
-                        Nenhuma banda configurada. Adicione uma linha, importe um ficheiro ou carregue valores padrão.
+                        {t('Nenhuma banda configurada. Adicione uma linha, importe um ficheiro ou carregue valores padrão.')}
                       </TableCell>
                     </TableRow>
                   )}
@@ -868,15 +876,15 @@ function EnergyModal({
             <div className="flex items-center gap-2 flex-wrap">
               <Button type="button" variant="outline" size="sm" onClick={addBand} className="gap-1.5">
                 <Plus className="h-3.5 w-3.5" />
-                Adicionar Banda
+                {t('Adicionar Banda')}
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-1.5">
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                Importar
+                {t('Importar')}
               </Button>
               {bands.length === 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={loadDefaults} className="gap-1.5">
-                  Carregar Padrão
+                  {t('Carregar Predefinidos')}
                 </Button>
               )}
               <input
@@ -896,15 +904,15 @@ function EnergyModal({
           {/* Formula preview */}
           <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
             <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
-            <span>Comissão = Valor + (Margem − Limite_Banda) × (Ponderador / 100). Cada faixa de volume (300, 301-600, 601+) usa os seus valores próprios.</span>
+            <span>{t('Comissão = Valor + (Margem − Limite_Banda) × (Ponderador / 100). Cada faixa de volume (300, 301-600, 601+) usa os seus valores próprios.')}</span>
           </div>
         </div>
 
         <div className="shrink-0 border-t px-4 sm:px-6 py-3 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>{t('Cancelar')}</Button>
           <Button onClick={onSave} disabled={isSaving} className="gap-1.5">
             <Save className="h-4 w-4" />
-            {isSaving ? 'A guardar...' : 'Guardar'}
+            {isSaving ? t('A guardar...') : t('Guardar')}
           </Button>
         </div>
       </DialogContent>

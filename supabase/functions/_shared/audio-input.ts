@@ -3,7 +3,9 @@ import { z } from 'npm:zod@3.25.76';
 const audioInput = z.object({
   organization_id: z.string().uuid(),
   message_id: z.string().uuid(),
-  media_id: z.string().regex(/^\d{1,64}$/),
+  // Meta ids are digits; WhatsApp-by-QR (Evolution) ids are hex like 3A21965641AA9360AD2B.
+  // meta-media still checks the id belongs to this message before serving anything.
+  media_id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
 }).strict();
 
 export function parseAudioInput(value: unknown) {

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 import type { TeamMember } from '@/hooks/useTeam';
 
 export function useUpdateProfile() {
@@ -12,7 +13,7 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: async ({ full_name, email, phone, email_signature, brevo_sender_email }: { full_name: string; email?: string; phone?: string; email_signature?: string; brevo_sender_email?: string }) => {
       if (!user?.id) {
-        throw new Error('Utilizador não autenticado');
+        throw new Error(tr('Utilizador não autenticado'));
       }
 
       const updateData: { full_name: string; email?: string | null; phone?: string | null; email_signature?: string | null; brevo_sender_email?: string | null } = { full_name: full_name.trim() };
@@ -32,15 +33,15 @@ export function useUpdateProfile() {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       refetchUserData();
       toast({
-        title: 'Perfil atualizado',
-        description: 'O seu nome foi atualizado com sucesso.',
+        title: tr('Perfil atualizado'),
+        description: tr('O seu nome foi atualizado com sucesso.'),
       });
     },
     onError: (error) => {
       console.error('Error updating profile:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar o perfil.',
+        title: tr('Erro'),
+        description: tr('Não foi possível atualizar o perfil.'),
         variant: 'destructive',
       });
     },
@@ -60,15 +61,15 @@ export function useChangePassword() {
     },
     onSuccess: () => {
       toast({
-        title: 'Password alterada',
-        description: 'A sua password foi alterada com sucesso.',
+        title: tr('Password alterada'),
+        description: tr('A sua password foi alterada com sucesso.'),
       });
     },
     onError: (error) => {
       console.error('Error changing password:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível alterar a password.',
+        title: tr('Erro'),
+        description: tr('Não foi possível alterar a password.'),
         variant: 'destructive',
       });
     },
@@ -99,7 +100,7 @@ export function useManageTeamMember() {
       });
 
       if (error) {
-        throw new Error(error.message || 'Erro ao gerir colaborador');
+        throw new Error(error.message || tr('Erro ao gerir colaborador'));
       }
 
       if (data?.error) {
@@ -169,7 +170,7 @@ export function useManageTeamMember() {
         queryClient.setQueryData(['team-members', organization?.id, true], context.previousMembers);
       }
       toast({
-        title: 'Erro',
+        title: tr('Erro'),
         description: error.message,
         variant: 'destructive',
       });
@@ -179,11 +180,11 @@ export function useManageTeamMember() {
       queryClient.invalidateQueries({ queryKey: ['team-members', organization?.id, true] });
       
       const messages: Record<string, { title: string; description: string }> = {
-        change_password: { title: 'Password redefinida', description: 'A password do colaborador foi alterada com sucesso.' },
-        change_role: { title: 'Perfil alterado', description: 'O perfil do colaborador foi atualizado com sucesso.' },
-        toggle_status: { title: 'Estado alterado', description: 'O estado do colaborador foi atualizado com sucesso.' },
-        update_profile: { title: 'Dados atualizados', description: 'Os dados do colaborador foram atualizados com sucesso.' },
-        delete_member: { title: 'Acesso eliminado', description: 'O colaborador foi removido da organização.' },
+        change_password: { title: tr('Password redefinida'), description: tr('A password do colaborador foi alterada com sucesso.') },
+        change_role: { title: tr('Perfil alterado'), description: tr('O perfil do colaborador foi atualizado com sucesso.') },
+        toggle_status: { title: tr('Estado alterado'), description: tr('O estado do colaborador foi atualizado com sucesso.') },
+        update_profile: { title: tr('Dados atualizados'), description: tr('Os dados do colaborador foram atualizados com sucesso.') },
+        delete_member: { title: tr('Acesso eliminado'), description: tr('O colaborador foi removido da organização.') },
       };
 
       const msg = messages[variables.action];

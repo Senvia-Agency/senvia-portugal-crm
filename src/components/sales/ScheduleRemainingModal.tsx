@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
-import { pt } from "date-fns/locale";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +25,8 @@ import { formatCurrency } from "@/lib/format";
 import { useCreateSalePayment } from "@/hooks/useSalePayments";
 import type { PaymentMethod } from "@/types/sales";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/types/sales";
+import { useLanguage, dateLocale } from "@/i18n";
+import { Trans } from "react-i18next";
 
 // Divide um total em N parcelas (última absorve o arredondamento).
 function evenSplit(total: number, n: number): number[] {
@@ -52,6 +53,7 @@ export function ScheduleRemainingModal({
   remainingAmount,
   defaultPaymentMethod,
 }: ScheduleRemainingModalProps) {
+  const { t } = useLanguage();
   const createPayment = useCreateSalePayment();
   const [installmentCount, setInstallmentCount] = useState(1);
   const [dates, setDates] = useState<Date[]>(() =>
@@ -115,16 +117,16 @@ export function ScheduleRemainingModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Agendar Restante</DialogTitle>
+          <DialogTitle>{t("Agendar Restante")}</DialogTitle>
           <DialogDescription>
-            Restam <strong>{formatCurrency(remainingAmount)}</strong>. Como deseja dividir?
+            <Trans i18nKey="Restam <b>{{amount}}</b>. Como deseja dividir?" values={{ amount: formatCurrency(remainingAmount) }} components={{ b: <strong /> }} />
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           {/* Installment count selector */}
           <div className="space-y-2">
-            <Label>Número de parcelas</Label>
+            <Label>{t("Número de parcelas")}</Label>
             <div className="grid grid-cols-4 gap-2">
               {[1, 2, 3, 4].map((n) => (
                 <Button
@@ -147,7 +149,7 @@ export function ScheduleRemainingModal({
                 key={i}
                 className="flex items-center gap-2 p-3 rounded-lg border bg-card"
               >
-                <span className="text-sm font-medium whitespace-nowrap">Parcela {i + 1}</span>
+                <span className="text-sm font-medium whitespace-nowrap">{t("Parcela")} {i + 1}</span>
                 <div className="relative flex-1 min-w-0">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                   <Input
@@ -170,7 +172,7 @@ export function ScheduleRemainingModal({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                      {format(dates[i], "dd/MM/yyyy", { locale: pt })}
+                      {format(dates[i], "dd/MM/yyyy", { locale: dateLocale() })}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">
@@ -178,7 +180,7 @@ export function ScheduleRemainingModal({
                       mode="single"
                       selected={dates[i]}
                       onSelect={(d) => d && updateDate(i, d)}
-                      locale={pt}
+                      locale={dateLocale()}
                       disabled={(d) => d < new Date()}
                     />
                   </PopoverContent>
@@ -189,12 +191,12 @@ export function ScheduleRemainingModal({
 
           {/* Total das parcelas vs restante */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Total das parcelas</span>
+            <span className="text-muted-foreground">{t("Total das parcelas")}</span>
             <span className={cn("font-semibold", diff !== 0 && "text-amber-600")}>
               {formatCurrency(total)}
               {diff !== 0 && (
                 <span className="ml-1 text-xs font-normal">
-                  ({diff > 0 ? "+" : ""}{formatCurrency(diff)} vs restante)
+                  ({t("{{diff}} vs restante", { diff: `${diff > 0 ? "+" : ""}${formatCurrency(diff)}` })})
                 </span>
               )}
             </span>
@@ -202,18 +204,18 @@ export function ScheduleRemainingModal({
 
           {/* Payment method */}
           <div className="space-y-2">
-            <Label>Método de pagamento</Label>
+            <Label>{t("Método de pagamento")}</Label>
             <Select
               value={paymentMethod}
               onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar método..." />
+                <SelectValue placeholder={t("Selecionar método...")} />
               </SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((m) => (
                   <SelectItem key={m} value={m}>
-                    {PAYMENT_METHOD_LABELS[m]}
+                    {t(PAYMENT_METHOD_LABELS[m])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -229,7 +231,7 @@ export function ScheduleRemainingModal({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              Ignorar
+              {t("Ignorar")}
             </Button>
             <Button
               className="flex-1"
@@ -239,10 +241,10 @@ export function ScheduleRemainingModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  A agendar...
+                  {t("A agendar...")}
                 </>
               ) : (
-                `Agendar ${installmentCount} Parcela${installmentCount > 1 ? "s" : ""}`
+                t(installmentCount > 1 ? "Agendar {{n}} Parcelas" : "Agendar {{n}} Parcela", { n: installmentCount })
               )}
             </Button>
           </div>

@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { TRANSACTION_TYPE_LABELS } from '@/types/bank-accounts';
 import type { BankAccount, BankTransactionType } from '@/types/bank-accounts';
 import { ArrowDownLeft, ArrowUpRight, Landmark, Printer, Settings2 } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   account: BankAccount | null;
@@ -21,6 +22,7 @@ const typeIcon: Record<BankTransactionType, React.ReactNode> = {
 };
 
 export function BankAccountStatementDrawer({ account, open, onOpenChange }: Props) {
+  const { t } = useLanguage();
   const { data: transactions, isLoading } = useBankAccountTransactions(account?.id || null);
   const { data: balance } = useBankAccountBalance(account?.id || null);
 
@@ -43,18 +45,18 @@ export function BankAccountStatementDrawer({ account, open, onOpenChange }: Prop
 
         <div id="bank-statement-print">
           <div className="mt-4 p-4 rounded-lg bg-muted/50 border print:bg-transparent print:border-border">
-            <p className="text-sm text-muted-foreground">Saldo Atual</p>
+            <p className="text-sm text-muted-foreground">{t("Saldo Atual")}</p>
             <p className={`text-2xl font-bold ${(balance ?? 0) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
               {formatCurrency(balance ?? 0)}
             </p>
           </div>
 
           <div className="mt-6 space-y-1">
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">Extracto</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-3">{t("Extrato")}</h3>
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
           ) : !transactions?.length ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Sem movimentos</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">{t("Sem movimentos")}</p>
           ) : (
             transactions.map((tx) => {
               const isPositive = tx.amount >= 0;
@@ -64,7 +66,7 @@ export function BankAccountStatementDrawer({ account, open, onOpenChange }: Prop
                     {typeIcon[tx.type as BankTransactionType] || typeIcon.adjustment}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{tx.description || TRANSACTION_TYPE_LABELS[tx.type as BankTransactionType]}</p>
+                    <p className="text-sm font-medium truncate">{tx.description || t(TRANSACTION_TYPE_LABELS[tx.type as BankTransactionType])}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(tx.transaction_date)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">

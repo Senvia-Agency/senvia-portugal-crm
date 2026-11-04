@@ -1,9 +1,12 @@
 import type { LucideIcon } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { moduleOf } from "./module-identity";
 
 // Standard page header — matches the "Caixa de Entrada" title exactly: a small
 // inline icon (h-5 w-5, primary colour) + text-lg font-semibold title, optional
 // subtitle below, and right-aligned actions (which stack under the title on mobile).
+// In Workplace the icon becomes the module's coloured tile (workplace.css).
 export function PageHeader({
   icon: Icon,
   title,
@@ -17,8 +20,9 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }) {
+  const { pathname } = useLocation();
   return (
-    <div className={cn("workplace-page-header mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between", className)}>
+    <div data-module={moduleOf(pathname)} className={cn("workplace-page-header mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between", className)}>
       <div className="min-w-0">
         <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
           {Icon && <Icon className="h-5 w-5 shrink-0 text-primary" />}

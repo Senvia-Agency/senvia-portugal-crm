@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Phone, MessageCircle, Mail, StickyNote, Loader2 } from 'lucide-react';
 import type { CommunicationType, CommunicationDirection } from '@/types/communications';
 import { COMMUNICATION_TYPE_OPTIONS, COMMUNICATION_DIRECTION_OPTIONS } from '@/types/communications';
+import { useLanguage } from "@/i18n";
 
 interface AddCommunicationModalProps {
   open: boolean;
@@ -35,6 +36,7 @@ export function AddCommunicationModal({
   defaultType = 'note',
   defaultDirection = 'outbound',
 }: AddCommunicationModalProps) {
+  const { t } = useLanguage();
   const [type, setType] = useState<CommunicationType>(defaultType);
   const [direction, setDirection] = useState<CommunicationDirection>(defaultDirection);
   const [subject, setSubject] = useState('');
@@ -73,10 +75,10 @@ export function AddCommunicationModal({
         occurred_at: occurredAt ? new Date(occurredAt).toISOString() : undefined,
       });
 
-      toast.success('Comunicação registada com sucesso');
+      toast.success(t("Comunicação registada com sucesso"));
       onOpenChange(false);
     } catch (error) {
-      toast.error('Erro ao registar comunicação');
+      toast.error(t("Erro ao registar comunicação"));
     }
   };
 
@@ -91,17 +93,17 @@ export function AddCommunicationModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5 text-primary" />
-            Registar Comunicação
+            {t("Registar Comunicação")}
           </DialogTitle>
           {clientName && (
-            <p className="text-sm text-muted-foreground">Cliente: {clientName}</p>
+            <p className="text-sm text-muted-foreground">{t("Cliente:")} {clientName}</p>
           )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="type">Tipo</Label>
+              <Label htmlFor="type">{t("Tipo")}</Label>
               <Select value={type} onValueChange={(v) => setType(v as CommunicationType)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -109,7 +111,7 @@ export function AddCommunicationModal({
                 <SelectContent>
                   {COMMUNICATION_TYPE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -118,7 +120,7 @@ export function AddCommunicationModal({
 
             {showDirection && (
               <div className="space-y-2">
-                <Label htmlFor="direction">Direção</Label>
+                <Label htmlFor="direction">{t("Direção")}</Label>
                 <Select value={direction} onValueChange={(v) => setDirection(v as CommunicationDirection)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -126,7 +128,7 @@ export function AddCommunicationModal({
                   <SelectContent>
                     {COMMUNICATION_DIRECTION_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -136,7 +138,7 @@ export function AddCommunicationModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="occurred_at">Data e Hora</Label>
+            <Label htmlFor="occurred_at">{t("Data e Hora")}</Label>
             <Input
               id="occurred_at"
               type="datetime-local"
@@ -147,12 +149,12 @@ export function AddCommunicationModal({
 
           {showDuration && (
             <div className="space-y-2">
-              <Label htmlFor="duration">Duração (minutos)</Label>
+              <Label htmlFor="duration">{t("Duração (minutos)")}</Label>
               <Input
                 id="duration"
                 type="number"
                 min="0"
-                placeholder="Ex: 5"
+                placeholder={t("Ex: 5")}
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(e.target.value)}
               />
@@ -160,20 +162,20 @@ export function AddCommunicationModal({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="subject">Assunto (opcional)</Label>
+            <Label htmlFor="subject">{t("Assunto (opcional)")}</Label>
             <Input
               id="subject"
-              placeholder="Breve descrição..."
+              placeholder={t("Breve descrição...")}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="content">Notas</Label>
+            <Label htmlFor="content">{t("Notas")}</Label>
             <Textarea
               id="content"
-              placeholder="Detalhes da comunicação..."
+              placeholder={t("Detalhes da comunicação...")}
               rows={4}
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -182,11 +184,11 @@ export function AddCommunicationModal({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button type="submit" disabled={createCommunication.isPending}>
               {createCommunication.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Registar
+              {t("Registar")}
             </Button>
           </DialogFooter>
         </form>

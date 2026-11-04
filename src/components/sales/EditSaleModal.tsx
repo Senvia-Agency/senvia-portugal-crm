@@ -31,7 +31,6 @@ import { format } from "date-fns";
 import { BillingRecipientSelector, ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
 import type { BillingTarget } from "@/types/clients";
 import { supabase } from "@/integrations/supabase/client";
-import { pt } from "date-fns/locale";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { saleStatusBadge } from "@/lib/status-badge-maps";
 import { toast } from "sonner";
@@ -74,6 +73,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CPE_STATUS_LABELS, CPE_STATUS_STYLES } from "@/types/cpes";
 import { useSaleFieldsSettings } from "@/hooks/useSaleFieldsSettings";
 import { normalizeOperationalUnits } from "@/lib/sale-units";
+import { useLanguage, tr, dateLocale } from "@/i18n";
 
 interface SaleItemDraft {
   id: string;
@@ -100,6 +100,7 @@ export function EditSaleModal({
   onOpenChange, 
   onSuccess
 }: EditSaleModalProps) {
+  const { t } = useLanguage();
   const { data: clients } = useClients();
   const { products: catalogProductNames, configs: SERVICOS_PRODUCT_CONFIGS, catalog, isNewFormat, operators: catalogOperators } = useServicosProducts();
   const { data: products } = useProducts();
@@ -127,8 +128,8 @@ export function EditSaleModal({
   const updateProposalCpes = useUpdateProposalCpes();
   const clientIdForCpes = sale?.client_id || sale?.client?.id || null;
   const { data: clientCpes = [] } = useCpes(clientIdForCpes);
-  const cpeLabel = isTelecom ? 'CPE/CUI (Pontos de Consumo)' : 'CPEs (Equipamentos)';
-  const serialLabel = isTelecom ? 'Local de Consumo' : 'Nº Série';
+  const cpeLabel = isTelecom ? t("CPE/CUI (Pontos de Consumo)") : t("CPEs (Equipamentos)");
+  const serialLabel = isTelecom ? t("Local de Consumo") : t("Nº Série");
 
   // Fiscal info
   const ixActive = isInvoiceXpressActive(organization);
@@ -480,20 +481,20 @@ export function EditSaleModal({
       return productNeedsTechnologyChoice(cat ? productTechnologies(cat) : undefined) && !detail?.tecnologia;
     });
     if (semTecnologia.length > 0) {
-      toast.error(`Escolhe a tecnologia (Fibra ou Satélite) em: ${semTecnologia.join(", ")}.`);
+      toast.error(t("Escolhe a tecnologia (Fibra ou Satélite) em: {{products}}.", { products: semTecnologia.join(", ") }));
       return;
     }
     // Date sanity for energy/telecom contracts.
     for (const cpe of editableCpes) {
       if (cpe.contrato_inicio && cpe.contrato_fim && cpe.contrato_inicio > cpe.contrato_fim) {
-        toast.error(`CPE ${cpe.serial_number || ""}: o início do contrato é depois do fim.`);
+        toast.error(t("CPE {{serial}}: o início do contrato é depois do fim.", { serial: cpe.serial_number || "" }));
         return;
       }
     }
     if (isTelecom && scheduledInstallDate) {
       const fims = editableCpes.map((c) => c.contrato_fim).filter(Boolean) as string[];
       if (fims.length > 0 && scheduledInstallDate > fims.reduce((a, b) => (a > b ? a : b))) {
-        toast.error("A data de instalação é posterior ao fim do contrato.");
+        toast.error(t("A data de instalação é posterior ao fim do contrato."));
         return;
       }
     }
@@ -652,12 +653,12 @@ export function EditSaleModal({
         }
       }
 
-      toast.success("Venda atualizada com sucesso!");
+      toast.success(t("Venda atualizada com sucesso!"));
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
       console.error("Error updating sale:", error);
-      toast.error("Erro ao atualizar venda");
+      toast.error(t("Erro ao atualizar venda"));
     } finally {
       setIsSubmitting(false);
     }
@@ -670,7 +671,7 @@ export function EditSaleModal({
       <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
         <DialogHeader className="pl-6 pr-14 py-4 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            Editar Venda
+            {t("Editar Venda")}
             {sale.code && (
               <Badge variant="outline" className="font-mono text-xs">
                 {sale.code}
@@ -690,25 +691,25 @@ export function EditSaleModal({
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <FileText className="h-4 w-4" />
-                        Dados da Venda
+                        {t("Dados da Venda")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Código</Label>
+                          <Label className="text-xs text-muted-foreground">{t("Código")}</Label>
                           <p className="font-mono text-sm font-medium">{sale.code || '—'}</p>
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Data da Venda</Label>
+                          <Label className="text-xs text-muted-foreground">{t("Data da Venda")}</Label>
                           <p className="text-sm font-medium">
-                            {format(new Date(sale.sale_date), "d MMM yyyy", { locale: pt })}
+                            {format(new Date(sale.sale_date), "d MMM yyyy", { locale: dateLocale() })}
                           </p>
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Estado</Label>
+                          <Label className="text-xs text-muted-foreground">{t("Estado")}</Label>
                           {/* One lifecycle in telecom, not two: this writes
                               sales.status behind it (TELECOM_TO_SALE_STATUS). */}
                           {isTelecom ? (
@@ -717,13 +718,13 @@ export function EditSaleModal({
                               onValueChange={(v) => setTelecomStatus(v === NO_TELECOM_STATUS ? '' : v as TelecomStatus)}
                               disabled={isDeliveredLocked}
                             >
-                              <SelectTrigger className="h-9"><SelectValue placeholder="Sem estado" /></SelectTrigger>
+                              <SelectTrigger className="h-9"><SelectValue placeholder={t("Sem estado")} /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value={NO_TELECOM_STATUS}>Sem estado</SelectItem>
+                                <SelectItem value={NO_TELECOM_STATUS}>{t("Sem estado")}</SelectItem>
                                 {TELECOM_STATUSES.map((s) => (
                                   <SelectItem key={s} value={s}>
                                     <span className="flex flex-col items-start">
-                                      <span>{TELECOM_STATUS_LABELS[s]}</span>
+                                      <span>{t(TELECOM_STATUS_LABELS[s])}</span>
                                       {TELECOM_STATUS_HINTS[s] && (
                                         <span className="text-[11px] text-muted-foreground">{TELECOM_STATUS_HINTS[s]}</span>
                                       )}
@@ -734,7 +735,7 @@ export function EditSaleModal({
                             </Select>
                           ) : (
                             <div>
-                              <StatusBadge {...saleStatusBadge(sale.status)} />
+                              <StatusBadge {...saleStatusBadge(sale.status)} label={t(saleStatusBadge(sale.status).label)} />
                             </div>
                           )}
                         </div>
@@ -751,7 +752,7 @@ export function EditSaleModal({
                             {/* Full row: the date plus its "das X às Y" window
                                 never fits one third of the grid. */}
                             <div className="space-y-1.5 col-span-1 sm:col-span-3">
-                              <Label htmlFor="edit-sale-installation-date" className="text-xs text-muted-foreground">Data de Instalação</Label>
+                              <Label htmlFor="edit-sale-installation-date" className="text-xs text-muted-foreground">{t("Data de Instalação")}</Label>
                               <div className="flex flex-wrap items-center gap-2">
                                 <Input
                                   id="edit-sale-installation-date"
@@ -764,7 +765,7 @@ export function EditSaleModal({
                                 {/* Booked as a window ("das 9h às 12h"). */}
                                 {scheduledInstallDate && (
                                   <>
-                                    <span className="text-xs text-muted-foreground shrink-0">das</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{t("das")}</span>
                                     <Input
                                       type="time"
                                       value={scheduledInstallTime}
@@ -772,7 +773,7 @@ export function EditSaleModal({
                                       className="h-9 w-auto"
                                       disabled={isDeliveredLocked}
                                     />
-                                    <span className="text-xs text-muted-foreground shrink-0">às</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{t("às")}</span>
                                     <Input
                                       type="time"
                                       value={scheduledInstallEndTime}
@@ -783,11 +784,11 @@ export function EditSaleModal({
                                   </>
                                 )}
                               </div>
-                              <p className="text-[11px] text-muted-foreground">A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.</p>
+                              <p className="text-[11px] text-muted-foreground">{t("A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.")}</p>
                             </div>
 
                             <div className="col-span-1 sm:col-span-3 space-y-1.5">
-                              <Label className="text-xs text-muted-foreground">Fim da fidelização</Label>
+                              <Label className="text-xs text-muted-foreground">{t("Fim da fidelização")}</Label>
                               <div className="flex flex-wrap items-center gap-2">
                                 <Input
                                   type="date"
@@ -808,11 +809,11 @@ export function EditSaleModal({
                                       setFidelizacaoEnd(format(base, "yyyy-MM-dd"));
                                     }}
                                   >
-                                    +2 anos
+                                    {t("+2 anos")}
                                   </Button>
                                 )}
                               </div>
-                              <p className="text-[11px] text-muted-foreground">Os alertas de renovação (push e email aos admins) partem desta data.</p>
+                              <p className="text-[11px] text-muted-foreground">{t("Os alertas de renovação (push e email aos admins) partem desta data.")}</p>
                             </div>
 
                             <div className="col-span-1 sm:col-span-3 flex flex-wrap items-center gap-x-8 gap-y-2 pt-1">
@@ -838,12 +839,12 @@ export function EditSaleModal({
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <User className="h-4 w-4" />
-                        Informação Básica
+                        {t("Informação Básica")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-4">
                       <div className="space-y-2">
-                        <Label>Cliente</Label>
+                        <Label>{t("Cliente")}</Label>
                         <SearchableCombobox
                           options={clientOptions}
                           value={clientId}
@@ -852,9 +853,9 @@ export function EditSaleModal({
                             const nextClient = clients?.find(client => client.id === id);
                             setBillingTarget(nextClient?.billing_target === 'company' ? 'company' : 'client');
                           }}
-                          placeholder="Selecionar cliente..."
-                          searchPlaceholder="Pesquisar cliente..."
-                          emptyText="Nenhum cliente encontrado"
+                          placeholder={t("Selecionar cliente...")}
+                          searchPlaceholder={t("Pesquisar cliente...")}
+                          emptyText={t("Nenhum cliente encontrado")}
                           disabled={!canFullEdit}
                         />
                       </div>
@@ -880,7 +881,7 @@ export function EditSaleModal({
                       <CardContent className="p-4">
                         <div className="flex items-center gap-2 text-sm">
                           <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Proposta associada:</span>
+                          <span className="text-muted-foreground">{t("Proposta associada:")}</span>
                           {sale.proposal.code && (
                             <Badge variant="outline" className="font-mono text-xs">
                               {sale.proposal.code}
@@ -897,38 +898,38 @@ export function EditSaleModal({
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Zap className="h-4 w-4 text-amber-500" />
-                          Dados de Energia
+                          {t("Dados de Energia")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-3">
                           <div className="col-span-2 space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Tipo de Negociação</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Tipo de Negociação")}</Label>
                             <Select value={negotiationType} onValueChange={setNegotiationType}>
-                              <SelectTrigger className="h-9"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                              <SelectTrigger className="h-9"><SelectValue placeholder={t("Selecionar...")} /></SelectTrigger>
                               <SelectContent>
-                                {NEGOTIATION_TYPES.map(t => (<SelectItem key={t} value={t}>{NEGOTIATION_TYPE_LABELS[t]}</SelectItem>))}
+                                {NEGOTIATION_TYPES.map(t => (<SelectItem key={t} value={t}>{tr(NEGOTIATION_TYPE_LABELS[t])}</SelectItem>))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Consumo Anual (kWh)</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Consumo Anual (kWh)")}</Label>
                             <Input type="number" value={consumoAnual} onChange={e => setConsumoAnual(e.target.value)} className="h-9" step="0.01" />
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Margem (€/MWh)</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Margem (€/MWh)")}</Label>
                             <Input type="number" value={margem} onChange={e => setMargem(e.target.value)} className="h-9" step="0.01" />
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Anos de Contrato (auto)</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Anos de Contrato (auto)")}</Label>
                             <Input type="number" value={anosContrato} className="h-9 bg-muted" step="1" min="0" disabled />
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">DBL</Label>
+                            <Label className="text-xs text-muted-foreground">{t("DBL")}</Label>
                             <Input type="number" value={dbl} onChange={e => setDbl(e.target.value)} className="h-9" step="0.01" />
                           </div>
                           <div className="col-span-2 space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Comissão (€)</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Comissão (€)")}</Label>
                             <Input type="number" value={comissao} onChange={e => setComissao(e.target.value)} className="h-9" step="0.01" />
                           </div>
                         </div>
@@ -994,22 +995,22 @@ export function EditSaleModal({
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Wrench className="h-4 w-4 text-blue-500" />
-                          Dados do Serviço
+                          {t("Dados do Serviço")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-3">
                           <div className="col-span-2 space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Tipo de Negociação</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Tipo de Negociação")}</Label>
                             <Select value={negotiationType} onValueChange={setNegotiationType}>
-                              <SelectTrigger className="h-9"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                              <SelectTrigger className="h-9"><SelectValue placeholder={t("Selecionar...")} /></SelectTrigger>
                               <SelectContent>
-                                {NEGOTIATION_TYPES.map(t => (<SelectItem key={t} value={t}>{NEGOTIATION_TYPE_LABELS[t]}</SelectItem>))}
+                                {NEGOTIATION_TYPES.map(t => (<SelectItem key={t} value={t}>{tr(NEGOTIATION_TYPE_LABELS[t])}</SelectItem>))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="col-span-2 space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Serviços/Produtos</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Serviços/Produtos")}</Label>
                             <div className="flex flex-wrap gap-3 mt-1">
                               {catalogProductNames.map(sp => (
                                 <label key={sp} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -1020,24 +1021,24 @@ export function EditSaleModal({
                             </div>
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Modelo de Serviço</Label>
+                            <Label className="text-xs text-muted-foreground">{t("Modelo de Serviço")}</Label>
                             <Select value={modeloServico} onValueChange={setModeloServico}>
-                              <SelectTrigger className="h-9"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                              <SelectTrigger className="h-9"><SelectValue placeholder={t("Selecionar...")} /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="transacional">Transacional</SelectItem>
-                                <SelectItem value="saas">SAAS</SelectItem>
+                                <SelectItem value="transacional">{t("Transacional")}</SelectItem>
+                                <SelectItem value="saas">{t("SAAS")}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">kWp</Label>
+                            <Label className="text-xs text-muted-foreground">{t("kWp")}</Label>
                             <Input type="number" value={kwp} onChange={e => setKwp(e.target.value)} className="h-9" step="0.01" />
                           </div>
                           <div className="col-span-2 space-y-1.5">
                             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              Comissão (€)
+                              {t("Comissão (€)")}
                               {servicosProdutos.some(p => isAutoCalculated(p)) && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20">Auto</Badge>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20">{t("Auto")}</Badge>
                               )}
                             </Label>
                             <Input 
@@ -1069,14 +1070,14 @@ export function EditSaleModal({
                             <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant="outline" className="text-xs">{cpe.equipment_type}</Badge>
                               {negotiationType === 'renovacao' ? (
-                                <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">Renovação</Badge>
+                                <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">{t("Renovação")}</Badge>
                               ) : (
-                                <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">Novo</Badge>
+                                <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">{t("Novo")}</Badge>
                               )}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Comercializador</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Comercializador")}</Label>
                                 <Input value={cpe.comercializador} onChange={e => { const u = [...editableCpes]; u[idx] = { ...u[idx], comercializador: e.target.value }; setEditableCpes(u); }} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
@@ -1084,7 +1085,7 @@ export function EditSaleModal({
                                 <Input value={cpe.serial_number || ""} onChange={e => { const u = [...editableCpes]; u[idx] = { ...u[idx], serial_number: e.target.value }; setEditableCpes(u); }} className="h-8 text-sm font-mono" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Início Contrato</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Início Contrato")}</Label>
                                 <Input type="date" value={cpe.contrato_inicio || ""} onChange={e => {
                                   const u = [...editableCpes];
                                   const inicio = e.target.value;
@@ -1099,7 +1100,7 @@ export function EditSaleModal({
                                 }} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Fim Contrato</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Fim Contrato")}</Label>
                                 <Input type="date" value={cpe.contrato_fim || ""} onChange={e => {
                                   const u = [...editableCpes];
                                   const fim = e.target.value;
@@ -1114,11 +1115,11 @@ export function EditSaleModal({
                                 }} className="h-8 text-sm" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Duração (anos)</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Duração (anos)")}</Label>
                                 <Input type="number" value={cpe.duracao_contrato ?? ""} className="h-8 text-sm bg-muted" disabled />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Consumo (kWh)</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Consumo (kWh)")}</Label>
                                 <Input type="number" value={cpe.consumo_anual ?? ""} onChange={e => {
                                   const u = [...editableCpes];
                                   const newConsumo = e.target.value ? parseFloat(e.target.value) : null;
@@ -1133,11 +1134,11 @@ export function EditSaleModal({
                                 }} className="h-8 text-sm" step="0.01" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">DBL</Label>
+                                <Label className="text-xs text-muted-foreground">{t("DBL")}</Label>
                                 <Input type="number" value={cpe.dbl ?? ""} onChange={e => { const u = [...editableCpes]; u[idx] = { ...u[idx], dbl: e.target.value ? parseFloat(e.target.value) : null }; setEditableCpes(u); }} className="h-8 text-sm" step="0.01" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Margem (€/MWh)</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Margem (€/MWh)")}</Label>
                                 <Input type="number" value={cpe.margem ?? ""} onChange={e => {
                                   const u = [...editableCpes];
                                   const newMargem = e.target.value ? parseFloat(e.target.value) : null;
@@ -1152,7 +1153,7 @@ export function EditSaleModal({
                                 }} className="h-8 text-sm" step="0.01" />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Comissão (€)</Label>
+                                <Label className="text-xs text-muted-foreground">{t("Comissão (€)")}</Label>
                                 <Input type="number" value={cpe.comissao ?? ""} onChange={e => { const u = [...editableCpes]; u[idx] = { ...u[idx], comissao: e.target.value ? parseFloat(e.target.value) : null }; setEditableCpes(u); }} className="h-8 text-sm" step="0.01" />
                               </div>
                             </div>
@@ -1181,7 +1182,7 @@ export function EditSaleModal({
                                 <Badge variant="secondary" className="text-xs">{cpe.comercializador}</Badge>
                                 {statusStyle && (
                                   <Badge variant="outline" className={`text-xs ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
-                                    {CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS]}
+                                    {t(CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS])}
                                   </Badge>
                                 )}
                               </div>
@@ -1203,7 +1204,7 @@ export function EditSaleModal({
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Package className="h-4 w-4" />
-                          Produtos/Serviços
+                          {t("Produtos/Serviços")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
@@ -1263,11 +1264,11 @@ export function EditSaleModal({
                                   {isRecurring && (
                                     <div className="flex items-center gap-2 pl-2 text-sm border-t pt-2 mt-2">
                                       <CalendarIcon className="h-4 w-4 text-primary" />
-                                      <span className="text-muted-foreground">Vence em:</span>
+                                      <span className="text-muted-foreground">{t("Vence em:")}</span>
                                       <Popover>
                                         <PopoverTrigger asChild>
                                           <Button type="button" variant="outline" size="sm" className="h-7 text-xs">
-                                            {item.first_due_date ? format(item.first_due_date, "dd/MM/yyyy") : "Selecionar data"}
+                                            {item.first_due_date ? format(item.first_due_date, "dd/MM/yyyy") : t("Selecionar data")}
                                           </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0" align="start">
@@ -1275,14 +1276,14 @@ export function EditSaleModal({
                                             mode="single"
                                             selected={item.first_due_date || undefined}
                                             onSelect={(date) => handleUpdateDueDate(item.id, date)}
-                                            locale={pt}
+                                            locale={dateLocale()}
                                             className="pointer-events-auto"
                                           />
                                         </PopoverContent>
                                       </Popover>
                                       <Badge variant="secondary" className="text-xs">
                                         <RefreshCw className="h-3 w-3 mr-1" />
-                                        Mensal
+                                        {t("Mensal")}
                                       </Badge>
                                     </div>
                                   )}
@@ -1296,9 +1297,9 @@ export function EditSaleModal({
                           options={productOptions}
                           value=""
                           onValueChange={handleAddProduct}
-                          placeholder="+ Adicionar produto..."
-                          searchPlaceholder="Pesquisar produto..."
-                          emptyText="Nenhum produto encontrado"
+                          placeholder={t("+ Adicionar produto...")}
+                          searchPlaceholder={t("Pesquisar produto...")}
+                          emptyText={t("Nenhum produto encontrado")}
                         />
                       </CardContent>
                     </Card>
@@ -1336,18 +1337,18 @@ export function EditSaleModal({
                         <CardHeader className="pb-2 p-4">
                           <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <FileText className="h-4 w-4" />
-                            Resumo
+                            {t("Resumo")}
                           </CardTitle>
                         </CardHeader>
                          <CardContent className="p-4 pt-0 space-y-3">
                           {isTelecom ? (
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Comissão</span>
+                              <span className="text-muted-foreground">{t("Comissão")}</span>
                               <span className="font-medium">{formatCurrency(sellerCommissionTotal)}</span>
                             </div>
                           ) : !hasItems ? (
                             <div className="space-y-1.5">
-                              <Label className="text-sm text-muted-foreground">Valor Total</Label>
+                              <Label className="text-sm text-muted-foreground">{t("Valor Total")}</Label>
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">€</span>
                                 <Input
@@ -1362,14 +1363,14 @@ export function EditSaleModal({
                             </div>
                           ) : (
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Subtotal</span>
+                              <span className="text-muted-foreground">{t("Subtotal")}</span>
                               <span>{formatCurrency(subtotal)}</span>
                             </div>
                           )}
                           
                           {hasItems && (
                             <div className="flex items-center justify-between gap-4">
-                              <Label className="text-sm text-muted-foreground">Desconto</Label>
+                              <Label className="text-sm text-muted-foreground">{t("Desconto")}</Label>
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">€</span>
                                 <Input
@@ -1388,13 +1389,13 @@ export function EditSaleModal({
 
                           {ixActive && (
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">IVA</span>
+                              <span className="text-muted-foreground">{t("IVA")}</span>
                               <span className="font-medium">{formatCurrency(vatCalc.totalVat)}</span>
                             </div>
                           )}
                           
                           <div className="flex justify-between text-lg font-semibold">
-                            <span>{isTelecom ? 'Comissão' : ixActive ? 'Total (s/ IVA)' : 'Total'}</span>
+                            <span>{isTelecom ? t("Comissão") : ixActive ? t("Total (s/ IVA)") : t("Total")}</span>
                             <span className="text-primary">
                               {formatCurrency(isTelecom ? sellerCommissionTotal : total)}
                             </span>
@@ -1402,7 +1403,7 @@ export function EditSaleModal({
 
                           {ixActive && (
                             <div className="flex justify-between text-sm border-t pt-2">
-                              <span className="text-muted-foreground font-medium">Total c/ IVA</span>
+                              <span className="text-muted-foreground font-medium">{t("Total c/ IVA")}</span>
                               <span className="font-semibold">{formatCurrency(vatCalc.totalWithVat)}</span>
                             </div>
                           )}
@@ -1416,30 +1417,30 @@ export function EditSaleModal({
                         <CardHeader className="pb-2 p-4">
                           <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <CreditCard className="h-4 w-4" />
-                            Pagamento
+                            {t("Pagamento")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 space-y-4">
                           <div className="space-y-2">
                             <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Progresso</span>
+                              <span>{t("Progresso")}</span>
                               <span>{Math.round(paymentSummary.percentage)}%</span>
                             </div>
                             <Progress value={paymentSummary.percentage} className="h-2" />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <p className="text-xs text-muted-foreground">Total Pago</p>
+                              <p className="text-xs text-muted-foreground">{t("Total Pago")}</p>
                               <p className="text-sm font-semibold text-green-500">{formatCurrency(paymentSummary.totalPaid)}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Em Falta</p>
+                              <p className="text-xs text-muted-foreground">{t("Em Falta")}</p>
                               <p className="text-sm font-semibold text-amber-500">{formatCurrency(paymentSummary.remaining)}</p>
                             </div>
                           </div>
                           {paymentSummary.totalScheduled > 0 && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Agendado</p>
+                              <p className="text-xs text-muted-foreground">{t("Agendado")}</p>
                               <p className="text-sm font-semibold">{formatCurrency(paymentSummary.totalScheduled)}</p>
                             </div>
                           )}
@@ -1457,15 +1458,15 @@ export function EditSaleModal({
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
                           {saleOperatorNames.length === 1
-                            ? `Número Proposta ${saleOperatorNames[0]}`
-                            : 'Número de Proposta'}
+                            ? t("Número Proposta {{operator}}", { operator: saleOperatorNames[0] })
+                            : t("Número de Proposta")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <Input
                           placeholder={saleOperatorNames.length === 1
-                            ? `Nº da proposta na ${saleOperatorNames[0]}`
-                            : 'Nº da proposta na operadora'}
+                            ? t("Nº da proposta na {{operator}}", { operator: saleOperatorNames[0] })
+                            : t("Nº da proposta na operadora")}
                           value={edpProposalNumber}
                           onChange={(e) => setEdpProposalNumber(e.target.value)}
                         />
@@ -1474,11 +1475,11 @@ export function EditSaleModal({
 
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Notas</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Notas")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <Textarea
-                          placeholder="Observações sobre a venda..."
+                          placeholder={t("Observações sobre a venda...")}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           rows={3}
@@ -1498,7 +1499,7 @@ export function EditSaleModal({
             {isDeliveredLocked && (
               <div className="flex items-center gap-2 text-amber-500 text-sm mb-3 max-w-6xl mx-auto">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>Esta venda está concluída. Apenas administradores podem editar.</span>
+                <span>{t("Esta venda está concluída. Apenas administradores podem editar.")}</span>
               </div>
             )}
             <div className="flex gap-3 max-w-6xl mx-auto">
@@ -1512,10 +1513,10 @@ export function EditSaleModal({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    A guardar...
+                    {t("A guardar...")}
                   </>
                 ) : (
-                  "Guardar Alterações"
+                  t("Guardar Alterações")
                 )}
               </Button>
               <Button
@@ -1526,7 +1527,7 @@ export function EditSaleModal({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Cancelar
+                {t("Cancelar")}
               </Button>
             </div>
           </div>

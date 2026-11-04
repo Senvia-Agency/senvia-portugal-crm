@@ -31,23 +31,24 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { format, parseISO, startOfDay, endOfDay } from "date-fns";
-import { pt } from "date-fns/locale";
+import { format, parseISO, startOfDay, endOfDay, startOfMonth } from "date-fns";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { InvoicesContent } from "@/components/finance/InvoicesContent";
 import InternalRequests from "@/pages/finance/InternalRequests";
 import { BankAccountsTab } from "@/components/finance/BankAccountsTab";
 import { TeamCommissionsTab } from "@/components/finance/TeamCommissionsTab";
+import { TelecomFinanceDashboard } from "@/components/finance/TelecomFinanceDashboard";
 import { CommissionAnalysisTab } from "@/components/finance/CommissionAnalysisTab";
 import { MinhasComissoesModal } from "@/components/finance/MinhasComissoesModal";
 import { FinanceCardDetail, type FinanceDetailType } from "@/components/finance/FinanceCardDetail";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { useMyCommissions } from "@/hooks/useSalesApproval";
-import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
+import { useCommercialCommissions, useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
 import { RenewalAlertsWidget } from "@/components/finance/RenewalAlertsWidget";
 import { GenericFinanceDashboard } from "@/components/finance/GenericFinanceDashboard";
+import { usesFinanceTabs } from "@/lib/finance-tabs";
 import { ChargebacksTab } from "@/components/finance/ChargebacksTab";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -61,6 +62,7 @@ import {
   hasCommissionFilters,
   type CommissionFilters,
 } from "@/lib/commission-filters";
+import { dateLocale, useLanguage } from "@/i18n";
 
 function TelecomFinanceFilters({
   dateRange,
@@ -73,6 +75,7 @@ function TelecomFinanceFilters({
   filters: CommissionFilters;
   onFiltersChange: (filters: CommissionFilters) => void;
 }) {
+  const { t } = useLanguage();
   const hasActiveFilters = !!dateRange?.from || hasCommissionFilters(filters);
   const renderFilters = () => (
     <CommissionFiltersBar
@@ -84,7 +87,7 @@ function TelecomFinanceFilters({
         <DateRangePicker
           value={dateRange}
           onChange={onDateRangeChange}
-          placeholder="Todo o histórico"
+          placeholder={t("Todo o histórico")}
           // flex-1, not w-full: the clear (×) button sits beside it, and
           // w-full + × was wider than the column — the whole card scrolled
           // sideways and every filter looked cut off.
@@ -93,14 +96,14 @@ function TelecomFinanceFilters({
       }
     />
   );
-  const description = "Comissões por mês previsto de recebimento. Sem período selecionado, as diferidas de meses futuros ficam excluídas.";
+  const description = t("Comissões por mês previsto de recebimento. Sem período selecionado, as diferidas de meses futuros ficam excluídas.");
 
   return (
     <div className="contents">
       <aside className="hidden min-w-0 overflow-x-hidden rounded-xl border border-border/70 bg-card p-3 2xl:sticky 2xl:top-4 2xl:block 2xl:max-h-[calc(100dvh-2rem)] 2xl:overflow-y-auto">
         <div className="mb-4 space-y-1">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <SlidersHorizontal className="h-4 w-4 text-primary" />Filtros
+            <SlidersHorizontal className="h-4 w-4 text-primary" />{t("Filtros")}
           </h2>
           <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
         </div>
@@ -113,8 +116,8 @@ function TelecomFinanceFilters({
             <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline">
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
-                Filtros
-                {hasActiveFilters && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Ativos</span>}
+                {t("Filtros")}
+                {hasActiveFilters && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{t("Ativos")}</span>}
               </span>
             </AccordionTrigger>
             <AccordionContent className="space-y-3 pb-3">
@@ -129,6 +132,7 @@ function TelecomFinanceFilters({
 }
 
 export default function Finance() {
+  const { t } = useLanguage();
   const { organization, organizations, user } = useAuth();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const salesSettings = (organization?.sales_settings as { commissions_enabled?: boolean }) || {};
@@ -141,7 +145,7 @@ export default function Finance() {
   // Chargebacks only exist for telecom, where a sale cancelled after install
   // claws its commission back.
   const isTelecom = organization?.niche === 'telecom';
-  const isGenericNiche = !organization?.niche || organization.niche === 'generic';
+  const isGenericNiche = usesFinanceTabs(organization?.niche);
   // Commissions moved to the standalone /comissoes page (available with the
   // Vendas module), so they are no longer tabs here.
   const validTabs = [
@@ -175,9 +179,13 @@ export default function Finance() {
   };
 
   // Team commissions (admin Comissões card) — period-aware.
-  const { data: teamCommission } = useTeamCommissionTotal(dateRange, isTelecom ? commissionFilters : undefined);
-  const { data: generalTeamCommission } = useTeamCommissionTotal(dateRange, generalCommissionFilters);
+  const { data: teamCommission, isLoading: teamCommissionLoading } = useTeamCommissionTotal(dateRange, isTelecom ? commissionFilters : undefined);
+  const { data: generalTeamCommission, isLoading: generalCommissionLoading } = useTeamCommissionTotal(dateRange, generalCommissionFilters);
   const teamCommissionTotal = teamCommission?.total ?? 0;
+  // The tabbed finance page counts commissions once, the way the Comissões tab does.
+  const usesTabs = !isTelecom && isGenericNiche;
+  const { data: periodCommissions, isLoading: periodCommissionsLoading } = useCommercialCommissions(
+    usesTabs ? format(startOfMonth(new Date()), "yyyy-MM-dd") : "", null, { dateRange });
   const teamSalesCount = teamCommission?.count ?? 0;
   // Telecom margin: what the operators paid, minus what the sellers took.
   const orgMarginTotal = generalTeamCommission?.orgTotal ?? 0;
@@ -220,11 +228,11 @@ export default function Finance() {
   const teamPaidTotal = teamCommission?.paidTotal ?? 0;
 
   const commissionChips = useCommissionFilterChips(isTelecom ? commissionFilters : undefined);
-  const financeChips = [...(dateRange?.from ? ["Período"] : []), ...commissionChips];
+  const financeChips = [...(dateRange?.from ? [t("Período")] : []), ...commissionChips];
 
   const chartData = stats.cashflowTrend.map((point) => ({
     ...point,
-    dateLabel: format(parseISO(point.date), "dd MMM", { locale: pt }),
+    dateLabel: format(parseISO(point.date), "dd MMM", { locale: dateLocale() }),
   }));
 
   const hasFilters = dateRange?.from !== undefined;
@@ -235,7 +243,7 @@ export default function Finance() {
   if (!isAdmin) {
     return (
       <div className="space-y-6 p-4 pb-20 md:p-6 md:pb-6 lg:p-8">
-        <PageHeader icon={Wallet} title="Financeiro" subtitle="As tuas comissões." />
+        <PageHeader icon={Wallet} title={t("Financeiro")} subtitle={t("As tuas comissões.")} />
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           <Card
@@ -243,7 +251,7 @@ export default function Finance() {
             onClick={() => setMyCommissionsModalOpen(true)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">As Minhas Comissões</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("As Minhas Comissões")}</CardTitle>
               <div className="flex items-center gap-1">
                 <Percent className="h-4 w-4 text-emerald-500" />
                 <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -254,9 +262,9 @@ export default function Finance() {
                 {formatCurrency(myConfirmedTotal)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Confirmadas
+                {t("Confirmadas")}
                 {myPendingTotal > 0 && (
-                  <span className="ml-1">· {formatCurrency(myPendingTotal)} pendentes</span>
+                  <span className="ml-1">· {t("{{value}} pendentes", { value: formatCurrency(myPendingTotal) })}</span>
                 )}
               </p>
             </CardContent>
@@ -280,13 +288,38 @@ export default function Finance() {
           onDateRangeChange={setDateRange}
           detailView={detailView}
           onDetailViewChange={setDetailView}
+          commissions={periodCommissions}
+          commissionsLoading={periodCommissionsLoading}
+          myUserId={user?.id}
+        />
+      </>
+    );
+  }
+
+  if (isTelecom) {
+    return (
+      <>
+        <TelecomFinanceDashboard
+          stats={stats}
+          isLoading={isLoading}
+          payments={payments}
+          allPayments={allPayments}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          commissionFilters={commissionFilters}
+          onCommissionFiltersChange={setCommissionFilters}
+          detailView={detailView}
+          onDetailViewChange={setDetailView}
+          teamCommissionTotal={teamCommissionTotal}
+          teamPaidTotal={teamPaidTotal}
+          commissionsLoading={teamCommissionLoading || generalCommissionLoading}
+          orgMarginTotal={orgMarginTotal}
+          balance={balanceShown}
+          chargebacksTotal={chargebacksTotal}
+          chargebacksCount={chargebacksInPeriod.length}
           myConfirmedTotal={myConfirmedTotal}
           myPendingTotal={myPendingTotal}
-          teamCommissionTotal={teamCommissionTotal}
-          teamSalesCount={teamSalesCount}
-          onMyCommissions={() => setMyCommissionsModalOpen(true)}
         />
-        <MinhasComissoesModal open={myCommissionsModalOpen} onOpenChange={setMyCommissionsModalOpen} />
       </>
     );
   }
@@ -296,36 +329,36 @@ export default function Finance() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className={isTelecom ? "space-y-0" : "space-y-6"}>
         <PinnedPageBar
           icon={Wallet}
-          title="Financeiro"
+          title={t("Financeiro")}
           storageKey="finance-filters-open-v1"
           tabs={
             <TabsList className="h-8 flex-wrap">
-              <TabsTrigger value="resumo" className="h-7 text-xs">Resumo</TabsTrigger>
-              <TabsTrigger value="contas" className="h-7 text-xs">Contas</TabsTrigger>
-              <TabsTrigger value="faturas" className="h-7 text-xs">Faturas</TabsTrigger>
-              {isTelecom && <TabsTrigger value="chargebacks" className="h-7 text-xs">Chargebacks</TabsTrigger>}
-              <TabsTrigger value="outros" className="h-7 text-xs">Outros</TabsTrigger>
+              <TabsTrigger value="resumo" className="h-7 text-xs">{t("Resumo")}</TabsTrigger>
+              <TabsTrigger value="contas" className="h-7 text-xs">{t("Contas")}</TabsTrigger>
+              <TabsTrigger value="faturas" className="h-7 text-xs">{t("Faturas")}</TabsTrigger>
+              {isTelecom && <TabsTrigger value="chargebacks" className="h-7 text-xs">{t("Chargebacks")}</TabsTrigger>}
+              <TabsTrigger value="outros" className="h-7 text-xs">{t("Outros")}</TabsTrigger>
             </TabsList>
           }
           summary={!isTelecom && activeTab === "resumo"
-            ? `Faturado ${formatCurrency(stats.totalBilled)} · Recebido ${formatCurrency(stats.totalReceived)}`
+            ? t("Faturado {{billed}} · Recebido {{received}}", { billed: formatCurrency(stats.totalBilled), received: formatCurrency(stats.totalReceived) })
             : undefined}
           chips={activeTab === "resumo" ? financeChips : []}
           panel={!isTelecom && activeTab === "resumo" ? (
             <div className="space-y-3 px-4 md:px-6 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <span className="text-sm font-medium text-muted-foreground">Período:</span>
+                <span className="text-sm font-medium text-muted-foreground">{t("Período:")}</span>
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  placeholder="Todo o histórico"
+                  placeholder={t("Todo o histórico")}
                   className="w-full sm:w-auto"
                 />
               </div>
             </div>
           ) : undefined}
           layout={isTelecom ? "dashboard" : "pinned"}
-          subtitle={isTelecom ? "Comissões, instalações e despesas num só lugar." : undefined}
+          subtitle={isTelecom ? t("Comissões, instalações e despesas num só lugar.") : undefined}
           className={isTelecom ? "p-0 md:p-0 lg:p-0 space-y-3" : undefined}
         />
 
@@ -364,7 +397,7 @@ export default function Finance() {
               onClick={() => setDetailView("faturado")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{isTelecom ? "Comissão bruta" : "Total Faturado"}</CardTitle>
+                <CardTitle className="text-sm font-medium">{isTelecom ? t("Comissão bruta") : t("Total Faturado")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -377,8 +410,8 @@ export default function Finance() {
                   <div className="text-xl font-bold md:text-2xl">{formatCurrency(isTelecom ? stats.totalCommission : stats.totalBilled)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  {hasFilters ? (isTelecom ? "Antes dos CB · no período" : "No período") : isTelecom ? "Antes dos CB · até ao mês atual" : "Histórico total"}
-                  {isTelecom && hasCommissionFilters(commissionFilters) && " · filtrado"}
+                  {hasFilters ? (isTelecom ? t("Antes dos CB · no período") : t("No período")) : isTelecom ? t("Antes dos CB · até ao mês atual") : t("Histórico total")}
+                  {isTelecom && hasCommissionFilters(commissionFilters) && ` · ${t("filtrado")}`}
                 </p>
               </CardContent>
             </Card>
@@ -394,7 +427,7 @@ export default function Finance() {
                   onClick={() => setDetailView("porInstalar")}
                 >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Por instalar</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("Por instalar")}</CardTitle>
                     <div className="flex items-center gap-1">
                       <Hammer className="h-4 w-4 text-amber-500" />
                       <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -407,7 +440,7 @@ export default function Finance() {
                       <div className="text-xl font-bold text-amber-600 md:text-2xl">{formatCurrency(stats.telecomToInstall)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatOperationalUnits(stats.telecomToInstallCount)} venda{stats.telecomToInstallCount === 1 ? "" : "s"} em instalação com data marcada
+                      {t(stats.telecomToInstallCount === 1 ? "{{n}} venda em instalação com data marcada" : "{{n}} vendas em instalação com data marcada", { n: formatOperationalUnits(stats.telecomToInstallCount) })}
                     </p>
                   </CardContent>
                 </Card>
@@ -417,7 +450,7 @@ export default function Finance() {
                   onClick={() => setDetailView("instalado")}
                 >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ativos e instalados</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("Ativos e instalados")}</CardTitle>
                     <div className="flex items-center gap-1">
                       <PlugZap className="h-4 w-4 text-emerald-500" />
                       <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -430,7 +463,7 @@ export default function Finance() {
                       <div className="text-xl font-bold text-emerald-600 md:text-2xl">{formatCurrency(stats.telecomInstalled)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatOperationalUnits(stats.telecomInstalledCount)} unidades ativas ou instaladas · comissão ganha
+                      {t("{{n}} unidades ativas ou instaladas · comissão ganha", { n: formatOperationalUnits(stats.telecomInstalledCount) })}
                     </p>
                   </CardContent>
                 </Card>
@@ -440,7 +473,7 @@ export default function Finance() {
                   onClick={() => setActiveTab("chargebacks")}
                 >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Chargebacks</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("Chargebacks")}</CardTitle>
                     <div className="flex items-center gap-1">
                       <Undo2 className="h-4 w-4 text-destructive" />
                       <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -450,8 +483,8 @@ export default function Finance() {
                     <div className="text-xl font-bold text-destructive md:text-2xl">{formatCurrency(chargebacksTotal)}</div>
                     <p className="text-xs text-muted-foreground">
                       {chargebacksInPeriod.length === 0
-                        ? "Nenhum CB confirmado no período"
-                        : `${chargebacksInPeriod.length} CB confirmado${chargebacksInPeriod.length === 1 ? "" : "s"} no período`}
+                        ? t("Nenhum CB confirmado no período")
+                        : t(chargebacksInPeriod.length === 1 ? "{{n}} CB confirmado no período" : "{{n}} CB confirmados no período", { n: chargebacksInPeriod.length })}
                     </p>
                   </CardContent>
                 </Card>
@@ -464,7 +497,7 @@ export default function Finance() {
               onClick={() => setDetailView("received")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Recebido</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("Recebido")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <TrendingUp className="h-4 w-4 text-emerald-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -476,7 +509,7 @@ export default function Finance() {
                 ) : (
                   <div className="text-xl font-bold text-emerald-600 md:text-2xl">{formatCurrency(stats.totalReceived)}</div>
                 )}
-                <p className="text-xs text-muted-foreground">{hasFilters ? "No período" : "Total recebido"}</p>
+                <p className="text-xs text-muted-foreground">{hasFilters ? t("No período") : t("Total recebido")}</p>
               </CardContent>
             </Card>
             )}
@@ -487,7 +520,7 @@ export default function Finance() {
               onClick={() => setDetailView("pending")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pendente</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("Pendente")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Clock className="h-4 w-4 text-amber-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -499,7 +532,7 @@ export default function Finance() {
                 ) : (
                   <div className="text-xl font-bold text-amber-600 md:text-2xl">{formatCurrency(stats.totalPending)}</div>
                 )}
-                <p className="text-xs text-muted-foreground">Total por receber</p>
+                <p className="text-xs text-muted-foreground">{t("Total por receber")}</p>
               </CardContent>
             </Card>
             )}
@@ -510,7 +543,7 @@ export default function Finance() {
               onClick={() => setDetailView("overdue")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Atrasados</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("Atrasados")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -522,7 +555,7 @@ export default function Finance() {
                 ) : (
                   <div className="text-xl font-bold text-orange-600 md:text-2xl">{formatCurrency(stats.totalOverdue)}</div>
                 )}
-                <p className="text-xs text-muted-foreground">{stats.overdueCount} pagamento(s)</p>
+                <p className="text-xs text-muted-foreground">{t("{{n}} pagamento(s)", { n: stats.overdueCount })}</p>
               </CardContent>
             </Card>
             )}
@@ -532,7 +565,7 @@ export default function Finance() {
               onClick={() => setDetailView("expenses")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("Despesas")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <TrendingDown className="h-4 w-4 text-destructive" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -544,7 +577,7 @@ export default function Finance() {
                 ) : (
                   <div className="text-xl font-bold text-destructive md:text-2xl">{formatCurrency(stats.totalExpenses)}</div>
                 )}
-                <p className="text-xs text-muted-foreground">{hasFilters ? "No período" : "Total"}</p>
+                <p className="text-xs text-muted-foreground">{hasFilters ? t("No período") : t("Total")}</p>
               </CardContent>
             </Card>
 
@@ -553,7 +586,7 @@ export default function Finance() {
               onClick={() => setDetailView("balance")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Balanço</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("Balanço")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Scale className="h-4 w-4 text-primary" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -568,7 +601,7 @@ export default function Finance() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  {isTelecom ? "Valor da Organização − Despesas" : "Recebido - Despesas"}
+                  {isTelecom ? t("Valor da Organização − Despesas") : t("Recebido - Despesas")}
                 </p>
               </CardContent>
             </Card>
@@ -579,7 +612,7 @@ export default function Finance() {
               onClick={() => setDetailView("dueSoon")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">A Vencer (7 dias)</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("A Vencer (7 dias)")}</CardTitle>
                 <div className="flex items-center gap-1">
                   <CalendarDays className="h-4 w-4 text-blue-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -591,7 +624,7 @@ export default function Finance() {
                 ) : (
                   <div className="text-xl font-bold text-blue-600 md:text-2xl">{formatCurrency(stats.dueSoon)}</div>
                 )}
-                <p className="text-xs text-muted-foreground">{stats.dueSoonCount} pagamento(s)</p>
+                <p className="text-xs text-muted-foreground">{t("{{n}} pagamento(s)", { n: stats.dueSoonCount })}</p>
               </CardContent>
             </Card>
             )}
@@ -601,7 +634,7 @@ export default function Finance() {
               onClick={() => setDetailView("myCommissions")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{selectedCommissionUserId ? 'Comissão do vendedor' : 'As Minhas Comissões'}</CardTitle>
+                <CardTitle className="text-sm font-medium">{selectedCommissionUserId ? t('Comissão do vendedor') : t('As Minhas Comissões')}</CardTitle>
                 <div className="flex items-center gap-1">
                   <Percent className="h-4 w-4 text-emerald-500" />
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -612,9 +645,9 @@ export default function Finance() {
                   {formatCurrency(myConfirmedTotal)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Confirmadas
+                  {t("Confirmadas")}
                   {myPendingTotal > 0 && (
-                    <span className="ml-1">· {formatCurrency(myPendingTotal)} pendentes</span>
+                    <span className="ml-1">· {t("{{value}} pendentes", { value: formatCurrency(myPendingTotal) })}</span>
                   )}
                 </p>
               </CardContent>
@@ -626,7 +659,7 @@ export default function Finance() {
                 onClick={() => setDetailView("commissions")}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Comissões</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Comissões")}</CardTitle>
                   <div className="flex items-center gap-1">
                     <Percent className="h-4 w-4 text-primary" />
                     <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -640,10 +673,10 @@ export default function Finance() {
                     {/* Telecom: "Marcar como paga" already exists on each sale, so
                         say how much of this has actually left the account. */}
                     {isTelecom && teamCommissionTotal > 0
-                      ? `${formatCurrency(teamPaidTotal)} pagas · ${formatCurrency(Math.max(teamCommissionTotal - teamPaidTotal, 0))} por pagar`
+                      ? t("{{paid}} pagas · {{pending}} por pagar", { paid: formatCurrency(teamPaidTotal), pending: formatCurrency(Math.max(teamCommissionTotal - teamPaidTotal, 0)) })
                       : teamSalesCount > 0
-                        ? `${teamSalesCount} venda(s) ${hasFilters ? "no período" : "no total"}`
-                        : "Equipa"}
+                        ? t(hasFilters ? "{{n}} venda(s) no período" : "{{n}} venda(s) no total", { n: teamSalesCount })
+                        : t("Equipa")}
                   </p>
                 </CardContent>
               </Card>
@@ -665,7 +698,7 @@ export default function Finance() {
                 }}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Valor da Organização</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Valor da Organização")}</CardTitle>
                   <div className="flex items-center gap-1">
                     <Building2 className="h-4 w-4 text-amber-500" />
                     <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -677,7 +710,7 @@ export default function Finance() {
                   </div>
                   {/* Same earned-sale basis as gross and team commission. */}
                   <p className="text-xs text-muted-foreground">
-                    {generalTeamCommission?.count ?? 0} vendas ativas ou instaladas
+                    {t("{{n}} vendas ativas ou instaladas", { n: generalTeamCommission?.count ?? 0 })}
                   </p>
                 </CardContent>
               </Card>
@@ -688,7 +721,7 @@ export default function Finance() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  Fluxo de Caixa {hasFilters ? "(período selecionado)" : "(últimos 30 dias)"}
+                  {hasFilters ? t("Fluxo de Caixa (período selecionado)") : t("Fluxo de Caixa (últimos 30 dias)")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -739,7 +772,7 @@ export default function Finance() {
                       <Area
                         type="monotone"
                         dataKey="received"
-                        name="Recebido"
+                        name={t("Recebido")}
                         stroke="#10b981"
                         fillOpacity={1}
                         fill="url(#colorReceived)"
@@ -748,7 +781,7 @@ export default function Finance() {
                       <Area
                         type="monotone"
                         dataKey="scheduled"
-                        name="Agendado"
+                        name={t("Agendado")}
                         stroke="#3b82f6"
                         fillOpacity={1}
                         fill="url(#colorScheduled)"
@@ -757,7 +790,7 @@ export default function Finance() {
                       <Area
                         type="monotone"
                         dataKey="overdue"
-                        name="Atrasados"
+                        name={t("Atrasados")}
                         stroke="#f97316"
                         fillOpacity={1}
                         fill="url(#colorOverdue)"
@@ -766,7 +799,7 @@ export default function Finance() {
                       <Area
                         type="monotone"
                         dataKey="expenses"
-                        name="Despesas"
+                        name={t("Despesas")}
                         stroke="#ef4444"
                         fillOpacity={0.3}
                         fill="#ef4444"

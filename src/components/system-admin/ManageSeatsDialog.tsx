@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLanguage } from "@/i18n";
 
 const SEAT_PRICE = 5;
 
@@ -43,6 +44,7 @@ export function ManageSeatsDialog({
   const [seats, setSeats] = useState(currentSeats);
   const [isSaving, setIsSaving] = useState(false);
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
 
   // O diálogo é reutilizado entre linhas da tabela: sem isto abria com o número
   // da organização anterior.
@@ -64,12 +66,12 @@ export function ManageSeatsDialog({
       queryClient.invalidateQueries({ queryKey: ['super-admin-orgs-list'] });
       toast.success(
         delta > 0
-          ? `${delta} lugar${delta > 1 ? 'es' : ''} adicionado${delta > 1 ? 's' : ''} a ${organizationName}`
-          : `Lugares atualizados para ${seats}`,
+          ? t(delta > 1 ? "{{n}} lugares adicionados a {{org}}" : "{{n}} lugar adicionado a {{org}}", { n: delta, org: organizationName })
+          : t("Lugares atualizados para {{n}}", { n: seats }),
       );
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar os lugares');
+      toast.error(e instanceof Error ? e.message : t('Não foi possível atualizar os lugares'));
     } finally {
       setIsSaving(false);
     }
@@ -81,14 +83,14 @@ export function ManageSeatsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Utilizadores extra
+            {t("Utilizadores extra")}
           </DialogTitle>
           <DialogDescription>{organizationName}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="seats">Quantidade</Label>
+            <Label htmlFor="seats">{t("Quantidade")}</Label>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -122,31 +124,31 @@ export function ManageSeatsDialog({
 
           <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Atualmente</span>
-              <span>{currentSeats} × {SEAT_PRICE}€ = {currentSeats * SEAT_PRICE}€/mês</span>
+              <span className="text-muted-foreground">{t("Atualmente")}</span>
+              <span>{currentSeats} × {SEAT_PRICE}€ = {currentSeats * SEAT_PRICE}€/{t("mês")}</span>
             </div>
             <div className="flex justify-between font-medium">
-              <span>Depois</span>
-              <span>{seats} × {SEAT_PRICE}€ = {seats * SEAT_PRICE}€/mês</span>
+              <span>{t("Depois")}</span>
+              <span>{seats} × {SEAT_PRICE}€ = {seats * SEAT_PRICE}€/{t("mês")}</span>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
             {delta === 0
-              ? 'Sem alterações.'
+              ? t('Sem alterações.')
               : delta > 0
-                ? `Os lugares ficam disponíveis de imediato na conta do cliente, e a subscrição passa a cobrar mais ${delta * SEAT_PRICE}€ por mês a partir do próximo ciclo.`
-                : `A subscrição passa a cobrar menos ${Math.abs(delta) * SEAT_PRICE}€ por mês. Confirme que a equipa do cliente já não usa esses lugares.`}
+                ? t("Os lugares ficam disponíveis de imediato na conta do cliente, e a subscrição passa a cobrar mais {{amount}}€ por mês a partir do próximo ciclo.", { amount: delta * SEAT_PRICE })
+                : t("A subscrição passa a cobrar menos {{amount}}€ por mês. Confirme que a equipa do cliente já não usa esses lugares.", { amount: Math.abs(delta) * SEAT_PRICE })}
           </p>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button onClick={handleSave} disabled={isSaving || delta === 0}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar
+            {t("Guardar")}
           </Button>
         </DialogFooter>
       </DialogContent>

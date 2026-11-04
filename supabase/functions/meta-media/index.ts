@@ -25,6 +25,7 @@ import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { getConfig } from "../_shared/multicanal.ts";
 import { avatarUrlExpired, fetchEvolutionContactAvatar } from "../_shared/evolution-contact-avatar.ts";
+import { unwrapMessage } from "../_shared/evolution-inbox.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,13 +173,30 @@ Deno.serve(async (req) => {
       if (!base || !apikey || !canal.evolution_instance) {
         return json({ error: "A caixa já não tem ligação ao WhatsApp." }, 409);
       }
-      const evoRes = await fetch(`${base}/chat/getBase64FromMediaMessage/${canal.evolution_instance}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey },
-        body: JSON.stringify({ message: { key: { id: String(media_id) } }, convertToMp4: false }),
-        signal: AbortSignal.timeout(45_000),
-      });
-      const evo = await evoRes.json().catch(() => ({}));
+      const evolution = (path: string, body: unknown) =>
+        fetch(`${base}/chat/${path}/${canal.evolution_instance}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(45_000),
+        });
+      let evoRes = await evolution("getBase64FromMediaMessage", { message: { key: { id: String(media_id) } }, convertToMp4: false });
+      let evo = await evoRes.json().catch(() => ({}));
+      if (!evoRes.ok || !evo?.base64) {
+        // O Evolution só abre alguns invólucros antes de procurar o ficheiro, e
+        // a foto de um álbum (associatedChildMessage) não é um deles. Vai-se
+        // buscar a mensagem guardada, abre-se aqui e entrega-se já aberta.
+        const found = await evolution("findMessages", { where: { key: { id: String(media_id) } }, offset: 1, page: 1 })
+          .then((res) => res.json()).catch(() => null);
+        const guardada = found?.messages?.records?.[0];
+        if (guardada?.key && guardada?.message) {
+          evoRes = await evolution("getBase64FromMediaMessage", {
+            message: { key: guardada.key, message: unwrapMessage(guardada.message) },
+            convertToMp4: false,
+          });
+          evo = await evoRes.json().catch(() => ({}));
+        }
+      }
       if (!evoRes.ok || !evo?.base64) {
         logError("o Evolution não devolveu o ficheiro", { estado: evoRes.status });
         return json({

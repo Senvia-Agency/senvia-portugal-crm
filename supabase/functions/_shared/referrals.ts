@@ -4,6 +4,7 @@ import { dispatchAgencyAutomation, organizationAdminContact } from './agency-aut
 const PLAN_PRODUCTS = new Set(['prod_U0wAc7Tuy8w6gA', 'prod_U0wGoA4odOBHOZ', 'prod_U0wG6doz0zgZFV']);
 const COUPON_ID = 'senvia-referral-month-v2';
 const REWARD_COUPON_PREFIX = 'senvia-referral-month-';
+const ANNUAL_EXTENSION_PREFIX = 'annual-extension:';
 const EXTRA_SEAT_PRICE = 'price_1TncdBLWnA81DzXTh3crx8iN';
 const REFERRAL_MONTH_TRIGGER = 'referral_month_earned';
 const REFERRAL_MONTH_STARTED_TRIGGER = 'referral_month_started';
@@ -127,11 +128,68 @@ async function hasDiscountablePlanLine(stripe: any, invoice: any): Promise<boole
   }
 }
 
+// Same calendar day one month later (Jan 31 → Feb 28), in UTC.
+function addOneMonth(unix: number): number {
+  const date = new Date(unix * 1000);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return Math.floor(date.getTime() / 1000);
+}
+
+/**
+ * Annual plans have no monthly invoice to zero, so each earned month pushes the
+ * next renewal one month later instead: Stripe `trial_end` past the paid period,
+ * without proration. The subscription shows as `trialing` until then.
+ *
+ * Each reward is claimed in the ledger first (`redemption_invoice_id` holds an
+ * `annual-extension:` marker, not an invoice), and the subscription remembers
+ * the last reward it was extended for — so a run that dies between Stripe and
+ * the ledger finishes on the next pass without adding the month twice.
+ */
+async function extendAnnualRenewal(db: any, stripe: any, organizationId: string, sub: any, base: any, confirmed: any[]) {
+  if (!['active', 'trialing'].includes(sub.status) || sub.pause_collection || sub.cancel_at_period_end) return;
+  for (const reward of confirmed) {
+    const marker = `${ANNUAL_EXTENSION_PREFIX}${reward.id}`;
+    // A monthly reservation from before a plan change must settle first.
+    if (reward.redemption_invoice_id && reward.redemption_invoice_id !== marker) return;
+    if (!reward.redemption_invoice_id) {
+      const claimed = requireSuccess(await db.from('organization_referrals').update({ redemption_invoice_id: marker })
+        .eq('id', reward.id).is('redemption_invoice_id', null).is('redeemed_at', null).select('id'));
+      if (!claimed?.length) return;
+    }
+    if (sub.metadata?.senvia_annual_reward !== reward.id) {
+      const renewal = sub.status === 'trialing' && sub.trial_end ? sub.trial_end : (base.current_period_end ?? sub.current_period_end);
+      if (!renewal) throw new Error('Annual renewal date unavailable');
+      sub = await stripe.subscriptions.update(sub.id, {
+        trial_end: addOneMonth(renewal),
+        proration_behavior: 'none',
+        metadata: { senvia_annual_reward: reward.id },
+      }, { idempotencyKey: `referral-annual-${sub.id}-${reward.id}` });
+    }
+    const end = sub.trial_end ?? null;
+    const redeemed = requireSuccess(await db.from('organization_referrals')
+      .update({ redeemed_at: new Date().toISOString() })
+      .eq('id', reward.id).is('redeemed_at', null).select('id'));
+    if (end) {
+      requireSuccess(await db.from('organizations')
+        .update({ current_period_end: new Date(end * 1000).toISOString() }).eq('id', organizationId));
+    }
+    if (redeemed?.length) {
+      await announceReferral(db, REFERRAL_MONTH_STARTED_TRIGGER,
+        { id: reward.id, organization_id: organizationId, referred_organization_id: reward.referred_organization_id },
+        { fim_periodo: end ? new Date(end * 1000).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }) : '' });
+    }
+  }
+}
+
 // One earned month has one coupon. Create all confirmed coupons immediately,
 // but attach only the oldest unused one to the subscription at any time.
 export async function prepareReferralMonths(db: any, stripe: any, organizationId: string) {
   const rows = requireSuccess(await db.from('organization_referrals')
-    .select('id, qualified_at, redemption_invoice_id, redeemed_at, revoked_at, stripe_coupon_id')
+    .select('id, referred_organization_id, qualified_at, redemption_invoice_id, redeemed_at, revoked_at, stripe_coupon_id')
     .eq('organization_id', organizationId));
   const confirmed = (rows || []).filter((row: any) => row.qualified_at && !row.redeemed_at && !row.revoked_at)
     .sort((a: any, b: any) => a.qualified_at.localeCompare(b.qualified_at) || a.id.localeCompare(b.id));
@@ -147,8 +205,6 @@ export async function prepareReferralMonths(db: any, stripe: any, organizationId
     }
   }
 
-  // A reserved invoice or an existing referral discount must finish first.
-  if (confirmed.some((row: any) => row.redemption_invoice_id)) return;
   const binding = requireSuccess(await db.from('organization_billing_accounts')
     .select('stripe_customer_id, stripe_subscription_id').eq('organization_id', organizationId).maybeSingle());
   if (!binding?.stripe_subscription_id) return;
@@ -161,6 +217,12 @@ export async function prepareReferralMonths(db: any, stripe: any, organizationId
     throw new Error('Referral subscription binding mismatch');
   }
   const base = sub.items.data.find((item: any) => PLAN_PRODUCTS.has(objectId(item.price?.product) || ''));
+  if (base?.price.recurring?.interval === 'year') {
+    await extendAnnualRenewal(db, stripe, organizationId, sub, base, confirmed);
+    return;
+  }
+  // A reserved invoice or an existing referral discount must finish first.
+  if (confirmed.some((row: any) => row.redemption_invoice_id)) return;
   const nextRenewal = base?.current_period_end ?? sub.current_period_end;
   if (sub.status !== 'active' || sub.pause_collection || sub.cancel_at_period_end || !nextRenewal
     || nextRenewal <= Math.floor(Date.now() / 1000)

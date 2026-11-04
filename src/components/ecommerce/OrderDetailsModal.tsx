@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Package, MapPin, CreditCard, Truck } from "lucide-react";
 import {
   Dialog,
@@ -28,6 +27,7 @@ import {
 } from "@/types/ecommerce";
 import { useUpdateOrderStatus } from "@/hooks/ecommerce";
 import { formatCurrency } from "@/lib/format";
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface OrderDetailsModalProps {
   order: Order;
@@ -37,6 +37,7 @@ interface OrderDetailsModalProps {
 
 export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsModalProps) {
   const updateStatus = useUpdateOrderStatus();
+  const { t } = useLanguage();
 
   const handleStatusChange = (status: OrderStatus) => {
     updateStatus.mutate({ orderId: order.id, status });
@@ -55,9 +56,9 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
       <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Pedido {order.order_number}
+            {t("Pedido {{number}}", { number: order.order_number })}
             <Badge variant="secondary">
-              {format(new Date(order.created_at), "d MMM yyyy HH:mm", { locale: pt })}
+              {format(new Date(order.created_at), "d MMM yyyy HH:mm", { locale: dateLocale() })}
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -66,7 +67,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
           {/* Status Section */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Estado</label>
+              <label className="text-sm font-medium text-muted-foreground">{t("Estado")}</label>
               <Select
                 value={order.status}
                 onValueChange={(value) => handleStatusChange(value as OrderStatus)}
@@ -77,7 +78,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
                 <SelectContent>
                   {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {t(label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -85,7 +86,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Pagamento</label>
+              <label className="text-sm font-medium text-muted-foreground">{t("Pagamento")}</label>
               <Select
                 value={order.payment_status}
                 onValueChange={(value) => handlePaymentChange(value as PaymentStatus)}
@@ -96,7 +97,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
                 <SelectContent>
                   {Object.entries(PAYMENT_STATUS_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {t(label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -104,7 +105,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Expedição</label>
+              <label className="text-sm font-medium text-muted-foreground">{t("Expedição")}</label>
               <Select
                 value={order.fulfillment_status}
                 onValueChange={(value) => handleFulfillmentChange(value as FulfillmentStatus)}
@@ -115,7 +116,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
                 <SelectContent>
                   {Object.entries(FULFILLMENT_STATUS_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {t(label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -130,7 +131,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
             <div className="rounded-lg border p-4">
               <h4 className="mb-2 font-medium flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
-                Cliente
+                {t("Cliente")}
               </h4>
               <p className="font-medium">{order.customer.name}</p>
               <p className="text-sm text-muted-foreground">{order.customer.email}</p>
@@ -146,7 +147,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
               <div className="rounded-lg border p-4">
                 <h4 className="mb-2 font-medium flex items-center gap-2">
                   <Truck className="h-4 w-4" />
-                  Morada de Envio
+                  {t("Morada de Envio")}
                 </h4>
                 <div className="text-sm">
                   <p className="font-medium">{order.shipping_address.name}</p>
@@ -169,7 +170,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
               <div className="rounded-lg border p-4">
                 <h4 className="mb-2 font-medium flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  Morada de Faturação
+                  {t("Morada de Faturação")}
                 </h4>
                 <div className="text-sm">
                   <p className="font-medium">{order.billing_address.name}</p>
@@ -192,7 +193,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
           <div>
             <h4 className="mb-3 font-medium flex items-center gap-2">
               <Package className="h-4 w-4" />
-              Itens do Pedido
+              {t("Itens do Pedido")}
             </h4>
             <div className="rounded-lg border">
               <div className="divide-y">
@@ -231,19 +232,19 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
             </div>
             {order.discount_total > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Desconto {order.discount_code && `(${order.discount_code})`}</span>
+                <span>{t("Desconto")} {order.discount_code && `(${order.discount_code})`}</span>
                 <span>-{formatCurrency(order.discount_total)}</span>
               </div>
             )}
             {order.shipping_total > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Envio</span>
+                <span className="text-muted-foreground">{t("Envio")}</span>
                 <span>{formatCurrency(order.shipping_total)}</span>
               </div>
             )}
             {order.tax_total > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">IVA</span>
+                <span className="text-muted-foreground">{t("IVA")}</span>
                 <span>{formatCurrency(order.tax_total)}</span>
               </div>
             )}
@@ -261,13 +262,13 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
               <div className="space-y-4">
                 {order.notes && (
                   <div>
-                    <h4 className="text-sm font-medium text-muted-foreground">Notas do Cliente</h4>
+                    <h4 className="text-sm font-medium text-muted-foreground">{t("Notas do Cliente")}</h4>
                     <p className="mt-1 text-sm">{order.notes}</p>
                   </div>
                 )}
                 {order.internal_notes && (
                   <div>
-                    <h4 className="text-sm font-medium text-muted-foreground">Notas Internas</h4>
+                    <h4 className="text-sm font-medium text-muted-foreground">{t("Notas Internas")}</h4>
                     <p className="mt-1 text-sm">{order.internal_notes}</p>
                   </div>
                 )}
@@ -278,7 +279,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
 
         <div className="flex justify-end pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
+            {t("Fechar")}
           </Button>
         </div>
       </DialogContent>

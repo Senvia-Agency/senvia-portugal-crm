@@ -2,6 +2,7 @@ import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { BILLING_COLUMNS, stripeCustomerFields, syncStripeTaxId, type BillingDetails } from "../_shared/billing-details.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,7 +54,7 @@ serve(async (req) => {
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: allowed, error: permissionError } = await admin.rpc('is_org_admin', { _user_id: user.id, _org_id: organization_id });
     if (permissionError || allowed !== true) return new Response(JSON.stringify({ error: 'Sem permissão para gerir faturação' }), { status: 403, headers: corsHeaders });
-    const { data: org, error: orgError } = await admin.from('organizations').select('id, name, extra_seats, first_paid_at, current_period_end').eq('id', organization_id).single();
+    const { data: org, error: orgError } = await admin.from('organizations').select('id, name, extra_seats, first_paid_at, current_period_end, ' + BILLING_COLUMNS).eq('id', organization_id).single();
     if (orgError || !org) throw new Error('Organização não encontrada');
     logStep("Creating checkout", { email: user.email, priceId });
 
@@ -66,6 +67,13 @@ serve(async (req) => {
       if (org.first_paid_at || org.current_period_end) throw new Error('A ligação da subscrição existente precisa de ser verificada antes de iniciar outro pagamento.');
       const customer = await stripe.customers.create({ email: user.email, name: org.name, metadata: { organization_id: org.id } }, { idempotencyKey: 'senvia-customer-' + org.id });
       customerId = customer.id;
+      // The company's billing details (Definições → Dados da Empresa), so the invoices carry them.
+      try {
+        await stripe.customers.update(customerId, stripeCustomerFields(org as unknown as BillingDetails, org.name));
+        await syncStripeTaxId(stripe, customerId, org as unknown as BillingDetails);
+      } catch (e) {
+        logStep("Billing details not applied", { message: (e as Error).message });
+      }
       const { error } = await admin.from('organization_billing_accounts').insert({ organization_id: org.id, stripe_customer_id: customerId });
       if (error) throw error;
     }
@@ -81,6 +89,10 @@ serve(async (req) => {
       success_url: `${returnBase(req)}/settings?billing=success`,
       cancel_url: `${returnBase(req)}/settings?billing=cancel`,
       allow_promotion_codes: true,
+      // Invoices need the NIF and the address: Stripe asks for what the company has not filled in.
+      billing_address_collection: 'required',
+      tax_id_collection: { enabled: true },
+      customer_update: { name: 'auto', address: 'auto' },
     };
     const { data: attempt, error: attemptError } = await admin.rpc('claim_referral_checkout', {
       _organization_id: org.id, _parameters: parameters,

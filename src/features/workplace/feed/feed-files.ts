@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { tr } from '@/i18n';
 
 // Mirrors the bucket in 20261026170000_workplace_feed_attachments.sql.
 export const FEED_BUCKET = 'workplace-feed-files';
@@ -32,7 +33,7 @@ export function acceptPostFiles(current: readonly File[], incoming: readonly Fil
   const dropped = incoming.length - (files.length - current.length);
   if (dropped === 0) return { files, error: null };
   const tooMany = current.length + valid.length > MAX_POST_FILES;
-  return { files, error: tooMany ? `No máximo ${MAX_POST_FILES} ficheiros por publicação.` : 'Só fotografias, PDF, Word, Excel ou PowerPoint, até 15 MB cada.' };
+  return { files, error: tooMany ? tr('No máximo {{n}} ficheiros por publicação.', { n: MAX_POST_FILES }) : tr('Só fotografias, PDF, Word, Excel ou PowerPoint, até 15 MB cada.') };
 }
 
 const safeName = (name: string) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(-120) || 'ficheiro';

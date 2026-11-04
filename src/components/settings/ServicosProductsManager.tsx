@@ -14,6 +14,7 @@ import { useOrganizationProfiles } from '@/hooks/useOrganizationProfiles';
 import { useOperators, type Operator } from '@/hooks/useOperators';
 import { catalogProductKey, type CatalogProduct } from '@/types/proposals';
 import type { Json } from '@/integrations/supabase/types';
+import { intlLocale, tr, useLanguage } from '@/i18n';
 
 /** Short summary for the compact row — what the commission column shows. */
 function commissionSummary(product: CatalogProduct, operator: Operator | null): string {
@@ -21,15 +22,15 @@ function commissionSummary(product: CatalogProduct, operator: Operator | null): 
   // can opt out of Matriz de Comissões (see ProductCommissionFields).
   const isTiered = !!operator && !!operator.commission_basis;
   // A classified product follows its type, whatever the operator's kind.
-  if (!isTiered && operator?.kind === 'energia' && !(product.type_ids?.length)) return 'Ver Matriz de Comissões';
+  if (!isTiered && operator?.kind === 'energia' && !(product.type_ids?.length)) return tr('Ver Matriz de Comissões');
   if (isTiered) {
     const n = product.quantity_tiers?.length ?? 0;
-    if (n === 0) return 'Sem escalões';
-    return `${n} escalão${n === 1 ? '' : 'ões'}`;
+    if (n === 0) return tr('Sem escalões');
+    return tr(n === 1 ? '{{n}} escalão' : '{{n}} escalões', { n });
   }
   const n = product.splits?.length ?? 0;
-  if (n === 0) return 'Sem comissão';
-  return `${n} linha${n === 1 ? '' : 's'}`;
+  if (n === 0) return tr('Sem comissão');
+  return tr(n === 1 ? '{{n}} linha' : '{{n}} linhas', { n });
 }
 
 /** Price column for the compact row — a range across bands when the product is tiered, else the flat price. */
@@ -40,10 +41,10 @@ function priceSummary(product: CatalogProduct): string {
     if (prices.length === 0) return '—';
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    const fmt = (v: number) => v.toLocaleString('pt-PT', { minimumFractionDigits: 2 });
+    const fmt = (v: number) => v.toLocaleString(intlLocale(), { minimumFractionDigits: 2 });
     return min === max ? `${fmt(min)} €` : `${fmt(min)} – ${fmt(max)} €`;
   }
-  return product.price ? `${product.price.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €` : '—';
+  return product.price ? `${product.price.toLocaleString(intlLocale(), { minimumFractionDigits: 2 })} €` : '—';
 }
 
 const SEM_OPERADORA = '__sem_operadora__';
@@ -58,6 +59,7 @@ export function ServicosProductsManager() {
   const { data: teamMembers } = useTeamMembers();
   const { profiles } = useOrganizationProfiles();
   const { data: operators = [] } = useOperators();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -156,28 +158,27 @@ export function ServicosProductsManager() {
         <div>
           <CardTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" />
-            Produtos Telecom (Serviços)
+            {t('Produtos Telecom (Serviços)')}
           </CardTitle>
           <CardDescription>
-            Configure os produtos disponíveis para propostas e vendas de "Outros Serviços".
-            Na hora da venda, os valores podem ser editados sem alterar o catálogo.
+            {t('Configure os produtos disponíveis para propostas e vendas de "Outros Serviços". Na hora da venda, os valores podem ser editados sem alterar o catálogo.')}
           </CardDescription>
         </div>
         <div className="flex items-center gap-3">
           {updateOrg.isPending ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              A guardar...
+              {t('A guardar...')}
             </span>
           ) : justSaved ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Check className="h-3 w-3 text-green-500" />
-              Guardado
+              {t('Guardado')}
             </span>
           ) : null}
           <Button onClick={() => setCreateOpen(true)} size="sm" disabled={isLegacyConfig}>
             <Plus className="h-4 w-4 mr-2" />
-            Adicionar
+            {t('Adicionar')}
           </Button>
         </div>
       </CardHeader>
@@ -185,9 +186,7 @@ export function ServicosProductsManager() {
         {isLegacyConfig && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 mb-4">
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Esta organização tem um catálogo no formato antigo, que este ecrã não sabe editar.
-              Guardar aqui apagaria esse catálogo, por isso a gravação está bloqueada.
-              Contacta o suporte para o converter.
+              {t('Esta organização tem um catálogo no formato antigo, que este ecrã não sabe editar. Guardar aqui apagaria esse catálogo, por isso a gravação está bloqueada. Contacta o suporte para o converter.')}
             </p>
           </div>
         )}
@@ -199,14 +198,14 @@ export function ServicosProductsManager() {
                 <AccordionTrigger className="py-2.5 hover:no-underline">
                   <span className="flex items-center gap-2 text-sm">
                     {operator ? <Radio className="h-3.5 w-3.5 text-primary" /> : <Package className="h-3.5 w-3.5 text-muted-foreground" />}
-                    <span className="font-medium">{operator?.name ?? 'Sem operadora'}</span>
+                    <span className="font-medium">{operator?.name ?? t('Sem operadora')}</span>
                     {operator && (
                       <Badge variant={operator.kind === 'telecom' ? 'default' : 'secondary'} className="text-[10px]">
-                        {operator.kind === 'telecom' ? 'Telecom' : 'Energia'}
+                        {operator.kind === 'telecom' ? t('Telecom') : t('Energia')}
                       </Badge>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {groupProducts.length} produto{groupProducts.length === 1 ? '' : 's'}
+                      {t(groupProducts.length === 1 ? '{{n}} produto' : '{{n}} produtos', { n: groupProducts.length })}
                     </span>
                   </span>
                 </AccordionTrigger>
@@ -214,9 +213,9 @@ export function ServicosProductsManager() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="h-8 text-xs">Nome</TableHead>
-                        <TableHead className="h-8 text-xs">Preço Base</TableHead>
-                        <TableHead className="h-8 text-xs">Comissão</TableHead>
+                        <TableHead className="h-8 text-xs">{t('Nome')}</TableHead>
+                        <TableHead className="h-8 text-xs">{t('Preço Base')}</TableHead>
+                        <TableHead className="h-8 text-xs">{t('Comissão')}</TableHead>
                         <TableHead className="h-8 text-xs w-20" />
                       </TableRow>
                     </TableHeader>
@@ -263,13 +262,13 @@ export function ServicosProductsManager() {
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
             <p className="flex items-center gap-2 font-medium text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              Não foi possível carregar o catálogo.
+              {t('Não foi possível carregar o catálogo.')}
             </p>
             <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
               {(orgError as Error).message}
             </p>
             <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => refetchOrg()}>
-              Tentar novamente
+              {t('Tentar novamente')}
             </Button>
           </div>
         )}
@@ -277,9 +276,9 @@ export function ServicosProductsManager() {
         {products.length === 0 && !isLegacyConfig && !orgLoading && !orgError && (
           <div className="py-10 text-center">
             <Settings2 className="mx-auto h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-3 text-sm text-muted-foreground">Ainda não tem produtos configurados.</p>
+            <p className="mt-3 text-sm text-muted-foreground">{t('Ainda não tem produtos configurados.')}</p>
             <p className="text-sm text-muted-foreground">
-              Adicione produtos para os poder vender em propostas e vendas.
+              {t('Adicione produtos para os poder vender em propostas e vendas.')}
             </p>
           </div>
         )}

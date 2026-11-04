@@ -10,6 +10,7 @@ import { useInternalRequests } from '@/hooks/useInternalRequests';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { REQUEST_TYPE_LABELS, REQUEST_STATUS_LABELS, REQUEST_STATUS_COLORS } from '@/types/internal-requests';
 import type { InternalRequest } from '@/types/internal-requests';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   request: InternalRequest | null;
@@ -20,6 +21,7 @@ interface Props {
 
 export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: Props) {
   const { reviewRequest } = useInternalRequests();
+  const { t } = useLanguage();
   const [notes, setNotes] = useState('');
   const [paymentRef, setPaymentRef] = useState('');
 
@@ -48,7 +50,7 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
           <DialogTitle className="flex items-center gap-2">
             {request.title}
             <Badge className={REQUEST_STATUS_COLORS[request.status]}>
-              {REQUEST_STATUS_LABELS[request.status]}
+              {t(REQUEST_STATUS_LABELS[request.status])}
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -57,33 +59,33 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
           <div className="grid grid-cols-2 gap-3 text-sm">
             {request.submitter?.full_name && (
               <div className="col-span-2">
-                <span className="text-muted-foreground">Submetido por:</span>
+                <span className="text-muted-foreground">{t("Submetido por:")}</span>
                 <p className="font-medium">{request.submitter.full_name}</p>
               </div>
             )}
             <div>
-              <span className="text-muted-foreground">Tipo:</span>
-              <p className="font-medium">{REQUEST_TYPE_LABELS[request.request_type]}</p>
+              <span className="text-muted-foreground">{t("Tipo:")}</span>
+              <p className="font-medium">{t(REQUEST_TYPE_LABELS[request.request_type])}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Data de submissão:</span>
+              <span className="text-muted-foreground">{t("Data de submissão:")}</span>
               <p className="font-medium">{formatDate(request.submitted_at)}</p>
             </div>
             {request.amount != null && (
               <div>
-                <span className="text-muted-foreground">Valor:</span>
+                <span className="text-muted-foreground">{t("Valor:")}</span>
                 <p className="font-medium">{formatCurrency(request.amount)}</p>
               </div>
             )}
             {request.expense_date && (
               <div>
-                <span className="text-muted-foreground">Data da despesa:</span>
+                <span className="text-muted-foreground">{t("Data da despesa:")}</span>
                 <p className="font-medium">{formatDate(request.expense_date)}</p>
               </div>
             )}
             {request.period_start && (
               <div>
-                <span className="text-muted-foreground">Período:</span>
+                <span className="text-muted-foreground">{t("Período:")}</span>
                 <p className="font-medium">{formatDate(request.period_start)} — {request.period_end ? formatDate(request.period_end) : '...'}</p>
               </div>
             )}
@@ -91,7 +93,7 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
 
           {request.description && (
             <div>
-              <span className="text-sm text-muted-foreground">Descrição:</span>
+              <span className="text-sm text-muted-foreground">{t("Descrição:")}</span>
               <p className="mt-1 text-sm whitespace-pre-wrap">{request.description}</p>
             </div>
           )}
@@ -99,21 +101,21 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
           {request.file_url && (
             <div>
               <a href={request.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-                <ExternalLink className="h-4 w-4" /> Ver ficheiro anexo
+                <ExternalLink className="h-4 w-4" /> {t("Ver ficheiro anexo")}
               </a>
             </div>
           )}
 
           {request.review_notes && (
             <div className="rounded-lg border p-3">
-              <span className="text-xs font-medium text-muted-foreground">Notas de revisão:</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("Notas de revisão:")}</span>
               <p className="mt-1 text-sm">{request.review_notes}</p>
             </div>
           )}
 
           {request.payment_reference && (
             <div className="rounded-lg border p-3">
-              <span className="text-xs font-medium text-muted-foreground">Referência de pagamento:</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("Referência de pagamento:")}</span>
               <p className="mt-1 text-sm">{request.payment_reference}</p>
             </div>
           )}
@@ -121,14 +123,14 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
           {canReview && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="reviewNotes">Notas de revisão</Label>
-                <Textarea id="reviewNotes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." rows={2} />
+                <Label htmlFor="reviewNotes">{t("Notas de revisão")}</Label>
+                <Textarea id="reviewNotes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("Observações...")} rows={2} />
               </div>
 
               {isApproved && (
                 <div className="space-y-2">
-                  <Label htmlFor="paymentRef">Referência de pagamento</Label>
-                  <Input id="paymentRef" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Ex: TRF-12345" />
+                  <Label htmlFor="paymentRef">{t("Referência de pagamento")}</Label>
+                  <Input id="paymentRef" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder={t("Ex: TRF-12345")} />
                 </div>
               )}
 
@@ -137,17 +139,17 @@ export function ReviewRequestModal({ request, open, onOpenChange, canApprove }: 
                   <>
                     <Button onClick={() => handleAction('approved')} disabled={reviewRequest.isPending}>
                       {reviewRequest.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Aprovar
+                      {t("Aprovar")}
                     </Button>
                     <Button variant="destructive" onClick={() => handleAction('rejected')} disabled={reviewRequest.isPending}>
-                      Rejeitar
+                      {t("Rejeitar")}
                     </Button>
                   </>
                 )}
                 {isApproved && (
                   <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleAction('paid')} disabled={reviewRequest.isPending}>
                     {reviewRequest.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Marcar como Pago
+                    {t("Marcar como Pago")}
                   </Button>
                 )}
               </div>

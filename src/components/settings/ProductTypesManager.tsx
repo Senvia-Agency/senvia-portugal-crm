@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useProductTypes, useSaveProductTypes } from '@/hooks/useProductTypes';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { DEFAULT_PRODUCT_TYPES, type ProductType } from '@/types/product-types';
+import { useLanguage } from '@/i18n';
 
 /** A stable id from the name, unique within the list. */
 function slugify(name: string, taken: Set<string>): string {
@@ -35,6 +36,7 @@ export function ProductTypesManager() {
   const [draft, setDraft] = useState<ProductType[]>(all);
   const [dirty, setDirty] = useState(false);
   const [newName, setNewName] = useState('');
+  const { t: tl } = useLanguage();
 
   // Follow the stored list until the user starts editing, so a save made
   // elsewhere is not overwritten by a stale draft.
@@ -57,7 +59,7 @@ export function ProductTypesManager() {
     const name = newName.trim();
     if (!name) return;
     if (draft.some((t) => t.name.trim().toLowerCase() === name.toLowerCase())) {
-      toast.error('Já existe um tipo com esse nome.');
+      toast.error(tl('Já existe um tipo com esse nome.'));
       return;
     }
     // A seeded name typed back in gets its seeded rules; anything else pays
@@ -74,7 +76,7 @@ export function ProductTypesManager() {
   const remove = (id: string) => {
     const used = usage.get(id) ?? 0;
     if (used > 0) {
-      toast.error(`Este tipo está em ${used} produto${used === 1 ? '' : 's'}. Tira-o dos produtos primeiro.`);
+      toast.error(tl(used === 1 ? 'Este tipo está em {{n}} produto. Tira-o dos produtos primeiro.' : 'Este tipo está em {{n}} produtos. Tira-o dos produtos primeiro.', { n: used }));
       return;
     }
     setDirty(true);
@@ -83,13 +85,13 @@ export function ProductTypesManager() {
 
   const commit = () => {
     if (draft.some((t) => !t.name.trim())) {
-      toast.error('Há um tipo sem nome.');
+      toast.error(tl('Há um tipo sem nome.'));
       return;
     }
     save.mutate(draft.map((t) => ({ ...t, name: t.name.trim() })), {
       onSuccess: () => {
         setDirty(false);
-        toast.success('Tipos guardados.');
+        toast.success(tl('Tipos guardados.'));
       },
     });
   };
@@ -101,16 +103,16 @@ export function ProductTypesManager() {
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Tags className="h-4 w-4" />
-              Tipos de produto
+              {tl('Tipos de produto')}
             </CardTitle>
             <CardDescription>
-              Cada produto pertence a um ou mais tipos, e a venda começa por escolher um.
+              {tl('Cada produto pertence a um ou mais tipos, e a venda começa por escolher um.')}
             </CardDescription>
           </div>
           {dirty && (
             <Button type="button" size="sm" onClick={commit} disabled={save.isPending}>
               {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Guardar
+              {tl('Guardar')}
             </Button>
           )}
         </div>
@@ -134,7 +136,7 @@ export function ProductTypesManager() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  title={used > 0 ? 'Em uso — tira-o dos produtos primeiro' : 'Eliminar tipo'}
+                  title={used > 0 ? tl('Em uso — tira-o dos produtos primeiro') : tl('Eliminar tipo')}
                   onClick={() => remove(type.id)}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -149,12 +151,12 @@ export function ProductTypesManager() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-            placeholder="Novo tipo (ex.: Alarme)"
+            placeholder={tl('Novo tipo (ex.: Alarme)')}
             className="h-8 text-sm"
           />
           <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={add} disabled={!newName.trim()}>
             <Plus className="h-4 w-4 mr-1" />
-            Adicionar
+            {tl('Adicionar')}
           </Button>
         </div>
       </CardContent>

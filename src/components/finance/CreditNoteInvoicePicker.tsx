@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInvoices, type InvoiceRow } from "@/hooks/useInvoices";
 import { CreateCreditNoteModal } from "@/components/sales/CreateCreditNoteModal";
+import { useLanguage } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ interface Props {
 
 export function CreditNoteInvoicePicker({ open, onOpenChange }: Props) {
   const { organization } = useAuth();
+  const { t } = useLanguage();
   const { data: invoices = [] } = useInvoices();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
@@ -50,14 +52,14 @@ export function CreditNoteInvoicePicker({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nota de Crédito</DialogTitle>
-          <DialogDescription>Escolhe a fatura para emitir a nota de crédito.</DialogDescription>
+          <DialogTitle>{t("Nota de Crédito")}</DialogTitle>
+          <DialogDescription>{t("Escolhe a fatura para emitir a nota de crédito.")}</DialogDescription>
         </DialogHeader>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar por referência ou cliente..."
+            placeholder={t("Pesquisar por referência ou cliente...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -67,7 +69,7 @@ export function CreditNoteInvoicePicker({ open, onOpenChange }: Props) {
         <div className="max-h-[50dvh] space-y-2 overflow-y-auto">
           {eligible.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Sem faturas elegíveis (já têm nota de crédito ou estão anuladas).
+              {t("Sem faturas elegíveis (já têm nota de crédito ou estão anuladas).")}
             </p>
           ) : (
             eligible.map((inv) => (

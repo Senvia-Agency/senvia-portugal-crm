@@ -41,6 +41,7 @@ import { ConversationalFormPreview } from './ConversationalFormPreview';
 import { LogoUploader } from './LogoUploader';
 import { CustomFieldsEditor } from './CustomFieldsEditor';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 const PRESET_COLORS = [
   '#3B82F6', // Blue
@@ -62,6 +63,7 @@ interface FormCustomizationSectionProps {
 export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationSectionProps) {
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const updateOrganization = useUpdateOrganization();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -98,8 +100,8 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
       {
         onSuccess: () => {
           toast({
-            title: "Alterações guardadas",
-            description: "O formulário foi atualizado com sucesso.",
+            title: t("Alterações guardadas"),
+            description: t("O formulário foi atualizado com sucesso."),
           });
           onSettingsSaved?.();
         }
@@ -110,8 +112,8 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
   const handlePreview = () => {
     if (!organization?.public_key) {
       toast({
-        title: "Erro",
-        description: "Não foi possível obter o link do formulário.",
+        title: t("Erro"),
+        description: t("Não foi possível obter o link do formulário."),
         variant: "destructive",
       });
       return;
@@ -135,8 +137,8 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
     toast({
-      title: "Link copiado!",
-      description: "O link do formulário foi copiado para a área de transferência.",
+      title: t("Link copiado!"),
+      description: t("O link do formulário foi copiado para a área de transferência."),
     });
   };
 
@@ -170,9 +172,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold">Editor de Formulário</h2>
+                <h2 className="text-lg font-semibold">{t('Editor de Formulário')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Personalize a aparência e comportamento
+                  {t('Personalize a aparência e comportamento')}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -183,7 +185,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                   disabled={!organization?.public_key}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Abrir
+                  {t('Abrir')}
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={updateOrganization.isPending}>
                   {updateOrganization.isPending ? (
@@ -191,7 +193,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
-                  Guardar
+                  {t('Guardar')}
                 </Button>
               </div>
             </div>
@@ -208,9 +210,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         <MessagesSquare className="h-5 w-5 text-violet-600" />
                       </div>
                       <div className="text-left">
-                        <span className="font-medium">Tipo de Formulário</span>
+                        <span className="font-medium">{t('Tipo de Formulário')}</span>
                         <p className="text-xs text-muted-foreground font-normal">
-                          Escolha entre tradicional ou conversacional
+                          {t('Escolha entre tradicional ou conversacional')}
                         </p>
                       </div>
                     </div>
@@ -241,9 +243,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                           <p className={cn(
                             "font-medium text-sm",
                             settings.mode === 'traditional' ? "text-primary" : "text-foreground"
-                          )}>Tradicional</p>
+                          )}>{t('Tradicional')}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Todos os campos visíveis
+                            {t('Todos os campos visíveis')}
                           </p>
                         </div>
                         {settings.mode === 'traditional' && (
@@ -277,9 +279,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                           <p className={cn(
                             "font-medium text-sm",
                             settings.mode === 'conversational' ? "text-primary" : "text-foreground"
-                          )}>Conversacional</p>
+                          )}>{t('Conversacional')}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Uma pergunta de cada vez
+                            {t('Uma pergunta de cada vez')}
                           </p>
                         </div>
                         {settings.mode === 'conversational' && (
@@ -325,9 +327,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         <Palette className="h-5 w-5 text-primary" />
                       </div>
                       <div className="text-left">
-                        <span className="font-medium">Aparência</span>
+                        <span className="font-medium">{t('Aparência')}</span>
                         <p className="text-xs text-muted-foreground font-normal">
-                          Título, subtítulo, logo e cores
+                          {t('Título, subtítulo, logo e cores')}
                         </p>
                       </div>
                     </div>
@@ -336,14 +338,14 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                     {/* Title */}
                     <div className="space-y-2">
                       <Label htmlFor="form-title" className="flex items-center gap-2 text-sm">
-                        Título do Formulário
+                        {t('Título do Formulário')}
                       </Label>
                       <Input
                         id="form-title"
                         value={settings.title}
                         onChange={(e) => updateSetting('title', e.target.value)}
                         maxLength={100}
-                        placeholder="Contacte-nos"
+                        placeholder={t("Contacte-nos")}
                         className="h-11"
                       />
                       <p className="text-xs text-muted-foreground text-right">{settings.title.length}/100</p>
@@ -352,14 +354,14 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                     {/* Subtitle */}
                     <div className="space-y-2">
                       <Label htmlFor="form-subtitle" className="flex items-center gap-2 text-sm">
-                        Subtítulo
+                        {t('Subtítulo')}
                       </Label>
                       <Textarea
                         id="form-subtitle"
                         value={settings.subtitle}
                         onChange={(e) => updateSetting('subtitle', e.target.value)}
                         maxLength={200}
-                        placeholder="Preencha o formulário e entraremos em contacto"
+                        placeholder={t("Preencha o formulário e entraremos em contacto")}
                         rows={2}
                         className="resize-none"
                       />
@@ -370,7 +372,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2 text-sm">
                         <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        Logo
+                        {t('Logo')}
                       </Label>
                       <LogoUploader
                         value={settings.logo_url}
@@ -382,7 +384,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                     <div className="space-y-3">
                       <Label className="flex items-center gap-2 text-sm">
                         <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-                        Cor Principal
+                        {t('Cor Principal')}
                       </Label>
                       
                       {/* Color Presets */}
@@ -423,7 +425,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         />
                       </div>
                       {!isValidHexColor(settings.primary_color) && (
-                        <p className="text-xs text-destructive">Formato inválido. Use #RRGGBB</p>
+                        <p className="text-xs text-destructive">{t('Formato inválido. Use #RRGGBB')}</p>
                       )}
                     </div>
                   </AccordionContent>
@@ -437,9 +439,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         <LayoutList className="h-5 w-5 text-emerald-600" />
                       </div>
                       <div className="text-left">
-                        <span className="font-medium">Campos</span>
+                        <span className="font-medium">{t('Campos')}</span>
                         <p className="text-xs text-muted-foreground font-normal">
-                          Labels, campos fixos e personalizados
+                          {t('Labels, campos fixos e personalizados')}
                         </p>
                       </div>
                     </div>
@@ -460,9 +462,9 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         <CheckCircle className="h-5 w-5 text-amber-600" />
                       </div>
                       <div className="text-left">
-                        <span className="font-medium">Mensagens</span>
+                        <span className="font-medium">{t('Mensagens')}</span>
                         <p className="text-xs text-muted-foreground font-normal">
-                          Textos de sucesso e erro
+                          {t('Textos de sucesso e erro')}
                         </p>
                       </div>
                     </div>
@@ -470,27 +472,27 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                   <AccordionContent className="pb-4 pt-2 space-y-5">
                     {/* Success Title */}
                     <div className="space-y-2">
-                      <Label htmlFor="success-title" className="text-sm">Título de Sucesso</Label>
+                      <Label htmlFor="success-title" className="text-sm">{t('Título de Sucesso')}</Label>
                       <Input
                         id="success-title"
                         value={settings.success_message.title}
                         onChange={(e) => updateSuccessMessage('title', e.target.value)}
                         maxLength={100}
-                        placeholder="Obrigado!"
+                        placeholder={t("Obrigado!")}
                         className="h-11"
                       />
                     </div>
 
                     {/* Success Description */}
                     <div className="space-y-2">
-                      <Label htmlFor="success-desc" className="text-sm">Descrição de Sucesso</Label>
+                      <Label htmlFor="success-desc" className="text-sm">{t('Descrição de Sucesso')}</Label>
                       <Textarea
                         id="success-desc"
                         value={settings.success_message.description}
                         onChange={(e) => updateSuccessMessage('description', e.target.value)}
                         maxLength={300}
                         rows={2}
-                        placeholder="Recebemos o seu contacto e entraremos em contacto brevemente."
+                        placeholder={t("Recebemos o seu contacto e entraremos em contacto brevemente.")}
                         className="resize-none"
                       />
                       <p className="text-xs text-muted-foreground text-right">
@@ -500,26 +502,26 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
 
                     {/* Submit Button Text */}
                     <div className="space-y-2">
-                      <Label htmlFor="submit-button" className="text-sm">Texto do Botão de Envio</Label>
+                      <Label htmlFor="submit-button" className="text-sm">{t('Texto do Botão de Envio')}</Label>
                       <Input
                         id="submit-button"
                         value={settings.submit_button_text}
                         onChange={(e) => updateSetting('submit_button_text', e.target.value)}
                         maxLength={50}
-                        placeholder="Enviar"
+                        placeholder={t("Enviar")}
                         className="h-11"
                       />
                     </div>
 
                     {/* Error Message */}
                     <div className="space-y-2">
-                      <Label htmlFor="error-message" className="text-sm">Mensagem de Erro</Label>
+                      <Label htmlFor="error-message" className="text-sm">{t('Mensagem de Erro')}</Label>
                       <Input
                         id="error-message"
                         value={settings.error_message}
                         onChange={(e) => updateSetting('error_message', e.target.value)}
                         maxLength={200}
-                        placeholder="Não foi possível enviar. Tente novamente."
+                        placeholder={t("Não foi possível enviar. Tente novamente.")}
                         className="h-11"
                       />
                     </div>
@@ -532,7 +534,7 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
                         onCheckedChange={setShowSuccessPreview}
                       />
                       <Label htmlFor="preview-success" className="text-sm cursor-pointer">
-                        Ver preview da mensagem de sucesso
+                        {t('Ver preview da mensagem de sucesso')}
                       </Label>
                     </div>
                   </AccordionContent>
@@ -550,14 +552,14 @@ export function FormCustomizationSection({ onSettingsSaved }: FormCustomizationS
             {/* Preview Header */}
             <div className="flex items-center justify-between border-b bg-background px-6 py-4">
               <div>
-                <h3 className="text-sm font-medium">Preview</h3>
+                <h3 className="text-sm font-medium">{t('Pré-visualização')}</h3>
                 <p className="text-xs text-muted-foreground">
-                  As alterações são refletidas em tempo real
+                  {t('As alterações são refletidas em tempo real')}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-muted-foreground">Live</span>
+                <span className="text-xs text-muted-foreground">{t('Live')}</span>
               </div>
             </div>
 

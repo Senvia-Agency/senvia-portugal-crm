@@ -35,7 +35,7 @@ export const SENVIA_OS_PLAN: StripePlan = {
   id: "starter", name: "SENVIA OS",
   priceId: "price_1T2uHzLWnA81DzXTHdexakfL", productId: "prod_U0wAc7Tuy8w6gA",
   priceMonthly: 49, priceYearly: 588,
-  description: "Todas as funcionalidades, com uma equipa à tua medida.",
+  description: "Todas as funcionalidades, com uma equipa à sua medida.",
   modules: ["Leads e clientes", "Calendário e propostas", "Vendas e comissões", "Marketing", "Financeiro", "Prospects", "Caixa de entrada multicanal"],
   integrations: ["WhatsApp", "Meta Pixels", "Faturação (KeyInvoice, InvoiceXpress)", "Pagamentos (Stripe)"],
   limits: { users: "Até 5", forms: "Formulários ilimitados", inboxes: "Até 4 caixas" },

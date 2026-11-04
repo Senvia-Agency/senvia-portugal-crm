@@ -3,6 +3,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { OttoAvatar, type OttoExpression } from "./OttoAvatar";
+import { useLanguage } from "@/i18n";
 
 interface OttoModalProps {
   open: boolean;
@@ -23,6 +24,7 @@ export function OttoModal({
   open, onClose, title, description, children, expression = "pointing",
   onConfirm, confirmText = "Guardar", confirmDisabled,
 }: OttoModalProps) {
+  const { t } = useLanguage();
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-md">
@@ -40,8 +42,8 @@ export function OttoModal({
 
         {onConfirm && (
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={onConfirm} disabled={confirmDisabled}>{confirmText}</Button>
+            <Button variant="outline" onClick={onClose}>{t("Cancelar")}</Button>
+            <Button onClick={onConfirm} disabled={confirmDisabled}>{t(confirmText)}</Button>
           </DialogFooter>
         )}
       </DialogContent>

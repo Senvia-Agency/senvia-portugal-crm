@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, ClipboardList, CalendarClock, ArrowRight } from "lucide-react";
 import { useConversationTasks, useToggleInboxTask, isTaskOverdue } from "@/hooks/useInboxTasks";
 import { cn } from "@/lib/utils";
+import { intlLocale, useLanguage } from "@/i18n";
 
 // Compact task list for a CRM record (lead/client detail views). Tasks are
 // matched by the record's phone — the same key the inbox uses — so the ficha
 // and the conversation always show the same list. Renders nothing without tasks.
 export function RecordTasks({ phone }: { phone: string | null | undefined }) {
+  const { t: tt } = useLanguage();
   const { data: tasks = [] } = useConversationTasks(phone);
   const toggleTask = useToggleInboxTask();
   const open = tasks.filter((t) => !t.done_at && !t.suggested);
@@ -19,13 +21,13 @@ export function RecordTasks({ phone }: { phone: string | null | undefined }) {
         <CardTitle className="flex items-center justify-between text-sm font-semibold">
           <span className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
-            Tarefas ({open.length})
+            {tt("Tarefas ({{n}})", { n: open.length })}
           </span>
           <Link
             to={`/inbox?phone=${encodeURIComponent(phone)}`}
             className="flex items-center gap-1 text-xs font-normal text-muted-foreground hover:text-foreground"
           >
-            Abrir conversa <ArrowRight className="h-3 w-3" />
+            {tt("Abrir conversa")} <ArrowRight className="h-3 w-3" />
           </Link>
         </CardTitle>
       </CardHeader>
@@ -36,7 +38,7 @@ export function RecordTasks({ phone }: { phone: string | null | undefined }) {
             <div key={t.id} className="flex items-start gap-2">
               <button
                 type="button"
-                title="Concluir"
+                title={tt("Concluir")}
                 onClick={() => toggleTask.mutate({ id: t.id, done: true })}
                 className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-muted-foreground/40 text-transparent transition-colors hover:border-emerald-500 hover:text-emerald-500"
               >
@@ -47,8 +49,8 @@ export function RecordTasks({ phone }: { phone: string | null | undefined }) {
                 {t.due_at && (
                   <p className={cn("mt-0.5 flex items-center gap-1 text-xs", late ? "font-medium text-red-600" : "text-muted-foreground")}>
                     <CalendarClock className="h-3 w-3" />
-                    {new Date(t.due_at).toLocaleString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    {late ? " — atrasada" : ""}
+                    {new Date(t.due_at).toLocaleString(intlLocale(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {late ? tt(" — atrasada") : ""}
                   </p>
                 )}
               </div>

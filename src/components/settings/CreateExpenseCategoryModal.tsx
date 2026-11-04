@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ interface CreateExpenseCategoryModalProps {
 }
 
 export function CreateExpenseCategoryModal({ open, onOpenChange }: CreateExpenseCategoryModalProps) {
+  const { t } = useLanguage();
   const createCategory = useCreateExpenseCategory();
 
   const [name, setName] = useState('');
@@ -44,33 +46,33 @@ export function CreateExpenseCategoryModal({ open, onOpenChange }: CreateExpense
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nova Categoria de Despesa</DialogTitle>
+          <DialogTitle>{t('Nova Categoria de Despesa')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="cat-name">Nome *</Label>
+            <Label htmlFor="cat-name">{t('Nome *')}</Label>
             <Input
               id="cat-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Marketing"
+              placeholder={t('Ex: Marketing')}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cat-desc">Descrição</Label>
+            <Label htmlFor="cat-desc">{t('Descrição')}</Label>
             <Textarea
               id="cat-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrição opcional..."
+              placeholder={t('Descrição opcional...')}
               rows={2}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Cor</Label>
+            <Label>{t('Cor')}</Label>
             <div className="flex gap-2 flex-wrap">
               {CATEGORY_COLORS.map((c) => (
                 <button
@@ -88,10 +90,10 @@ export function CreateExpenseCategoryModal({ open, onOpenChange }: CreateExpense
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={createCategory.isPending || !name.trim()}>
-              {createCategory.isPending ? 'A criar...' : 'Criar'}
+              {createCategory.isPending ? t('A criar...') : t('Criar')}
             </Button>
           </DialogFooter>
         </form>

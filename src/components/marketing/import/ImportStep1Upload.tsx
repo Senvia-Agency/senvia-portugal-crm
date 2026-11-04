@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { intlLocale, tr, useLanguage } from "@/i18n";
 
 interface Props {
   fileName: string;
@@ -19,6 +20,7 @@ const MAX_IMPORT_ROWS = 5000;
 
 export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function ImportStep1Upload({ fileName, headers, rows, onFileLoaded, onClearFile, onConfirm }, ref) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const parseCSVLine = (line: string, delimiter: string): string[] => {
     const values: string[] = [];
@@ -84,9 +86,9 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
           text = new TextDecoder("iso-8859-1").decode(buffer);
         }
         const { headers: csvHeaders, rows: csvRows, total } = parseCSVText(text);
-        if (csvHeaders.length === 0) { toast.error("Ficheiro vazio"); return; }
+        if (csvHeaders.length === 0) { toast.error(tr("Ficheiro vazio")); return; }
         if (total > csvRows.length) {
-          toast.warning(`O ficheiro tem ${total} linhas. Apenas as primeiras ${csvRows.length} serão importadas.`);
+          toast.warning(tr("O ficheiro tem {{total}} linhas. Apenas as primeiras {{max}} serão importadas.", { total, max: csvRows.length }));
         }
         onFileLoaded(file.name, csvHeaders, csvRows);
       };
@@ -100,10 +102,10 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
       const wb = XLSX.read(data, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
-      if (json.length === 0) { toast.error("Ficheiro vazio"); return; }
+      if (json.length === 0) { toast.error(tr("Ficheiro vazio")); return; }
       const fileHeaders = Object.keys(json[0]);
       if (json.length > MAX_IMPORT_ROWS) {
-        toast.warning(`O ficheiro tem ${json.length} linhas. Apenas as primeiras ${MAX_IMPORT_ROWS} serão importadas.`);
+        toast.warning(tr("O ficheiro tem {{total}} linhas. Apenas as primeiras {{max}} serão importadas.", { total: json.length, max: MAX_IMPORT_ROWS }));
       }
       onFileLoaded(file.name, fileHeaders, json.slice(0, MAX_IMPORT_ROWS));
     };
@@ -133,7 +135,7 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
     <div ref={ref} className="space-y-4">
       <button onClick={downloadSample} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
         <Download className="h-3.5 w-3.5" />
-        Baixe um arquivo de exemplo (.csv)
+        {t("Descarregue um ficheiro de exemplo (.csv)")}
       </button>
 
       {!fileName ? (
@@ -144,8 +146,8 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
           onClick={() => fileRef.current?.click()}
         >
           <Upload className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <p className="text-sm font-medium">Selecione seu arquivo ou arraste e solte aqui</p>
-          <p className="mt-1 text-xs text-muted-foreground">.xlsb, .xlsx, .xls, .csv ou .txt (máx. {MAX_IMPORT_ROWS.toLocaleString("pt-PT")} linhas)</p>
+          <p className="text-sm font-medium">{t("Selecione o seu ficheiro ou arraste-o para aqui")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t(".xlsb, .xlsx, .xls, .csv ou .txt (máx. {{max}} linhas)", { max: MAX_IMPORT_ROWS.toLocaleString(intlLocale()) })}</p>
           <input ref={fileRef} type="file" className="hidden" accept=".xlsb,.xlsx,.xls,.csv,.txt" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
         </div>
       ) : (
@@ -153,11 +155,11 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
           <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/10 p-3">
             <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">Seu arquivo foi carregado.</p>
+              <p className="text-sm font-medium">{t("O seu ficheiro foi carregado.")}</p>
               <div className="mt-0.5 flex items-center gap-2">
                 <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="truncate text-xs text-muted-foreground">{fileName}</span>
-                <span className="text-xs text-muted-foreground">• {rows.length} linhas</span>
+                <span className="text-xs text-muted-foreground">• {t("{{n}} linhas", { n: rows.length })}</span>
               </div>
             </div>
             <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={onClearFile}>
@@ -167,7 +169,7 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
 
           {previewRows.length > 0 && (
             <div>
-              <p className="mb-2 text-xs text-muted-foreground">Pré-visualização (primeiras {previewRows.length} linhas):</p>
+              <p className="mb-2 text-xs text-muted-foreground">{t("Pré-visualização (primeiras {{n}} linhas):", { n: previewRows.length })}</p>
               <ScrollArea className="max-h-[200px] rounded-md border">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -195,7 +197,7 @@ export const ImportStep1Upload = forwardRef<HTMLDivElement, Props>(function Impo
 
           {onConfirm ? (
             <div className="flex justify-end">
-              <Button onClick={onConfirm}>Confirme seu arquivo</Button>
+              <Button onClick={onConfirm}>{t("Confirmar ficheiro")}</Button>
             </div>
           ) : null}
 

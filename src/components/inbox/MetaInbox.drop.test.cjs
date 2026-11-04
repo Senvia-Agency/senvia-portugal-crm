@@ -17,7 +17,7 @@ function drop({ archived = false, expired = false, types = ['Files'], files = [{
   setColados: update => { result.files = update([]); },
   crypto: { randomUUID: () => 'test' }, URL: { createObjectURL: file => 'blob:' + file.name },
   composerRef: { current: { focus: () => { result.focused = true; } } },
-  toast: { error: message => result.errors.push(message) },
+  toast: { error: message => result.errors.push(message) }, t: text => text,
  });
  return result;
 }

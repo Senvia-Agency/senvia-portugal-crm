@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Info, Percent, TrendingUp, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrganization, useUpdateOrganization } from "@/hooks/useOrganization";
+import { useLanguage } from "@/i18n";
 
 type CommissionMode = "global" | "per_product";
 
@@ -26,6 +27,7 @@ interface SalesSettings {
 export function CommissionGlobalSettings() {
   const { data: org } = useOrganization();
   const updateOrganization = useUpdateOrganization();
+  const { t } = useLanguage();
   const currentSettings: SalesSettings = (org?.sales_settings as SalesSettings) || {};
   const isTelecom = (org as { niche?: string } | undefined)?.niche === "telecom";
 
@@ -70,17 +72,17 @@ export function CommissionGlobalSettings() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Percent className="h-4 w-4" />
-          Regras gerais
+          {t('Regras gerais')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
             <Label htmlFor="commissions_enabled_matrix" className="font-medium cursor-pointer">
-              Comissões sobre vendas
+              {t('Comissões sobre vendas')}
             </Label>
             <p className="text-xs text-muted-foreground">
-              Liga o cálculo de comissões nesta organização.
+              {t('Liga o cálculo de comissões nesta organização.')}
             </p>
           </div>
           <Switch
@@ -93,7 +95,7 @@ export function CommissionGlobalSettings() {
         {/* Mode selector — non-telecom orgs only */}
         {enabled && !isTelecom && (
           <div className="space-y-2 border-t pt-5">
-            <Label className="text-sm">Como calcular a comissão?</Label>
+            <Label className="text-sm">{t('Como calcular a comissão?')}</Label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -105,8 +107,8 @@ export function CommissionGlobalSettings() {
               >
                 <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div>
-                  <p className="text-sm font-medium">Comissão global</p>
-                  <p className="text-xs text-muted-foreground">Uma % sobre o valor total de cada venda.</p>
+                  <p className="text-sm font-medium">{t('Comissão global')}</p>
+                  <p className="text-xs text-muted-foreground">{t('Uma % sobre o valor total de cada venda.')}</p>
                 </div>
               </button>
               <button
@@ -119,8 +121,8 @@ export function CommissionGlobalSettings() {
               >
                 <Package className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div>
-                  <p className="text-sm font-medium">Comissão por produto/serviço</p>
-                  <p className="text-xs text-muted-foreground">Valor definido no cadastro de cada produto.</p>
+                  <p className="text-sm font-medium">{t('Comissão por produto/serviço')}</p>
+                  <p className="text-xs text-muted-foreground">{t('Valor definido na ficha de cada produto.')}</p>
                 </div>
               </button>
             </div>
@@ -131,7 +133,7 @@ export function CommissionGlobalSettings() {
           <div className="space-y-3 border-t pt-5">
             <div className="space-y-2">
               <Label htmlFor="commission_percentage_matrix" className="text-sm">
-                Percentagem global (%)
+                {t('Percentagem global (%)')}
               </Label>
               <Input
                 id="commission_percentage_matrix"
@@ -139,7 +141,7 @@ export function CommissionGlobalSettings() {
                 min="0"
                 max="100"
                 step="0.5"
-                placeholder="Ex: 10"
+                placeholder={t('Ex: 10')}
                 value={percentage}
                 onChange={(e) => setPercentage(e.target.value)}
                 className="w-32"
@@ -149,8 +151,8 @@ export function CommissionGlobalSettings() {
               <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {isTelecom
-                  ? "Aplicada como fallback sobre o valor total da venda quando os produtos não têm comissão configurada. Para regras detalhadas por produto ou energia, usa as secções abaixo."
-                  : "Aplicada sobre o valor total de cada venda."}
+                  ? t('Aplicada como fallback sobre o valor total da venda quando os produtos não têm comissão configurada. Para regras detalhadas por produto ou energia, usa as secções abaixo.')
+                  : t('Aplicada sobre o valor total de cada venda.')}
               </p>
             </div>
           </div>
@@ -161,8 +163,7 @@ export function CommissionGlobalSettings() {
           <div className="flex gap-2 rounded-md border bg-muted/50 p-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Define a comissão de cada produto/serviço em <strong>Definições &gt; Produtos</strong> (campo
-              "Comissão por unidade"). Produtos sem valor definido não geram comissão.
+              {t('Define a comissão de cada produto/serviço em Definições > Produtos (campo "Comissão por unidade"). Produtos sem valor definido não geram comissão.')}
             </p>
           </div>
         )}
@@ -172,7 +173,7 @@ export function CommissionGlobalSettings() {
           disabled={!hasChanges || updateOrganization.isPending}
           className="w-full sm:w-auto"
         >
-          {updateOrganization.isPending ? "A guardar..." : "Guardar"}
+          {updateOrganization.isPending ? t('A guardar...') : t('Guardar')}
         </Button>
       </CardContent>
     </Card>

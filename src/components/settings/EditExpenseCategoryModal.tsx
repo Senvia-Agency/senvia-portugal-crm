@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ interface EditExpenseCategoryModalProps {
 }
 
 export function EditExpenseCategoryModal({ category, open, onOpenChange }: EditExpenseCategoryModalProps) {
+  const { t } = useLanguage();
   const updateCategory = useUpdateExpenseCategory();
 
   const [name, setName] = useState(category.name);
@@ -47,33 +49,33 @@ export function EditExpenseCategoryModal({ category, open, onOpenChange }: EditE
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Categoria</DialogTitle>
+          <DialogTitle>{t('Editar Categoria')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-cat-name">Nome *</Label>
+            <Label htmlFor="edit-cat-name">{t('Nome *')}</Label>
             <Input
               id="edit-cat-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Marketing"
+              placeholder={t('Ex: Marketing')}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-cat-desc">Descrição</Label>
+            <Label htmlFor="edit-cat-desc">{t('Descrição')}</Label>
             <Textarea
               id="edit-cat-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrição opcional..."
+              placeholder={t('Descrição opcional...')}
               rows={2}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Cor</Label>
+            <Label>{t('Cor')}</Label>
             <div className="flex gap-2 flex-wrap">
               {CATEGORY_COLORS.map((c) => (
                 <button
@@ -91,10 +93,10 @@ export function EditExpenseCategoryModal({ category, open, onOpenChange }: EditE
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={updateCategory.isPending || !name.trim()}>
-              {updateCategory.isPending ? 'A guardar...' : 'Guardar'}
+              {updateCategory.isPending ? t('A guardar...') : t('Guardar')}
             </Button>
           </DialogFooter>
         </form>

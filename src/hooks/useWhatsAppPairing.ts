@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { tr } from '@/i18n';
 
 /**
  * Concluir o emparelhamento de Coexistence de um número já ligado.
@@ -71,7 +72,7 @@ function carregarSdk(appId: string, versao: string): Promise<void> {
     s.defer = true;
     s.crossOrigin = 'anonymous';
     s.onerror = () => reject(new Error(
-      'Não foi possível carregar o SDK da Meta. Alguma extensão do browser pode estar a bloqueá-lo.',
+      tr('Não foi possível carregar o SDK da Meta. Alguma extensão do browser pode estar a bloqueá-lo.'),
     ));
     document.body.appendChild(s);
   });
@@ -83,7 +84,7 @@ export function useWhatsAppPairing() {
 
   return useMutation({
     mutationFn: async ({ phoneNumberId, wabaId }: { phoneNumberId?: string; wabaId?: string }) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { data: params, error: pErr } = await supabase.functions.invoke('meta-connect', {
         body: { action: 'whatsapp_params', organization_id: organization.id },
@@ -140,7 +141,7 @@ export function useWhatsAppPairing() {
           );
           // O SDK não chama o callback se a janela for fechada à força.
           setTimeout(() => reject(new Error(
-            'O assistente demorou demasiado. Se o completaste, carrega outra vez para confirmar.',
+            tr('O assistente demorou demasiado. Se o completaste, carrega outra vez para confirmar.'),
           )), 10 * 60_000);
         });
 
@@ -151,7 +152,7 @@ export function useWhatsAppPairing() {
         }
 
         if (ultimoEvento === 'CANCEL') {
-          throw new Error('Ligação cancelada — o assistente foi fechado antes do fim.');
+          throw new Error(tr('Ligação cancelada — o assistente foi fechado antes do fim.'));
         }
 
         // O servidor confirma o estado à Meta e pede a sincronização. Os ids do

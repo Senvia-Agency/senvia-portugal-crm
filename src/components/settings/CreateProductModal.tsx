@@ -12,6 +12,7 @@ import { effectiveProductTaxRate, effectiveTaxExemptionReason, type Organization
 import { ProductStripeSync } from './ProductStripeSync';
 import { ProductFiscalFields } from './ProductFiscalFields';
 import type { Product } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface CreateProductModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ interface CreateProductModalProps {
 
 export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProductModalProps) {
   const createProduct = useCreateProduct();
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -76,33 +78,33 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo Produto/Serviço</DialogTitle>
+          <DialogTitle>{t('Novo Produto/Serviço')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="max-h-[75dvh] space-y-4 overflow-y-auto pr-1">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome *</Label>
+            <Label htmlFor="name">{t('Nome *')}</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Consulta Inicial"
+              placeholder={t('Ex: Consulta Inicial')}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="description">{t('Descrição')}</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrição opcional do produto ou serviço"
+              placeholder={t('Descrição opcional do produto ou serviço')}
               rows={3}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="price">Preço Base (€)</Label>
+            <Label htmlFor="price">{t('Preço Base (€)')}</Label>
             <Input
               id="price"
               type="number"
@@ -128,14 +130,13 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
           />
 
           <div className="rounded-lg border bg-primary/5 p-4 space-y-3">
-            <p className="text-sm font-medium">Comissão por unidade</p>
+            <p className="text-sm font-medium">{t('Comissão por unidade')}</p>
             <p className="text-xs text-muted-foreground -mt-1">
-              Valor pago ao comercial por cada unidade vendida.
-              Vendas de energia (com CPE) ignoram este campo e usam o motor próprio.
+              {t('Valor pago ao comercial por cada unidade vendida. Vendas de energia (com CPE) ignoram este campo e usam o motor próprio.')}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="commission" className="text-xs">Angariação (€)</Label>
+                <Label htmlFor="commission" className="text-xs">{t('Angariação (€)')}</Label>
                 <Input
                   id="commission"
                   type="number"
@@ -148,7 +149,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="commission-renewal" className="text-xs">
-                  Renovação (€)
+                  {t('Renovação (€)')}
                 </Label>
                 <Input
                   id="commission-renewal"
@@ -168,7 +169,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 text-primary" />
                 <Label htmlFor="recurring" className="font-medium cursor-pointer">
-                  Produto Recorrente
+                  {t('Produto Recorrente')}
                 </Label>
               </div>
               <Switch
@@ -180,7 +181,7 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
             {isRecurring && (
               <>
                 <p className="text-xs text-muted-foreground">
-                  Este produto é cobrado mensalmente. Vendas com este produto terão opção de renovação.
+                  {t('Este produto é cobrado mensalmente. Vendas com este produto terão opção de renovação.')}
                 </p>
                 {/* Sem productId ainda: o controlo explica que é preciso gravar
                     primeiro, em vez de aparecer desligado sem motivo aparente. */}
@@ -190,10 +191,10 @@ export function CreateProductModal({ open, onOpenChange, onCreated }: CreateProd
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={createProduct.isPending || !name.trim() || exemptionMissing || retentionInvalid}>
-              {createProduct.isPending ? 'A criar...' : 'Criar Produto'}
+              {createProduct.isPending ? t('A criar...') : t('Criar Produto')}
             </Button>
           </DialogFooter>
         </form>

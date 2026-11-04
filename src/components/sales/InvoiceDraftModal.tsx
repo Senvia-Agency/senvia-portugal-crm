@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Receipt, FileText, User, Calendar, CreditCard, Loader2, Info, MessageSquare } from "lucide-react";
 import {
   Dialog,
@@ -18,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/format";
 import { PAYMENT_METHOD_LABELS } from "@/types/sales";
 import type { PaymentMethod, SalePayment } from "@/types/sales";
+import { useLanguage, dateLocale } from "@/i18n";
+import { Trans } from "react-i18next";
 
 export interface DraftSaleItem {
   name: string;
@@ -93,6 +94,7 @@ export function InvoiceDraftModal({
   saleTotal,
   payments,
 }: InvoiceDraftModalProps) {
+  const { t } = useLanguage();
   const today = new Date();
   const labels = MODE_LABELS[mode];
   const orgTaxRate = taxConfig?.tax_value ?? 0;
@@ -141,10 +143,10 @@ export function InvoiceDraftModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Pré-visualização Senvia: {labels.title}
+            {t("Pré-visualização Senvia:")} {t(labels.title)}
           </DialogTitle>
           <DialogDescription>
-            Esta pré-visualização é calculada no Senvia. O número, a série, o ATCUD e o PDF oficiais só são atribuídos pelo faturador após a emissão.
+            {t("Esta pré-visualização é calculada no Senvia. O número, a série, o ATCUD e o PDF oficiais só são atribuídos pelo faturador após a emissão.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -154,13 +156,13 @@ export function InvoiceDraftModal({
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
               {mode === "invoice" && (
-                <>Esta fatura cobre o <strong>valor total</strong> da venda ({formatCurrency(amount)}). Após emissão, gere um <strong>Recibo (RC)</strong> por cada pagamento recebido.</>
+                <Trans i18nKey="Esta fatura cobre o <b>valor total</b> da venda ({{amount}}). Após emissão, gere um <b>Recibo (RC)</b> por cada pagamento recebido." values={{ amount: formatCurrency(amount) }} components={{ b: <strong /> }} />
               )}
               {mode === "invoice_receipt" && (
-                <>Esta fatura-recibo cobre o <strong>valor total da venda</strong> ({formatCurrency(saleTotal ?? amount)}) e exige pagamento integral confirmado.</>
+                <Trans i18nKey="Esta fatura-recibo cobre o <b>valor total da venda</b> ({{amount}}) e exige pagamento integral confirmado." values={{ amount: formatCurrency(saleTotal ?? amount) }} components={{ b: <strong /> }} />
               )}
               {mode === "receipt" && (
-                <>Este recibo comprova o <strong>pagamento de {formatCurrency(amount)}</strong> associado à fatura já emitida.</>
+                <Trans i18nKey="Este recibo comprova o <b>pagamento de {{amount}}</b> associado à fatura já emitida." values={{ amount: formatCurrency(amount) }} components={{ b: <strong /> }} />
               )}
             </AlertDescription>
           </Alert>
@@ -168,11 +170,11 @@ export function InvoiceDraftModal({
           {/* Document Type & Date */}
           <div className="flex items-center justify-between">
             <Badge variant="secondary" className="text-xs">
-              {labels.badge}
+              {t(labels.badge)}
             </Badge>
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
-              {format(today, "d MMM yyyy", { locale: pt })}
+              {format(today, "d MMM yyyy", { locale: dateLocale() })}
             </div>
           </div>
 
@@ -182,13 +184,13 @@ export function InvoiceDraftModal({
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-3.5 w-3.5" />
-              <span>Cliente</span>
+              <span>{t("Cliente")}</span>
             </div>
             <div className="p-3 rounded-lg bg-muted/30 space-y-1">
               <p className="text-sm font-medium">{clientName || "—"}</p>
               {clientNif && (
                 <p className="text-xs text-muted-foreground font-mono">
-                  NIF: {clientNif}
+                  {t("NIF:")} {clientNif}
                 </p>
               )}
             </div>
@@ -202,7 +204,7 @@ export function InvoiceDraftModal({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileText className="h-3.5 w-3.5" />
-                  <span>Itens</span>
+                  <span>{t("Itens")}</span>
                 </div>
                 <div className="space-y-1.5">
                   {itemsWithTax.map((item, idx) => (
@@ -215,7 +217,7 @@ export function InvoiceDraftModal({
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {item.effectiveTax === 0 ? "Isento" : `IVA ${item.effectiveTax}%`}
+                          {item.effectiveTax === 0 ? t("Isento") : t("IVA {{rate}}%", { rate: item.effectiveTax })}
                         </Badge>
                         <span className="font-medium text-xs">{formatCurrency(item.lineTotal)}</span>
                       </div>
@@ -231,19 +233,19 @@ export function InvoiceDraftModal({
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <CreditCard className="h-3.5 w-3.5" />
-              <span>{mode === "invoice" ? "Detalhes da Fatura" : mode === "invoice_receipt" ? "Detalhes da Fatura-Recibo" : "Detalhes do Pagamento"}</span>
+              <span>{mode === "invoice" ? t("Detalhes da Fatura") : mode === "invoice_receipt" ? t("Detalhes da Fatura-Recibo") : t("Detalhes do Pagamento")}</span>
             </div>
             <div className="p-3 rounded-lg bg-muted/30 space-y-2">
               {(mode === "receipt" || mode === "invoice_receipt") && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Data do pagamento</span>
-                  <span>{format(new Date(paymentDate), "d MMM yyyy", { locale: pt })}</span>
+                  <span className="text-muted-foreground">{t("Data do pagamento")}</span>
+                  <span>{format(new Date(paymentDate), "d MMM yyyy", { locale: dateLocale() })}</span>
                 </div>
               )}
               {paymentMethod && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Método</span>
-                  <span>{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
+                  <span className="text-muted-foreground">{t("Método")}</span>
+                  <span>{t(PAYMENT_METHOD_LABELS[paymentMethod])}</span>
                 </div>
               )}
             </div>
@@ -254,18 +256,18 @@ export function InvoiceDraftModal({
           {/* Tax & Totals */}
           <div className="p-3 rounded-lg border space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal (s/ IVA)</span>
+              <span className="text-muted-foreground">{t("Subtotal (s/ IVA)")}</span>
               <span>{formatCurrency(displaySubtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">
-                IVA {mode === "receipt" || (!hasItems && orgTaxRate === 0) ? "(Isento)" : ""}
+                {t("IVA")} {mode === "receipt" || (!hasItems && orgTaxRate === 0) ? t("(Isento)") : ""}
               </span>
               <span>{formatCurrency(displayTax)}</span>
             </div>
             <Separator />
             <div className="flex justify-between font-semibold">
-              <span>Total</span>
+              <span>{t("Total")}</span>
               <span className="text-primary">{formatCurrency(displayTotal)}</span>
             </div>
           </div>
@@ -276,28 +278,28 @@ export function InvoiceDraftModal({
               <Separator />
               {mode === "invoice" && invoicePlanComplete && (
                 <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-                  <p className="font-medium">Plano de pagamento da venda</p>
+                  <p className="font-medium">{t("Plano de pagamento da venda")}</p>
                   {invoicePlanPayments.map((payment, index) => (
                     <p key={payment.id} className="text-muted-foreground">
-                      {index + 1}.ª parcela: {formatCurrency(Number(payment.amount))} — {payment.status === "paid" ? "paga em" : "a pagar até"} {payment.payment_date.split("-").reverse().join("/")}
+                      {t(payment.status === "paid" ? "{{n}}.ª parcela: {{amount}} — paga em {{date}}" : "{{n}}.ª parcela: {{amount}} — a pagar até {{date}}", { n: index + 1, amount: formatCurrency(Number(payment.amount)), date: payment.payment_date.split("-").reverse().join("/") })}
                     </p>
                   ))}
-                  <p className="text-xs text-muted-foreground pt-1">Estas condições serão enviadas ao faturador com a fatura.</p>
+                  <p className="text-xs text-muted-foreground pt-1">{t("Estas condições serão enviadas ao faturador com a fatura.")}</p>
                 </div>
               )}
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Observações adicionais</span>
+                  <span>{t("Observações adicionais")}</span>
                 </div>
                 <Textarea
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Observações a incluir no documento..."
+                  placeholder={t("Observações a incluir no documento...")}
                   className="min-h-[80px] text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Este texto será enviado para o documento fiscal.
+                  {t("Este texto será enviado para o documento fiscal.")}
                 </p>
               </div>
             </>
@@ -310,18 +312,18 @@ export function InvoiceDraftModal({
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button onClick={() => onConfirm(observations || undefined)} disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {mode === "invoice" ? "A emitir..." : mode === "invoice_receipt" ? "A emitir..." : "A gerar..."}
+                {mode === "invoice" ? t("A emitir...") : mode === "invoice_receipt" ? t("A emitir...") : t("A gerar...")}
               </>
             ) : (
               <>
                 <Receipt className="h-4 w-4 mr-2" />
-                {labels.button}
+                {t(labels.button)}
               </>
             )}
           </Button>

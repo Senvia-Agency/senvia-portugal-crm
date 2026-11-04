@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { matchesSearch } from "@/lib/utils";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Users, Plus, Edit, Trash2, Mail, Phone } from "lucide-react";
 import {
   Table,
@@ -30,10 +29,12 @@ import { formatCurrency } from "@/lib/format";
 import { Customer } from "@/types/ecommerce";
 import { CreateCustomerModal } from "./CreateCustomerModal";
 import { EditCustomerModal } from "./EditCustomerModal";
+import { useLanguage, dateLocale } from "@/i18n";
 
 export function CustomersTable() {
   const { data: customers, isLoading } = useCustomers();
   const deleteCustomer = useDeleteCustomer();
+  const { t } = useLanguage();
   
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -66,32 +67,32 @@ export function CustomersTable() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Input
-            placeholder="Pesquisar clientes..."
+            placeholder={t("Pesquisar clientes...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full sm:w-[300px]"
           />
           <p className="text-sm text-muted-foreground whitespace-nowrap">
-            {filteredCustomers?.length || 0} clientes
+            {t((filteredCustomers?.length || 0) === 1 ? "{{n}} cliente" : "{{n}} clientes", { n: filteredCustomers?.length || 0 })}
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} size="sm">
           <Plus className="mr-2 h-4 w-4" />
-          Novo Cliente
+          {t("Novo Cliente")}
         </Button>
       </div>
 
       {filteredCustomers?.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed p-8">
           <Users className="h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 font-semibold">Sem clientes</h3>
+          <h3 className="mt-4 font-semibold">{t("Sem clientes")}</h3>
           <p className="text-sm text-muted-foreground">
-            {search ? "Nenhum cliente encontrado." : "Adicione o seu primeiro cliente."}
+            {search ? t("Nenhum cliente encontrado.") : t("Adicione o seu primeiro cliente.")}
           </p>
           {!search && (
             <Button onClick={() => setCreateOpen(true)} className="mt-4">
               <Plus className="mr-2 h-4 w-4" />
-              Adicionar Cliente
+              {t("Adicionar Cliente")}
             </Button>
           )}
         </div>
@@ -100,12 +101,12 @@ export function CustomersTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Contacto</TableHead>
-                <TableHead>Pedidos</TableHead>
-                <TableHead>Total Gasto</TableHead>
-                <TableHead>Desde</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("Cliente")}</TableHead>
+                <TableHead>{t("Contacto")}</TableHead>
+                <TableHead>{t("Pedidos")}</TableHead>
+                <TableHead>{t("Total Gasto")}</TableHead>
+                <TableHead>{t("Desde")}</TableHead>
+                <TableHead className="text-right">{t("Ações")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,7 +143,7 @@ export function CustomersTable() {
                     {formatCurrency(customer.total_spent ?? 0)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(customer.created_at), "MMM yyyy", { locale: pt })}
+                    {format(new Date(customer.created_at), "MMM yyyy", { locale: dateLocale() })}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
@@ -150,7 +151,7 @@ export function CustomersTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setEditCustomer(customer)}
-                        title="Editar"
+                        title={t("Editar")}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -158,7 +159,7 @@ export function CustomersTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteId(customer.id)}
-                        title="Eliminar"
+                        title={t("Eliminar")}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -186,15 +187,15 @@ export function CustomersTable() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Cliente</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar Cliente")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar este cliente? Esta ação não pode ser revertida.
+              {t("Tem a certeza que deseja eliminar este cliente? Esta ação não pode ser revertida.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

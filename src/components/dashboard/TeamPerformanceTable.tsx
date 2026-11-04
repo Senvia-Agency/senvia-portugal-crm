@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { endOfDay } from "date-fns";
-import { pt } from "date-fns/locale";
+import { endOfDay, eachMonthOfInterval, format, startOfMonth } from "date-fns";
+import { intlLocale, tr, useLanguage } from "@/i18n";
 import { Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -18,9 +18,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PrintCardButton } from "./PrintCardButton";
 import { formatOperationalUnits, sumOperationalSaleUnits } from "@/lib/sale-units";
+import { useCommercialCommissionsByMonth } from "@/hooks/useCommercialCommissions";
 
 function formatCurrency(val: number) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR" }).format(val);
 }
 
 function getConversionTone(rate: number) {
@@ -30,10 +31,10 @@ function getConversionTone(rate: number) {
 }
 
 function getScopeLabel(dataScope: string, selectedMemberName: string | null, isTeamLeader: boolean) {
-  if (selectedMemberName) return `Filtro ativo: ${selectedMemberName}`;
-  if (dataScope === "all") return "A mostrar todos os colaboradores";
-  if (dataScope === "team" && isTeamLeader) return "A mostrar a sua equipa";
-  return "A mostrar apenas os seus dados";
+  if (selectedMemberName) return tr("Filtro ativo: {{name}}", { name: selectedMemberName });
+  if (dataScope === "all") return tr("A mostrar todos os colaboradores");
+  if (dataScope === "team" && isTeamLeader) return tr("A mostrar a sua equipa");
+  return tr("A mostrar apenas os seus dados");
 }
 
 interface MemberPerformance {
@@ -49,6 +50,7 @@ interface MemberPerformance {
 }
 
 export function TeamPerformanceTable() {
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [] } = useTeamMembers();
@@ -85,7 +87,7 @@ export function TeamPerformanceTable() {
       const fallbackCurrentUser: TeamMember = {
         id: user.id,
         user_id: user.id,
-        full_name: profile?.full_name || "Eu",
+        full_name: profile?.full_name || t("Eu"),
         avatar_url: null,
         email: null,
         phone: null,
@@ -100,7 +102,7 @@ export function TeamPerformanceTable() {
     }
 
     return Array.from(membersMap.values());
-  }, [members, orgId, profile?.full_name, user?.id]);
+  }, [members, orgId, profile?.full_name, user?.id, t]);
 
   const filteredMembers = useMemo(() => {
     if (dataScope === "own" || !canFilterByTeam) {
@@ -168,7 +170,7 @@ export function TeamPerformanceTable() {
       // column poisons the whole query inferred type.
       const { data, error } = await (supabase as any)
         .from("sales")
-        .select("id, created_by, seller_id, status, comissao, operational_units")
+        .select("id, created_by, seller_id, status, operational_units")
         .eq("organization_id", orgId)
         .gte("created_at", monthStart)
         .lte("created_at", monthEnd)
@@ -181,47 +183,28 @@ export function TeamPerformanceTable() {
     enabled: !!orgId && memberIds.length > 0,
   });
 
-  // sales.comissao is what the OPERATOR pays (gross) once a sale carries
-  // frozen per-seller splits — showing it here overstates what a person
-  // actually earned by whatever the org kept. Prefer the split amount for
-  // that specific person; fall back to sale.comissao only for sales with no
-  // split rows at all (e.g. orgs not on the catalog commission model).
-  const deliveredSaleIds = useMemo(
-    () =>
-      (salesData || [])
-        .filter((sale) => sale.status === "delivered" || sale.status === "completed")
-        .map((sale) => sale.id),
-    [salesData],
-  );
-  const { data: splitsData } = useQuery({
-    // See the note in Sales.tsx: the "sales" prefix keeps these amounts in
-    // step with the trigger that rewrites them.
-    queryKey: ["sales", "team-perf-commission-splits", orgId, deliveredSaleIds],
-    queryFn: async () => {
-      if (deliveredSaleIds.length === 0) return [];
-      const { data, error } = await (supabase as any)
-        .from("sale_commission_splits")
-        .select("sale_id, user_id, amount")
-        .in("sale_id", deliveredSaleIds);
-      if (error) throw error;
-      return (data || []) as { sale_id: string; user_id: string; amount: number }[];
-    },
-    enabled: deliveredSaleIds.length > 0,
-  });
-  const splitAmountByKey = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const split of splitsData || []) {
-      map.set(`${split.sale_id}:${split.user_id}`, split.amount || 0);
+  // Commission: the same figures as the Comissões screen (what the client paid
+  // in the month, recurring Stripe commissions, telecom by installation),
+  // summed over the months the period covers. Counting only sales created and
+  // delivered in the period showed a fraction of what was earned. The monthly
+  // figures can't split a month, and an open-ended period ("Todo o histórico")
+  // or one beyond a year has no sensible sum, so those show a dash.
+  const commissionMonths = useMemo(() => {
+    if (!from) return null;
+    const months = eachMonthOfInterval({ start: startOfMonth(from), end: startOfMonth(to ?? from) })
+      .map((month) => format(month, "yyyy-MM-dd"));
+    return months.length <= 12 ? months : null;
+  }, [from, to]);
+  const commissionQueries = useCommercialCommissionsByMonth(commissionMonths ?? []);
+  const commissionsLoading = commissionQueries.some((query) => query.isLoading);
+  const commissionByUser = new Map<string, number>();
+  for (const query of commissionQueries) {
+    for (const commercial of query.data?.commercials ?? []) {
+      commissionByUser.set(commercial.userId, (commissionByUser.get(commercial.userId) ?? 0) + commercial.total);
     }
-    return map;
-  }, [splitsData]);
-  const hasSplitsForSale = useMemo(() => {
-    const set = new Set<string>();
-    for (const split of splitsData || []) set.add(split.sale_id);
-    return set;
-  }, [splitsData]);
+  }
 
-  const loading = leadsLoading || proposalsLoading || salesLoading;
+  const loading = leadsLoading || proposalsLoading || salesLoading || commissionsLoading;
 
   const rows: MemberPerformance[] = useMemo(() => {
     return filteredMembers.map((member) => {
@@ -238,18 +221,13 @@ export function TeamPerformanceTable() {
         (sale: any) => (sale.seller_id || sale.created_by) === member.user_id,
       );
       const delivered = memberSales.filter((sale) => sale.status === "delivered" || sale.status === "completed");
-      const commission = delivered.reduce((sum, sale) => {
-        const amount = hasSplitsForSale.has(sale.id)
-          ? splitAmountByKey.get(`${sale.id}:${member.user_id}`) || 0
-          : sale.comissao || 0;
-        return sum + amount;
-      }, 0);
+      const commission = commissionByUser.get(member.user_id) ?? 0;
       // Conversion is lead-based: how many of the member's leads were won.
       const conversionRate = memberLeads > 0 ? (wonLeads / memberLeads) * 100 : 0;
 
       return {
         userId: member.user_id,
-        name: member.full_name + (member.user_id === user?.id ? " (eu)" : ""),
+        name: member.full_name + (member.user_id === user?.id ? t(" (eu)") : ""),
         leads: memberLeads,
         wonLeads,
         proposals: memberProposals.length,
@@ -259,7 +237,7 @@ export function TeamPerformanceTable() {
         conversionRate,
       };
     });
-  }, [filteredMembers, trafficFilteredLeads, proposalsInPeriod, salesData, user?.id, convertedStatusKeys, hasSplitsForSale, splitAmountByKey]);
+  }, [filteredMembers, trafficFilteredLeads, proposalsInPeriod, salesData, user?.id, convertedStatusKeys, commissionByUser, t]);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -280,22 +258,18 @@ export function TeamPerformanceTable() {
   const scopeLabel = getScopeLabel(dataScope, selectedMemberName, isTeamLeader);
 
   return (
-    <Card ref={cardRef}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base capitalize">
-                Performance da Equipa — {currentMonthLabel}
-              </CardTitle>
-            </div>
-            <p className="text-xs text-muted-foreground">{scopeLabel}</p>
+    <Card ref={cardRef} data-module="team">
+      <CardHeader className="px-4 pb-1 pt-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <CardTitle className="truncate text-sm font-semibold">{t("Desempenho da equipa")}</CardTitle>
+            <span className="truncate text-xs text-muted-foreground" title={scopeLabel}>{currentMonthLabel}</span>
           </div>
           <PrintCardButton targetRef={cardRef} />
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="px-4 pb-3 pt-0">
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-8 w-full" />
@@ -303,17 +277,17 @@ export function TeamPerformanceTable() {
             <Skeleton className="h-8 w-full" />
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <Table>
+          <div className="-mx-4 overflow-x-auto sm:mx-0">
+            <Table className="[&_:is(th,td)]:whitespace-nowrap [&_:is(th,td)]:px-2 [&_:is(th,td):first-child]:pl-4 sm:[&_:is(th,td):first-child]:pl-0 [&_:is(th,td):last-child]:pr-4 sm:[&_:is(th,td):last-child]:pr-0 [&_th]:h-8">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Colaborador</TableHead>
-                  <TableHead className="text-xs text-right">Leads</TableHead>
-                  <TableHead className="text-xs text-right">Propostas</TableHead>
-                  <TableHead className="text-xs text-right hidden sm:table-cell">Valor Prop. Abertas</TableHead>
-                  <TableHead className="text-xs text-right">Vendas</TableHead>
-                  <TableHead className="text-xs text-right hidden sm:table-cell">Comissão</TableHead>
-                  <TableHead className="text-xs text-right">Conversão</TableHead>
+                  <TableHead className="text-xs">{t("Colaborador")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("Leads")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("Propostas")}</TableHead>
+                  <TableHead className="team-col-open text-xs text-right hidden sm:table-cell" title={t("Valor das propostas em aberto")}>{t("Em aberto")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("Vendas")}</TableHead>
+                  <TableHead className="text-xs text-right hidden sm:table-cell" title={t("A mesma comissão de Vendas → Comissões, somada pelos meses do período")}>{t("Comissão")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("Conversão")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -327,10 +301,10 @@ export function TeamPerformanceTable() {
                       <TableCell className="text-xs py-1.5 font-medium">{row.name}</TableCell>
                       <TableCell className="text-xs text-right py-1.5">{row.leads}</TableCell>
                       <TableCell className="text-xs text-right py-1.5">{row.proposals}</TableCell>
-                      <TableCell className="text-xs text-right py-1.5 hidden sm:table-cell">{formatCurrency(row.openProposalValue)}</TableCell>
+                      <TableCell className="team-col-open text-xs text-right py-1.5 hidden sm:table-cell">{formatCurrency(row.openProposalValue)}</TableCell>
                       <TableCell className="text-xs text-right py-1.5">{formatOperationalUnits(row.salesDelivered)}</TableCell>
                       <TableCell className="text-xs text-right py-1.5 hidden sm:table-cell text-primary font-medium">
-                        {canSeeCommission ? formatCurrency(row.commission) : '—'}
+                        {canSeeCommission && commissionMonths ? formatCurrency(row.commission) : '—'}
                       </TableCell>
                       <TableCell className="text-xs text-right py-1.5 font-medium">
                         <span className={getConversionTone(row.conversionRate)}>{row.conversionRate.toFixed(0)}%</span>
@@ -340,16 +314,16 @@ export function TeamPerformanceTable() {
                 })}
                 {showTotals && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                    <TableCell className="text-xs font-semibold py-1.5">{t("Total")}</TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5">{totals.leads}</TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5">{totals.proposals}</TableCell>
-                    <TableCell className="text-xs text-right font-semibold py-1.5 hidden sm:table-cell">{formatCurrency(totals.openProposalValue)}</TableCell>
+                    <TableCell className="team-col-open text-xs text-right font-semibold py-1.5 hidden sm:table-cell">{formatCurrency(totals.openProposalValue)}</TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5">{formatOperationalUnits(totals.salesDelivered)}</TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5 hidden sm:table-cell text-primary">
                       {/* A team-wide total is still someone else's money once
                           the team has more than one member — only an admin
                           gets the aggregate. */}
-                      {isAdmin ? formatCurrency(totals.commission) : '—'}
+                      {isAdmin && commissionMonths ? formatCurrency(totals.commission) : '—'}
                     </TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5">
                       <span className={getConversionTone(totalConversion)}>{totalConversion.toFixed(0)}%</span>

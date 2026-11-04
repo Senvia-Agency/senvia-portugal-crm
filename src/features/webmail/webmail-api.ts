@@ -1,29 +1,38 @@
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { tr } from '@/i18n';
 import type { Json } from '@/integrations/supabase/types';
 import type { EmailAddress, EmailAttachment, EmailDraft, EmailMessage } from '@/hooks/useEmail';
+import type { EmailRule, RuleDraft } from './email-rules';
 import type { AccountPreference, WebmailFolder } from './webmail-model';
 
 // The mailbox tables (email_*) predate the generated types: read them untyped, as useEmail does.
 const db = supabase as unknown as { from: (table: string) => any };
 
 const MISSING_MIGRATION = 'Falta aplicar a migration 20261026190000_webmail.sql no Supabase.';
+const MISSING_RULES_MIGRATION = 'Falta aplicar a migration 20261028120000_email_rules.sql no Supabase.';
 const knownErrors: readonly (readonly [RegExp, string])[] = [
   [/Bucket not found/i, MISSING_MIGRATION],
   [/email_contact_lists_name|duplicate key/i, 'Já existe uma lista com esse nome.'],
-  [/email_signature_forbidden|email_contacts_forbidden|row-level security/i, 'Não tem acesso a esta caixa.'],
+  [/email_signature_forbidden|email_contacts_forbidden|email_rule_forbidden|row-level security/i, 'Não tem acesso a esta caixa.'],
   [/exceeded the maximum allowed size|Payload too large/i, 'A imagem passa dos 5 MB.'],
+  [/email_rule_folder/i, 'A pasta escolhida já não existe nesta caixa. Escolha outra.'],
+  [/email_rule_limit/i, 'Esta caixa já tem 50 regras, o máximo.'],
+  [/email_rules_shape|email_rule_invalid/i, 'A regra tem uma condição ou ação inválida.'],
 ];
-/** Maps database and storage errors to plain Portuguese. A missing migration names the file to run. */
+/** Maps database and storage errors to plain text in the chosen language. A missing migration names the file to run. */
 export function describeWebmailError(error: unknown): string {
   const parsed = z.object({ message: z.string() }).safeParse(error);
-  const message = error instanceof Error ? error.message : parsed.success ? parsed.data.message : 'Erro desconhecido';
+  const message = error instanceof Error ? error.message : parsed.success ? parsed.data.message : tr('Erro desconhecido');
   // A missing table or function reads "relation ... does not exist" or "Could not find the table ... in the schema cache".
-  if (/does not exist|Could not find the (table|function)/i.test(message)
-    && /email_(account_preferences|signatures|contacts|contact_lists|save_signatures|remember_contacts)/i.test(message)) return MISSING_MIGRATION;
-  return knownErrors.find(([pattern]) => pattern.test(message))?.[1] ?? message;
+  if (/does not exist|Could not find the (table|function)/i.test(message)) {
+    if (/email_(rules|reorder_rules)/i.test(message)) return tr(MISSING_RULES_MIGRATION);
+    if (/email_(account_preferences|signatures|contacts|contact_lists|save_signatures|remember_contacts)/i.test(message)) return tr(MISSING_MIGRATION);
+  }
+  const known = knownErrors.find(([pattern]) => pattern.test(message))?.[1];
+  return known ? tr(known) : message;
 }
-export const isMissingMigration = (error: unknown) => describeWebmailError(error).startsWith('Falta aplicar');
+export const isMissingMigration = (error: unknown) => [tr(MISSING_MIGRATION), tr(MISSING_RULES_MIGRATION)].includes(describeWebmailError(error));
 
 // Preferences ---------------------------------------------------------------------------------
 
@@ -107,9 +116,9 @@ async function shrinkImage(file: File): Promise<Blob> {
 
 /** Uploads to the person's own folder and returns the public URL used in the signature HTML. */
 export async function uploadSignatureImage(userId: string, file: File): Promise<string> {
-  if (!SIGNATURE_IMAGE_TYPES.includes(file.type as typeof SIGNATURE_IMAGE_TYPES[number])) throw new Error('Use uma imagem PNG, JPEG, GIF ou WebP.');
+  if (!SIGNATURE_IMAGE_TYPES.includes(file.type as typeof SIGNATURE_IMAGE_TYPES[number])) throw new Error(tr('Use uma imagem PNG, JPEG, GIF ou WebP.'));
   const body = await shrinkImage(file);
-  if (body.size > MAX_SIGNATURE_IMAGE) throw new Error('A imagem passa dos 5 MB.');
+  if (body.size > MAX_SIGNATURE_IMAGE) throw new Error(tr('A imagem passa dos 5 MB.'));
   const extension = body.type === 'image/png' ? 'png' : body.type === 'image/gif' ? 'gif' : body.type === 'image/webp' ? 'webp' : 'jpg';
   const path = `${userId}/${crypto.randomUUID()}.${extension}`;
   const { error } = await supabase.storage.from(SIGNATURE_BUCKET).upload(path, body, { contentType: body.type, cacheControl: '31536000', upsert: false });
@@ -158,6 +167,39 @@ export async function saveContactList(organizationId: string, list: { id: string
 
 export async function deleteContactList(id: string) {
   const { error } = await supabase.from('email_contact_lists').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Rules (shared by everyone who can open the caixa) ------------------------------------------------
+
+const RULE_COLUMNS = 'id, channel_id, name, enabled, position, match_all, conditions, actions, stop_processing, match_count, last_matched_at';
+
+export async function readRules(channelId: string): Promise<EmailRule[]> {
+  const { data, error } = await db.from('email_rules').select(RULE_COLUMNS)
+    .eq('channel_id', channelId).order('position', { ascending: true }).order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** A new rule goes last; organization and author are set by the database. */
+export async function insertRule(channelId: string, position: number, draft: RuleDraft) {
+  const { error } = await db.from('email_rules').insert({ channel_id: channelId, position, ...draft });
+  if (error) throw error;
+}
+
+export async function updateRule(id: string, patch: Partial<RuleDraft & Pick<EmailRule, 'enabled'>>) {
+  const { error } = await db.from('email_rules').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteRule(id: string) {
+  const { error } = await db.from('email_rules').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function reorderRules(channelId: string, ids: readonly string[]) {
+  const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => PromiseLike<{ error: unknown }>;
+  const { error } = await rpc.call(supabase, 'email_reorder_rules', { _channel_id: channelId, _ids: ids });
   if (error) throw error;
 }
 

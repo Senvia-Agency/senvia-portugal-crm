@@ -4,6 +4,7 @@ import { useRef, useCallback, memo } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGlobalAudio } from '@/stores/useGlobalAudio';
+import { useLanguage } from '@/i18n';
 
 const BAR_COUNT = 38;
 const SPEEDS = [1, 1.5, 2];
@@ -31,6 +32,7 @@ export const WaveformPlayer = memo(function WaveformPlayer({
   seed?: number;
   compact?: boolean;
 }) {
+  const { t } = useLanguage();
   const bars = useRef(generateBars(seed)).current;
   const { url: activeUrl, playing, cur, dur, speed, toggle, setSpeed, seek } = useGlobalAudio();
 
@@ -99,7 +101,7 @@ export const WaveformPlayer = memo(function WaveformPlayer({
       <button
         type="button"
         onClick={cycleSpeed}
-        title="Velocidade de reprodução"
+        title={t("Velocidade de reprodução")}
         className={cn(
           'shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums transition-colors',
           speed !== 1 && (outgoing

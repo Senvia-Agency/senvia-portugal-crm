@@ -3,6 +3,7 @@ import { Loader2, Inbox as InboxIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DialogContainerContext } from '@/components/ui/portal-container';
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMessagingChannels, type MessagingChannel } from "@/hooks/useMessagingChannels";
 import { useMetaUnreadTotals } from "@/hooks/useMetaInbox";
@@ -41,6 +42,7 @@ const EmailListReader = lazy(() =>
  * mas ainda não tem ecrã — é a peça que falta.
  */
 export function InboxContent() {
+  const { t } = useLanguage();
   const workspace = useInboxWorkspace();
   const legacy = useInterfaceStore(state => state.legacy);
   const compact = workspace?.compact ?? false;
@@ -144,9 +146,9 @@ export function InboxContent() {
   return (
     <div data-interface={legacy ? 'classic' : 'workspace'} data-compact={compact} className={cn(
       "inbox-workplace flex flex-col overflow-hidden",
-      compact || isMobile ? "h-full" : "h-[calc(100dvh-7rem)]",
+      compact || isMobile ? "h-full" : legacy ? "h-[calc(100dvh-7rem)]" : "h-[var(--workplace-page-height,calc(100dvh-4rem))]",
     )}>
-      <InboxWorkspaceToolbar onOpenCaixas={() => setRailSheetOpen(true)} channelLabel={teamChatOn ? 'Mensagens internas' : todasConversas ? 'Todas as conversas' : aberta?.label ?? 'Inbox'} />
+      <InboxWorkspaceToolbar onOpenCaixas={() => setRailSheetOpen(true)} channelLabel={teamChatOn ? t('Mensagens internas') : todasConversas ? t('Todas as conversas') : aberta?.label ?? t('Inbox')} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {!compact && <InboxCaixaRail {...railProps} />}
 
@@ -156,7 +158,7 @@ export function InboxContent() {
         <Sheet open={railSheetOpen} onOpenChange={setRailSheetOpen}>
           <SheetContent data-inbox-workspace-control side="left" className="z-[70] flex w-72 flex-col p-0 [&>button]:right-2 [&>button]:top-2 [&>button]:h-10 [&>button]:w-10 [&>button]:translate-y-0" aria-describedby={undefined}>
             <SheetHeader className="border-b p-4 pb-3">
-              <SheetTitle>Caixas</SheetTitle>
+              <SheetTitle>{t("Caixas")}</SheetTitle>
             </SheetHeader>
             <InboxCaixaRail {...railProps} className="flex min-h-0 w-full flex-1 border-r-0" />
           </SheetContent>
@@ -170,7 +172,7 @@ export function InboxContent() {
             channelId={caixasMensagensIds}
             active={readerActive}
             compact={compact}
-            channelLabel="as tuas contas"
+            channelLabel={t("as tuas contas")}
             caixas={caixasMensagens}
           />
         ) : metaChannelId ? (
@@ -178,7 +180,7 @@ export function InboxContent() {
             channelId={metaChannelId}
             active={readerActive}
             compact={compact}
-            channelLabel={aberta?.label ?? "esta caixa"}
+            channelLabel={aberta?.label ?? t("esta caixa")}
             channelType={aberta?.channel_type}
             caixas={caixasMensagens}
           />
@@ -199,12 +201,12 @@ export function InboxContent() {
             <InboxIcon className="h-8 w-8 text-muted-foreground/60" />
             <p className="max-w-sm text-sm text-muted-foreground">
               {caixas.length === 0
-                ? "Ainda não tens nenhuma caixa ligada. Liga uma em Definições → Integrações."
-                : "Escolhe uma caixa à esquerda para ler e responder."}
+                ? t("Ainda não tens nenhuma caixa ligada. Liga uma em Definições → Integrações.")
+                : t("Escolhe uma caixa à esquerda para ler e responder.")}
             </p>
             {totalPorLer > 0 && (
               <p className="text-xs text-muted-foreground">
-                {totalPorLer} {totalPorLer === 1 ? "mensagem por ler" : "mensagens por ler"}
+                {t(totalPorLer === 1 ? "{{n}} mensagem por ler" : "{{n}} mensagens por ler", { n: totalPorLer })}
               </p>
             )}
           </div>

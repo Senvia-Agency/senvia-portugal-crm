@@ -13,17 +13,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart3, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, intlLocale, useLanguage } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditObjectiveModal } from "./EditObjectiveModal";
 import { PrintCardButton } from "./PrintCardButton";
 
 function formatCurrency(val: number) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR" }).format(val);
 }
 
 function formatNumber(val: number) {
-  return new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(val);
 }
 
 function formatPercent(actual: number, target: number) {
@@ -49,6 +49,7 @@ interface RowData {
 }
 
 export function SalesPerformancePanel() {
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [] } = useTeamMembers();
@@ -67,10 +68,10 @@ export function SalesPerformancePanel() {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const showEnergy = organization?.niche === 'telecom' && modules.energy;
-  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: pt });
+  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: dateLocale() });
   const loading = objLoading || salesLoading;
 
-  const allMemberList = members.length > 0 ? members : (user?.id ? [{ user_id: user.id, full_name: profile?.full_name || "Eu" }] : []);
+  const allMemberList = members.length > 0 ? members : (user?.id ? [{ user_id: user.id, full_name: profile?.full_name || t("Eu") }] : []);
 
   const filteredMembers = useMemo(() => {
     if (dataScope === 'own' || !canFilterByTeam) {
@@ -90,7 +91,7 @@ export function SalesPerformancePanel() {
     const obj = objectives.find((o) => o.user_id === m.user_id);
     return {
       userId: m.user_id,
-      name: m.full_name + (m.user_id === user?.id ? " (eu)" : ""),
+      name: m.full_name + (m.user_id === user?.id ? t(" (eu)") : ""),
       nifs: Number(obj?.total_nifs || 0),
       energia: Number(obj?.total_energia_mwh || 0),
       solar: Number(obj?.total_solar_kwp || 0),
@@ -102,7 +103,7 @@ export function SalesPerformancePanel() {
     const sm = salesMetrics.find((s) => s.userId === m.user_id);
     return {
       userId: m.user_id,
-      name: m.full_name + (m.user_id === user?.id ? " (eu)" : ""),
+      name: m.full_name + (m.user_id === user?.id ? t(" (eu)") : ""),
       nifs: sm?.nifs || 0,
       energia: sm?.energia || 0,
       solar: sm?.solar || 0,
@@ -119,11 +120,11 @@ export function SalesPerformancePanel() {
 
   const TableHeaders = () => (
     <TableRow>
-      <TableHead className="text-xs">Colaborador</TableHead>
+      <TableHead className="text-xs">{t("Colaborador")}</TableHead>
       <TableHead className="text-xs text-right">NIFs</TableHead>
-      {showEnergy && <TableHead className="text-xs text-right">Energia</TableHead>}
+      {showEnergy && <TableHead className="text-xs text-right">{t("Energia")}</TableHead>}
       {showEnergy && <TableHead className="text-xs text-right hidden sm:table-cell">Solar</TableHead>}
-      <TableHead className="text-xs text-right">Comissão</TableHead>
+      <TableHead className="text-xs text-right">{t("Comissão")}</TableHead>
     </TableRow>
   );
 
@@ -142,7 +143,7 @@ export function SalesPerformancePanel() {
         ))}
         {showTotals && (
           <TableRow className="bg-muted/20 hover:bg-muted/20">
-            <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+            <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
             <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(objTotals.nifs)}</TableCell>
             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(objTotals.energia)}</TableCell>}
             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5 hidden sm:table-cell">{formatNumber(objTotals.solar)}</TableCell>}
@@ -168,7 +169,7 @@ export function SalesPerformancePanel() {
         ))}
         {showTotals && (
           <TableRow className="bg-muted/20 hover:bg-muted/20">
-            <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+            <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
             <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(salesTotals.nifs)}</TableCell>
             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(salesTotals.energia)}</TableCell>}
             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5 hidden sm:table-cell">{formatNumber(salesTotals.solar)}</TableCell>}
@@ -197,7 +198,7 @@ export function SalesPerformancePanel() {
         })}
         {showTotals && (
           <TableRow className="bg-muted/20 hover:bg-muted/20">
-            <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+            <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
             <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(salesTotals.nifs, objTotals.nifs)}`}>{formatPercent(salesTotals.nifs, objTotals.nifs)}</TableCell>
             {showEnergy && <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(salesTotals.energia, objTotals.energia)}`}>{formatPercent(salesTotals.energia, objTotals.energia)}</TableCell>}
             {showEnergy && <TableCell className={`text-xs text-right font-semibold py-1.5 hidden sm:table-cell ${percentColor(salesTotals.solar, objTotals.solar)}`}>{formatPercent(salesTotals.solar, objTotals.solar)}</TableCell>}
@@ -216,7 +217,7 @@ export function SalesPerformancePanel() {
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
               <CardTitle className="text-base capitalize">
-                Objetivo Mensal — {currentMonthLabel}
+                {t("Objetivo Mensal — {{month}}", { month: currentMonthLabel })}
               </CardTitle>
             </div>
             <div className="flex items-center gap-1">
@@ -239,7 +240,7 @@ export function SalesPerformancePanel() {
             <>
               <Collapsible open={objOpen} onOpenChange={setObjOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">A) Objetivo</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("A) Objetivo")}</span>
                   {objOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -249,7 +250,7 @@ export function SalesPerformancePanel() {
 
               <Collapsible open={salesOpen} onOpenChange={setSalesOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">B) Vendas</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("B) Vendas")}</span>
                   {salesOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -259,7 +260,7 @@ export function SalesPerformancePanel() {
 
               <Collapsible open={concOpen} onOpenChange={setConcOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C) Concretização do Objetivo</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("C) Concretização do Objetivo")}</span>
                   {concOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>

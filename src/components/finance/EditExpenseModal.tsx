@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, dateLocale } from '@/i18n';
 import { useUpdateExpense } from '@/hooks/useExpenses';
 import { useExpenseCategories } from '@/hooks/useExpenseCategories';
 import { BankAccountSelect } from '@/components/finance/BankAccountSelect';
@@ -29,6 +29,7 @@ function initialSchedule(expense: Expense): RecurrenceSchedule {
 }
 
 export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseModalProps) {
+  const { t } = useLanguage();
   const updateExpense = useUpdateExpense();
   const { data: categories } = useExpenseCategories();
 
@@ -97,7 +98,7 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
         <DialogHeader className="shrink-0 border-b px-4 py-4 pr-14 sm:px-6">
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5 text-primary" />
-            Editar Despesa
+            {t("Editar Despesa")}
           </DialogTitle>
           <DialogDescription>{expense.description}</DialogDescription>
         </DialogHeader>
@@ -105,28 +106,28 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
         <form id="edit-expense-form" onSubmit={handleSubmit} className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           <div className="mx-auto grid max-w-5xl items-start gap-6 lg:grid-cols-2">
             <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold text-foreground">Despesa</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t("Despesa")}</h3>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-exp-desc">Descrição *</Label>
+                <Label htmlFor="edit-exp-desc">{t("Descrição *")}</Label>
                 <Input
                   id="edit-exp-desc"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ex: Renda do escritório"
+                  placeholder={t("Ex: Renda do escritório")}
                   required
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-exp-cat">Categoria</Label>
+                  <Label htmlFor="edit-exp-cat">{t("Categoria")}</Label>
                   <Select value={categoryId} onValueChange={setCategoryId}>
                     <SelectTrigger id="edit-exp-cat">
-                      <SelectValue placeholder="Selecionar..." />
+                      <SelectValue placeholder={t("Selecionar...")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sem categoria</SelectItem>
+                      <SelectItem value="none">{t("Sem categoria")}</SelectItem>
                       {categories?.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           <div className="flex items-center gap-2">
@@ -140,7 +141,7 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-exp-amount">Valor (€) *</Label>
+                  <Label htmlFor="edit-exp-amount">{t("Valor (€) *")}</Label>
                   <Input
                     id="edit-exp-amount"
                     value={amount}
@@ -153,12 +154,12 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
               </div>
 
               <div className="space-y-2">
-                <Label>Data *</Label>
+                <Label>{t("Data *")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start sm:w-1/2">
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(date, 'dd/MM/yyyy', { locale: pt })}
+                      {format(date, 'dd/MM/yyyy', { locale: dateLocale() })}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -166,7 +167,7 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
                       mode="single"
                       selected={date}
                       onSelect={(d) => d && changeDate(d)}
-                      locale={pt}
+                      locale={dateLocale()}
                       className="pointer-events-auto"
                     />
                   </PopoverContent>
@@ -176,12 +177,12 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
               <BankAccountSelect value={bankAccountId} onChange={setBankAccountId} />
 
               <div className="space-y-2">
-                <Label htmlFor="edit-exp-notes">Notas</Label>
+                <Label htmlFor="edit-exp-notes">{t("Notas")}</Label>
                 <Textarea
                   id="edit-exp-notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Notas adicionais..."
+                  placeholder={t("Notas adicionais...")}
                   rows={3}
                 />
               </div>
@@ -207,10 +208,10 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
 
         <div className="flex shrink-0 justify-end gap-2 border-t px-4 py-3 sm:px-6">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button type="submit" form="edit-expense-form" disabled={updateExpense.isPending || !description.trim() || !amount}>
-            {updateExpense.isPending ? 'A guardar...' : 'Guardar'}
+            {updateExpense.isPending ? t('A guardar...') : t('Guardar')}
           </Button>
         </div>
       </DialogContent>

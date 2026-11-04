@@ -2,6 +2,7 @@ import { Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/i18n';
 
 interface TrialBannerProps {
   daysRemaining: number;
@@ -10,6 +11,7 @@ interface TrialBannerProps {
 
 export function TrialBanner({ daysRemaining, totalDays = 14 }: TrialBannerProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const elapsed = totalDays - daysRemaining;
   const progress = Math.round((elapsed / totalDays) * 100);
 
@@ -20,7 +22,7 @@ export function TrialBanner({ daysRemaining, totalDays = 14 }: TrialBannerProps)
         <div className="flex items-center gap-2 shrink-0">
           <Clock className="h-4 w-4 text-primary" />
           <span className="text-xs font-semibold text-primary">
-            Período de teste: {daysRemaining} {daysRemaining === 1 ? 'dia restante' : 'dias restantes'}
+            {t(daysRemaining === 1 ? 'Período de teste: {{n}} dia restante' : 'Período de teste: {{n}} dias restantes', { n: daysRemaining })}
           </span>
         </div>
 
@@ -34,7 +36,7 @@ export function TrialBanner({ daysRemaining, totalDays = 14 }: TrialBannerProps)
           className="h-7 text-xs px-3 shrink-0"
           onClick={() => navigate('/settings?tab=billing')}
         >
-          Escolher Plano
+          {t("Escolher Plano")}
         </Button>
       </div>
     </div>

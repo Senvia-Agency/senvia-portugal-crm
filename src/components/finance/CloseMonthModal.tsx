@@ -20,7 +20,7 @@ import {
 import { useOrganization } from '@/hooks/useOrganization';
 import { formatCurrency } from '@/lib/format';
 import { format, endOfMonth } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, tr, dateLocale } from '@/i18n';
 import { Loader2, Zap } from 'lucide-react';
 
 const TIER_LABELS: Record<string, string> = {
@@ -64,6 +64,7 @@ interface CloseMonthModalProps {
 }
 
 export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalProps) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const { data: org } = useOrganization();
   const { data: members } = useTeamMembers();
@@ -79,7 +80,7 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
 
   const getMemberName = (userId: string) => {
     const m = members?.find((m: any) => m.user_id === userId);
-    return m?.full_name || 'Desconhecido';
+    return m?.full_name || tr('Desconhecido');
   };
 
   useEffect(() => {
@@ -303,13 +304,13 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
     });
   };
 
-  const monthLabel = format(new Date(month), 'MMMM yyyy', { locale: pt });
+  const monthLabel = format(new Date(month), 'MMMM yyyy', { locale: dateLocale() });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Fechar Mês — {monthLabel}</DialogTitle>
+          <DialogTitle>{t("Fechar Mês — {{month}}", { month: monthLabel })}</DialogTitle>
         </DialogHeader>
 
         {loading ? (
@@ -320,7 +321,7 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
           </div>
         ) : preview.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            Nenhuma venda concluída com data de ativação neste mês (Angariação / Angariação Indexado).
+            {t("Nenhuma venda concluída com data de ativação neste mês (Angariação / Angariação Indexado).")}
           </div>
         ) : (
           <div className="space-y-6">
@@ -330,12 +331,12 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
                 <div className="flex items-center gap-3">
                   <Zap className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Totalizador Global (Angariação)</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t("Totalizador Global (Angariação)")}</p>
                     <p className="text-2xl font-bold">{globalMwh.toFixed(1)} MWh</p>
                   </div>
                 </div>
                 <Badge variant="outline" className="text-sm font-semibold w-fit">
-                  {TIER_LABELS[globalTier] || globalTier}
+                  {t(TIER_LABELS[globalTier] || globalTier)}
                 </Badge>
               </CardContent>
             </Card>
@@ -344,13 +345,13 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Comercial</TableHead>
-                  <TableHead className="text-right">MWh Total</TableHead>
-                  <TableHead>Patamar</TableHead>
-                  <TableHead className="text-right">Comissão Indicativa</TableHead>
-                  <TableHead className="text-right">Comissão Final</TableHead>
-                  <TableHead className="text-right">Estornos</TableHead>
-                  <TableHead className="text-right">Líquido a pagar</TableHead>
+                  <TableHead>{t("Comercial")}</TableHead>
+                  <TableHead className="text-right">{t("MWh Total")}</TableHead>
+                  <TableHead>{t("Patamar")}</TableHead>
+                  <TableHead className="text-right">{t("Comissão Indicativa")}</TableHead>
+                  <TableHead className="text-right">{t("Comissão Final")}</TableHead>
+                  <TableHead className="text-right">{t("Estornos")}</TableHead>
+                  <TableHead className="text-right">{t("Líquido a pagar")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,7 +360,7 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell className="text-right">{p.totalConsumoMwh.toFixed(1)}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{TIER_LABELS[p.tier] || p.tier}</Badge>
+                      <Badge variant="secondary">{t(TIER_LABELS[p.tier] || p.tier)}</Badge>
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">{formatCurrency(p.totalIndicativa)}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(p.totalFinal)}</TableCell>
@@ -370,7 +371,7 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
                   </TableRow>
                 ))}
                 <TableRow className="border-t-2 font-bold">
-                  <TableCell colSpan={3}>Total</TableCell>
+                  <TableCell colSpan={3}>{t("Total")}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {formatCurrency(preview.reduce((s, p) => s + p.totalIndicativa, 0))}
                   </TableCell>
@@ -384,11 +385,11 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
             </Table>
 
             <div className="space-y-2">
-              <Label>Notas (opcional)</Label>
+              <Label>{t("Notas (opcional)")}</Label>
               <Textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                placeholder="Observações sobre este fechamento..."
+                placeholder={t("Observações sobre este fecho...")}
                 rows={2}
               />
             </div>
@@ -396,13 +397,13 @@ export function CloseMonthModal({ month, open, onOpenChange }: CloseMonthModalPr
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
           <Button
             onClick={handleClose}
             disabled={loading || preview.length === 0 || closeMonth.isPending}
           >
             {closeMonth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirmar Fechamento
+            {t("Confirmar Fecho")}
           </Button>
         </DialogFooter>
       </DialogContent>

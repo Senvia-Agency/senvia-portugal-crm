@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useModules, EnabledModules } from "@/hooks/useModules";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ModuleConfig {
@@ -29,6 +30,7 @@ export function ModulesTab() {
   const { modules, isLoading, updateModule, isUpdating } = useModules();
   const { isModuleLocked, getRequiredPlan } = useSubscription();
   const { organization } = useAuth();
+  const { t } = useLanguage();
   const isTelecom = organization?.niche === 'telecom';
 
   if (isLoading) {
@@ -43,9 +45,9 @@ export function ModulesTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold">Módulos Ativos</h3>
+        <h3 className="text-lg font-semibold">{t('Módulos Ativos')}</h3>
         <p className="text-sm text-muted-foreground">
-          Ative ou desative os módulos disponíveis na sua organização.
+          {t('Ative ou desative os módulos disponíveis na sua organização.')}
         </p>
       </div>
 
@@ -64,15 +66,15 @@ export function ModulesTab() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">{module.label}</CardTitle>
+                        <CardTitle className="text-base">{t(module.label)}</CardTitle>
                         {locked && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            Plano {requiredPlan}
+                            {t('Plano {{plan}}', { plan: requiredPlan })}
                           </Badge>
                         )}
                       </div>
                       <CardDescription className="text-sm">
-                        {module.description}
+                        {t(module.description)}
                       </CardDescription>
                     </div>
                   </div>
@@ -101,13 +103,13 @@ export function ModulesTab() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base">Energias</CardTitle>
+                      <CardTitle className="text-base">{t('Energias')}</CardTitle>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-600 dark:text-amber-400">
                         Telecom
                       </Badge>
                     </div>
                     <CardDescription className="text-sm">
-                      Campos de energia (EE, Gás), CPEs, consumo anual e tipologia
+                      {t('Campos de energia (EE, Gás), CPEs, consumo anual e tipologia')}
                     </CardDescription>
                   </div>
                 </div>
@@ -126,8 +128,7 @@ export function ModulesTab() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Os módulos desativados não aparecem no menu de navegação.
-        Módulos marcados com um plano requerem upgrade para serem ativados.
+        {t('Os módulos desativados não aparecem no menu de navegação. Módulos marcados com um plano requerem upgrade para serem ativados.')}
       </p>
     </div>
   );

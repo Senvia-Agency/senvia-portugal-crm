@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { addDays, format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, useLanguage } from "@/i18n";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,7 @@ export function LostLeadDialog({
   isTelecom = false,
   onConfirm,
 }: LostLeadDialogProps) {
+  const { t } = useLanguage();
   const [lossReason, setLossReason] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
@@ -114,10 +115,10 @@ export function LostLeadDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-warning" />
-              Agendar Recontacto
+              {t("Agendar Recontacto")}
             </DialogTitle>
             <DialogDescription>
-              Agende um recontacto para <strong>{leadName}</strong>. O lead permanecerá na etapa atual até decidires movê-lo.
+              {t("Agende um recontacto para {{name}}. O lead permanecerá na etapa atual até decidir movê-lo.", { name: leadName })}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -127,15 +128,15 @@ export function LostLeadDialog({
           <div className="space-y-4 max-w-lg">
             {/* Loss Reason */}
             <div className="space-y-2">
-              <Label>Motivo da perda *</Label>
+              <Label>{t("Motivo da perda *")}</Label>
               <Select value={lossReason} onValueChange={setLossReason}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecionar motivo" />
+                  <SelectValue placeholder={t("Selecionar motivo")} />
                 </SelectTrigger>
                 <SelectContent>
                   {LOSS_REASONS.map((reason) => (
                     <SelectItem key={reason.value} value={reason.value}>
-                      {reason.label}
+                      {t(reason.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -144,9 +145,9 @@ export function LostLeadDialog({
 
             {/* Notes */}
             <div className="space-y-2">
-              <Label>Notas adicionais</Label>
+              <Label>{t("Notas adicionais")}</Label>
               <Textarea
-                placeholder="Detalhes sobre a perda..."
+                placeholder={t("Detalhes sobre a perda...")}
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -156,7 +157,7 @@ export function LostLeadDialog({
 
             {/* Follow-up Date */}
             <div className="space-y-2">
-              <Label>Data de recontacto {isTelecom ? '*' : ''}</Label>
+              <Label>{t("Data de recontacto")} {isTelecom ? '*' : ''}</Label>
               <div className="flex gap-2 mb-2">
                 {[
                   { days: 15, label: "15 dias" },
@@ -171,13 +172,13 @@ export function LostLeadDialog({
                     className="flex-1 text-xs"
                     onClick={() => handleQuickDate(days)}
                   >
-                    {label}
+                    {t(label)}
                   </Button>
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Data {isTelecom ? '*' : ''}</Label>
+                  <Label className="text-xs text-muted-foreground mb-1">{t("Data")} {isTelecom ? '*' : ''}</Label>
                   <Input
                     type="date"
                     value={followUpDate}
@@ -186,7 +187,7 @@ export function LostLeadDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1">Hora *</Label>
+                  <Label className="text-xs text-muted-foreground mb-1">{t("Hora *")}</Label>
                   <Input
                     type="time"
                     value={followUpTime}
@@ -196,14 +197,14 @@ export function LostLeadDialog({
               </div>
               {followUpDate && (
                 <p className="text-xs text-muted-foreground">
-                  Recontacto a {format(new Date(followUpDate + "T12:00:00"), "d 'de' MMMM 'de' yyyy", { locale: pt })} às {followUpTime}
+                  {t("Recontacto a {{date}} às {{time}}", { date: format(new Date(followUpDate + "T12:00:00"), t("d 'de' MMMM 'de' yyyy"), { locale: dateLocale() }), time: followUpTime })}
                 </p>
               )}
             </div>
 
             {/* Event Type */}
             <div className="space-y-2">
-              <Label>Tipo de evento</Label>
+              <Label>{t("Tipo de evento")}</Label>
               <div className="flex gap-2">
                 {EVENT_TYPES.map(({ value, label, icon: Icon }) => (
                   <Button
@@ -215,7 +216,7 @@ export function LostLeadDialog({
                     onClick={() => setEventType(value as "call" | "meeting")}
                   >
                     <Icon className="h-4 w-4 mr-1.5" />
-                    {label}
+                    {t(label)}
                   </Button>
                 ))}
               </div>
@@ -223,15 +224,15 @@ export function LostLeadDialog({
 
             {/* Reminder */}
             <div className="space-y-2">
-              <Label>Lembrete</Label>
+              <Label>{t("Lembrete")}</Label>
               <Select value={reminderMinutes || "none"} onValueChange={(v) => setReminderMinutes(v === "none" ? "" : v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sem lembrete" />
+                  <SelectValue placeholder={t("Sem lembrete")} />
                 </SelectTrigger>
                 <SelectContent>
                   {REMINDER_OPTIONS.map((option) => (
                     <SelectItem key={option.value ?? 'none'} value={option.value?.toString() ?? 'none'}>
-                      {option.label}
+                      {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -243,7 +244,7 @@ export function LostLeadDialog({
         {/* Footer fixo */}
         <div className="border-t p-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="ghost" onClick={() => handleClose(false)} className="w-full sm:w-auto">
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button
             variant="destructive"
@@ -268,10 +269,10 @@ export function LostLeadDialog({
               setReminderMinutes("");
             }}
           >
-            Marcar como Perdido
+            {t("Marcar como Perdido")}
           </Button>
           <Button onClick={handleConfirm} disabled={!canSchedule} className="w-full sm:w-auto">
-            <CalendarClock className="h-4 w-4 mr-2" />Agendar Recontacto
+            <CalendarClock className="h-4 w-4 mr-2" />{t("Agendar Recontacto")}
           </Button>
         </div>
       </DialogContent>

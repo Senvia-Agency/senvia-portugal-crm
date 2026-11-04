@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Building2 } from 'lucide-react';
 import { hardGo } from '@/lib/nav';
+import { useLanguage } from '@/i18n';
 
 /**
  * Shown to an authenticated user who belongs to no organization.
@@ -55,6 +56,7 @@ function slugify(value: string) {
 
 export function CompleteOrganizationSetup() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const pending = useRef<PendingOrg | null>(readPendingOrg());
 
   const [name, setName] = useState(pending.current?.name ?? '');
@@ -110,11 +112,11 @@ export function CompleteOrganizationSetup() {
     const finalSlug = (slugEdited ? slug : slugify(trimmedName)).trim();
 
     if (trimmedName.length < 2) {
-      toast({ title: 'Nome inválido', description: 'Indique o nome da sua empresa.', variant: 'destructive' });
+      toast({ title: t('Nome inválido'), description: t('Indique o nome da sua empresa.'), variant: 'destructive' });
       return;
     }
     if (finalSlug.length < 3) {
-      toast({ title: 'Código inválido', description: 'O código da empresa deve ter pelo menos 3 caracteres.', variant: 'destructive' });
+      toast({ title: t('Código inválido'), description: t('O código da empresa deve ter pelo menos 3 caracteres.'), variant: 'destructive' });
       return;
     }
 
@@ -122,9 +124,9 @@ export function CompleteOrganizationSetup() {
     const failure = await createOrganization(trimmedName, finalSlug, contactPhone.trim());
     if (failure) {
       toast({
-        title: 'Não foi possível concluir',
+        title: t('Não foi possível concluir'),
         description: failure.includes('Slug already exists') || failure.includes('already exists')
-          ? 'Este código de empresa já está em uso. Escolha outro.'
+          ? t('Este código de empresa já está em uso. Escolha outro.')
           : failure,
         variant: 'destructive',
       });
@@ -137,7 +139,7 @@ export function CompleteOrganizationSetup() {
       <div className="min-h-dvh flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">A concluir o seu registo…</p>
+          <p className="text-sm text-muted-foreground">{t("A concluir o seu registo…")}</p>
         </div>
       </div>
     );
@@ -150,15 +152,15 @@ export function CompleteOrganizationSetup() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Building2 className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-center">Falta só um passo</CardTitle>
+          <CardTitle className="text-center">{t("Falta só um passo")}</CardTitle>
           <CardDescription className="text-center">
-            Crie a sua empresa para começar a usar o SENVIA.
+            {t("Crie a sua empresa para começar a usar o SENVIA.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="org-name">Nome da empresa</Label>
+              <Label htmlFor="org-name">{t("Nome da empresa")}</Label>
               <Input
                 id="org-name"
                 value={name}
@@ -166,14 +168,14 @@ export function CompleteOrganizationSetup() {
                   setName(e.target.value);
                   if (!slugEdited) setSlug(slugify(e.target.value));
                 }}
-                placeholder="A minha empresa, Lda."
+                placeholder={t("A minha empresa, Lda.")}
                 autoFocus
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="org-slug">Código da empresa</Label>
+              <Label htmlFor="org-slug">{t("Código da empresa")}</Label>
               <Input
                 id="org-slug"
                 value={slugEdited ? slug : slugify(name)}
@@ -181,16 +183,16 @@ export function CompleteOrganizationSetup() {
                   setSlugEdited(true);
                   setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
                 }}
-                placeholder="a-minha-empresa"
+                placeholder={t("a-minha-empresa")}
                 required
               />
               <p className="text-xs text-muted-foreground">
-                É este o código que usará para entrar. Guarde-o.
+                {t("É este o código que usará para entrar. Guarde-o.")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="org-phone">Telefone de contacto (opcional)</Label>
+              <Label htmlFor="org-phone">{t("Telefone de contacto (opcional)")}</Label>
               <Input
                 id="org-phone"
                 value={contactPhone}
@@ -201,7 +203,7 @@ export function CompleteOrganizationSetup() {
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Criar empresa
+              {t("Criar empresa")}
             </Button>
           </form>
         </CardContent>

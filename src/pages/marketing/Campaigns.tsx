@@ -8,6 +8,7 @@ import { CreateCampaignModal } from "@/components/marketing/CreateCampaignModal"
 import { CampaignDetailsModal } from "@/components/marketing/CampaignDetailsModal";
 import { useCampaigns, useDeleteCampaign, useReopenCampaign } from "@/hooks/useCampaigns";
 import type { EmailCampaign } from "@/types/marketing";
+import { useLanguage } from "@/i18n";
 
 export default function Campaigns() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -16,6 +17,7 @@ export default function Campaigns() {
   const { data: campaigns = [], isLoading } = useCampaigns();
   const deleteCampaign = useDeleteCampaign();
   const reopenCampaign = useReopenCampaign();
+  const { t } = useLanguage();
 
   const handleCampaignClick = (campaign: EmailCampaign) => {
     if (campaign.status === 'draft') {
@@ -31,20 +33,20 @@ export default function Campaigns() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link to="/marketing">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="back" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <Megaphone className="h-5 w-5 shrink-0 text-primary" />
-                Campanhas
+                {t("Campanhas")}
               </h1>
-              <p className="text-muted-foreground text-sm">Envie emails em massa para os seus clientes</p>
+              <p className="text-muted-foreground text-sm">{t("Envie emails em massa para os seus clientes")}</p>
             </div>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Nova Campanha
+            <Plus className="mr-2 h-4 w-4" /> {t("Nova Campanha")}
           </Button>
         </div>
 

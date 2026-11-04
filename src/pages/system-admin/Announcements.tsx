@@ -19,8 +19,8 @@ import {
 import { Plus, Pencil, Trash2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { AdminShell, AdminTableSkeleton } from "@/components/system-admin/AdminShell";
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface Announcement {
   id: string;
@@ -44,6 +44,7 @@ const emptyForm = { title: "", content: "", version: "", image_url: "", is_activ
 
 export default function SystemAdminAnnouncements() {
   const qc = useQueryClient();
+  const { t } = useLanguage();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -82,7 +83,7 @@ export default function SystemAdminAnnouncements() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-announcements"] });
       qc.invalidateQueries({ queryKey: ["latest-announcement"] });
-      toast.success(editingId ? "Novidade atualizada" : "Novidade criada");
+      toast.success(editingId ? t("Novidade atualizada") : t("Novidade criada"));
       closeDialog();
     },
     onError: (e: any) => toast.error(e.message),
@@ -108,7 +109,7 @@ export default function SystemAdminAnnouncements() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-announcements"] });
       qc.invalidateQueries({ queryKey: ["latest-announcement"] });
-      toast.success("Novidade excluída");
+      toast.success(t("Novidade eliminada"));
       setDeleteId(null);
     },
     onError: (e: any) => toast.error(e.message),
@@ -141,13 +142,13 @@ export default function SystemAdminAnnouncements() {
 
   return (
     <AdminShell
-      title="Novidades"
-      description="Pop-ups de novidades mostrados uma vez a cada utilizador."
+      title={t("Novidades")}
+      description={t("Pop-ups de novidades mostrados uma vez a cada utilizador.")}
       icon={Sparkles}
       maxWidth="4xl"
       action={
         <Button onClick={openCreate} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> Nova
+          <Plus className="mr-1 h-4 w-4" /> {t("Nova")}
         </Button>
       }
     >
@@ -158,12 +159,12 @@ export default function SystemAdminAnnouncements() {
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed py-12 text-center">
           <Sparkles className="mx-auto h-6 w-6 text-muted-foreground/60" />
-          <p className="mt-3 text-sm font-medium text-foreground">Ainda não há novidades</p>
+          <p className="mt-3 text-sm font-medium text-foreground">{t("Ainda não há novidades")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cria um pop-up para anunciar uma funcionalidade ou versão nova.
+            {t("Cria um pop-up para anunciar uma funcionalidade ou versão nova.")}
           </p>
           <Button onClick={openCreate} size="sm" className="mt-4">
-            <Plus className="mr-1 h-4 w-4" /> Criar a primeira
+            <Plus className="mr-1 h-4 w-4" /> {t("Criar a primeira")}
           </Button>
         </div>
       ) : (
@@ -171,12 +172,12 @@ export default function SystemAdminAnnouncements() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead className="hidden sm:table-cell">Versão</TableHead>
-                <TableHead className="hidden md:table-cell">Publicação</TableHead>
-                <TableHead>Expira em</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("Título")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("Versão")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Publicação", { context: "date" })}</TableHead>
+                <TableHead>{t("Expira em")}</TableHead>
+                <TableHead>{t("Ativo")}</TableHead>
+                <TableHead className="text-right">{t("Ações")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,23 +186,23 @@ export default function SystemAdminAnnouncements() {
                   <TableCell className="font-medium">{a.title}</TableCell>
                   <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{a.version || "—"}</TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                    {format(new Date(a.published_at), "dd MMM yyyy HH:mm", { locale: pt })}
+                    {format(new Date(a.published_at), "dd MMM yyyy HH:mm", { locale: dateLocale() })}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {a.expires_at
                       ? new Date(a.expires_at) < new Date()
-                        ? <span className="text-destructive">Expirado</span>
-                        : format(new Date(a.expires_at), "dd MMM yyyy", { locale: pt })
+                        ? <span className="text-destructive">{t("Expirado")}</span>
+                        : format(new Date(a.expires_at), "dd MMM yyyy", { locale: dateLocale() })
                       : "—"}
                   </TableCell>
                   <TableCell>
                     <Switch checked={a.is_active} onCheckedChange={(v) => toggle.mutate({ id: a.id, is_active: v })} />
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
-                    <Button variant="ghost" size="icon-sm" onClick={() => openEdit(a)} title="Editar">
+                    <Button variant="ghost" size="icon-sm" onClick={() => openEdit(a)} title={t("Editar")}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setDeleteId(a.id)} title="Excluir">
+                    <Button variant="ghost" size="icon-sm" onClick={() => setDeleteId(a.id)} title={t("Eliminar")}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>
@@ -216,48 +217,48 @@ export default function SystemAdminAnnouncements() {
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Editar Novidade" : "Nova Novidade"}</DialogTitle>
+            <DialogTitle>{editingId ? t("Editar Novidade") : t("Nova Novidade")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Título *</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Nova funcionalidade de Prospects" />
+              <Label>{t("Título *")}</Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={t("Ex: Nova funcionalidade de Prospects")} />
             </div>
             <div>
-              <Label>Conteúdo (Markdown) *</Label>
-              <Textarea rows={8} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Escreva aqui as novidades em Markdown..." />
+              <Label>{t("Conteúdo (Markdown) *")}</Label>
+              <Textarea rows={8} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder={t("Escreva aqui as novidades em Markdown...")} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Versão</Label>
+                <Label>{t("Versão")}</Label>
                 <Input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="v2.5" />
               </div>
               <div>
-                <Label>URL da Imagem</Label>
+                <Label>{t("URL da Imagem")}</Label>
                 <Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." />
               </div>
             </div>
             <div>
-              <Label>Expira em (automático)</Label>
+              <Label>{t("Expira em (automático)")}</Label>
               <Input
                 type="date"
                 value={form.expires_at}
                 onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
               />
-              <p className="mt-1 text-xs text-muted-foreground">Deixa em branco para não expirar automaticamente. Por omissão: 7 dias.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Deixa em branco para não expirar automaticamente. Por omissão: 7 dias.")}</p>
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
-                <Label>Publicar para todas as organizações</Label>
+                <Label>{t("Publicar para todas as organizações")}</Label>
               </div>
-              <p className="text-xs text-muted-foreground">Publica apenas novidades gerais. Não incluas correções de uma organização, dados de clientes ou detalhes internos.</p>
+              <p className="text-xs text-muted-foreground">{t("Publica apenas novidades gerais. Não incluas correções de uma organização, dados de clientes ou detalhes internos.")}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
+            <Button variant="outline" onClick={closeDialog}>{t("Cancelar")}</Button>
             <Button onClick={() => save.mutate()} disabled={!form.title || !form.content || save.isPending}>
-              {save.isPending ? "A guardar..." : "Guardar"}
+              {save.isPending ? t("A guardar...") : t("Guardar")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -267,13 +268,13 @@ export default function SystemAdminAnnouncements() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir novidade?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminar novidade?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Esta ação não pode ser desfeita.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteId && remove.mutate(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

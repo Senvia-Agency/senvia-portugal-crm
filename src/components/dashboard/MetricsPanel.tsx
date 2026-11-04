@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TrendingUp, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, intlLocale, useLanguage } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditMetricsModal } from "./EditMetricsModal";
 import { PrintCardButton } from "./PrintCardButton";
@@ -20,11 +20,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
 function formatNumber(val: number) {
-  return new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(val);
 }
 
 function formatCurrency(val: number) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR" }).format(val);
 }
 
 function formatPercent(actual: number, target: number) {
@@ -51,6 +51,7 @@ interface RitmoRow {
 }
 
 export function MetricsPanel() {
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [] } = useTeamMembers();
@@ -66,7 +67,7 @@ export function MetricsPanel() {
 
   const showEnergy = organization?.niche === 'telecom' && modules.energy;
   const orgId = organization?.id;
-  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: pt });
+  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: dateLocale() });
 
   // As secções "Ritmo" e "Concretização" são contagens por data, por isso
   // seguem o período exato. Só as "Métricas Mensais" (secção A) é que estão
@@ -184,7 +185,7 @@ export function MetricsPanel() {
 
   const loading = metricsLoading || proposalsLoading || salesLoading || nifsLoading;
 
-  const memberList = members.length > 0 ? members : (user?.id ? [{ user_id: user.id, full_name: profile?.full_name || "Eu" }] : []);
+  const memberList = members.length > 0 ? members : (user?.id ? [{ user_id: user.id, full_name: profile?.full_name || t("Eu") }] : []);
   const filteredMembers = selectedMemberId ? memberList.filter((m) => m.user_id === selectedMemberId) : memberList;
 
   const ritmoRows: RitmoRow[] = useMemo(() => {
@@ -212,7 +213,7 @@ export function MetricsPanel() {
       }
       return {
         userId: m.user_id,
-        name: m.full_name + (m.user_id === user?.id ? " (eu)" : ""),
+        name: m.full_name + (m.user_id === user?.id ? t(" (eu)") : ""),
         opEnergia,
         energia,
         opSolar,
@@ -220,7 +221,7 @@ export function MetricsPanel() {
         comissao,
       };
     });
-  }, [filteredMembers, proposalsRaw, salesAggregated, clientNifMap, user?.id]);
+  }, [filteredMembers, proposalsRaw, salesAggregated, clientNifMap, user?.id, t]);
 
   const sumRitmo = (rows: RitmoRow[]) =>
     rows.reduce((acc, r) => ({
@@ -236,12 +237,12 @@ export function MetricsPanel() {
 
   const headers = (
     <TableRow>
-      <TableHead className="text-xs whitespace-nowrap">Consultor</TableHead>
+      <TableHead className="text-xs whitespace-nowrap">{t("Consultor")}</TableHead>
       {showEnergy && <TableHead className="text-xs text-right whitespace-nowrap">OP</TableHead>}
-      {showEnergy && <TableHead className="text-xs text-right whitespace-nowrap">Energia</TableHead>}
+      {showEnergy && <TableHead className="text-xs text-right whitespace-nowrap">{t("Energia")}</TableHead>}
       {showEnergy && <TableHead className="text-xs text-right whitespace-nowrap">OP</TableHead>}
       {showEnergy && <TableHead className="text-xs text-right whitespace-nowrap">Solar</TableHead>}
-      <TableHead className="text-xs text-right whitespace-nowrap">Comissão</TableHead>
+      <TableHead className="text-xs text-right whitespace-nowrap">{t("Comissão")}</TableHead>
     </TableRow>
   );
 
@@ -253,7 +254,7 @@ export function MetricsPanel() {
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
               <CardTitle className="text-base capitalize">
-                Métricas Mensais — {currentMonthLabel}
+                {t("Métricas Mensais — {{month}}", { month: currentMonthLabel })}
               </CardTitle>
             </div>
             <div className="flex items-center gap-1">
@@ -276,7 +277,7 @@ export function MetricsPanel() {
             <>
               <Collapsible open={metricasOpen} onOpenChange={setMetricasOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">A) Métricas</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("A) Métricas")}</span>
                   {metricasOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -288,7 +289,7 @@ export function MetricsPanel() {
                           const target = metrics.find((mt) => mt.user_id === m.user_id);
                           return (
                             <TableRow key={m.user_id}>
-                              <TableCell className="text-xs py-1.5 font-medium whitespace-nowrap">{m.full_name}{m.user_id === user?.id ? " (eu)" : ""}</TableCell>
+                              <TableCell className="text-xs py-1.5 font-medium whitespace-nowrap">{m.full_name}{m.user_id === user?.id ? t(" (eu)") : ""}</TableCell>
                               {showEnergy && <TableCell className="text-xs text-right py-1.5">{target?.op_energia || 0}</TableCell>}
                               {showEnergy && <TableCell className="text-xs text-right py-1.5">{formatNumber(target?.energia || 0)}</TableCell>}
                               {showEnergy && <TableCell className="text-xs text-right py-1.5">{target?.op_solar || 0}</TableCell>}
@@ -299,7 +300,7 @@ export function MetricsPanel() {
                         })}
                         {showTotals && (
                           <TableRow className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                            <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{metrics.reduce((a, m) => a + m.op_energia, 0)}</TableCell>}
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(metrics.reduce((a, m) => a + m.energia, 0))}</TableCell>}
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{metrics.reduce((a, m) => a + m.op_solar, 0)}</TableCell>}
@@ -315,7 +316,7 @@ export function MetricsPanel() {
 
               <Collapsible open={ritmoOpen} onOpenChange={setRitmoOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">B) Ritmo</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("B) Ritmo")}</span>
                   {ritmoOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -335,7 +336,7 @@ export function MetricsPanel() {
                         ))}
                         {showTotals && (
                           <TableRow className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                            <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{ritmoTotals.opEnergia}</TableCell>}
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(ritmoTotals.energia)}</TableCell>}
                             {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{ritmoTotals.opSolar}</TableCell>}
@@ -351,7 +352,7 @@ export function MetricsPanel() {
 
               <Collapsible open={concOpen} onOpenChange={setConcOpen}>
                 <CollapsibleTrigger className="flex items-center gap-1 w-full text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">C) Concretização das Métricas</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("C) Concretização das Métricas")}</span>
                   {concOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -385,7 +386,7 @@ export function MetricsPanel() {
                           const tC = metrics.reduce((a, m) => a + m.comissao, 0);
                           return (
                             <TableRow className="bg-muted/20 hover:bg-muted/20">
-                              <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                              <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
                               {showEnergy && <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(ritmoTotals.opEnergia, tOpE)}`}>{formatPercent(ritmoTotals.opEnergia, tOpE)}</TableCell>}
                               {showEnergy && <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(ritmoTotals.energia, tE)}`}>{formatPercent(ritmoTotals.energia, tE)}</TableCell>}
                               {showEnergy && <TableCell className={`text-xs text-right font-semibold py-1.5 ${percentColor(ritmoTotals.opSolar, tOpS)}`}>{formatPercent(ritmoTotals.opSolar, tOpS)}</TableCell>}

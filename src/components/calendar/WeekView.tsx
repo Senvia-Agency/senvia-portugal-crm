@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, getHours, getMinutes } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import type { CalendarEvent } from '@/types/calendar';
 import { EVENT_TYPE_COLORS } from '@/types/calendar';
 import { CalendarMarkerChip } from './CalendarMarkerChip';
@@ -20,6 +20,7 @@ interface WeekViewProps {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function WeekView({ currentDate, events, selectedDay, onDayClick, onEventClick, markers = [] }: WeekViewProps) {
+  const { t } = useLanguage();
   const getMarkersForDay = (day: Date) => markers.filter((marker) => isSameDay(marker.date, day));
   const days = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -56,7 +57,7 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
       {/* Header with days */}
       <div className="grid grid-cols-8 border-b">
         <div className="py-3 text-center text-xs font-medium text-muted-foreground">
-          Hora
+          {t("Hora")}
         </div>
         {days.map((day) => (
           <div
@@ -69,7 +70,7 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
             onClick={() => onDayClick(day)}
           >
             <p className="text-xs font-medium text-muted-foreground uppercase">
-              {format(day, 'EEE', { locale: pt })}
+              {format(day, 'EEE', { locale: dateLocale() })}
             </p>
             <p
               className={cn(
@@ -87,7 +88,7 @@ export function WeekView({ currentDate, events, selectedDay, onDayClick, onEvent
       {days.some((day) => getAllDayEventsForDay(day).length > 0 || getMarkersForDay(day).length > 0) && (
         <div className="grid grid-cols-8 border-b">
           <div className="py-2 px-2 text-xs text-muted-foreground flex items-center justify-end">
-            Dia inteiro
+            {t("Dia inteiro")}
           </div>
           {days.map((day) => {
             const allDayEvents = getAllDayEventsForDay(day);

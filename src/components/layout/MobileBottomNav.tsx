@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useModules, EnabledModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useLanguage } from "@/i18n";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
@@ -31,7 +32,8 @@ export function MobileBottomNav() {
   const { setOpen: setOttoOpen } = useOttoStore();
   const { isSuperAdmin, organization, organizations } = useAuth();
   const { modules } = useModules();
-  const { canViewModule } = usePermissions();
+  const { canViewModule, isAdmin } = usePermissions();
+  const { t } = useLanguage();
   const { isModuleLocked, getRequiredPlan } = useSubscription();
   const hasPerfect2GetherModuleAccess = hasPerfect2GetherAccess({
     organizationId: organization?.id,
@@ -74,6 +76,7 @@ export function MobileBottomNav() {
 
   // Plan-locked items stay visible; admin-disabled or no-permission items are hidden
   const navItems = allNavItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return true;
     if (!modules[item.moduleKey]) return false;
@@ -119,7 +122,7 @@ export function MobileBottomNav() {
             
             return (
               <NavLink
-                key={item.to} aria-label={item.label}
+                key={item.to} aria-label={t(item.label)}
                 to={locked ? "#" : item.to}
                 onClick={(e) => 'moduleKey' in item ? handleLockedClick(e, item as NavItem) : undefined}
                 className={cn(
@@ -147,7 +150,7 @@ export function MobileBottomNav() {
                   "whitespace-nowrap text-[10px] font-medium",
                   isActive && !locked && "text-primary"
                 )}>
-                  {item.to === '/inbox' ? 'Inbox' : item.label}
+                  {item.to === '/inbox' ? 'Inbox' : t(item.label)}
                 </span>
               </NavLink>
             );

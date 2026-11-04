@@ -39,7 +39,7 @@ function ContaEmail({ channelId, onCount }: { channelId: string; onCount: (n: nu
  * Já contou o Chatwoot. Deixou de haver: o email vem das nossas pastas IMAP e o
  * Instagram/Messenger das nossas tabelas.
  */
-export function InboxUnreadBadge({ className }: { className?: string }) {
+export function InboxUnreadBadge({ className, part }: { className?: string; part?: "meta" | "email" | "all" }) {
   const { data: channels = [] } = useMessagingChannels();
   const { data: metaUnread } = useMetaUnreadTotals();
 
@@ -63,7 +63,10 @@ export function InboxUnreadBadge({ className }: { className?: string }) {
   const total = totalMeta + totalEmail;
   // With the WebMail, email has its own badge on "Email"; the tab title still counts everything.
   const legacy = useInterfaceStore((state) => state.legacy);
-  const shown = WEBMAIL_ENABLED && !legacy ? totalMeta : total;
+  // `part` picks what this badge counts: conversations, email, or both (the bell).
+  // Default: with the WebMail email has its own badge on "Email", so only conversations.
+  const shown = part === "meta" ? totalMeta : part === "email" ? totalEmail : part === "all" ? total
+    : WEBMAIL_ENABLED && !legacy ? totalMeta : total;
 
   useEffect(() => {
     const baseTitle = document.title.replace(/^\(\d+\)\s*/, "");

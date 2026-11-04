@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Cpe, CpeStatus } from '@/types/cpes';
+import { tr } from "@/i18n";
 
 export function useCpes(clientId?: string | null) {
   const { organization } = useAuth();
@@ -94,11 +95,11 @@ export function useCreateCpe() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['cpes'] });
-      toast.success('CPE adicionado com sucesso');
+      toast.success(tr("CPE adicionado com sucesso"));
     },
     onError: (error) => {
       console.error('Error creating CPE:', error);
-      toast.error('Erro ao adicionar CPE');
+      toast.error(tr("Erro ao adicionar CPE"));
     },
   });
 }
@@ -121,11 +122,11 @@ export function useUpdateCpe() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['cpes'] });
       queryClient.invalidateQueries({ queryKey: ['cpe', variables.id] });
-      toast.success('CPE atualizado');
+      toast.success(tr("CPE atualizado"));
     },
     onError: (error) => {
       console.error('Error updating CPE:', error);
-      toast.error('Erro ao atualizar CPE');
+      toast.error(tr("Erro ao atualizar CPE"));
     },
   });
 }
@@ -144,11 +145,11 @@ export function useDeleteCpe() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cpes'] });
-      toast.success('CPE removido');
+      toast.success(tr("CPE removido"));
     },
     onError: (error) => {
       console.error('Error deleting CPE:', error);
-      toast.error('Erro ao remover CPE');
+      toast.error(tr("Erro ao remover CPE"));
     },
   });
 }
@@ -179,9 +180,9 @@ export function useRenewCpe() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cpes'] });
       queryClient.invalidateQueries({ queryKey: ['fidelization-alerts'] });
-      toast.success('CPE renovado com sucesso');
+      toast.success(tr("CPE renovado com sucesso"));
     },
-    onError: () => toast.error('Erro ao renovar CPE'),
+    onError: () => toast.error(tr("Erro ao renovar CPE")),
   });
 }
 
@@ -212,9 +213,9 @@ export function useSwitchComercializador() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cpes'] });
       queryClient.invalidateQueries({ queryKey: ['fidelization-alerts'] });
-      toast.success('Comercializador alterado com sucesso');
+      toast.success(tr("Comercializador alterado com sucesso"));
     },
-    onError: () => toast.error('Erro ao alterar comercializador'),
+    onError: () => toast.error(tr("Erro ao alterar comercializador")),
   });
 }
 

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 
 export interface CreditNoteRow {
   id: string;
@@ -119,8 +120,8 @@ export function useSyncCreditNotes() {
       // Suppress toast for unconfigured credentials
       if (error.message?.includes('não configuradas') || error.message?.includes('not configured')) return;
       toast({
-        title: 'Erro na sincronização',
-        description: error.message || 'Não foi possível sincronizar notas de crédito.',
+        title: tr('Erro na sincronização'),
+        description: error.message || tr('Não foi possível sincronizar notas de crédito.'),
         variant: 'destructive',
       });
     },

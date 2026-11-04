@@ -125,3 +125,20 @@ export function inboxUnread(folders: readonly WebmailFolder[], channelId: string
 }
 
 export const countLabel = (value: number) => (value > 999 ? '999+' : String(value));
+
+/** Why a typed folder name cannot be used (same rule as the gateway), or null when it can. */
+export function folderNameError(raw: string): string | null {
+  const name = raw.trim();
+  if (!name) return 'Escreva um nome para a pasta.';
+  if (name.length > 60) return 'O nome tem no máximo 60 caracteres.';
+  // The hierarchy separators and IMAP wildcards would turn one name into a path or a pattern.
+  if ([...name].some(char => '/\\.%*"'.includes(char) || char.charCodeAt(0) < 32)) {
+    return 'O nome não pode ter / \\ . % * nem aspas.';
+  }
+  return null;
+}
+
+/** A folder's subfolders: those whose path continues it after the hierarchy separator. */
+export function isSubfolderOf(child: Pick<WebmailFolder, 'path'>, parent: Pick<WebmailFolder, 'path'>): boolean {
+  return child.path !== parent.path && (child.path.startsWith(`${parent.path}/`) || child.path.startsWith(`${parent.path}.`));
+}

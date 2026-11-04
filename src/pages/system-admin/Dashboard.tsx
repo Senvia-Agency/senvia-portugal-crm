@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHomeOrganization } from "@/hooks/useHomeOrganization";
-import { Activity, Users, Sparkles, MessageCircle } from "lucide-react";
+import { Activity, Users, Sparkles, MessageCircle, Clapperboard } from "lucide-react";
 import { AdminShell } from "@/components/system-admin/AdminShell";
 import { AdminOverview } from "@/components/system-admin/AdminOverview";
 import { HomeOrgCard } from "@/components/system-admin/HomeOrgCard";
 import { OrganizationsTable } from "@/components/system-admin/OrganizationsTable";
 import type { OrgStripeData, AdminContact, OrgFilter } from "@/components/system-admin/OrganizationsTable";
+import { useLanguage } from "@/i18n";
 
 interface OrgRow {
   id: string;
@@ -44,10 +45,12 @@ const SECONDARY = [
   { to: "/system-admin/trial-whatsapp", icon: MessageCircle, label: "WhatsApp" },
   { to: "/system-admin/users", icon: Users, label: "Utilizadores" },
   { to: "/system-admin/announcements", icon: Sparkles, label: "Novidades" },
+  { to: "/system-admin/reviews", icon: Clapperboard, label: "Avaliações" },
 ];
 
 export default function SystemAdminDashboard() {
   const { switchOrganization, organization } = useAuth();
+  const { t } = useLanguage();
   const { home } = useHomeOrganization();
   // The attention strip focuses the list below instead of just reporting.
   const [orgFilter, setOrgFilter] = useState<OrgFilter>("all");
@@ -140,8 +143,8 @@ export default function SystemAdminDashboard() {
 
   return (
     <AdminShell
-      title="Visão geral"
-      description="Assinaturas, receita e clientes do Senvia OS."
+      title={t("Visão geral")}
+      description={t("Subscrições, receita e clientes do Senvia OS.")}
       back={false}
       maxWidth="wide"
       action={
@@ -153,7 +156,7 @@ export default function SystemAdminDashboard() {
               className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <s.icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{s.label}</span>
+              <span className="hidden sm:inline">{t(s.label)}</span>
             </Link>
           ))}
         </nav>
@@ -184,7 +187,7 @@ export default function SystemAdminDashboard() {
         <div className="mt-8 space-y-6 xl:mt-0">
           {/* Own organization, kept out of the customers list */}
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-foreground/70">A tua organização</h2>
+            <h2 className="text-sm font-medium text-foreground/70">{t("A tua organização")}</h2>
             <HomeOrgCard
               memberCount={organizations.find((o) => o.id === home?.organization_id)?.member_count}
               loading={isLoading}
@@ -193,7 +196,7 @@ export default function SystemAdminDashboard() {
 
         {/* Customers */}
         <section id="admin-clients" className="scroll-mt-20 space-y-3">
-          <h2 className="text-sm font-medium text-foreground/70">Clientes</h2>
+          <h2 className="text-sm font-medium text-foreground/70">{t("Clientes")}</h2>
         <OrganizationsTable
           organizations={organizations.filter((o) => o.id !== home?.organization_id)}
           loading={isLoading}

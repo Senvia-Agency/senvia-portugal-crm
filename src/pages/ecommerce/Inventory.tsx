@@ -5,12 +5,14 @@ import { SEO } from "@/components/SEO";
 
 
 import { InventoryTable } from "@/components/ecommerce/InventoryTable";
+import { useLanguage } from "@/i18n";
 
 export default function EcommerceInventory() {
+  const { t } = useLanguage();
 
   return (
     <>
-      <SEO title="Inventário | E-commerce | Senvia OS" description="Gerir stock e movimentos" />
+      <SEO title={`${t("Inventário")} | E-commerce | Senvia OS`} description={t("Gerir stock e movimentos")} />
 
       <div className="space-y-6 p-4 md:p-6 pb-nav-safe md:pb-6">
         <div className="flex items-center gap-4">
@@ -22,9 +24,9 @@ export default function EcommerceInventory() {
           <div>
             <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
               <Boxes className="h-5 w-5 shrink-0 text-primary" />
-              Inventário
+              {t("Inventário")}
             </h1>
-            <p className="text-sm text-muted-foreground">Gerir stock e movimentos</p>
+            <p className="text-sm text-muted-foreground">{t("Gerir stock e movimentos")}</p>
           </div>
         </div>
 

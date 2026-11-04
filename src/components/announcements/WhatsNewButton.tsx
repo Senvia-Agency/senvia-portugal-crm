@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
 import { isPerfect2GetherOrg } from '@/lib/perfect2gether';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 interface WhatsNewButtonProps {
   className?: string;
@@ -15,6 +16,7 @@ interface WhatsNewButtonProps {
  * Links to the release history even when there is no active popup announcement.
  */
 export function WhatsNewButton({ className, variant = 'header' }: WhatsNewButtonProps) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const { hasUnread } = useAnnouncements();
 
@@ -23,8 +25,8 @@ export function WhatsNewButton({ className, variant = 'header' }: WhatsNewButton
   return (
     <Link
       to="/novidades"
-      title="O que há de novo"
-      aria-label={hasUnread ? 'O que há de novo (novidades por ler)' : 'O que há de novo'}
+      title={t('O que há de novo')}
+      aria-label={hasUnread ? t('O que há de novo (novidades por ler)') : t('O que há de novo')}
       className={cn(
         'relative rounded-lg p-2 transition-colors',
         variant === 'sidebar'

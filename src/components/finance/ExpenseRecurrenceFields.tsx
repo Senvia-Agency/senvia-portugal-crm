@@ -15,6 +15,7 @@ import {
   withFrequency,
   type RecurrenceSchedule,
 } from '@/lib/expense-recurrence';
+import { useLanguage } from '@/i18n';
 
 interface ExpenseRecurrenceFieldsProps {
   enabled: boolean;
@@ -44,6 +45,7 @@ export function ExpenseRecurrenceFields({
   forget = false,
   onForgetChange,
 }: ExpenseRecurrenceFieldsProps) {
+  const { t } = useLanguage();
   const note = shortMonthNote(schedule);
   const days = Array.from({ length: maxDueDay(schedule.frequency, schedule.month) }, (_, i) => i + 1);
 
@@ -56,13 +58,13 @@ export function ExpenseRecurrenceFields({
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <RefreshCw className="h-4 w-4 text-primary" />
-            Recorrência
+            {t("Recorrência")}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            A despesa volta a ser lançada sozinha, sempre no dia de vencimento.
+            {t("A despesa volta a ser lançada sozinha, sempre no dia de vencimento.")}
           </p>
         </div>
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} aria-label="Despesa recorrente" />
+        <Switch checked={enabled} onCheckedChange={onEnabledChange} aria-label={t("Despesa recorrente")} />
       </div>
 
       {!enabled && paused && (
@@ -71,14 +73,14 @@ export function ExpenseRecurrenceFields({
           <div className="min-w-0 flex-1 text-xs text-foreground">
             {forget ? (
               <>
-                <p className="font-medium">A recorrência é removida ao guardar.</p>
-                <p className="mt-0.5 text-muted-foreground">A despesa fica como uma despesa normal.</p>
+                <p className="font-medium">{t("A recorrência é removida ao guardar.")}</p>
+                <p className="mt-0.5 text-muted-foreground">{t("A despesa fica como uma despesa normal.")}</p>
               </>
             ) : (
               <>
-                <p className="font-medium">Em pausa · {describeSchedule(paused)}</p>
+                <p className="font-medium">{t("Em pausa")} · {describeSchedule(paused)}</p>
                 <p className="mt-0.5 text-muted-foreground">
-                  Liga a recorrência para retomar: volta no vencimento seguinte, sem os períodos em pausa.
+                  {t("Liga a recorrência para retomar: volta no vencimento seguinte, sem os períodos em pausa.")}
                 </p>
               </>
             )}
@@ -88,7 +90,7 @@ export function ExpenseRecurrenceFields({
                 onClick={() => onForgetChange(!forget)}
                 className="mt-2 text-xs font-medium text-primary hover:underline"
               >
-                {forget ? 'Manter em pausa' : 'Remover a recorrência'}
+                {forget ? t('Manter em pausa') : t('Remover a recorrência')}
               </button>
             )}
           </div>
@@ -98,7 +100,7 @@ export function ExpenseRecurrenceFields({
       {enabled && (
         <>
           <div className="space-y-2">
-            <Label>Repete</Label>
+            <Label>{t("Repete")}</Label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {RECURRENCE_FREQUENCIES.map((frequency) => (
                 <button
@@ -112,30 +114,30 @@ export function ExpenseRecurrenceFields({
                       : 'border-border text-muted-foreground hover:bg-muted',
                   )}
                 >
-                  {RECURRENCE_FREQUENCY_LABELS[frequency]}
+                  {t(RECURRENCE_FREQUENCY_LABELS[frequency])}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Vence</Label>
+            <Label>{t("Vence")}</Label>
             {schedule.frequency === 'weekly' ? (
               <Select value={String(schedule.day)} onValueChange={(v) => onScheduleChange({ ...schedule, day: Number(v) })}>
-                <SelectTrigger aria-label="Dia da semana">
+                <SelectTrigger aria-label={t("Dia da semana")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {WEEKDAY_LABELS.map((label, i) => (
-                    <SelectItem key={label} value={String(i + 1)}>{label}</SelectItem>
+                    <SelectItem key={label} value={String(i + 1)}>{t(label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted-foreground">Dia</span>
+                <span className="text-sm text-muted-foreground">{t("Dia")}</span>
                 <Select value={String(schedule.day)} onValueChange={(v) => onScheduleChange({ ...schedule, day: Number(v) })}>
-                  <SelectTrigger className="w-24" aria-label="Dia de vencimento">
+                  <SelectTrigger className="w-24" aria-label={t("Dia de vencimento")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -146,14 +148,14 @@ export function ExpenseRecurrenceFields({
                 </Select>
                 {schedule.frequency === 'yearly' ? (
                   <>
-                    <span className="text-sm text-muted-foreground">de</span>
+                    <span className="text-sm text-muted-foreground">{t("de")}</span>
                     <Select value={String(schedule.month ?? date.getMonth() + 1)} onValueChange={(v) => setMonth(Number(v))}>
-                      <SelectTrigger className="w-40" aria-label="Mês de vencimento">
+                      <SelectTrigger className="w-40" aria-label={t("Mês de vencimento")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {MONTH_LABELS.map((label, i) => (
-                          <SelectItem key={label} value={String(i + 1)}>{label}</SelectItem>
+                          <SelectItem key={label} value={String(i + 1)}>{t(label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -161,8 +163,8 @@ export function ExpenseRecurrenceFields({
                 ) : (
                   <span className="text-sm text-muted-foreground">
                     {schedule.frequency === 'quarterly'
-                      ? `de 3 em 3 meses, a contar de ${MONTH_LABELS[date.getMonth()]}`
-                      : 'de cada mês'}
+                      ? t("de 3 em 3 meses, a contar de {{month}}", { month: t(MONTH_LABELS[date.getMonth()]) })
+                      : t('de cada mês')}
                   </span>
                 )}
               </div>
@@ -176,8 +178,8 @@ export function ExpenseRecurrenceFields({
               <p className="font-medium">{describeSchedule(schedule)}</p>
               <p className="mt-0.5 text-muted-foreground">
                 {nextScheduled
-                  ? `Próximo lançamento agendado: ${formatDate(nextScheduled)}. Muda se alterares a recorrência.`
-                  : 'Esta despesa conta como a do seu período; a próxima é lançada no vencimento seguinte, nunca numa data já passada.'}
+                  ? t("Próximo lançamento agendado: {{date}}. Muda se alterares a recorrência.", { date: formatDate(nextScheduled) })
+                  : t('Esta despesa conta como a do seu período; a próxima é lançada no vencimento seguinte, nunca numa data já passada.')}
               </p>
             </div>
           </div>

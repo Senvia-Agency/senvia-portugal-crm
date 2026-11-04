@@ -35,8 +35,8 @@ import { TemplateEditor } from "@/components/marketing/TemplateEditor";
 import type { CrmClient } from "@/types/clients";
 import type { EmailCampaign } from "@/types/marketing";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { toast } from "sonner";
+import { dateLocale, useLanguage } from "@/i18n";
 
 interface CreateCampaignModalProps {
   open: boolean;
@@ -150,7 +150,7 @@ const CAMPAIGN_SETTINGS_GROUPS: { title: string; items: SettingItem[] }[] = [
     ],
   },
   {
-    title: "Envio e rastreamento",
+    title: "Envio e rastreio",
     items: [
       { key: "different_reply_to", label: "Usar um endereço de resposta diferente", inputType: "email", placeholder: "reply@empresa.com" },
       { key: "ga_tracking", label: "Ativar rastreio do Google Analytics", inputType: "text", placeholder: "Nome da campanha UTM" },
@@ -159,7 +159,7 @@ const CAMPAIGN_SETTINGS_GROUPS: { title: string; items: SettingItem[] }[] = [
     ],
   },
   {
-    title: "Assinatura",
+    title: "Subscrição",
     items: [
       { key: "custom_unsubscribe", label: "Utilizar página de cancelamento personalizada", inputType: "text", placeholder: "https://exemplo.com/cancelar" },
       { key: "profile_update_form", label: "Usar formulário de atualização de perfil", soon: true },
@@ -168,9 +168,9 @@ const CAMPAIGN_SETTINGS_GROUPS: { title: string; items: SettingItem[] }[] = [
   {
     title: "Criação",
     items: [
-      { key: "custom_header", label: "Editar cabeçalho padrão", inputType: "textarea", placeholder: "<div>Cabeçalho HTML...</div>" },
-      { key: "custom_footer", label: "Editar rodapé padrão", inputType: "textarea", placeholder: "<div>Rodapé HTML...</div>" },
-      { key: "view_in_browser", label: "Habilitar link \"Ver no navegador\"", soon: true },
+      { key: "custom_header", label: "Editar cabeçalho predefinido", inputType: "textarea", placeholder: "<div>Cabeçalho HTML...</div>" },
+      { key: "custom_footer", label: "Editar rodapé predefinido", inputType: "textarea", placeholder: "<div>Rodapé HTML...</div>" },
+      { key: "view_in_browser", label: "Ativar link \"Ver no navegador\"", soon: true },
     ],
   },
 ];
@@ -210,6 +210,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
   const { data: contactLists = [] } = useContactLists();
   const { organization } = useAuth();
   const organizationId = organization?.id;
+  const { t } = useLanguage();
 
   const activeTemplates = useMemo(() => templates.filter(t => t.is_active), [templates]);
   const selectedTemplate = useMemo(() => templates.find(t => t.id === templateId), [templates, templateId]);
@@ -350,12 +351,12 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
       if (sendMode === "scheduled" && scheduleDate) {
         if (!organizationId) {
-          throw new Error("Sem organização ativa para agendar a campanha.");
+          throw new Error(t("Sem organização ativa para agendar a campanha."));
         }
 
         const queuedRecipients = selectedClients.filter((client) => client.email);
         if (queuedRecipients.length === 0) {
-          throw new Error("Selecione pelo menos um destinatário com email válido.");
+          throw new Error(t("Selecione pelo menos um destinatário com email válido."));
         }
 
         const [h, m] = scheduleTime.split(":").map(Number);
@@ -382,7 +383,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
             if (insertError) {
               console.error("Erro ao inserir fila de envio:", insertError);
-              throw new Error(`Falha ao agendar destinatários: ${insertError.message}`);
+              throw new Error(t("Falha ao agendar destinatários: {{message}}", { message: insertError.message }));
             }
 
             queueWasCreated = true;
@@ -398,7 +399,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
             .eq("id", campaignId);
 
           if (scheduleError) {
-            throw new Error(`Falha ao guardar o agendamento: ${scheduleError.message}`);
+            throw new Error(t("Falha ao guardar o agendamento: {{message}}", { message: scheduleError.message }));
           }
         } catch (scheduleError) {
           if (queueWasCreated) {
@@ -412,7 +413,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
           throw scheduleError;
         }
 
-        toast.success(`Campanha agendada para ${format(scheduledAt, "dd 'de' MMMM 'às' HH:mm", { locale: pt })}`);
+        toast.success(t("Campanha agendada para {{day}} de {{month}} às {{time}}", { day: format(scheduledAt, "dd"), month: format(scheduledAt, "MMMM", { locale: dateLocale() }), time: format(scheduledAt, "HH:mm") }));
         handleClose();
         return;
       }
@@ -454,7 +455,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
       handleClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível processar a campanha.";
+      const message = error instanceof Error ? error.message : t("Não foi possível processar a campanha.");
       toast.error(message);
       setIsSending(false);
     }
@@ -493,17 +494,17 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
           <>
             <div className="border-b bg-card">
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-4 flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose}>
+                <Button variant="back" size="icon" className="h-8 w-8" onClick={handleClose}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <DialogTitle className="text-lg font-semibold">Criar uma campanha</DialogTitle>
+                <DialogTitle className="text-lg font-semibold">{t("Criar uma campanha")}</DialogTitle>
               </div>
             </div>
 
             <ScrollArea className="flex-1">
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-8 space-y-6">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-4">Padrão</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-4">{t("Padrão")}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Email - active */}
                     <button
@@ -513,12 +514,12 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                         <Mail className="h-6 w-6 text-primary" />
                       </div>
-                      <span className="text-sm font-semibold">E-mail</span>
+                      <span className="text-sm font-semibold">{t("E-mail")}</span>
                     </button>
 
                     {/* SMS - disabled */}
                     <div className="flex flex-col items-center gap-3 p-6 border rounded-xl opacity-50 cursor-not-allowed relative">
-                      <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">Em breve</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">{t("Em breve")}</Badge>
                       <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
                         <MessageSquare className="h-6 w-6 text-muted-foreground" />
                       </div>
@@ -527,7 +528,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
                     {/* WhatsApp - disabled */}
                     <div className="flex flex-col items-center gap-3 p-6 border rounded-xl opacity-50 cursor-not-allowed relative">
-                      <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">Em breve</Badge>
+                      <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">{t("Em breve")}</Badge>
                       <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
                         <Phone className="h-6 w-6 text-muted-foreground" />
                       </div>
@@ -545,10 +546,10 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
           <>
             <div className="border-b bg-card">
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-4 flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStep(1)}>
+                <Button variant="back" size="icon" className="h-8 w-8" onClick={() => setStep(1)}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <DialogTitle className="text-lg font-semibold">Criar uma campanha de e-mail</DialogTitle>
+                <DialogTitle className="text-lg font-semibold">{t("Criar uma campanha de e-mail")}</DialogTitle>
               </div>
             </div>
 
@@ -556,13 +557,13 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-8 space-y-6">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
                   <Mail className="h-3.5 w-3.5" />
-                  Regular
+                  {t("Regular")}
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Nome da campanha <span className="text-destructive">*</span></Label>
+                  <Label>{t("Nome da campanha")} <span className="text-destructive">*</span></Label>
                   <Input
-                    placeholder="Ex: Promoção de Janeiro"
+                    placeholder={t("Ex: Promoção de Janeiro")}
                     value={name}
                     onChange={(e) => setName(e.target.value.slice(0, 128))}
                     autoFocus
@@ -574,9 +575,9 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
             <div className="border-t bg-card px-4 md:px-6 py-4">
               <div className="max-w-xl mx-auto w-full flex justify-end gap-3">
-                <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+                <Button variant="outline" onClick={handleClose}>{t("Cancelar")}</Button>
                 <Button onClick={() => setStep(3)} disabled={!name.trim()}>
-                  Criar campanha
+                  {t("Criar campanha")}
                 </Button>
               </div>
             </div>
@@ -589,12 +590,12 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
             <div className="border-b bg-card">
               <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => isEditMode ? handleClose() : setStep(2)}>
+                  <Button variant="back" size="icon" className="h-8 w-8 shrink-0" onClick={() => isEditMode ? handleClose() : setStep(2)}>
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <div className="min-w-0">
                     <DialogTitle className="text-lg font-semibold truncate">{name}</DialogTitle>
-                    <Badge variant="secondary" className="text-xs mt-0.5">Rascunho</Badge>
+                    <Badge variant="secondary" className="text-xs mt-0.5">{t("Rascunho")}</Badge>
                   </div>
                 </div>
               </div>
@@ -604,50 +605,50 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
               <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-6 space-y-1">
                 {/* Remetente */}
                 <StepperSection
-                  title="Remetente"
+                  title={t("Remetente")}
                   complete={true}
-                  summary={organization?.name || 'A sua organização'}
+                  summary={organization?.name || t('A sua organização')}
                   expanded={expandedSection === 'sender'}
                   onToggle={() => setExpandedSection(expandedSection === 'sender' ? null : 'sender')}
                 >
                   <div className="text-sm text-muted-foreground">
                     <p><span className="font-medium text-foreground">{organization?.name || '—'}</span></p>
-                    <p className="text-xs mt-1">O remetente é configurado nas definições da organização.</p>
+                    <p className="text-xs mt-1">{t("O remetente é configurado nas definições da organização.")}</p>
                   </div>
                 </StepperSection>
 
                 {/* Destinatários */}
                 <StepperSection
-                  title="Destinatários"
+                  title={t("Destinatários")}
                   complete={selectedClients.length > 0}
-                  summary={selectedClients.length > 0 ? `${selectedClients.length} contacto(s) selecionado(s)` : 'Nenhum selecionado'}
+                  summary={selectedClients.length > 0 ? t("{{n}} contacto(s) selecionado(s)", { n: selectedClients.length }) : t('Nenhum selecionado')}
                   expanded={expandedSection === 'recipients'}
                   onToggle={() => setExpandedSection(expandedSection === 'recipients' ? null : 'recipients')}
                 >
                   <Tabs value={selectionMode} onValueChange={(v) => setSelectionMode(v as any)} className="space-y-4">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="individual" className="text-xs gap-1.5">
-                        <User className="h-3.5 w-3.5" /> Individual
+                        <User className="h-3.5 w-3.5" /> {t("Individual")}
                       </TabsTrigger>
                       <TabsTrigger value="filter" className="text-xs gap-1.5">
-                        <Users className="h-3.5 w-3.5" /> Filtro
+                        <Users className="h-3.5 w-3.5" /> {t("Filtro")}
                       </TabsTrigger>
                       <TabsTrigger value="list" className="text-xs gap-1.5">
-                        <List className="h-3.5 w-3.5" /> Lista
+                        <List className="h-3.5 w-3.5" /> {t("Lista")}
                       </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="individual" className="space-y-3">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Pesquisar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+                        <Input placeholder={t("Pesquisar...")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
                       </div>
                       <div className="border rounded-md max-h-[300px] overflow-y-auto">
                         <div className="p-2 space-y-1">
                           {loadingClients ? (
                             <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                           ) : filteredClients.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground text-sm">Nenhum cliente encontrado</div>
+                            <div className="text-center py-8 text-muted-foreground text-sm">{t("Nenhum cliente encontrado")}</div>
                           ) : (
                             filteredClients.map((client) => {
                               const isSelected = selectedClients.some(c => c.id === client.id);
@@ -668,21 +669,20 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
                     <TabsContent value="filter" className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Filtrar por {clientLabels.statusFieldLabel.toLowerCase()}</Label>
+                        <Label>{t("Filtrar por {{field}}", { field: clientLabels.statusFieldLabel.toLowerCase() })}</Label>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="all">{t("Todos")}</SelectItem>
                             <SelectItem value="active">{clientLabels.statusActive}</SelectItem>
                             <SelectItem value="inactive">{clientLabels.statusInactive}</SelectItem>
-                            <SelectItem value="vip">{clientLabels.statusVip}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <p className="text-sm font-medium">{filteredClients.length} clientes</p>
+                        <p className="text-sm font-medium">{t("{{n}} clientes", { n: filteredClients.length })}</p>
                         <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                          {selectedClients.length === filteredClients.length ? "Desmarcar" : "Selecionar"} todos
+                          {selectedClients.length === filteredClients.length ? t("Desmarcar todos") : t("Selecionar todos")}
                         </Button>
                       </div>
                       <div className="border rounded-md max-h-[250px] overflow-y-auto">
@@ -698,7 +698,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                                   <p className="text-xs text-muted-foreground truncate">{client.email}</p>
                                 </div>
                                 <Badge variant="secondary" className="text-xs" style={{ backgroundColor: statusStyle?.bg, color: statusStyle?.text }}>
-                                  {{ active: clientLabels.statusActive, inactive: clientLabels.statusInactive, vip: clientLabels.statusVip }[client.status] || client.status}
+                                  {{ active: clientLabels.statusActive, inactive: clientLabels.statusInactive, vip: clientLabels.statusActive }[client.status] || client.status}
                                 </Badge>
                               </div>
                             );
@@ -709,11 +709,11 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
                     <TabsContent value="list" className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Selecionar listas</Label>
+                        <Label>{t("Selecionar listas")}</Label>
                         <div className="border rounded-md max-h-[200px] overflow-y-auto">
                           <div className="p-2 space-y-1">
                             {contactLists.length === 0 ? (
-                              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma lista disponível</p>
+                              <p className="text-sm text-muted-foreground text-center py-4">{t("Nenhuma lista disponível")}</p>
                             ) : (
                               contactLists.map(l => {
                                 const isChecked = selectedListIds.includes(l.id);
@@ -743,9 +743,9 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                       {selectedListIds.length > 0 && (
                         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                           <div className="text-sm">
-                            <p className="font-medium">{selectedListIds.length} lista(s) selecionada(s)</p>
+                            <p className="font-medium">{t("{{n}} lista(s) selecionada(s)", { n: selectedListIds.length })}</p>
                             {selectedClients.length > 0 && (
-                              <p className="text-xs text-muted-foreground">{selectedClients.length} contacto(s) carregados</p>
+                              <p className="text-xs text-muted-foreground">{t("{{n}} contacto(s) carregado(s)", { n: selectedClients.length })}</p>
                             )}
                           </div>
                           <Button
@@ -754,7 +754,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                             disabled={loadingListMembers}
                             onClick={() => void loadContactsFromLists(selectedListIds)}
                           >
-                            {loadingListMembers ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar contactos"}
+                            {loadingListMembers ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Carregar contactos")}
                           </Button>
                         </div>
                       )}
@@ -764,67 +764,67 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
                 {/* Assunto */}
                 <StepperSection
-                  title="Assunto"
+                  title={t("Assunto")}
                   complete={!!subject.trim()}
-                  summary={subject || 'Sem assunto definido'}
+                  summary={subject || t('Sem assunto definido')}
                   expanded={expandedSection === 'subject'}
                   onToggle={() => setExpandedSection(expandedSection === 'subject' ? null : 'subject')}
                 >
                   <div className="space-y-2">
-                    <Label>Assunto do email</Label>
+                    <Label>{t("Assunto do email")}</Label>
                     <Input
-                      placeholder="Ex: Novidades de Janeiro"
+                      placeholder={t("Ex: Novidades de Janeiro")}
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
                       {contentMode === "template" && selectedTemplate
-                        ? "Pré-preenchido pelo template. Pode editar manualmente."
-                        : "Escreva o assunto que aparecerá na caixa de entrada."}
+                        ? t("Pré-preenchido pelo template. Pode editar manualmente.")
+                        : t("Escreva o assunto que aparecerá na caixa de entrada.")}
                     </p>
                   </div>
                 </StepperSection>
 
                 {/* Conteúdo */}
                 <StepperSection
-                  title="Conteúdo"
+                  title={t("Conteúdo")}
                   complete={contentComplete}
                   summary={
                     contentMode === "template"
-                      ? (selectedTemplate?.name || 'Nenhum template selecionado')
-                      : (customHtml.trim() ? 'Email personalizado' : 'Sem conteúdo')
+                      ? (selectedTemplate?.name || t('Nenhum template selecionado'))
+                      : (customHtml.trim() ? t('Email personalizado') : t('Sem conteúdo'))
                   }
                   expanded={expandedSection === 'content'}
                   onToggle={() => setExpandedSection(expandedSection === 'content' ? null : 'content')}
                 >
                   <Tabs value={contentMode} onValueChange={(v) => setContentMode(v as ContentMode)} className="space-y-4">
                     <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="template" className="text-xs">Usar Template</TabsTrigger>
-                      <TabsTrigger value="custom" className="text-xs">Criar email</TabsTrigger>
+                      <TabsTrigger value="template" className="text-xs">{t("Usar Template")}</TabsTrigger>
+                      <TabsTrigger value="custom" className="text-xs">{t("Criar email")}</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="template" className="space-y-3">
-                      <Label>Selecionar template</Label>
+                      <Label>{t("Selecionar template")}</Label>
                       <Select value={templateId} onValueChange={handleTemplateChange}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar template..." />
+                          <SelectValue placeholder={t("Selecionar template...")} />
                         </SelectTrigger>
                         <SelectContent>
-                          {activeTemplates.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          {activeTemplates.map(tpl => (
+                            <SelectItem key={tpl.id} value={tpl.id}>{tpl.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       {selectedTemplate && (
                         <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-md">
-                          <p><strong>Assunto:</strong> {selectedTemplate.subject}</p>
+                          <p><strong>{t("Assunto:")}</strong> {selectedTemplate.subject}</p>
                         </div>
                       )}
                     </TabsContent>
 
                     <TabsContent value="custom" className="space-y-3">
                       <p className="text-xs text-muted-foreground">
-                        Crie o email diretamente aqui. Este conteúdo não será guardado como template.
+                        {t("Crie o email diretamente aqui. Este conteúdo não será guardado como template.")}
                       </p>
                       <TemplateEditor value={customHtml} onChange={setCustomHtml} />
                     </TabsContent>
@@ -839,8 +839,8 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                   >
                     <Settings2 className="h-5 w-5 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">Configurações adicionais</p>
-                      <p className="text-xs text-muted-foreground">Personalização, rastreamento, assinatura</p>
+                      <p className="text-sm font-semibold">{t("Definições adicionais")}</p>
+                      <p className="text-xs text-muted-foreground">{t("Personalização, rastreio, subscrição")}</p>
                     </div>
                     {showSettings ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </button>
@@ -849,7 +849,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                       <div className="pt-4 space-y-5">
                         {CAMPAIGN_SETTINGS_GROUPS.map((group) => (
                           <div key={group.title} className="space-y-2">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.title}</p>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t(group.title)}</p>
                             <div className="space-y-2">
                               {group.items.map((item) => (
                                 <div key={item.key} className="space-y-2">
@@ -862,14 +862,14 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                                         if (!checked) setSettingsData(prev => { const n = { ...prev }; delete n[item.key]; return n; });
                                       }}
                                     />
-                                    <span className="text-sm">{item.label}</span>
-                                    {item.soon && <Badge variant="secondary" className="text-[10px] ml-1">Em breve</Badge>}
+                                    <span className="text-sm">{t(item.label)}</span>
+                                    {item.soon && <Badge variant="secondary" className="text-[10px] ml-1">{t("Em breve")}</Badge>}
                                   </label>
                                   {settings[item.key] && item.inputType && !item.soon && (
                                     <div className="ml-9">
                                       {item.inputType === 'textarea' ? (
                                         <Textarea
-                                          placeholder={item.placeholder}
+                                          placeholder={item.placeholder ? t(item.placeholder) : undefined}
                                           value={settingsData[item.key] || ''}
                                           onChange={(e) => setSettingsData(prev => ({ ...prev, [item.key]: e.target.value }))}
                                           className="text-xs min-h-[60px]"
@@ -877,7 +877,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                                       ) : (
                                         <Input
                                           type={item.inputType}
-                                          placeholder={item.placeholder}
+                                          placeholder={item.placeholder ? t(item.placeholder) : undefined}
                                           value={settingsData[item.key] || ''}
                                           onChange={(e) => setSettingsData(prev => ({ ...prev, [item.key]: e.target.value }))}
                                           className="text-xs h-9"
@@ -891,7 +891,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                           </div>
                         ))}
                         <Button variant="outline" size="sm" onClick={() => setShowSettings(false)}>
-                          Guardar
+                          {t("Guardar")}
                         </Button>
                       </div>
                     </div>
@@ -905,11 +905,11 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
               <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
                 {!allSectionsComplete && (
                   <p className="text-xs text-warning">
-                    Preencha destinatários, assunto e conteúdo para poder enviar ou agendar a campanha.
+                    {t("Preencha destinatários, assunto e conteúdo para poder enviar ou agendar a campanha.")}
                   </p>
                 )}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">{selectedClients.length} destinatário(s)</p>
+                  <p className="text-sm text-muted-foreground">{t("{{n}} destinatário(s)", { n: selectedClients.length })}</p>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -941,27 +941,27 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                       }}
                     >
                       {(createCampaign.isPending || updateCampaign.isPending) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      Guardar Campanha
+                      {t("Guardar Campanha")}
                     </Button>
                     {allSectionsComplete && (
                       <>
                         <Popover open={showSchedulePicker} onOpenChange={setShowSchedulePicker}>
                           <PopoverTrigger asChild>
                             <Button variant="outline">
-                              <Clock className="mr-2 h-4 w-4" /> Agendar envio
+                              <Clock className="mr-2 h-4 w-4" /> {t("Agendar envio")}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-4 space-y-3" align="end">
-                            <p className="text-sm font-semibold">Agendar para:</p>
+                            <p className="text-sm font-semibold">{t("Agendar para:")}</p>
                             <Calendar
                               mode="single"
                               selected={scheduleDate}
                               onSelect={setScheduleDate}
-                              locale={pt}
+                              locale={dateLocale()}
                               disabled={(date) => date < new Date()}
                             />
                             <div className="space-y-1">
-                              <Label className="text-xs">Hora</Label>
+                              <Label className="text-xs">{t("Hora")}</Label>
                               <Input
                                 type="time"
                                 value={scheduleTime}
@@ -977,12 +977,12 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                                 setStep(4);
                               }}
                             >
-                              Confirmar agendamento
+                              {t("Confirmar agendamento")}
                             </Button>
                           </PopoverContent>
                         </Popover>
                         <Button onClick={() => { setSendMode("immediate"); setStep(4); }}>
-                          <Send className="mr-2 h-4 w-4" /> Enviar campanha
+                          <Send className="mr-2 h-4 w-4" /> {t("Enviar campanha")}
                         </Button>
                       </>
                     )}
@@ -998,11 +998,11 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
           <>
             <div className="border-b bg-card">
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-4 flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStep(3)}>
+                <Button variant="back" size="icon" className="h-8 w-8" onClick={() => setStep(3)}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <DialogTitle className="text-lg font-semibold">
-                  {sendMode === "scheduled" ? "Confirmar Agendamento" : "Confirmar Envio"}
+                  {sendMode === "scheduled" ? t("Confirmar Agendamento") : t("Confirmar Envio")}
                 </DialogTitle>
               </div>
             </div>
@@ -1011,35 +1011,35 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
               <div className="max-w-xl mx-auto w-full px-4 md:px-6 py-8 space-y-6">
                 <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Campanha:</span>
+                    <span className="text-sm text-muted-foreground">{t("Campanha:")}</span>
                     <span className="text-sm font-medium">{name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Assunto:</span>
+                    <span className="text-sm text-muted-foreground">{t("Assunto:")}</span>
                     <span className="text-sm font-medium truncate max-w-[200px]">{subject}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Conteúdo:</span>
+                    <span className="text-sm text-muted-foreground">{t("Conteúdo:")}</span>
                     <span className="text-sm font-medium">
-                      {contentMode === "template" ? selectedTemplate?.name : "Email personalizado"}
+                      {contentMode === "template" ? selectedTemplate?.name : t("Email personalizado")}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Destinatários:</span>
+                    <span className="text-sm text-muted-foreground">{t("Destinatários:")}</span>
                     <span className="text-sm font-medium">{selectedClients.length}</span>
                   </div>
                   {sendMode === "scheduled" && scheduleDate && (
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Agendado para:</span>
+                      <span className="text-sm text-muted-foreground">{t("Agendado para:")}</span>
                       <span className="text-sm font-medium">
-                        {format(scheduleDate, "dd/MM/yyyy", { locale: pt })} às {scheduleTime}
+                        {t("{{date}} às {{time}}", { date: format(scheduleDate, "dd/MM/yyyy", { locale: dateLocale() }), time: scheduleTime })}
                       </span>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Lista de envio</p>
+                  <p className="text-sm font-medium">{t("Lista de envio")}</p>
                   <div className="border rounded-lg divide-y">
                     {selectedClients.slice(0, 20).map((client) => (
                       <div key={client.id} className="flex items-center gap-2 px-4 py-3 text-sm">
@@ -1050,7 +1050,7 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
                     ))}
                     {selectedClients.length > 20 && (
                       <div className="px-4 py-3 text-sm text-muted-foreground">
-                        ... e mais {selectedClients.length - 20} destinatário(s)
+                        {t("... e mais {{n}} destinatário(s)", { n: selectedClients.length - 20 })}
                       </div>
                     )}
                   </div>
@@ -1060,14 +1060,14 @@ export function CreateCampaignModal({ open, onOpenChange, campaign }: CreateCamp
 
             <div className="border-t bg-card px-4 md:px-6 py-4">
               <div className="max-w-xl mx-auto w-full flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setStep(3)}>Voltar</Button>
+                <Button variant="outline" onClick={() => setStep(3)}>{t("Voltar")}</Button>
                 <Button onClick={handleSend} disabled={isSending}>
                   {isSending ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A processar...</>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("A processar...")}</>
                   ) : sendMode === "scheduled" ? (
-                    <><Clock className="mr-2 h-4 w-4" />Agendar Campanha</>
+                    <><Clock className="mr-2 h-4 w-4" />{t("Agendar Campanha")}</>
                   ) : (
-                    <><Send className="mr-2 h-4 w-4" />Enviar Campanha</>
+                    <><Send className="mr-2 h-4 w-4" />{t("Enviar Campanha")}</>
                   )}
                 </Button>
               </div>
@@ -1095,6 +1095,7 @@ function StepperSection({
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="border rounded-lg bg-card">
       <div
@@ -1116,7 +1117,7 @@ function StepperSection({
         </div>
         {children && (
           <Button variant="ghost" size="sm" className="shrink-0 text-xs">
-            <Pencil className="h-3 w-3 mr-1" /> {expanded ? 'Fechar' : 'Alterar'}
+            <Pencil className="h-3 w-3 mr-1" /> {expanded ? t('Fechar') : t('Alterar')}
           </Button>
         )}
       </div>

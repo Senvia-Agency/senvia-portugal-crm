@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Calendar, Clock, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 
 const HOURS_OPTIONS = [
@@ -45,6 +46,7 @@ export function CalendarAlertsSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<CalendarAlertSettings>(DEFAULT_SETTINGS);
+  const { t } = useLanguage();
 
   useEffect(() => {
     async function fetch() {
@@ -91,9 +93,9 @@ export function CalendarAlertsSettings() {
 
     setIsSaving(false);
     if (error) {
-      toast.error('Erro ao guardar definições');
+      toast.error(t('Erro ao guardar definições'));
     } else {
-      toast.success('Definições de calendário guardadas');
+      toast.success(t('Definições de calendário guardadas'));
     }
   };
 
@@ -110,10 +112,10 @@ export function CalendarAlertsSettings() {
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Calendar className="h-5 w-5 text-primary" />
-          Alertas de Calendário
+          {t('Alertas de Calendário')}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure lembretes automáticos para eventos e reuniões.
+          {t('Configure lembretes automáticos para eventos e reuniões.')}
         </p>
       </div>
 
@@ -122,18 +124,18 @@ export function CalendarAlertsSettings() {
         <CardHeader className="pb-4">
           <CardTitle className="text-base flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            Lembretes Automáticos
+            {t('Lembretes Automáticos')}
           </CardTitle>
           <CardDescription>
-            Aplique automaticamente um lembrete a eventos que não tenham lembrete configurado manualmente.
+            {t('Aplique automaticamente um lembrete a eventos que não tenham lembrete configurado manualmente.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Lembrete automático</Label>
+              <Label>{t('Lembrete automático')}</Label>
               <p className="text-xs text-muted-foreground">
-                Ativo para reuniões e chamadas sem lembrete definido
+                {t('Ativo para reuniões e chamadas sem lembrete definido')}
               </p>
             </div>
             <Switch
@@ -147,7 +149,7 @@ export function CalendarAlertsSettings() {
           {settings.auto_reminder_meetings && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Lembrar horas antes</Label>
+                <Label>{t('Lembrar horas antes')}</Label>
                 <Select
                   value={settings.auto_reminder_hours?.toString() ?? 'never'}
                   onValueChange={(v) =>
@@ -160,14 +162,14 @@ export function CalendarAlertsSettings() {
                   <SelectContent>
                     {HOURS_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value ?? 'never'} value={opt.value?.toString() ?? 'never'}>
-                        {opt.label}
+                        {t(opt.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Lembrar dias antes</Label>
+                <Label>{t('Lembrar dias antes')}</Label>
                 <Select
                   value={settings.auto_reminder_days?.toString() ?? 'never'}
                   onValueChange={(v) =>
@@ -180,7 +182,7 @@ export function CalendarAlertsSettings() {
                   <SelectContent>
                     {DAYS_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value ?? 'never'} value={opt.value?.toString() ?? 'never'}>
-                        {opt.label}
+                        {t(opt.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -193,7 +195,7 @@ export function CalendarAlertsSettings() {
 
       <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto">
         {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Guardar Definições
+        {t('Guardar Definições')}
       </Button>
     </div>
   );

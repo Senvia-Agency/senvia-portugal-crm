@@ -6,6 +6,7 @@ import { useContactLists, useCreateContactList } from "@/hooks/useContactLists";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/i18n";
 
 import { ImportStepHeader } from "./import/ImportStepHeader";
 import { ImportStep1Upload } from "./import/ImportStep1Upload";
@@ -29,6 +30,7 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
   const { organization } = useAuth();
   const { data: lists = [] } = useContactLists();
   const createList = useCreateContactList();
+  const { t } = useLanguage();
 
   const [activeStep, setActiveStep] = useState(1);
   const [stepsCompleted, setStepsCompleted] = useState([false, false, false, false]);
@@ -175,17 +177,17 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
               .upsert(batchRows, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
             if (error) throw error;
           }
-          toast.success(`${contactIds.length} contactos adicionados à lista`);
+          toast.success(t("{{n}} contactos adicionados à lista", { n: contactIds.length }));
         } catch (e) {
           console.error("Erro ao associar à lista:", e);
-          toast.warning("Contactos criados mas houve erro ao associar à lista.");
+          toast.warning(t("Contactos criados mas houve erro ao associar à lista."));
         }
       }
 
       setProgress(100);
     } catch (e) {
       console.error("Erro geral:", e);
-      toast.error("Erro na importação");
+      toast.error(t("Erro na importação"));
     } finally {
       setImporting(false);
     }
@@ -201,9 +203,9 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
       <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
         <div className="p-6 pb-0 max-w-3xl mx-auto w-full">
           <DialogHeader>
-            <DialogTitle className="text-lg">Importar contactos de um arquivo</DialogTitle>
+            <DialogTitle className="text-lg">{t("Importar contactos de um ficheiro")}</DialogTitle>
             <DialogDescription>
-              Importe contactos de um ficheiro CSV, Excel ou TXT para uma lista de marketing.
+              {t("Importe contactos de um ficheiro CSV, Excel ou TXT para uma lista de marketing.")}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -213,7 +215,7 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
         <ScrollArea className="flex-1 px-6 py-4">
           <div className="max-w-3xl mx-auto w-full space-y-2">
             <div className="rounded-lg border">
-              <ImportStepHeader stepNumber={1} title="Carregue seu arquivo" subtitle="Selecione um arquivo que contenha seus contatos para importação." isCompleted={stepsCompleted[0]} isActive={activeStep === 1} onClick={() => canGoToStep(1) && setActiveStep(1)} />
+              <ImportStepHeader stepNumber={1} title={t("Carregue o seu ficheiro")} subtitle={t("Selecione um ficheiro com os contactos a importar.")} isCompleted={stepsCompleted[0]} isActive={activeStep === 1} onClick={() => canGoToStep(1) && setActiveStep(1)} />
               {activeStep === 1 && (
                 <div className="px-4 pb-4">
                   <ImportStep1Upload fileName={fileName} headers={headers} rows={rows} onFileLoaded={handleFileLoaded} onClearFile={handleClearFile} onConfirm={() => completeStep(1)} />
@@ -222,7 +224,7 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
             </div>
 
             <div className="rounded-lg border">
-              <ImportStepHeader stepNumber={2} title="Mapeamento de dados" subtitle="Selecione o atributo de contacto que corresponde aos seus dados." isCompleted={stepsCompleted[1]} isActive={activeStep === 2} onClick={() => canGoToStep(2) && setActiveStep(2)} />
+              <ImportStepHeader stepNumber={2} title={t("Mapeamento de dados")} subtitle={t("Selecione o atributo de contacto que corresponde aos seus dados.")} isCompleted={stepsCompleted[1]} isActive={activeStep === 2} onClick={() => canGoToStep(2) && setActiveStep(2)} />
               {activeStep === 2 && (
                 <div className="px-4 pb-4">
                   <ImportStep2Mapping headers={headers} rows={rows} mapping={mapping} onMappingChange={setMapping} onConfirm={() => completeStep(2)} />
@@ -231,7 +233,7 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
             </div>
 
             <div className="rounded-lg border">
-              <ImportStepHeader stepNumber={3} title="Selecionar uma lista" subtitle="Escolha uma lista existente ou crie uma nova." isCompleted={stepsCompleted[2]} isActive={activeStep === 3} onClick={() => canGoToStep(3) && setActiveStep(3)} />
+              <ImportStepHeader stepNumber={3} title={t("Selecionar uma lista")} subtitle={t("Escolha uma lista existente ou crie uma nova.")} isCompleted={stepsCompleted[2]} isActive={activeStep === 3} onClick={() => canGoToStep(3) && setActiveStep(3)} />
               {activeStep === 3 && (
                 <div className="px-4 pb-4">
                   <ImportStep3List lists={lists} selectedListId={selectedListId} onSelectList={setSelectedListId} onCreateList={handleCreateList} onConfirm={() => completeStep(3)} isCreating={createList.isPending} />
@@ -240,7 +242,7 @@ export function ImportContactsModal({ open, onOpenChange }: Props) {
             </div>
 
             <div className="rounded-lg border">
-              <ImportStepHeader stepNumber={4} title="Finalize sua importação" subtitle="Reveja as opções e confirme." isCompleted={!!result} isActive={activeStep === 4} onClick={() => canGoToStep(4) && setActiveStep(4)} />
+              <ImportStepHeader stepNumber={4} title={t("Concluir a importação")} subtitle={t("Reveja as opções e confirme.")} isCompleted={!!result} isActive={activeStep === 4} onClick={() => canGoToStep(4) && setActiveStep(4)} />
               {activeStep === 4 && (
                 <div className="px-4 pb-4">
                   <ImportStep4Finalize updateExisting={updateExisting} onUpdateExistingChange={setUpdateExisting} clearEmptyFields={clearEmptyFields} onClearEmptyFieldsChange={setClearEmptyFields} optInCertified={optInCertified} onOptInCertifiedChange={setOptInCertified} importing={importing} progress={progress} result={result} onImport={handleImport} onClose={handleClose} />

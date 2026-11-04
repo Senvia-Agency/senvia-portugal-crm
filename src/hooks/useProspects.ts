@@ -11,6 +11,7 @@ import {
   normalizeIdentifierValue,
 } from "@/lib/prospects/import";
 import { toast } from "sonner";
+import { tr } from "@/i18n";
 import type { DistributeProspectsPayload, Prospect, ProspectImportResult, ProspectSalesperson } from "@/types/prospects";
 
 const getFunctionInvokeErrorMessage = (error: unknown, fallback: string) => {
@@ -92,7 +93,7 @@ export function useImportProspects() {
       fileName: string;
       rows: Record<string, unknown>[];
     }): Promise<ProspectImportResult> => {
-      if (!organization?.id) throw new Error("Sem organização ativa.");
+      if (!organization?.id) throw new Error(tr("Sem organização ativa."));
 
       const client = supabase as any;
       const result = createEmptyImportResult();
@@ -102,7 +103,7 @@ export function useImportProspects() {
         .eq("organization_id", organization.id);
 
       if (existingError) {
-        throw new Error(`Erro ao validar duplicados: ${mapProspectsError(existingError)}`);
+        throw new Error(tr("Erro ao validar duplicados: {{error}}", { error: mapProspectsError(existingError) }));
       }
 
       const existingPairMap = new Map<string, string>();
@@ -220,12 +221,12 @@ export function useImportProspects() {
       queryClient.invalidateQueries({ queryKey: ["prospects"] });
 
       if (failed > 0) {
-        toast.warning(`${inserted} novos • ${updated} atualizados • ${skipped} ignorados • ${failed} falhados`);
+        toast.warning(tr("{{inserted}} novos • {{updated}} atualizados • {{skipped}} ignorados • {{failed}} falhados", { inserted, updated, skipped, failed }));
         if (firstError) toast.error(firstError);
         return;
       }
 
-      toast.success(`${inserted} novos • ${updated} atualizados${skipped ? ` • ${skipped} ignorados` : ""}`);
+      toast.success(skipped ? tr("{{inserted}} novos • {{updated}} atualizados • {{skipped}} ignorados", { inserted, updated, skipped }) : tr("{{inserted}} novos • {{updated}} atualizados", { inserted, updated }));
     },
     onError: (error: Error) => {
       toast.error(mapProspectsError(error));
@@ -274,14 +275,14 @@ export function useGenerateProspects() {
       });
 
       if (startError) {
-        throw new Error(getFunctionInvokeErrorMessage(startError, "Erro ao iniciar geração"));
+        throw new Error(getFunctionInvokeErrorMessage(startError, tr("Erro ao iniciar geração")));
       }
       if (startData?.error) {
-        throw new Error(typeof startData.error === "string" ? startData.error : "Erro ao iniciar geração");
+        throw new Error(typeof startData.error === "string" ? startData.error : tr("Erro ao iniciar geração"));
       }
 
       const jobId = startData?.jobId;
-      if (!jobId) throw new Error("Sem ID de job retornado");
+      if (!jobId) throw new Error(tr("Sem ID de job devolvido"));
 
       // Step 2: Poll for completion
       onProgress?.("running");
@@ -291,7 +292,7 @@ export function useGenerateProspects() {
 
       while (true) {
         if (Date.now() - startTime > maxPollTime) {
-          throw new Error("A geração excedeu o tempo máximo de 10 minutos");
+          throw new Error(tr("A geração excedeu o tempo máximo de 10 minutos"));
         }
 
         await new Promise((r) => setTimeout(r, pollInterval));
@@ -301,10 +302,10 @@ export function useGenerateProspects() {
         });
 
         if (checkError) {
-          throw new Error(getFunctionInvokeErrorMessage(checkError, "Erro ao verificar job"));
+          throw new Error(getFunctionInvokeErrorMessage(checkError, tr("Erro ao verificar job")));
         }
         if (checkData?.error) {
-          throw new Error(typeof checkData.error === "string" ? checkData.error : "Erro ao verificar job");
+          throw new Error(typeof checkData.error === "string" ? checkData.error : tr("Erro ao verificar job"));
         }
 
         if (checkData?.status === "running") {
@@ -313,7 +314,7 @@ export function useGenerateProspects() {
         }
 
         if (checkData?.status === "failed") {
-          throw new Error(checkData?.error || "A geração falhou");
+          throw new Error(checkData?.error || tr("A geração falhou"));
         }
 
         if (checkData?.status === "completed") {
@@ -323,10 +324,10 @@ export function useGenerateProspects() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["prospects"] });
-      toast.success(`${result.total} encontrados • ${result.inserted} novos • ${result.updated} atualizados${result.skipped ? ` • ${result.skipped} ignorados` : ""}`);
+      toast.success(result.skipped ? tr("{{total}} encontrados • {{inserted}} novos • {{updated}} atualizados • {{skipped}} ignorados", { total: result.total, inserted: result.inserted, updated: result.updated, skipped: result.skipped }) : tr("{{total}} encontrados • {{inserted}} novos • {{updated}} atualizados", { total: result.total, inserted: result.inserted, updated: result.updated }));
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Erro ao gerar prospects");
+      toast.error(error.message || tr("Erro ao gerar prospects"));
     },
   });
 }
@@ -341,15 +342,15 @@ export function useDistributeProspects() {
       quantity,
       salespersonIds,
     }: DistributeProspectsPayload) => {
-      if (!organization?.id) throw new Error("Sem organização ativa.");
+      if (!organization?.id) throw new Error(tr("Sem organização ativa."));
       if (prospectIds.length === 0) {
-        throw new Error("Selecione pelo menos um prospect para distribuir.");
+        throw new Error(tr("Selecione pelo menos um prospect para distribuir."));
       }
       if (!Number.isInteger(quantity) || quantity <= 0) {
-        throw new Error("Introduza uma quantidade válida para distribuir.");
+        throw new Error(tr("Introduza uma quantidade válida para distribuir."));
       }
       if (quantity > prospectIds.length) {
-        throw new Error("A quantidade a distribuir não pode ser superior aos prospects selecionados.");
+        throw new Error(tr("A quantidade a distribuir não pode ser superior aos prospects selecionados."));
       }
 
       // Slice IDs client-side — the SQL overload with p_prospect_ids has no p_quantity param
@@ -372,7 +373,7 @@ export function useDistributeProspects() {
     onSuccess: ({ distributedCount, createdLeadsCount }) => {
       queryClient.invalidateQueries({ queryKey: ["prospects"] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success(`${distributedCount} prospects distribuídos • ${createdLeadsCount} leads criadas`);
+      toast.success(tr("{{distributed}} prospects distribuídos • {{created}} leads criadas", { distributed: distributedCount, created: createdLeadsCount }));
     },
     onError: (error: Error) => {
       toast.error(mapProspectsError(error));

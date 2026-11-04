@@ -8,6 +8,7 @@ import { Loader2, UserPlus, Users } from "lucide-react";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useConvertProspectToLead } from "@/hooks/useConvertProspectToLead";
 import type { MarketingContact } from "@/types/marketing";
+import { useLanguage } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ interface Props {
 export function ConvertToLeadModal({ open, onOpenChange, contacts, onSuccess }: Props) {
   const { data: members = [] } = useTeamMembers();
   const convert = useConvertProspectToLead();
+  const { t } = useLanguage();
   const [assignedTo, setAssignedTo] = useState<string>("none");
 
   const alreadyConverted = contacts.filter((c: any) => c.converted_to_lead).length;
@@ -39,10 +41,10 @@ export function ConvertToLeadModal({ open, onOpenChange, contacts, onSuccess }: 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Converter em Leads
+            {t("Converter em Leads")}
           </DialogTitle>
           <DialogDescription>
-            Criar leads a partir dos contactos selecionados.
+            {t("Criar leads a partir dos contactos selecionados.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -50,24 +52,24 @@ export function ConvertToLeadModal({ open, onOpenChange, contacts, onSuccess }: 
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="secondary">
               <Users className="h-3 w-3 mr-1" />
-              {contacts.length} contacto(s) selecionado(s)
+              {t("{{n}} contacto(s) selecionado(s)", { n: contacts.length })}
             </Badge>
             {alreadyConverted > 0 && (
               <Badge variant="outline" className="text-muted-foreground">
-                {alreadyConverted} já convertido(s)
+                {t("{{n}} já convertido(s)", { n: alreadyConverted })}
               </Badge>
             )}
           </div>
 
           {toConvert > 0 && (
             <div className="space-y-2">
-              <Label>Atribuir comercial (opcional)</Label>
+              <Label>{t("Atribuir comercial (opcional)")}</Label>
               <Select value={assignedTo} onValueChange={setAssignedTo}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sem atribuição" />
+                  <SelectValue placeholder={t("Sem atribuição")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sem atribuição</SelectItem>
+                  <SelectItem value="none">{t("Sem atribuição")}</SelectItem>
                   {members.map(m => (
                     <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
                   ))}
@@ -78,16 +80,16 @@ export function ConvertToLeadModal({ open, onOpenChange, contacts, onSuccess }: 
 
           {toConvert === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Todos os contactos selecionados já foram convertidos em leads.
+              {t("Todos os contactos selecionados já foram convertidos em leads.")}
             </p>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
           <Button onClick={handleConvert} disabled={toConvert === 0 || convert.isPending}>
             {convert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Converter {toConvert} lead(s)
+            {t("Converter {{n}} lead(s)", { n: toConvert })}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -31,7 +31,7 @@ import { useDeleteEmailTemplate, useDuplicateEmailTemplate, useUpdateEmailTempla
 import { TEMPLATE_CATEGORIES, type EmailTemplate } from "@/types/marketing";
 import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, useLanguage } from "@/i18n";
 import { useState, useMemo } from "react";
 
 interface TemplatesTableProps {
@@ -44,6 +44,7 @@ interface TemplatesTableProps {
 export function TemplatesTable({ templates, isLoading, onEdit, onSend }: TemplatesTableProps) {
   // One lookup for the whole table instead of a find() per row.
   const { data: categories } = useEmailTemplateCategories();
+  const { t } = useLanguage();
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
@@ -84,9 +85,9 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
         <div className="rounded-full bg-muted p-4 mb-4">
           <Eye className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="font-semibold">Sem templates</h3>
+        <h3 className="font-semibold">{t("Sem templates")}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Crie o seu primeiro template de email para começar.
+          {t("Crie o seu primeiro template de email para começar.")}
         </p>
       </div>
     );
@@ -98,11 +99,11 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead className="hidden sm:table-cell">Categoria</TableHead>
-              <TableHead className="hidden md:table-cell">Assunto</TableHead>
-              <TableHead className="hidden lg:table-cell">Atualizado</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>{t("Nome")}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t("Categoria")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("Assunto")}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t("Atualizado")}</TableHead>
+              <TableHead>{t("Estado")}</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -127,10 +128,10 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
                         </Badge>
                       );
                     }
-                    const legacy = TEMPLATE_CATEGORIES[template.category] ?? template.category;
+                    const legacy = TEMPLATE_CATEGORIES[template.category] ? t(TEMPLATE_CATEGORIES[template.category]) : template.category;
                     return (
                       <Badge variant="secondary" className={legacy ? undefined : "text-muted-foreground"}>
-                        {legacy || "Sem categoria"}
+                        {legacy || t("Sem categoria")}
                       </Badge>
                     );
                   })()}
@@ -139,11 +140,11 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
                   {template.subject}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
-                  {format(new Date(template.updated_at), "dd MMM yyyy", { locale: pt })}
+                  {format(new Date(template.updated_at), "dd MMM yyyy", { locale: dateLocale() })}
                 </TableCell>
                 <TableCell>
                   <Badge variant={template.is_active ? "default" : "secondary"}>
-                    {template.is_active ? "Ativo" : "Inativo"}
+                    {template.is_active ? t("Ativo") : t("Inativo")}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -156,27 +157,27 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onSend(template)}>
                         <Send className="mr-2 h-4 w-4" />
-                        Enviar
+                        {t("Enviar")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => onEdit(template)}>
                         <Pencil className="mr-2 h-4 w-4" />
-                        Editar
+                        {t("Editar")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => duplicateTemplate.mutate(template.id)}>
                         <Copy className="mr-2 h-4 w-4" />
-                        Duplicar
+                        {t("Duplicar")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleToggleActive(template)}>
                         {template.is_active ? (
                           <>
                             <EyeOff className="mr-2 h-4 w-4" />
-                            Desativar
+                            {t("Desativar")}
                           </>
                         ) : (
                           <>
                             <Eye className="mr-2 h-4 w-4" />
-                            Ativar
+                            {t("Ativar")}
                           </>
                         )}
                       </DropdownMenuItem>
@@ -186,7 +187,7 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
                         onClick={() => setDeleteId(template.id)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Eliminar
+                        {t("Eliminar")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -200,18 +201,18 @@ export function TemplatesTable({ templates, isLoading, onEdit, onSend }: Templat
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar template?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar template?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é irreversível. O template será permanentemente eliminado.
+              {t("Esta ação é irreversível. O template será permanentemente eliminado.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

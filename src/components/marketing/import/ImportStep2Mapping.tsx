@@ -2,6 +2,7 @@ import { Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 const SYSTEM_FIELDS = [
   { key: "name", label: "Nome" },
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function ImportStep2Mapping({ headers, rows, mapping, onMappingChange, onConfirm }: Props) {
+  const { t } = useLanguage();
   // Reverse mapping: fileHeader -> systemField
   const reverseMap: Record<string, string> = {};
   Object.entries(mapping).forEach(([sysKey, fileHeader]) => {
@@ -88,10 +90,10 @@ export function ImportStep2Mapping({ headers, rows, mapping, onMappingChange, on
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__ignore__">— Ignorar —</SelectItem>
+                  <SelectItem value="__ignore__">{t("— Ignorar —")}</SelectItem>
                   {SYSTEM_FIELDS.map(f => (
                     <SelectItem key={f.key} value={f.key} disabled={!!mapping[f.key] && mapping[f.key] !== header}>
-                      {f.label}
+                      {t(f.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -103,11 +105,11 @@ export function ImportStep2Mapping({ headers, rows, mapping, onMappingChange, on
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t">
         <p className="text-xs text-muted-foreground">
-          Para importação: <strong>{mappedCount}</strong> coluna(s) · Ignorado: <strong>{ignoredCount}</strong> coluna(s)
+          {t("Para importação:")} <strong>{mappedCount}</strong> {t("coluna(s)")} · {t("Ignorado:")} <strong>{ignoredCount}</strong> {t("coluna(s)")}
         </p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={resetMapping}>Redefinir mapeamento</Button>
-          <Button size="sm" onClick={onConfirm} disabled={!hasName}>Confirmar o mapeamento</Button>
+          <Button variant="outline" size="sm" onClick={resetMapping}>{t("Redefinir mapeamento")}</Button>
+          <Button size="sm" onClick={onConfirm} disabled={!hasName}>{t("Confirmar o mapeamento")}</Button>
         </div>
       </div>
     </div>

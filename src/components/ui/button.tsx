@@ -14,6 +14,8 @@ const buttonVariants = cva(
         outline: "border border-primary bg-primary/5 text-action hover:bg-primary/10 hover:border-action shadow-sm",
         secondary: "bg-primary/10 text-action border border-primary/40 hover:bg-primary/20 hover:border-primary shadow-sm",
         ghost: "text-muted-foreground hover:bg-accent hover:text-accent-foreground border border-transparent hover:border-border",
+        // "Voltar": solid and outlined, so it reads as a button and not as a faded icon.
+        back: "border border-border bg-muted text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         // Senvia Custom Variants
         senvia: "gradient-senvia text-primary-foreground shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, AlertCircle, CheckCircle2, Building, LogOut } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 interface InviteData {
   id: string;
@@ -25,6 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function InviteRegister() {
   const { token } = useParams<{ token: string }>();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -62,8 +64,8 @@ export default function InviteRegister() {
     setCurrentSession(false);
     setLoggingOut(false);
     toast({
-      title: 'Sessão terminada',
-      description: 'Pode agora criar uma nova conta.',
+      title: t('Sessão terminada'),
+      description: t('Pode agora criar uma nova conta.'),
     });
   };
 
@@ -98,7 +100,7 @@ export default function InviteRegister() {
 
         setInvite({
           ...inviteData,
-          organization_name: orgName || 'Organização',
+          organization_name: orgName || t('Organização'),
         });
       } catch {
         setError('Ocorreu um erro ao validar o convite.');
@@ -115,8 +117,8 @@ export default function InviteRegister() {
 
     if (!invite || !fullName.trim() || !password) {
       toast({
-        title: 'Campos obrigatórios',
-        description: 'Preencha todos os campos.',
+        title: t('Campos obrigatórios'),
+        description: t('Preencha todos os campos.'),
         variant: 'destructive',
       });
       return;
@@ -124,8 +126,8 @@ export default function InviteRegister() {
 
     if (password !== confirmPassword) {
       toast({
-        title: 'Palavras-passe não coincidem',
-        description: 'Verifique se as palavras-passe são iguais.',
+        title: t('Palavras-passe não coincidem'),
+        description: t('Verifique se as palavras-passe são iguais.'),
         variant: 'destructive',
       });
       return;
@@ -133,8 +135,8 @@ export default function InviteRegister() {
 
     if (password.length < 6) {
       toast({
-        title: 'Palavra-passe muito curta',
-        description: 'A palavra-passe deve ter pelo menos 6 caracteres.',
+        title: t('Palavra-passe muito curta'),
+        description: t('A palavra-passe deve ter pelo menos 6 caracteres.'),
         variant: 'destructive',
       });
       return;
@@ -156,7 +158,7 @@ export default function InviteRegister() {
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error('Não foi possível criar a conta.');
+      if (!authData.user) throw new Error(t('Não foi possível criar a conta.'));
 
       // Accept invite (this updates profile and adds role)
       const { data: accepted, error: acceptError } = await supabase.rpc('accept_invite', {
@@ -165,20 +167,20 @@ export default function InviteRegister() {
       });
 
       if (acceptError) throw acceptError;
-      if (!accepted) throw new Error('Não foi possível aceitar o convite.');
+      if (!accepted) throw new Error(t('Não foi possível aceitar o convite.'));
 
       setSuccess(true);
       toast({
-        title: 'Conta criada com sucesso!',
-        description: 'A redirecionar para o dashboard...',
+        title: t('Conta criada com sucesso!'),
+        description: t('A redirecionar para o dashboard...'),
       });
 
       // Trigger redirect via useEffect
       setShouldRedirect(true);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro ao criar a conta.';
+      const errorMessage = err instanceof Error ? err.message : t('Ocorreu um erro ao criar a conta.');
       toast({
-        title: 'Erro',
+        title: t('Erro'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -203,12 +205,12 @@ export default function InviteRegister() {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
               <AlertCircle className="h-6 w-6 text-destructive" />
             </div>
-            <CardTitle className="text-white">Convite Inválido</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardTitle className="text-white">{t('Convite Inválido')}</CardTitle>
+            <CardDescription>{t(error)}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button asChild>
-              <Link to="/">Ir para Login</Link>
+              <Link to="/">{t('Ir para Login')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -225,9 +227,9 @@ export default function InviteRegister() {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
               <LogOut className="h-6 w-6 text-amber-500" />
             </div>
-            <CardTitle className="text-white">Já está autenticado</CardTitle>
+            <CardTitle className="text-white">{t('Já está autenticado')}</CardTitle>
             <CardDescription>
-              Para aceitar este convite e criar uma nova conta, precisa primeiro terminar a sessão atual.
+              {t('Para aceitar este convite e criar uma nova conta, precisa primeiro terminar a sessão atual.')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -237,7 +239,7 @@ export default function InviteRegister() {
                 <span className="font-medium text-white">{invite?.organization_name}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Convite para: {invite?.email}
+                {t('Convite para: {{email}}', { email: invite?.email })}
               </p>
             </div>
             <div className="flex flex-col gap-2">
@@ -247,10 +249,10 @@ export default function InviteRegister() {
                 className="w-full"
               >
                 {loggingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Terminar Sessão e Continuar
+                {t('Terminar Sessão e Continuar')}
               </Button>
               <Button variant="outline" asChild className="w-full">
-                <Link to="/dashboard">Voltar ao Dashboard</Link>
+                <Link to="/dashboard">{t('Voltar ao Dashboard')}</Link>
               </Button>
             </div>
           </CardContent>
@@ -267,14 +269,14 @@ export default function InviteRegister() {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
               <CheckCircle2 className="h-6 w-6 text-green-500" />
             </div>
-            <CardTitle className="text-white">Conta Criada!</CardTitle>
+            <CardTitle className="text-white">{t('Conta Criada!')}</CardTitle>
             <CardDescription>
-              A sua conta foi criada e já está associada à organização.
+              {t('A sua conta foi criada e já está associada à organização.')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-            <p className="text-sm text-muted-foreground mt-2">A redirecionar...</p>
+            <p className="text-sm text-muted-foreground mt-2">{t('A redirecionar...')}</p>
           </CardContent>
         </Card>
       </div>
@@ -288,9 +290,9 @@ export default function InviteRegister() {
           <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <UserPlus className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-white">Criar Conta</CardTitle>
+          <CardTitle className="text-white">{t('Criar Conta')}</CardTitle>
           <CardDescription>
-            Foi convidado para se juntar a uma organização.
+            {t('Foi convidado para se juntar a uma organização.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -300,9 +302,9 @@ export default function InviteRegister() {
               <span className="font-medium text-white">{invite?.organization_name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Perfil:</span>
+              <span className="text-sm text-muted-foreground">{t('Perfil:')}</span>
               <Badge variant="secondary">
-                {invite?.role ? ROLE_LABELS[invite.role] : invite?.role}
+                {invite?.role ? t(ROLE_LABELS[invite.role] ?? invite.role) : invite?.role}
               </Badge>
             </div>
           </div>
@@ -320,11 +322,11 @@ export default function InviteRegister() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-slate-200">Nome Completo</Label>
+              <Label htmlFor="fullName" className="text-slate-200">{t('Nome Completo')}</Label>
               <Input
                 id="fullName"
                 type="text"
-                placeholder="O seu nome"
+                placeholder={t('O seu nome')}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500"
@@ -333,11 +335,11 @@ export default function InviteRegister() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-200">Palavra-passe</Label>
+              <Label htmlFor="password" className="text-slate-200">{t('Palavra-passe')}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t('Mínimo 6 caracteres')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500"
@@ -346,11 +348,11 @@ export default function InviteRegister() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-slate-200">Confirmar Palavra-passe</Label>
+              <Label htmlFor="confirmPassword" className="text-slate-200">{t('Confirmar Palavra-passe')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Repita a palavra-passe"
+                placeholder={t('Repita a palavra-passe')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500"
@@ -360,14 +362,14 @@ export default function InviteRegister() {
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar Conta e Juntar-me
+              {t('Criar Conta e Juntar-me')}
             </Button>
           </form>
 
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Já tem conta?{' '}
+            {t('Já tem conta?')}{' '}
             <Link to="/" className="text-primary hover:underline">
-              Faça login
+              {t('Faça login')}
             </Link>
           </p>
         </CardContent>

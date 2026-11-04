@@ -42,8 +42,10 @@ import {
   useAutomationFolders, useCreateAutomationFolder, useDeleteAutomationFolder, useUpdateAutomationFolder,
 } from '@/hooks/useAutomationFolders';
 import type { AutomationFlow, AutomationFolder } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 export default function Automations() {
+  const { t } = useLanguage();
   const { data: flows, isLoading } = useAutomationFlows();
   const { data: folders = [] } = useAutomationFolders();
   const { data: runCounts } = useAutomationRunCounts();
@@ -100,7 +102,7 @@ export default function Automations() {
       ].join(' ').toLowerCase();
       return haystack.includes(term);
     });
-  }, [flows, search, statusFilter, familyFilter]);
+  }, [flows, search, statusFilter, familyFilter, t]);
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all' || familyFilter !== 'all';
   const groupedFlows = useMemo(
@@ -135,21 +137,21 @@ export default function Automations() {
     <div className="space-y-6 p-4 pb-nav-safe md:p-6 md:pb-6">
       <PageHeader
         icon={Workflow}
-        title="Automações"
-        subtitle="Fluxos automáticos de WhatsApp, email e ações no CRM"
+        title={t('Automações')}
+        subtitle={t('Fluxos automáticos de WhatsApp, email e ações no CRM')}
         actions={
           <div className="flex max-w-full flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => openFolderDialog()}>
               <Folder className="mr-2 h-4 w-4" />
-              Nova pasta
+              {t('Nova pasta')}
             </Button>
-            <Button variant="outline" onClick={() => setGalleryOpen(true)}>
+            <Button variant="outline" data-otto-target="guide-automations-templates" onClick={() => setGalleryOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
-              Usar modelo
+              {t('Usar modelo')}
             </Button>
-            <Button onClick={handleCreate} disabled={createFlow.isPending}>
+            <Button data-otto-target="guide-automations-new" onClick={handleCreate} disabled={createFlow.isPending}>
               <Plus className="mr-2 h-4 w-4" />
-              Nova automação
+              {t('Nova automação')}
             </Button>
           </div>
         }
@@ -166,17 +168,17 @@ export default function Automations() {
       ) : !flows?.length && folders.length === 0 ? (
         <EmptyState
           icon={Zap}
-          title="Ainda não tem automações"
-          description="Crie um fluxo para responder a leads no WhatsApp, enviar emails de seguimento ou mover etapas sem intervenção manual."
+          title={t('Ainda não tem automações')}
+          description={t('Crie um fluxo para responder a leads no WhatsApp, enviar emails de seguimento ou mover etapas sem intervenção manual.')}
         >
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="outline" onClick={() => setGalleryOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
-              Usar modelo
+              {t('Usar modelo')}
             </Button>
             <Button onClick={handleCreate} disabled={createFlow.isPending}>
               <Plus className="mr-2 h-4 w-4" />
-              Criar primeira automação
+              {t('Criar primeira automação')}
             </Button>
           </div>
         </EmptyState>
@@ -188,7 +190,7 @@ export default function Automations() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Procurar por nome, descrição ou gatilho…"
+              placeholder={t('Procurar por nome, descrição ou gatilho…')}
               className="h-9 pl-9"
             />
           </div>
@@ -196,10 +198,10 @@ export default function Automations() {
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-9 w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os estados</SelectItem>
-              <SelectItem value="active">Ativas</SelectItem>
-              <SelectItem value="paused">Em pausa</SelectItem>
-              <SelectItem value="draft">Rascunho</SelectItem>
+              <SelectItem value="all">{t('Todos os estados')}</SelectItem>
+              <SelectItem value="active">{t('Ativas')}</SelectItem>
+              <SelectItem value="paused">{t('Em pausa')}</SelectItem>
+              <SelectItem value="draft">{t('Rascunho')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -207,9 +209,9 @@ export default function Automations() {
             <Select value={familyFilter} onValueChange={setFamilyFilter}>
               <SelectTrigger className="h-9 w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="all">{t('Todos os tipos')}</SelectItem>
                 {availableFamilies.map((family) => (
-                  <SelectItem key={family.key} value={family.key}>{family.label}</SelectItem>
+                  <SelectItem key={family.key} value={family.key}>{t(family.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -218,7 +220,7 @@ export default function Automations() {
           {isFiltered && (
             <Button variant="ghost" size="sm" className="h-9 shrink-0 text-muted-foreground" onClick={clearFilters}>
               <X className="mr-1 h-4 w-4" />
-              Limpar
+              {t('Limpar')}
             </Button>
           )}
         </div>
@@ -226,10 +228,10 @@ export default function Automations() {
         {visibleFlows.length === 0 && folders.length === 0 ? (
           <EmptyState
             icon={Search}
-            title="Nenhuma automação encontrada"
-            description="Nenhuma automação corresponde à pesquisa ou aos filtros escolhidos."
+            title={t('Nenhuma automação encontrada')}
+            description={t('Nenhuma automação corresponde à pesquisa ou aos filtros escolhidos.')}
           >
-            <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button>
+            <Button variant="outline" onClick={clearFilters}>{t('Limpar filtros')}</Button>
           </EmptyState>
         ) : (
           <div className="space-y-3">
@@ -253,7 +255,7 @@ export default function Automations() {
             {groupedFlows.unfiled.length > 0 && (
               <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <div className="border-b border-border px-4 py-3 text-sm font-semibold">
-                  Sem pasta <span className="ml-1 text-xs font-medium text-muted-foreground">{groupedFlows.unfiled.length}</span>
+                  {t('Sem pasta')} <span className="ml-1 text-xs font-medium text-muted-foreground">{groupedFlows.unfiled.length}</span>
                 </div>
                 {groupedFlows.unfiled.map((flow) => (
                   <FlowRow
@@ -286,9 +288,9 @@ export default function Automations() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{folderToEdit ? 'Mudar nome da pasta' : 'Nova pasta'}</DialogTitle>
+            <DialogTitle>{folderToEdit ? t('Mudar nome da pasta') : t('Nova pasta')}</DialogTitle>
             <DialogDescription>
-              Organize as automações como quiser. A pasta não muda o funcionamento do fluxo.
+              {t('Organize as automações como quiser. A pasta não muda o funcionamento do fluxo.')}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -303,12 +305,12 @@ export default function Automations() {
               maxLength={80}
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
-              placeholder="Ex.: Pós-venda"
+              placeholder={t('Ex.: Pós-venda')}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setFolderDialogOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => setFolderDialogOpen(false)}>{t('Cancelar')}</Button>
               <Button type="submit" disabled={!folderName.trim() || createFolder.isPending || updateFolder.isPending}>
-                {folderToEdit ? 'Guardar' : 'Criar pasta'}
+                {folderToEdit ? t('Guardar') : t('Criar pasta')}
               </Button>
             </DialogFooter>
           </form>
@@ -318,14 +320,13 @@ export default function Automations() {
       <AlertDialog open={!!flowToDelete} onOpenChange={(open) => !open && setFlowToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar automação?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar automação?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              A automação <strong>{flowToDelete?.name}</strong> e o respetivo histórico de execuções
-              serão eliminados. Esta ação não pode ser revertida.
+              {t('A automação')} <strong>{flowToDelete?.name}</strong> {t('e o respetivo histórico de execuções serão eliminados. Esta ação não pode ser revertida.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -333,7 +334,7 @@ export default function Automations() {
                 setFlowToDelete(null);
               }}
             >
-              Eliminar
+              {t('Eliminar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -342,13 +343,13 @@ export default function Automations() {
       <AlertDialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar pasta?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar pasta?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              As automações em <strong>{folderToDelete?.name}</strong> ficam sem pasta. Nenhuma automação será eliminada.
+              {t('As automações em')} <strong>{folderToDelete?.name}</strong> {t('ficam sem pasta. Nenhuma automação será eliminada.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -356,7 +357,7 @@ export default function Automations() {
                 setFolderToDelete(null);
               }}
             >
-              Eliminar pasta
+              {t('Eliminar pasta')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -377,6 +378,7 @@ interface AutomationFolderProps {
 }
 
 function AutomationFolder({ folder, flows, runCounts, onDuplicate, onDelete, onEdit, onDeleteFolder, onToggleStatus }: AutomationFolderProps) {
+  const { t } = useLanguage();
   return (
     <AccordionItem value={folder.id} className="border-b border-border last:border-b-0">
       <div className="flex items-center pr-2 hover:bg-muted/40">
@@ -389,19 +391,19 @@ function AutomationFolder({ folder, flows, runCounts, onDuplicate, onDelete, onE
         </AccordionTrigger>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Gerir pasta ${folder.name}`}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('Gerir pasta {{name}}', { name: folder.name })}>
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => onEdit(folder)}>
               <Pencil className="mr-2 h-4 w-4" />
-              Mudar nome
+              {t('Mudar nome')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDeleteFolder(folder)}>
               <Trash2 className="mr-2 h-4 w-4" />
-              Eliminar pasta
+              {t('Eliminar pasta')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -417,7 +419,7 @@ function AutomationFolder({ folder, flows, runCounts, onDuplicate, onDelete, onE
             onToggleStatus={() => onToggleStatus(flow)}
           />
         )) : (
-          <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Nenhuma automação com os filtros atuais.</p>
+          <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">{t('Nenhuma automação com os filtros atuais.')}</p>
         )}
       </AccordionContent>
     </AccordionItem>
@@ -440,6 +442,7 @@ interface FlowRowProps {
  * é o gatilho, não o texto. Fica no atributo `title` e no editor.
  */
 function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRowProps) {
+  const { t } = useLanguage();
   const triggerDefinition = getNodeDefinition(flow.trigger_type ?? '');
   const TriggerIcon = triggerDefinition?.icon ?? Zap;
   const triggerStyle = NODE_CATEGORY_STYLES.trigger;
@@ -469,9 +472,9 @@ function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRo
             <FlowStatusPill status={flow.status} className="shrink-0" />
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {triggerDefinition?.label ?? 'Sem gatilho'}
-            {' · '}{stepCount} {stepCount === 1 ? 'passo' : 'passos'}
-            {flow.updated_at ? ` · editada ${formatRelativeTime(flow.updated_at)}` : ''}
+            {triggerDefinition?.label ? t(triggerDefinition.label) : t('Sem gatilho')}
+            {' · '}{t(stepCount === 1 ? '{{n}} passo' : '{{n}} passos', { n: stepCount })}
+            {flow.updated_at ? ` · ${t('editada {{when}}', { when: formatRelativeTime(flow.updated_at) })}` : ''}
           </p>
         </div>
       </Link>
@@ -482,15 +485,15 @@ function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRo
           <strong className={cn('font-semibold', (counts?.active ?? 0) > 0 ? 'text-primary' : 'text-foreground')}>
             {counts?.active ?? 0}
           </strong>{' '}
-          em curso
+          {t('em curso')}
         </span>
         {failed > 0 && (
           <span
             className="inline-flex items-center gap-1 font-semibold text-destructive tabular-nums"
-            title="Nos últimos 7 dias. O histórico completo está no separador Atividade do fluxo."
+            title={t('Nos últimos 7 dias. O histórico completo está no separador Atividade do fluxo.')}
           >
             <AlertCircle className="h-3.5 w-3.5" />
-            {failed} {failed === 1 ? 'falha' : 'falhas'} em 7 dias
+            {t(failed === 1 ? '{{n}} falha em 7 dias' : '{{n}} falhas em 7 dias', { n: failed })}
           </span>
         )}
       </div>
@@ -503,9 +506,9 @@ function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRo
           onClick={onToggleStatus}
         >
           {isActive ? (
-            <><Pause className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Pausar</span></>
+            <><Pause className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">{t('Pausar')}</span></>
           ) : (
-            <><Play className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Ativar</span></>
+            <><Play className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">{t('Ativar')}</span></>
           )}
         </Button>
 
@@ -518,12 +521,12 @@ function FlowRow({ flow, counts, onDuplicate, onDelete, onToggleStatus }: FlowRo
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="mr-2 h-4 w-4" />
-              Duplicar
+              {t('Duplicar')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
               <Trash2 className="mr-2 h-4 w-4" />
-              Eliminar
+              {t('Eliminar')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
