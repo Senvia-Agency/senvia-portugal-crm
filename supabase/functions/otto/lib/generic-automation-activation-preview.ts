@@ -2,6 +2,8 @@ import {
   parseAutomationWebhookBody,
   parseAutomationWebhookHeaders,
 } from "./generic-automation-config.ts";
+import { parseAutomationWorkflowDefinition } from "../../_shared/automation-workflow-contract.ts";
+import { buildConfiguredWorkflowPreview } from "./generic-automation-workflow-preview.ts";
 import {
   digestPendingActionPayload,
   parsePendingActionPayload,
@@ -9,13 +11,52 @@ import {
 import type { NativeAutomationFlow } from "./generic-automation-store.ts";
 import type { ToolContext } from "./types.ts";
 
+type CompleteConfiguredWorkflowPreview = Extract<
+  Awaited<ReturnType<typeof buildConfiguredWorkflowPreview>>,
+  { readonly ok: true }
+>;
+
 type ActivationSnapshot = {
   readonly ok: true;
   readonly digest: string;
   readonly summary: string;
+  readonly configuredWorkflowPreview?: CompleteConfiguredWorkflowPreview;
 };
 
-type ActivationSnapshotFailure = { readonly ok: false };
+export function configuredWorkflowPreviewLines(
+  preview: CompleteConfiguredWorkflowPreview,
+): readonly string[] {
+  const immediateActions = preview.stages.reduce(
+    (total, stage) => total + stage.immediateRecords,
+    0,
+  );
+  const deferredActions = preview.stages.reduce(
+    (total, stage) => total + stage.deferredRecords,
+    0,
+  );
+  if (preview.certainty === "exact") {
+    return [
+      `Prévia exata em ${preview.observedLocalDate} (${preview.timeZone}): ${preview.scannedRecords} registos avaliados, ${preview.recordsWithImmediateActions} com ações imediatas e ${immediateActions} ações imediatas elegíveis.`,
+      ...preview.stages.map((stage) =>
+        `• Etapa ${stage.stageId}: ${stage.immediateRecords} ações imediatas elegíveis.`
+      ),
+      "Os dados serão revalidados no momento de cada ação.",
+    ];
+  }
+  return [
+    `Prévia em ${preview.observedLocalDate} (${preview.timeZone}): ${preview.scannedRecords} registos avaliados, ${preview.recordsWithImmediateActions} com ações imediatas e até ${preview.recordsWithDeferredActions} com ações depois de esperas.`,
+    `Ações elegíveis: ${immediateActions} imediatas e até ${deferredActions} depois de esperas.`,
+    ...preview.stages.map((stage) =>
+      `• Etapa ${stage.stageId}: ${stage.immediateRecords} imediatas e até ${stage.deferredRecords} depois de esperas.`
+    ),
+    "As ações depois de esperas são um limite superior; condições, alterações dos dados e revalidação podem reduzir esse total.",
+  ];
+}
+
+type ActivationSnapshotFailure = {
+  readonly ok: false;
+  readonly reasonCode?: "catchup_estimate_unavailable";
+};
 
 type EmailTemplateSnapshot = {
   readonly id: string;
@@ -139,6 +180,16 @@ export async function buildAutomationActivationSnapshot(
   ctx: ToolContext,
   flow: NativeAutomationFlow,
 ): Promise<ActivationSnapshot | ActivationSnapshotFailure> {
+  let configuredPreview = null;
+  if (flow.trigger_type === "configured_workflow") {
+    const definition = parseAutomationWorkflowDefinition(flow.entryNode.config.workflow);
+    if (!definition.ok) return { ok: false };
+    const preview = await buildConfiguredWorkflowPreview(ctx, flow, definition.value, {
+      executionVersion: flow.version + 1,
+    });
+    if (!preview.ok) return { ok: false, reasonCode: "catchup_estimate_unavailable" };
+    configuredPreview = preview;
+  }
   const templateIds = unique(flow.graph.nodes.flatMap(({ type, config }) => {
     const id = type === "send_email" ? nonEmptyString(config.template_id) : null;
     return id ? [id] : [];
@@ -216,17 +267,22 @@ export async function buildAutomationActivationSnapshot(
     graph: flow.graph,
     templates: [...templates.values()],
     channels: [...channels.values()],
+    ...(configuredPreview ? { configured_workflow_preview: configuredPreview } : {}),
   });
   if (!snapshotPayload.ok) return { ok: false };
   const digest = await digestPendingActionPayload(snapshotPayload.value);
   return {
     ok: true,
     digest,
+    ...(configuredPreview ? { configuredWorkflowPreview: configuredPreview } : {}),
     summary: [
       `Ativar “${flow.name}” na versão ${flow.version}.`,
       `Gatilho: ${flow.trigger_type}.`,
+      ...(configuredPreview ? configuredWorkflowPreviewLines(configuredPreview) : []),
       effects.length > 0 ? `Efeitos externos configurados:\n${effects.join("\n")}` : "Este fluxo não tem envios externos configurados.",
-      "A ativação só inscreve eventos futuros e não executa estes efeitos agora.",
+      configuredPreview
+        ? "A ativação não executa estes efeitos agora. O motor volta a consultar os dados e revalida a elegibilidade antes de cada ação."
+        : "A ativação só inscreve eventos futuros e não executa estes efeitos agora.",
     ].join("\n"),
   };
 }

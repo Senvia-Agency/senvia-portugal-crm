@@ -19,6 +19,7 @@ import {
   VALUELESS_OPERATORS, WAIT_UNIT_OPTIONS, formatReplyOptions, getNodeLabel, normalizeConditionOperator,
 } from '@/lib/automation-nodes';
 import { TriggerPicker } from '@/components/automations/TriggerPicker';
+import { ConfiguredWorkflowForm } from '@/components/automations/ConfiguredWorkflowForm';
 import { useFlowVariables } from '@/components/automations/FlowIoContext';
 import { createId, isJsonConfigValid, isWebhookUrlValid } from '@/lib/automation-graph';
 import { VariableChips } from '@/components/automations/VariableChips';
@@ -30,12 +31,13 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { isNativeEvolution, useMessagingChannels } from '@/hooks/useMessagingChannels';
 import type {
-  AutomationGraphNode, AutomationMediaAttachment, AutomationNodeConfig, AutomationNodeType,
+  AutomationGraph, AutomationGraphNode, AutomationMediaAttachment, AutomationNodeConfig, AutomationNodeType,
   AutomationReentryPolicy, AutomationTriggerType, AutomationWaitUnit, ConditionOperator, WaitReplyRule,
 } from '@/types/automations';
 
 interface NodeInspectorProps {
   node: AutomationGraphNode;
+  graph: AutomationGraph;
   isEntry: boolean;
   onChange: (config: AutomationNodeConfig) => void;
   onChangeTrigger?: (type: AutomationTriggerType) => void;
@@ -51,7 +53,7 @@ const MESSAGE_TRIGGERS: AutomationNodeType[] = ['message_received', 'whatsapp_ke
  * 360px panel over the canvas with its own header and delete button; those
  * now belong to the full-screen view around it.
  */
-export function NodeInspector({ node, isEntry, onChange, onChangeTrigger, reentry }: NodeInspectorProps) {
+export function NodeInspector({ node, graph, isEntry, onChange, onChangeTrigger, reentry }: NodeInspectorProps) {
   const config = node.config ?? {};
   const set = (patch: Partial<AutomationNodeConfig>) => onChange({ ...config, ...patch });
 
@@ -80,7 +82,7 @@ export function NodeInspector({ node, isEntry, onChange, onChangeTrigger, reentr
           </Helper>
         </Field>
       )}
-      <NodeConfigForm node={node} config={config} set={set} />
+      <NodeConfigForm node={node} config={config} graph={graph} set={set} />
       {isEntry && reentry && MESSAGE_TRIGGERS.includes(node.type) && (
         <OncePerNumberField node={node} policy={reentry.policy} onChange={reentry.onChange} />
       )}
@@ -134,11 +136,12 @@ function OncePerNumberField({ node, policy, onChange }: {
 
 interface FormProps {
   node: AutomationGraphNode;
+  graph: AutomationGraph;
   config: AutomationNodeConfig;
   set: (patch: Partial<AutomationNodeConfig>) => void;
 }
 
-function NodeConfigForm({ node, config, set }: FormProps) {
+function NodeConfigForm({ node, config, graph, set }: FormProps) {
   const { data: stages } = usePipelineStages();
   const { data: lists } = useContactLists();
   const { data: templates } = useEmailTemplates();
@@ -152,6 +155,9 @@ function NodeConfigForm({ node, config, set }: FormProps) {
 
   switch (node.type) {
     // ── Triggers ──
+    case 'configured_workflow':
+      return <ConfiguredWorkflowForm config={config} graph={graph} set={set} />;
+
     case 'lead_created':
       return (
         <>

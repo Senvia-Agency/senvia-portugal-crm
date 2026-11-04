@@ -9,6 +9,27 @@ import {
   parseAutomationWebhookBody,
   parseAutomationWebhookHeaders,
 } from "../otto/lib/generic-automation-config.ts";
+import {
+  loadAuthorizedConfiguredFlow,
+  readConfiguredWorkflowRecord,
+  runConfiguredManual,
+  runConfiguredNativeEvent,
+  runDueConfiguredWorkflows,
+  type ConfiguredFlow,
+  type StartConfiguredRecord,
+} from "./configured-workflow-integration.ts";
+import {
+  claimConfiguredWorkflowStage,
+  finishConfiguredWorkflowStage,
+  type ConfiguredStageClaim,
+} from "./configured-workflow-stage-claims.ts";
+import {
+  CONFIGURED_WORKFLOW_ACTION_TYPES,
+  planConfiguredWorkflowStages,
+} from "./configured-workflow-runtime.ts";
+import { configuredRecordSubjectId, refreshConfiguredRun } from "./configured-workflow-run-state.ts";
+import { evaluateNativeCondition } from "./configured-workflow-reachability.ts";
+import { consumePendingAction, preparePendingAction } from "../otto/lib/pending-actions.ts";
 
 // Motor dos fluxos de automação.
 //
@@ -53,10 +74,11 @@ interface Graph {
   nodes: FlowNode[];
   edges: FlowEdge[];
 }
-interface Run {
+export interface Run {
   id: string;
   organization_id: string;
   flow_id: string;
+  flow_version: number;
   subject_type: string;
   subject_id: string | null;
   contact_name: string | null;
@@ -68,7 +90,7 @@ interface Run {
   context: Record<string, unknown>;
   steps_taken: number;
 }
-interface Flow {
+export interface Flow {
   id: string;
   organization_id: string;
   name: string;
@@ -361,12 +383,162 @@ function durationMs(config: Record<string, unknown>): number {
   return Math.max(0, amount) * (per[unit] ?? 60_000);
 }
 
+type ConfiguredClaimMap = Readonly<Record<string, ConfiguredStageClaim>>;
+
+function configuredClaims(context: Readonly<Record<string, unknown>>): ConfiguredClaimMap {
+  const value = context.__configured_stage_claims;
+  if (!isRecord(value)) return {};
+  const claims: Record<string, ConfiguredStageClaim> = {};
+  for (const [nodeId, candidate] of Object.entries(value)) {
+    if (!isRecord(candidate)
+      || typeof candidate.executionId !== "string"
+      || typeof candidate.claimToken !== "string") continue;
+    claims[nodeId] = { executionId: candidate.executionId, claimToken: candidate.claimToken };
+  }
+  return claims;
+}
+
+function withConfiguredClaim(
+  context: Readonly<Record<string, unknown>>,
+  nodeId: string,
+  claim: ConfiguredStageClaim | null,
+): Record<string, unknown> {
+  const claims = { ...configuredClaims(context) };
+  if (claim) claims[nodeId] = claim;
+  else delete claims[nodeId];
+  const next = { ...context };
+  if (Object.keys(claims).length) next.__configured_stage_claims = claims;
+  else delete next.__configured_stage_claims;
+  return next;
+}
+
 // ---------------------------------------------------------------------------
 // Motor
 // ---------------------------------------------------------------------------
-class Engine {
+export class Engine {
   // deno-lint-ignore no-explicit-any
   constructor(private db: any) {}
+
+  private async finishConfiguredClaim(
+    run: Run,
+    nodeId: string,
+    context: Record<string, unknown>,
+    outcome: "succeeded" | "failed" | "unknown",
+    error?: string,
+  ): Promise<Record<string, unknown>> {
+    const claim = configuredClaims(context)[nodeId];
+    if (!claim) return context;
+    const finished = await finishConfiguredWorkflowStage(this.db, {
+      executionId: claim.executionId,
+      claimToken: claim.claimToken,
+      outcome,
+      runId: run.id,
+      error,
+    });
+    if (finished.kind !== "finished") throw new Error(`configured_workflow_stage_finish_${finished.kind}`);
+    const next = withConfiguredClaim(context, nodeId, null);
+    await this.db.from("automation_runs").update({ context: next }).eq("id", run.id);
+    return next;
+  }
+
+  private async configuredStageGate(
+    run: Run,
+    flow: Flow,
+    node: FlowNode,
+    context: Record<string, unknown>,
+  ): Promise<
+    | { readonly kind: "proceed"; readonly context: Record<string, unknown> }
+    | { readonly kind: "skip"; readonly context: Record<string, unknown>; readonly reason: string }
+    | { readonly kind: "fail"; readonly context: Record<string, unknown>; readonly error: string }
+  > {
+    if (flow.trigger_type !== "configured_workflow") return { kind: "proceed", context };
+    const isAction = CONFIGURED_WORKFLOW_ACTION_TYPES.includes(
+      node.type as (typeof CONFIGURED_WORKFLOW_ACTION_TYPES)[number],
+    );
+    if (!isAction) return { kind: "proceed", context };
+    try {
+      const loaded = await loadAuthorizedConfiguredFlow(this.db, flow.id, {
+        organizationId: run.organization_id,
+        version: run.flow_version,
+      });
+      const stage = loaded.definition.stages.find((candidate) => candidate.nodeId === node.id);
+      if (!stage) {
+        return { kind: "fail", context, error: `configured_workflow_action_without_stage:${node.id}` };
+      }
+      const recordId = typeof context.__configured_workflow_record_id === "string"
+        ? context.__configured_workflow_record_id : null;
+      const occurrenceKey = typeof context.__configured_workflow_occurrence_key === "string"
+        ? context.__configured_workflow_occurrence_key : null;
+      const localDate = typeof context.__configured_workflow_local_date === "string"
+        ? context.__configured_workflow_local_date : null;
+      const timeZone = typeof context.__configured_workflow_time_zone === "string"
+        ? context.__configured_workflow_time_zone : null;
+      if (!recordId || !occurrenceKey || !localDate || timeZone !== loaded.definition.trigger.timeZone) {
+        return { kind: "fail", context, error: "configured_workflow_run_context_invalid" };
+      }
+      const record = await readConfiguredWorkflowRecord(this.db, loaded, recordId);
+      if (!record) {
+        const next = await this.finishConfiguredClaim(run, node.id, context, "succeeded");
+        return { kind: "skip", context: next, reason: "record_no_longer_available" };
+      }
+      const plan = planConfiguredWorkflowStages({
+        definition: loaded.definition,
+        record,
+        graphNodes: loaded.flow.graph.nodes,
+        occurrenceKey,
+        occurrenceLocalDate: localDate,
+        timeZone,
+        attempts: [],
+      }).find((candidate) => candidate.stage.id === stage.id);
+      if (!plan || plan.kind === "skipped") {
+        const next = await this.finishConfiguredClaim(run, node.id, context, "succeeded");
+        if (plan?.kind === "skipped" && plan.reason === "invalid_action_node") {
+          return { kind: "fail", context: next, error: `configured_workflow_invalid_action:${node.id}` };
+        }
+        return {
+          kind: "skip",
+          context: next,
+          reason: plan?.kind === "skipped" ? plan.reason : "stage_not_planned",
+        };
+      }
+      const refreshed = refreshConfiguredRun(context, record);
+      context = refreshed.context;
+      run.context = context;
+      run.contact_name = refreshed.contactName;
+      run.contact_email = refreshed.contactEmail;
+      run.contact_phone = refreshed.contactPhone;
+      run.contact_phone_key = phoneKey(run.contact_phone);
+      await this.db.from("automation_runs").update({
+        context,
+        contact_name: run.contact_name,
+        contact_email: run.contact_email,
+        contact_phone: run.contact_phone,
+        contact_phone_key: run.contact_phone_key,
+      }).eq("id", run.id);
+      if (configuredClaims(context)[node.id]) return { kind: "proceed", context };
+      const claimed = await claimConfiguredWorkflowStage(this.db, {
+        organizationId: run.organization_id,
+        flowId: flow.id,
+        flowVersion: run.flow_version,
+        entity: record.entity,
+        recordId: record.id,
+        stageId: stage.id,
+        cadence: stage.cadence,
+        occurrenceKey,
+        localDate,
+        leaseSeconds: 900,
+      });
+      if (claimed.kind === "blocked") return { kind: "skip", context, reason: "cadence_blocked" };
+      if (claimed.kind !== "claimed") {
+        return { kind: "fail", context, error: `configured_workflow_claim_${claimed.reason}` };
+      }
+      const next = withConfiguredClaim(context, node.id, claimed.claim);
+      await this.db.from("automation_runs").update({ context: next }).eq("id", run.id);
+      return { kind: "proceed", context: next };
+    } catch (error) {
+      return { kind: "fail", context, error: error instanceof Error ? error.message : "configured workflow gate failed" };
+    }
+  }
 
   /**
    * A caixa de WhatsApp que envia: a escolhida no passo, se estiver ligada, ou
@@ -614,8 +786,20 @@ class Engine {
   }
 
   private async finish(run: Run, status: string, error?: string) {
-    const context = { ...((run.context ?? {}) as Record<string, unknown>) };
+    let context = { ...((run.context ?? {}) as Record<string, unknown>) };
     delete context.__cursors;
+    for (const [nodeId, claim] of Object.entries(configuredClaims(context))) {
+      const outcome = status === "cancelled" ? "failed" : "unknown";
+      const finished = await finishConfiguredWorkflowStage(this.db, {
+        executionId: claim.executionId,
+        claimToken: claim.claimToken,
+        outcome,
+        runId: run.id,
+        error,
+      });
+      if (finished.kind === "finished") context = withConfiguredClaim(context, nodeId, null);
+      else logError("falha a fechar claim pendente", { run: run.id, nodeId, result: finished.kind });
+    }
     await this.db.from("automation_runs").update({
       status,
       last_error: error ?? null,
@@ -695,7 +879,36 @@ class Engine {
       }
 
       steps++;
-      const outcome = await this.execute({ ...run, context }, flow, node);
+      const gate = await this.configuredStageGate(run, flow, node, context);
+      context = gate.context;
+      run.context = context;
+      if (gate.kind === "fail") {
+        await this.recordStep(run, node, "failed", { configuracao: gate.error });
+        await this.finish(run, "failed", gate.error);
+        return;
+      }
+      if (gate.kind === "skip") {
+        await this.recordStep(run, node, "skipped", { motivo: gate.reason });
+        done.add(node.id);
+        for (const nextId of nextNodeIds(graph, node.id)) {
+          if (!done.has(nextId)) queue.push(nextId);
+        }
+        continue;
+      }
+
+      let outcome: Awaited<ReturnType<Engine["execute"]>>;
+      try {
+        outcome = await this.execute({ ...run, context }, flow, node);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "configured workflow action failed";
+        try { context = await this.finishConfiguredClaim(run, node.id, context, "unknown", message); }
+        catch (claimError) {
+          logError("falha a marcar outcome desconhecido", { run: run.id, node: node.id, error: String(claimError) });
+        }
+        run.context = context;
+        await this.finish(run, "failed", message);
+        return;
+      }
 
       if (outcome.kind === "park") {
         const wakeAt = outcome.wakeAt ? outcome.wakeAt.toISOString() : null;
@@ -704,11 +917,31 @@ class Engine {
           // ESTE nó para o tick o re-executar fora da janela de silêncio.
           stillParked.push({ node: node.id, status: outcome.status!, wake_at: wakeAt, resume_self: true });
         } else {
+          try { context = await this.finishConfiguredClaim(run, node.id, context, "succeeded"); }
+          catch (error) {
+            run.context = context;
+            await this.finish(run, "failed", (error as Error).message);
+            return;
+          }
           await this.recordStep(run, node, "waiting", outcome.detail ?? {});
           done.add(node.id);
           stillParked.push({ node: node.id, status: outcome.status!, wake_at: wakeAt });
         }
         continue;
+      }
+
+      try {
+        context = await this.finishConfiguredClaim(
+          run,
+          node.id,
+          context,
+          outcome.kind === "fail" ? "unknown" : "succeeded",
+          outcome.error,
+        );
+      } catch (error) {
+        run.context = context;
+        await this.finish(run, "failed", (error as Error).message);
+        return;
       }
 
       const fresh = await this.recordStep(run, node, outcome.kind === "fail" ? "failed" : "ok", outcome.detail ?? {});
@@ -769,6 +1002,7 @@ class Engine {
     switch (node.type) {
       // O gatilho é apenas o ponto de entrada.
       case "trigger":
+      case "configured_workflow":
       case "lead_created":
       case "lead_status_changed":
       case "form_submitted":
@@ -1014,32 +1248,11 @@ class Engine {
           };
         }
 
-        // Telefones comparam-se pelos últimos 9 dígitos: "+351 912 345 678",
-        // "912345678" e "351 912 345 678" são o mesmo número. Comparar o texto
-        // tal e qual dava "diferente" a quem escrevesse o indicativo.
-        const isPhone = /telefone|phone|whatsapp/i.test(field);
-        const same = isPhone
-          ? phoneKey(String(actual ?? "")) !== null
-            && phoneKey(String(actual ?? "")) === phoneKey(String(expected ?? ""))
-          : String(actual ?? "").trim().toLowerCase() === String(expected ?? "").trim().toLowerCase();
-
-        let yes = false;
-        switch (op) {
-          case "is_not_empty": // nome antigo, gravado por editores anteriores
-          case "exists":       yes = actual !== undefined && actual !== null && actual !== ""; break;
-          case "is_empty":     // nome antigo
-          case "not_exists":   yes = actual === undefined || actual === null || actual === ""; break;
-          case "contains":     yes = String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase()); break;
-          case "not_equals":   yes = !same; break;
-          case "greater_than": yes = Number(actual) > Number(expected); break;
-          case "less_than":    yes = Number(actual) < Number(expected); break;
-          case "equals":       yes = same; break;
-          // Um operador que este motor não conhece falha à vista. Tratá-lo como
-          // «é igual a» mandava o percurso pelo «Não» em silêncio — foi o que
-          // aconteceu com «Existe nos clientes» antes de este motor o ter.
-          default:
-            return { kind: "fail", error: `Condição desconhecida neste motor: «${op}». Atualiza o motor ou escolhe outra condição.` };
+        const evaluated = evaluateNativeCondition(field, op, actual, expected);
+        if (!evaluated.known) {
+          return { kind: "fail", error: `Condição desconhecida neste motor: «${op}». Atualiza o motor ou escolhe outra condição.` };
         }
+        const yes = evaluated.value;
         return { kind: "next", branch: yes ? "yes" : "no", detail: { campo: field, operador: op, resultado: yes } };
       }
 
@@ -1222,12 +1435,89 @@ async function loadFlow(db: any, flowId: string): Promise<Flow | null> {
   return data ?? null;
 }
 
+const startConfiguredRecord = (db: any): StartConfiguredRecord => async ({
+  flow, record, occurrenceKey, occurrenceLocalDate, timeZone,
+}) => {
+  if (flow.organization_id !== record.organizationId) throw new Error("configured_workflow_record_scope_mismatch");
+  if (!flow.entry_node_id) throw new Error("configured_workflow_entry_missing");
+  const subjectType = record.entity === "clients" ? "client"
+    : record.entity === "leads" ? "lead"
+    : record.entity === "receivables" ? "sale" : "contact";
+  const subjectId = await configuredRecordSubjectId(flow.organization_id, record);
+  const phone = record.contact?.phone ?? null;
+  const context = {
+    ...record.fields,
+    __configured_workflow_record_id: record.id,
+    __configured_workflow_entity: record.entity,
+    __configured_workflow_occurrence_key: occurrenceKey,
+    __configured_workflow_local_date: occurrenceLocalDate,
+    __configured_workflow_time_zone: timeZone,
+  };
+  const runId = await deterministicUuid(
+    `configured-workflow-run:${flow.organization_id}:${flow.id}:${flow.version}:${occurrenceKey}:${record.id}`,
+  );
+  const { data: run, error } = await db.from("automation_runs").insert({
+    id: runId,
+    organization_id: flow.organization_id,
+    flow_id: flow.id,
+    flow_version: flow.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    contact_name: record.contact?.name ?? null,
+    contact_email: record.contact?.email ?? null,
+    contact_phone: phone,
+    contact_phone_key: phoneKey(phone),
+    context,
+    current_node_id: flow.entry_node_id,
+  }).select("*").single();
+  if (error || !run) {
+    if ((error as { code?: string } | null)?.code === "23505") {
+      const { data: sameRun } = await db.from("automation_runs").select("id").eq("id", runId).maybeSingle();
+      if (sameRun?.id === runId) return;
+      throw new Error("configured_workflow_subject_busy");
+    }
+    throw new Error("configured_workflow_run_create_failed");
+  }
+  const nativeFlow: Flow = {
+    id: flow.id,
+    organization_id: flow.organization_id,
+    name: flow.name,
+    status: flow.status,
+    trigger_type: flow.trigger_type,
+    graph: {
+      nodes: flow.graph.nodes.map((node) => ({ id: node.id, type: node.type, config: { ...node.config } })),
+      edges: flow.graph.edges.map((edge) => ({ ...edge })),
+    },
+    entry_node_id: flow.entry_node_id,
+    version: flow.version,
+    reentry_policy: flow.reentry_policy,
+    quiet_hours: flow.quiet_hours ? { ...flow.quiet_hours } : null,
+    max_steps_per_run: flow.max_steps_per_run,
+    trigger_config: { ...flow.trigger_config },
+  };
+  try {
+    await new Engine(db).advance(run as Run, nativeFlow, flow.entry_node_id);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "configured workflow action outcome unknown";
+    await db.from("automation_runs").update({ status: "failed", last_error: message }).eq("id", run.id);
+    throw cause;
+  }
+};
+
 // deno-lint-ignore no-explicit-any
 async function handleEnroll(db: any, body: Record<string, unknown>) {
   const triggerType = String(body.trigger_type ?? "");
   const orgId = String(body.organization_id ?? "");
   const record = (body.record ?? {}) as Record<string, unknown>;
   if (!triggerType || !orgId) return { error: "trigger_type e organization_id são obrigatórios" };
+
+  let configured: unknown;
+  try {
+    configured = await runConfiguredNativeEvent(db, orgId, triggerType, record, startConfiguredRecord(db));
+  } catch (error) {
+    configured = { matched: 0, error: (error as Error).message };
+    logError("falha no gatilho nativo de workflow configurado", { triggerType, orgId, error: (error as Error).message });
+  }
 
   const { data: flows } = await db
     .from("automation_flows")
@@ -1236,7 +1526,7 @@ async function handleEnroll(db: any, body: Record<string, unknown>) {
     .eq("trigger_type", triggerType)
     .eq("status", "active");
 
-  if (!flows?.length) return { enrolled: 0, message: "Nenhum fluxo ativo para este gatilho" };
+  if (!flows?.length) return { enrolled: 0, configured, message: "Nenhum fluxo legado ativo para este gatilho" };
 
   const engine = new Engine(db);
   const results: Array<Record<string, unknown>> = [];
@@ -1302,11 +1592,18 @@ async function handleEnroll(db: any, body: Record<string, unknown>) {
     results.push({ flow: flow.id, run: run.id });
   }
 
-  return { enrolled: results.filter((r) => r.run).length, results };
+  return { enrolled: results.filter((r) => r.run).length, results, configured };
 }
 
 // deno-lint-ignore no-explicit-any
 async function handleTick(db: any) {
+  let configured: unknown;
+  try {
+    configured = await runDueConfiguredWorkflows(db, startConfiguredRecord(db));
+  } catch (error) {
+    configured = { claimed: 0, completed: 0, failed: 1, error: (error as Error).message };
+    logError("falha no tick de workflows configurados", configured);
+  }
   const { data: due } = await db
     .from("automation_runs")
     .select("*")
@@ -1315,7 +1612,7 @@ async function handleTick(db: any) {
     .order("wake_at", { ascending: true })
     .limit(100);
 
-  if (!due?.length) return { woken: 0 };
+  if (!due?.length) return { woken: 0, configured };
 
   const engine = new Engine(db);
   let woken = 0, failed = 0;
@@ -1332,8 +1629,9 @@ async function handleTick(db: any) {
       .maybeSingle();
     if (!claimed) continue;
 
-    const flow = await loadFlow(db, run.flow_id);
-    if (!flow) { await db.from("automation_runs").update({ status: "failed", last_error: "Fluxo apagado" }).eq("id", run.id); failed++; continue; }
+    const loadedFlow = await loadFlow(db, run.flow_id);
+    if (!loadedFlow) { await db.from("automation_runs").update({ status: "failed", last_error: "Fluxo apagado" }).eq("id", run.id); failed++; continue; }
+    const flow = loadedFlow;
 
     const wasAwaitingReply = run.status === "awaiting_reply";
     const nodes = flow.graph?.nodes ?? [];
@@ -1396,7 +1694,7 @@ async function handleTick(db: any) {
   }
 
   if (failed > 0) logError("tick terminou com falhas", { failed });
-  return { woken, failed };
+  return { woken, failed, configured };
 }
 
 /**
@@ -1826,7 +2124,7 @@ async function handleReply(db: any, body: Record<string, unknown>) {
 }
 
 // ---------------------------------------------------------------------------
-serve(async (req) => {
+if (import.meta.main) serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const db = createClient(
@@ -1853,13 +2151,18 @@ serve(async (req) => {
     body = await req.json();
   } catch { /* corpo vazio é tratado abaixo */ }
   const action = String(body.action ?? "tick");
+  let authenticatedUserId: string | null = null;
+  let authenticatedOrgId: string | null = null;
 
   // Exceção estreita: um administrador autenticado pode disparar um TESTE do
   // seu próprio fluxo, ou REPETIR uma execução dele, a partir do browser. Só
   // estas ações, só na sua organização — enroll/tick/reply continuam a exigir
   // credencial interna, senão qualquer utilizador podia inscrever contactos à
   // sua escolha.
-  if (!authorized && (action === "test" || action === "retry") && bearer) {
+  if (!authorized && (
+    action === "test" || action === "retry"
+    || action === "prepare_configured_manual" || action === "run_configured_manual"
+  ) && bearer) {
     const { data: userData } = await db.auth.getUser(bearer);
     const userId = userData?.user?.id;
     if (userId && (body.flow_id || body.run_id)) {
@@ -1875,6 +2178,10 @@ serve(async (req) => {
         });
         const { data: isAdmin } = await db.rpc("is_org_admin", { _user_id: userId, _org_id: flowRow.organization_id });
         authorized = isMember === true && isAdmin === true;
+        if (authorized) {
+          authenticatedUserId = userId;
+          authenticatedOrgId = flowRow.organization_id;
+        }
       }
     }
     if (!authorized) logError("teste rejeitado: utilizador sem permissão no fluxo", { flow: body.flow_id });
@@ -1894,6 +2201,56 @@ serve(async (req) => {
     else if (action === "tick")   result = await handleTick(db);
     else if (action === "test")   result = await handleTest(db, body);
     else if (action === "retry")  result = await handleRetry(db, body);
+    else if (action === "prepare_configured_manual") {
+      if (!authenticatedUserId || !authenticatedOrgId) {
+        result = { error: "A preparação manual exige um administrador autenticado" };
+      } else {
+        const flowId = String(body.flow_id ?? "");
+        const { data: flow } = await db.from("automation_flows")
+          .select("id,version,status,trigger_type,trigger_config")
+          .eq("id", flowId).eq("organization_id", authenticatedOrgId).maybeSingle();
+        const workflow = flow?.trigger_config?.workflow as { trigger?: { kind?: string } } | undefined;
+        if (!flow || flow.status !== "active" || flow.trigger_type !== "configured_workflow"
+          || workflow?.trigger?.kind !== "authenticated_manual") {
+          result = { error: "Fluxo manual ativo não encontrado" };
+        } else {
+          const pending = await preparePendingAction({
+            supabaseAdmin: db,
+            userId: authenticatedUserId,
+            organizationId: authenticatedOrgId,
+            moduleKey: "automations",
+            tool: "run_configured_manual",
+            payload: { flow_id: flow.id, flow_version: flow.version },
+          });
+          result = pending.ok
+            ? { confirmation_id: pending.value.confirmationId, expires_at: pending.value.expiresAt }
+            : { error: `Não foi possível preparar a confirmação: ${pending.failure.kind}` };
+        }
+      }
+    }
+    else if (action === "run_configured_manual") {
+      if (!authenticatedUserId || !authenticatedOrgId) {
+        result = { error: "A execução manual exige um administrador autenticado" };
+      } else {
+        const confirmation = await consumePendingAction({
+          supabaseAdmin: db,
+          confirmationId: String(body.confirmation_id ?? ""),
+          userId: authenticatedUserId,
+          organizationId: authenticatedOrgId,
+          moduleKey: "automations",
+          tool: "run_configured_manual",
+        });
+        const payload = confirmation.ok ? confirmation.value.payload : null;
+        const flowId = payload && typeof payload.flow_id === "string" ? payload.flow_id : null;
+        const flowVersion = payload && typeof payload.flow_version === "number" ? payload.flow_version : null;
+        result = confirmation.ok && flowId && flowVersion && flowId === String(body.flow_id ?? "")
+          ? await runConfiguredManual(
+            db, flowId, flowVersion, authenticatedUserId,
+            `manual:${confirmation.value.actionId}`, startConfiguredRecord(db),
+          )
+          : { error: "Confirmação manual inválida, expirada ou já utilizada" };
+      }
+    }
     else result = { error: `Ação desconhecida: ${action}` };
 
     log("concluído", { action, result });

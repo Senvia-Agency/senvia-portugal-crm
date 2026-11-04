@@ -1,6 +1,11 @@
 import { z } from "https://esm.sh/zod@3.25.76";
 
 import {
+  parseAutomationWorkflowDraft,
+  parseAutomationWorkflowDefinition,
+} from "../../_shared/automation-workflow-contract.ts";
+
+import {
   AUTOMATION_CONDITION_OPERATORS,
   AUTOMATION_GRAPH_LIMITS,
   AUTOMATION_WAIT_UNITS,
@@ -91,6 +96,7 @@ export type ConfigurableAutomationNode = {
 
 function schemaAccepts(type: NativeAutomationNodeType, config: Readonly<Record<string, unknown>>): boolean {
   switch (type) {
+    case "configured_workflow": return false;
     case "lead_created": return leadCreatedSchema.safeParse(config).success;
     case "lead_status_changed": return stageTriggerSchema.safeParse(config).success;
     case "form_submitted": return formTriggerSchema.safeParse(config).success;
@@ -268,6 +274,17 @@ export function validateAutomationNodeConfig(
   node: ConfigurableAutomationNode,
   requireComplete: boolean,
 ): readonly AutomationConfigIssue[] {
+  if (node.type === "configured_workflow") {
+    if (Object.keys(node.config).length !== 1 || !Object.hasOwn(node.config, "workflow")) {
+      return [issue("invalid_node_config", "Indique apenas a definição workflow publicada pelo construtor.")];
+    }
+    const parsed = requireComplete
+      ? parseAutomationWorkflowDefinition(node.config.workflow)
+      : parseAutomationWorkflowDraft(node.config.workflow);
+    return parsed.ok
+      ? []
+      : [issue("configured_workflow_invalid", "A definição workflow não cumpre o contrato publicado pelo construtor.")];
+  }
   if (!schemaAccepts(node.type, node.config)) return [issue("invalid_node_config", "A configuração contém campos ou valores não suportados.")];
   if (node.type === "webhook") {
     const webhookIssues: AutomationConfigIssue[] = [];

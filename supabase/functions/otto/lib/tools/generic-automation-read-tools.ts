@@ -1,5 +1,17 @@
 import type { Tool } from "../types.ts";
 import {
+  AUTOMATION_WORKFLOW_SCHEMA_VERSION,
+  WORKFLOW_CADENCE_MODES,
+  WORKFLOW_ENTITIES,
+  WORKFLOW_FIELD_CATALOG,
+  WORKFLOW_NATIVE_EVENTS,
+  WORKFLOW_NATIVE_EVENT_ENTITY_RULES,
+  WORKFLOW_PREDICATE_OPERATORS,
+  WORKFLOW_TRIGGER_KINDS,
+  parseAutomationWorkflowDefinition,
+  parseAutomationWorkflowDraft,
+} from "../../../_shared/automation-workflow-contract.ts";
+import {
   AUTOMATION_CONFIG_CONTRACT,
   AUTOMATION_FLOW_STATUSES,
   AUTOMATION_GRAPH_LIMITS,
@@ -29,6 +41,7 @@ import {
 } from "../generic-automation-tool-contracts.ts";
 import { validateAutomationReferences } from "../generic-automation-references.ts";
 import { validateNativeAutomationGraph } from "../generic-automation-validation.ts";
+import { buildConfiguredWorkflowPreview } from "../generic-automation-workflow-preview.ts";
 import { filterAccessibleRecords } from "../record-scope.ts";
 
 const ALL_NATIVE_TRIGGERS: ReadonlySet<(typeof NATIVE_AUTOMATION_TRIGGERS)[number]> = new Set(NATIVE_AUTOMATION_TRIGGERS);
@@ -96,6 +109,19 @@ export const genericAutomationReadTools = [
         limits: AUTOMATION_GRAPH_LIMITS,
       },
       protected_system_flows: PROTECTED_AUTOMATION_SURFACES,
+      configured_workflow_contract: {
+        schema_version: AUTOMATION_WORKFLOW_SCHEMA_VERSION,
+        trigger_kinds: WORKFLOW_TRIGGER_KINDS,
+        native_events: WORKFLOW_NATIVE_EVENTS,
+        native_event_entity_rules: WORKFLOW_NATIVE_EVENT_ENTITY_RULES,
+        entities: WORKFLOW_ENTITIES,
+        fields_by_entity: WORKFLOW_FIELD_CATALOG,
+        predicate_operators: WORKFLOW_PREDICATE_OPERATORS,
+        cadence_modes: WORKFLOW_CADENCE_MODES,
+        cadence_default: { mode: "once" },
+        storage: "Nó de entrada configured_workflow com config.workflow; cada stage.nodeId referencia uma ação do grafo.",
+        activation: "A criação e edição guardam apenas um rascunho. A ativação exige prévia segura e confirmação explícita.",
+      },
     }),
   },
   {
@@ -162,6 +188,19 @@ export const genericAutomationReadTools = [
         requireComplete: true,
       });
       const referenceFailure = await validateAutomationReferences(ctx, state.flow.graph, state.flow.folder_id);
+      const configuredWorkflow = state.flow.entryNode.type === "configured_workflow"
+        ? parseAutomationWorkflowDraft(state.flow.entryNode.config.workflow)
+        : null;
+      const completeConfiguredWorkflow = state.flow.entryNode.type === "configured_workflow"
+        ? parseAutomationWorkflowDefinition(state.flow.entryNode.config.workflow)
+        : null;
+      const catchupEstimate = activation.ok
+          && referenceFailure === null
+          && completeConfiguredWorkflow?.ok === true
+        ? await buildConfiguredWorkflowPreview(ctx, state.flow, completeConfiguredWorkflow.value, {
+          executionVersion: state.flow.version + 1,
+        })
+        : null;
       const whatsappNodes = state.flow.graph.nodes.filter((node) => node.type === "send_whatsapp");
       const channelIds = [...new Set(whatsappNodes.flatMap((node) =>
         typeof node.config.channel_id === "string" ? [node.config.channel_id] : []
@@ -192,10 +231,40 @@ export const genericAutomationReadTools = [
         native_graph: true,
         editable_by_otto: true,
         activation_validation: {
-          ready: activation.ok && referenceFailure === null,
+          ready: activation.ok
+            && referenceFailure === null
+            && (completeConfiguredWorkflow === null || catchupEstimate?.ok === true),
           issues: activation.ok ? [] : activation.issues,
           reference_error: referenceFailure,
+          ...(catchupEstimate?.ok === true ? {
+            catchup_estimate: {
+              ready: true,
+              complete: true,
+              scanned_records: catchupEstimate.scannedRecords,
+              eligible_records: catchupEstimate.eligibleRecords,
+              eligible_stages: catchupEstimate.eligibleStages,
+              records_with_immediate_actions: catchupEstimate.recordsWithImmediateActions,
+              records_with_deferred_actions: catchupEstimate.recordsWithDeferredActions,
+              stages: catchupEstimate.stages,
+              certainty: catchupEstimate.certainty,
+              limitations: catchupEstimate.limitations,
+              estimate_note: catchupEstimate.certainty === "exact"
+                ? "Ações imediatas exatas para os dados observados; os dados serão revalidados antes da ação."
+                : "Ações imediatas exatas e ações depois de esperas como limite superior; a revalidação pode reduzir o total.",
+              observed_local_date: catchupEstimate.observedLocalDate,
+              time_zone: catchupEstimate.timeZone,
+              requires_revalidation: catchupEstimate.requiresRevalidation,
+            },
+          } : completeConfiguredWorkflow?.ok === true ? {
+            catchup_estimate: {
+              ready: false,
+              reason_code: "catchup_estimate_unavailable",
+              failure_reason: catchupEstimate?.reason ?? "validation_incomplete",
+              message: "A ativação fica bloqueada até existir uma estimativa real dos registos já elegíveis.",
+            },
+          } : {}),
         },
+        ...(configuredWorkflow?.ok === true ? { configured_workflow: configuredWorkflow.value } : {}),
       };
     },
   },

@@ -115,6 +115,16 @@ export interface NodeDefinition {
 
 export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   // ── Triggers ──
+  configured_workflow: {
+    type: 'configured_workflow',
+    label: 'Fluxo configurável',
+    description: 'Agenda, consulta registos e executa etapas com regras próprias',
+    icon: GitBranch,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
   lead_created: {
     type: 'lead_created',
     label: 'Lead criada',
@@ -598,6 +608,7 @@ export const MESSAGE_BUFFER_MAX_SECONDS = 60;
  * render fine on the canvas but are deliberately not offered here.
  */
 export const TRIGGER_TYPES: AutomationTriggerType[] = [
+  'configured_workflow',
   'lead_created',
   'lead_created_hot',
   'lead_created_warm',
@@ -625,6 +636,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
  * Every type offered in TRIGGER_TYPES must sit in exactly one group.
  */
 export const TRIGGER_GROUPS: ReadonlyArray<{ key: string; label: string; types: AutomationTriggerType[] }> = [
+  { key: 'workflow', label: 'Fluxos', types: ['configured_workflow'] },
   { key: 'leads', label: 'Leads', types: ['lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined'] },
   { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue', 'sale_payment_overdue_10d'] },
   { key: 'whatsapp', label: 'WhatsApp', types: ['message_received', 'whatsapp_keyword'] },

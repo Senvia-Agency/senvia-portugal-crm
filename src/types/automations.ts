@@ -1,3 +1,8 @@
+import type {
+  AutomationWorkflowDraft,
+  AutomationWorkflowDefinition,
+} from '../../supabase/functions/_shared/automation-workflow-contract.ts';
+
 // Domain types for the "Automações" module.
 //
 // The engine (edge function) owns `automation_runs` / `automation_run_steps`;
@@ -21,6 +26,7 @@ export type AutomationRunStepStatus = 'ok' | 'skipped' | 'failed' | 'waiting';
 // ── Node types ──────────────────────────────────────────────────────────────
 
 export type AutomationTriggerType =
+  | 'configured_workflow'
   | 'lead_created'
   // Same event as lead_created, filtered to one AI-classified temperature.
   // Dispatched directly by submit-lead once classification completes — see
@@ -161,6 +167,7 @@ export interface AutomationMediaAttachment {
  * inspector forms simple and tolerates configs written by a newer engine.
  */
 export interface AutomationNodeConfig {
+  workflow?: AutomationWorkflowDefinition | AutomationWorkflowDraft;
   // send_whatsapp
   /** The QR-code caixa that sends. Absent = the organization's first connected one. */
   channel_id?: string;

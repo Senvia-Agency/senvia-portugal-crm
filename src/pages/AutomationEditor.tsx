@@ -20,6 +20,8 @@ import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
 import { FlowSettings } from '@/components/automations/FlowSettings';
 import { TestFlowDialog } from '@/components/automations/TestFlowDialog';
 import { ExecutionBar } from '@/components/automations/ExecutionBar';
+import { ConfiguredWorkflowManualRun } from '@/components/automations/ConfiguredWorkflowManualRun';
+import { ConfiguredWorkflowActivation } from '@/components/automations/ConfiguredWorkflowActivation';
 import { buildExecutionView } from '@/lib/automation-execution';
 
 import {
@@ -28,6 +30,10 @@ import {
   setGhostOffset, updateNodeConfig, updateNodePositions, validateGraph,
 } from '@/lib/automation-graph';
 import { MESSAGE_BUFFER_DEFAULT_SECONDS } from '@/lib/automation-nodes';
+import {
+  CONFIGURED_WORKFLOW_ACTION_TYPES,
+  CONFIGURED_WORKFLOW_CANVAS_TYPES,
+} from '@/components/automations/workflow-editor-model';
 import {
   useAutomationFlow, useAutomationFlowNodeStats, useAutomationRuns, useAutomationRunSteps,
   useSetAutomationFlowStatus,
@@ -38,6 +44,14 @@ import type {
   AutomationGraph, AutomationNodeConfig, AutomationNodeType, AutomationReentryPolicy,
   AutomationTriggerType,
 } from '@/types/automations';
+import {
+  parseAutomationWorkflowDefinition,
+  parseAutomationWorkflowDraft,
+  validateWorkflowStageNodeReferences,
+} from '../../supabase/functions/_shared/automation-workflow-contract.ts';
+
+const CONFIGURED_ACTION_TYPES = new Set<string>(CONFIGURED_WORKFLOW_ACTION_TYPES);
+const CONFIGURED_CANVAS_TYPES = new Set<string>(CONFIGURED_WORKFLOW_CANVAS_TYPES);
 
 type PickerTarget =
   // `position` is set when the "+" was dragged: the step lands exactly there
@@ -105,12 +119,52 @@ export default function AutomationEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow]);
 
-  const issues = useMemo(
-    () => validateGraph(graph, flow?.entry_node_id ?? null),
-    [graph, flow?.entry_node_id],
-  );
+  const issues = useMemo(() => {
+    const graphIssues = validateGraph(graph, flow?.entry_node_id ?? null);
+    const entry = findNode(graph, flow?.entry_node_id ?? null);
+    if (entry?.type !== 'configured_workflow') return graphIssues;
+    const parsed = parseAutomationWorkflowDefinition(entry.config.workflow);
+    if (parsed.ok === false) {
+      return [
+        ...graphIssues,
+        ...parsed.issues.map((issue) => ({ nodeId: entry.id, message: issue.message })),
+      ];
+    }
+    const referenceIssues = validateWorkflowStageNodeReferences(
+      parsed.value,
+      new Set(graph.nodes.map((node) => node.id)),
+    ).map((issue) => ({ nodeId: entry.id, message: issue.message }));
+    const supportedNodeIds = new Set(
+      graph.nodes.filter((node) => CONFIGURED_ACTION_TYPES.has(node.type)).map((node) => node.id),
+    );
+    const actionIssues = parsed.value.stages
+      .filter((stage) => !supportedNodeIds.has(stage.nodeId))
+      .map(() => ({ nodeId: entry.id, message: 'Uma etapa aponta para uma ação incompatível.' }));
+    const stageNodeIds = new Set(parsed.value.stages.map((stage) => stage.nodeId));
+    const unsupportedNodeIssues = graph.nodes
+      .filter((node) => node.id !== entry.id && !CONFIGURED_CANVAS_TYPES.has(node.type))
+      .map((node) => ({ nodeId: node.id, message: 'Este passo ainda não é suportado no motor de fluxos configuráveis.' }));
+    const unreferencedActionIssues = graph.nodes
+      .filter((node) => node.id !== entry.id && CONFIGURED_ACTION_TYPES.has(node.type) && !stageNodeIds.has(node.id))
+      .map((node) => ({ nodeId: node.id, message: 'Adicione esta ação à lista de etapas antes de ativar.' }));
+    const interactiveWaitIssues = graph.nodes
+      .filter((node) => node.type === 'send_whatsapp' && node.config?.wait_reply === true)
+      .map((node) => ({ nodeId: node.id, message: '“Esperar resposta” no WhatsApp ainda não é suportado neste modo.' }));
+    return [
+      ...graphIssues,
+      ...referenceIssues,
+      ...actionIssues,
+      ...unsupportedNodeIssues,
+      ...unreferencedActionIssues,
+      ...interactiveWaitIssues,
+    ];
+  }, [graph, flow?.entry_node_id]);
 
   const selectedNode = findNode(graph, selectedNodeId);
+  const entryNode = findNode(graph, flow?.entry_node_id ?? null);
+  const configuredDraft = entryNode?.type === 'configured_workflow'
+    ? parseAutomationWorkflowDraft(entryNode.config.workflow)
+    : null;
 
   const mutateGraph = useCallback((next: AutomationGraph) => {
     setGraph(next);
@@ -182,6 +236,13 @@ export default function AutomationEditor() {
   const handlePickNodeType = (type: AutomationNodeType) => {
     if (!pickerTarget) return;
 
+    const entry = findNode(graph, flow?.entry_node_id ?? null);
+    if (entry?.type === 'configured_workflow' && !CONFIGURED_CANVAS_TYPES.has(type)) {
+      toast.error('Passo incompatível', {
+        description: 'Neste modo, use ações, condições, Esperar ou Fim. “Esperar resposta” interativo ainda não é suportado.',
+      });
+      return;
+    }
     const built = pickerTarget.kind === 'append'
       ? appendNode(graph, pickerTarget.sourceId, pickerTarget.branch, type)
       : insertNodeOnEdge(graph, pickerTarget.edgeId, type);
@@ -241,7 +302,9 @@ export default function AutomationEditor() {
           channel_id: entryNode?.config?.channel_id ?? null,
           buffer_seconds: entryNode?.config?.buffer_seconds ?? MESSAGE_BUFFER_DEFAULT_SECONDS,
         }
-        : {};
+        : triggerType === 'configured_workflow'
+          ? { workflow: entryNode?.config?.workflow }
+          : {};
 
     await updateFlow.mutateAsync({
       id: flow.id,
@@ -262,6 +325,13 @@ export default function AutomationEditor() {
    */
   const handleOpenTest = async () => {
     if (!flow) return;
+    const entry = findNode(graph, flow.entry_node_id);
+    if (entry?.type === 'configured_workflow') {
+      toast.error('Prévia ainda indisponível', {
+        description: issues[0]?.message ?? 'A prévia segura no servidor tem de estar integrada antes de executar este rascunho.',
+      });
+      return;
+    }
     if (dirty) await handleSave();
     setTestOpen(true);
   };
@@ -269,6 +339,14 @@ export default function AutomationEditor() {
   const handleToggleStatus = async () => {
     if (!flow) return;
     const nextStatus = flow.status === 'active' ? 'paused' : 'active';
+    const entry = findNode(graph, flow.entry_node_id);
+
+    if (nextStatus === 'active' && entry?.type === 'configured_workflow') {
+      toast.error('Ativação ainda indisponível', {
+        description: 'A verificação administrativa e a prévia no servidor têm de estar integradas antes de ativar este fluxo.',
+      });
+      return;
+    }
 
     if (nextStatus === 'active' && issues.length) {
       toast.error('Não é possível ativar', { description: issues[0].message });
@@ -391,16 +469,28 @@ export default function AutomationEditor() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenTest}
-            disabled={isBusy}
-            title="Correr o fluxo com os seus contactos"
-          >
-            <FlaskConical className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Testar</span>
-          </Button>
+          {entryNode?.type !== 'configured_workflow' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenTest}
+              disabled={isBusy}
+              title="Correr o fluxo com os seus contactos"
+            >
+              <FlaskConical className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Testar</span>
+            </Button>
+          )}
+
+          {isActive
+            && configuredDraft?.ok === true
+            && configuredDraft.value.trigger.kind === 'authenticated_manual' && (
+            <ConfiguredWorkflowManualRun
+              flowId={flow.id}
+              disabled={dirty || isBusy}
+              onReviewExecutions={() => setTab('activity')}
+            />
+          )}
 
           {/* As in n8n: "Guardado" when the canvas is what runs, a highlighted
               "Guardar" the moment it is not. */}
@@ -420,19 +510,26 @@ export default function AutomationEditor() {
             {dirty ? 'Guardar' : 'Guardado'}
           </Button>
 
-          <Button
-            size="sm"
-            variant={isActive ? 'outline' : 'default'}
-            onClick={handleToggleStatus}
-            disabled={isBusy}
-            className={cn(isActive && 'text-warning')}
-          >
-            {isActive ? (
-              <><Pause className="mr-1.5 h-3.5 w-3.5" /> Pausar</>
-            ) : (
-              <><Play className="mr-1.5 h-3.5 w-3.5" /> Ativar</>
-            )}
-          </Button>
+          {!isActive && entryNode?.type === 'configured_workflow' ? (
+            <ConfiguredWorkflowActivation
+              flow={flow}
+              disabled={dirty || isBusy || issues.length > 0}
+            />
+          ) : (
+            <Button
+              size="sm"
+              variant={isActive ? 'outline' : 'default'}
+              onClick={handleToggleStatus}
+              disabled={isBusy}
+              className={cn(isActive && 'text-warning')}
+            >
+              {isActive ? (
+                <><Pause className="mr-1.5 h-3.5 w-3.5" /> Pausar</>
+              ) : (
+                <><Play className="mr-1.5 h-3.5 w-3.5" /> Ativar</>
+              )}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -485,6 +582,9 @@ export default function AutomationEditor() {
               <NodesPanel
                 onClose={() => setPickerTarget(null)}
                 onSelect={handlePickNodeType}
+                allowedTypes={findNode(graph, flow.entry_node_id)?.type === 'configured_workflow'
+                  ? CONFIGURED_WORKFLOW_CANVAS_TYPES
+                  : undefined}
               />
             )}
 

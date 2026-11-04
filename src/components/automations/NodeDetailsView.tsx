@@ -110,7 +110,8 @@ export function NodeDetailsView({
   // For the trigger node the input is its OWN record (so it changes as the
   // trigger is changed); for any other step, whatever the flow's trigger sends.
   const effectiveTrigger = isEntry ? node?.type ?? triggerType : triggerType;
-  const trigger = triggerInput(effectiveTrigger);
+  const triggerNode = isEntry ? node : graph.nodes.find((candidate) => candidate.type === effectiveTrigger);
+  const trigger = triggerInput(effectiveTrigger, triggerNode?.config);
   const inputFields = useMemo(
     () => (node ? inputFieldsFor(graph, node, effectiveTrigger) : []),
     [graph, node, effectiveTrigger],
@@ -265,6 +266,7 @@ export function NodeDetailsView({
                 <FlowIoProvider fields={inputFields}>
                   <NodeInspector
                     node={node}
+                    graph={graph}
                     isEntry={isEntry}
                     onChange={onChange}
                     onChangeTrigger={isEntry ? onChangeTrigger : undefined}

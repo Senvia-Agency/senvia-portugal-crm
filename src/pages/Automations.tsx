@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   AlertCircle, Copy, Folder, MoreVertical, Pause, Pencil, Play, Plus, Search, Sparkles, Trash2, Workflow, X, Zap,
 } from 'lucide-react';
@@ -69,6 +70,21 @@ export default function Automations() {
     if (flow?.id) navigate(`/automacoes/${flow.id}?novo=1`);
   };
   const [flowToDelete, setFlowToDelete] = useState<AutomationFlow | null>(null);
+
+  const handleToggleStatus = (flow: AutomationFlow) => {
+    if (flow.trigger_type === 'configured_workflow' && flow.status !== 'active') {
+      toast.info('Revisão necessária', {
+        description: 'Abra o fluxo para rever a prévia e confirmar a ativação segura.',
+      });
+      navigate(`/automacoes/${flow.id}`);
+      return;
+    }
+    setStatus.mutate({
+      id: flow.id,
+      status: flow.status === 'active' ? 'paused' : 'active',
+      version: flow.version,
+    });
+  };
 
   // A pesquisa não persiste (é sempre pontual); os filtros sim, como no resto
   // da app — quem trabalha só nas automações de trials não quer voltar a
@@ -245,7 +261,7 @@ export default function Automations() {
                     onDelete={setFlowToDelete}
                     onEdit={openFolderDialog}
                     onDeleteFolder={setFolderToDelete}
-                    onToggleStatus={(flow) => setStatus.mutate({ id: flow.id, status: flow.status === 'active' ? 'paused' : 'active', version: flow.version })}
+                    onToggleStatus={handleToggleStatus}
                   />
                 ))}
               </Accordion>
@@ -262,7 +278,7 @@ export default function Automations() {
                     counts={runCounts?.[flow.id]}
                     onDuplicate={() => duplicateFlow.mutate(flow.id)}
                     onDelete={() => setFlowToDelete(flow)}
-                    onToggleStatus={() => setStatus.mutate({ id: flow.id, status: flow.status === 'active' ? 'paused' : 'active', version: flow.version })}
+                    onToggleStatus={() => handleToggleStatus(flow)}
                   />
                 ))}
               </div>

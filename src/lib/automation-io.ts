@@ -8,9 +8,14 @@
 // here per trigger are exactly the keys a message can use. They are written
 // down by hand from each dispatcher — the engine has no schema of its own.
 import type {
-  AutomationGraph, AutomationGraphNode, AutomationNodeType, AutomationRun, AutomationTriggerType,
+  AutomationGraph, AutomationGraphNode, AutomationNodeConfig, AutomationNodeType, AutomationRun, AutomationTriggerType,
 } from '@/types/automations';
 import { LOOKUP_OPERATORS, getNodeDefinition } from '@/lib/automation-nodes';
+import {
+  WORKFLOW_FIELD_CATALOG,
+  parseAutomationWorkflowDraft,
+  type WorkflowEntity,
+} from '../../supabase/functions/_shared/automation-workflow-contract.ts';
 
 export interface IoField {
   /** The variable name: `{{key}}` in a message. */
@@ -106,6 +111,12 @@ const REFERRAL_FIELDS: IoField[] = [
 const NO_CONTACT_NOTE = 'Este registo não traz nome, email nem telefone: os passos de email e WhatsApp falham neste gatilho.';
 
 export const TRIGGER_INPUTS: Record<AutomationTriggerType, TriggerInput> = {
+  configured_workflow: {
+    source: 'Os registos devolvidos pela consulta configurada',
+    contact: true,
+    fields: [],
+    note: 'A organização e o âmbito de acesso são sempre aplicados pelo servidor.',
+  },
   lead_created: { source: 'A ficha da lead criada', contact: true, fields: LEAD_FIELDS },
   lead_created_hot: { source: 'A ficha da lead, já classificada como quente', contact: true, fields: LEAD_FIELDS },
   lead_created_warm: { source: 'A ficha da lead, já classificada como morna', contact: true, fields: LEAD_FIELDS },
@@ -209,9 +220,33 @@ const REPLY_FIELD: IoField = {
 };
 
 /** The trigger's own fields, or an empty catalogue for a type the UI does not know. */
-export function triggerInput(type: string | null | undefined): TriggerInput | null {
-  return type ? TRIGGER_INPUTS[type as AutomationTriggerType] ?? null : null;
+export function triggerInput(
+  type: string | null | undefined,
+  config?: AutomationNodeConfig,
+): TriggerInput | null {
+  if (!type) return null;
+  if (type !== 'configured_workflow') return TRIGGER_INPUTS[type as AutomationTriggerType] ?? null;
+  const workflow = parseAutomationWorkflowDraft(config?.workflow);
+  if (!workflow.ok) return TRIGGER_INPUTS.configured_workflow;
+  const entity = workflow.value.query.entity;
+  const catalog = WORKFLOW_FIELD_CATALOG[entity];
+  return {
+    source: `Os registos de ${WORKFLOW_ENTITY_INPUT_LABELS[entity]} devolvidos pela consulta configurada`,
+    contact: true,
+    fields: workflow.value.query.select.flatMap((key) => {
+      const field = catalog.find((item) => item.name === key);
+      return field ? [{ key: field.name, label: field.label }] : [];
+    }),
+    note: 'A organização e o âmbito de acesso são sempre aplicados pelo servidor.',
+  };
 }
+
+const WORKFLOW_ENTITY_INPUT_LABELS: Readonly<Record<WorkflowEntity, string>> = {
+  receivables: 'dívidas e mensalidades',
+  clients: 'clientes',
+  leads: 'leads',
+  proposals: 'propostas',
+};
 
 /** Steps that can reach `nodeId` by following the edges backwards. */
 function upstreamNodes(graph: AutomationGraph, nodeId: string): AutomationGraphNode[] {
@@ -254,7 +289,8 @@ function waitsForReply(node: AutomationGraphNode): boolean {
  * record, and what earlier steps added (the last reply, when one waited).
  */
 export function inputFieldsFor(graph: AutomationGraph, node: AutomationGraphNode, triggerType: string | null): IoField[] {
-  const trigger = triggerInput(triggerType);
+  const triggerNode = graph.nodes.find((candidate) => candidate.type === triggerType);
+  const trigger = triggerInput(triggerType, triggerNode?.config);
   const fields: IoField[] = [...CONTACT_FIELDS, ...(trigger?.fields ?? [])];
   const upstream = upstreamNodes(graph, node.id);
   if (upstream.some(waitsForReply)) fields.push(REPLY_FIELD);
@@ -277,7 +313,7 @@ export interface NodeOutput {
 export function nodeOutput(node: AutomationGraphNode, triggerType: string | null): NodeOutput {
   const definition = getNodeDefinition(node.type);
   if (definition?.isTrigger) {
-    const trigger = triggerInput(node.type);
+    const trigger = triggerInput(node.type, node.config);
     return {
       summary: trigger
         ? `Entrega ${trigger.source.toLowerCase()} ao primeiro passo. Tudo o que está na Entrada segue para a frente.`
