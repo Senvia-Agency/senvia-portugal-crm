@@ -6,8 +6,8 @@ import {
 import type { EnabledModules } from '@/hooks/useModules';
 import { tr } from '@/i18n';
 
-/** The WebMail (/webmail) replaces the email section of the Inbox in development and local-preview builds. */
-export const WEBMAIL_ENABLED = import.meta.env.DEV || import.meta.env.MODE === 'local-preview';
+/** The WebMail (/webmail) replaces the email section of the Inbox (Senvia 2.0, live everywhere). */
+export const WEBMAIL_ENABLED = true;
 
 export interface WorkspaceNavItem {
   to: string;
@@ -23,11 +23,12 @@ export interface WorkspaceNavItem {
 export const workspaceNavigationGroups = ['Visão geral', 'Comunicação', 'Trabalho', 'Comercial', 'Gestão'] as const;
 
 export const workspaceNavigation: WorkspaceNavItem[] = [
-  ...((import.meta.env.DEV || import.meta.env.MODE === "local-preview") ? [{ to: '/feed', label: 'Feed', icon: Newspaper, group: 'Comunicação' as const, ottoTarget: 'guide-feed' }, { to: '/tasks', label: 'Tarefas', icon: ListTodo, group: 'Trabalho' as const, ottoTarget: 'guide-tasks' }] : []),
+  { to: '/feed', label: 'Feed', icon: Newspaper, group: 'Comunicação', ottoTarget: 'guide-feed' },
+  { to: '/tasks', label: 'Tarefas', icon: ListTodo, group: 'Trabalho', ottoTarget: 'guide-tasks' },
   { to: '/dashboard', label: 'Painel', icon: LayoutDashboard, group: 'Visão geral' },
   { to: '/indicacoes', label: 'Indicações', icon: Gift, group: 'Visão geral', adminOnly: true, ottoTarget: 'guide-referrals-nav' },
   { to: '/inbox', label: 'Caixa de entrada', icon: MessageSquare, group: 'Comunicação', moduleKey: 'inbox', ottoTarget: 'guide-inbox' },
-  // WebMail: the email caixas leave the Inbox (same preview gate as the Feed).
+  // WebMail: the email caixas leave the Inbox.
   ...(WEBMAIL_ENABLED ? [{ to: '/webmail', label: 'Email', icon: AtSign, group: 'Comunicação' as const, moduleKey: 'inbox' as const, ottoTarget: 'guide-email' }] : []),
   { to: '/calendar', label: 'Agenda', icon: CalendarDays, group: 'Trabalho', moduleKey: 'calendar' },
   { to: '/ponto', label: 'Ponto', icon: CalendarClock, group: 'Trabalho' },

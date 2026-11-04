@@ -20,7 +20,8 @@ import { ChatWorkspace } from '@/features/workplace/chat/ChatWorkspace';
 import { WEBMAIL_ENABLED } from '@/components/layout/workspaceNavigation';
 
 // Internal messages are a Workplace preview feature (same gate as the /mensagens route).
-const TEAM_CHAT_ENABLED = import.meta.env.DEV || import.meta.env.MODE === 'local-preview';
+// Internal messages (Senvia 2.0) are live everywhere.
+const TEAM_CHAT_ENABLED = true;
 export default InboxPageSlot;
 const EmailListReader = lazy(() =>
   import("@/components/email/EmailListReader").then((m) => ({ default: m.EmailListReader })));

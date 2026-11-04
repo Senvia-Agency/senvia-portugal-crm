@@ -134,10 +134,10 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
 
                 {/* Protected Routes (Persistent Layout) */}
                 <Route element={<ProtectedLayoutRoute />}>
-                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/feed" element={<WorkplaceFeed />} />}
-                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/tasks" element={<WorkplaceTasks />} />}
-                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/mensagens" element={<WorkplaceMessages />} />}
-                  {(import.meta.env.DEV || import.meta.env.MODE === "local-preview") && <Route path="/webmail" element={<WebMail />} />}
+                  <Route path="/feed" element={<WorkplaceFeed />} />
+                  <Route path="/tasks" element={<WorkplaceTasks />} />
+                  <Route path="/mensagens" element={<WorkplaceMessages />} />
+                  <Route path="/webmail" element={<WebMail />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/ponto" element={<TimeClock />} />
                   <Route path="/indicacoes" element={<Referrals />} />
