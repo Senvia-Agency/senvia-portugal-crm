@@ -23,9 +23,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OttoWriteGrantCard } from "@/components/settings/OttoWriteGrantCard";
+import { OttoWriteGrantCard, type OttoAccessLevel } from "@/components/settings/OttoWriteGrantCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useModules } from "@/hooks/useModules";
+import { useOttoAvailability } from "@/hooks/useOttoAvailability";
 import {
   OTTO_MODULES,
   type OttoModule,
@@ -37,7 +38,7 @@ interface OttoWriteAccessTabProps {
   readonly canManageOtto: boolean;
 }
 
-type PendingGrantChange = Readonly<{ module: OttoModule; moduleKey: OttoModule["key"]; isGranted: boolean }>;
+type PendingGrantChange = Readonly<{ module: OttoModule; level: OttoAccessLevel; currentlyGranted: boolean; currentlyAvailable: boolean }>;
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -56,6 +57,8 @@ function moduleLabel(moduleKey: string): string {
 export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
   const { organization, organizations, isSuperAdmin } = useAuth();
   const { modules, isLoading: modulesLoading } = useModules();
+  const availability = useOttoAvailability();
+  const updatingModule = availability.isPending;
   const [pendingChange, setPendingChange] = useState<PendingGrantChange | null>(null);
   const {
     grants,
@@ -63,7 +66,7 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
     isLoading,
     error,
     refetch,
-    setGrant,
+    setGrantAsync,
     isUpdating,
     mutationError,
   } = useOttoWriteGrants({ enabled: canManageOtto });
@@ -93,12 +96,24 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
     return true;
   });
   const grantsByModule = new Map(grants.map((grant) => [grant.module_key, grant]));
-  const confirmChange = () => {
+  const confirmChange = async () => {
     if (!pendingChange) return;
-    setGrant(
-      { moduleKey: pendingChange.moduleKey, isGranted: pendingChange.isGranted },
-      { onSuccess: () => setPendingChange(null) },
-    );
+    const { module, level, currentlyGranted, currentlyAvailable } = pendingChange;
+    const separateAvailability = module.key === "leads" || module.key === "automations";
+    try {
+      if (currentlyGranted && (level !== "write" || !currentlyAvailable)) {
+        await setGrantAsync({ moduleKey: module.key, isGranted: false });
+      }
+      if (separateAvailability && currentlyAvailable !== (level !== "off")) {
+        await availability.mutateAsync({ module: module.key, enabled: level !== "off" });
+      }
+      if (level === "write" && (!currentlyGranted || !currentlyAvailable)) {
+        await setGrantAsync({ moduleKey: module.key, isGranted: true });
+      }
+      setPendingChange(null);
+    } catch {
+      // The mutations surface failures; keep the selection available for retry.
+    }
   };
 
   return (
@@ -110,7 +125,7 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
             Autorizações de escrita do Otto
           </CardTitle>
           <CardDescription>
-            Todos os módulos começam desligados. Uma autorização permite apenas operações suportadas e continua sujeita às permissões do utilizador.
+            Escolha o acesso do Otto por módulo. A criação e edição continuam sujeitas às permissões do utilizador e às confirmações exigidas.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -136,8 +151,8 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Escrita por módulo</CardTitle>
-          <CardDescription>A autorização só pode ser concedida quando o módulo está disponível nesta organização.</CardDescription>
+          <CardTitle className="text-lg">Acesso por módulo</CardTitle>
+          <CardDescription>Consultar permite leitura. Criar e editar exige autorização explícita.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading || modulesLoading ? (
@@ -155,8 +170,8 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
                     module={module}
                     grant={grant}
                     isAvailable={isAvailable}
-                    disabled={isUpdating || Boolean(error)}
-                    onToggle={(nextValue) => setPendingChange({ module, moduleKey: module.key, isGranted: nextValue })}
+                    disabled={isUpdating || updatingModule || Boolean(error)}
+                    onChange={(level) => setPendingChange({ module, level, currentlyGranted: grant?.is_granted ?? false, currentlyAvailable: isAvailable })}
                   />
                 );
               })}
@@ -210,28 +225,27 @@ export function OttoWriteAccessTab({ canManageOtto }: OttoWriteAccessTabProps) {
 
       <AlertDialog
         open={pendingChange !== null}
-        onOpenChange={(open) => { if (!open && !isUpdating) setPendingChange(null); }}
+        onOpenChange={(open) => { if (!open && !isUpdating && !updatingModule) setPendingChange(null); }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingChange?.isGranted ? "Conceder escrita ao Otto?" : "Revogar escrita do Otto?"}
+              Alterar acesso do Otto?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingChange?.isGranted
-                ? `O Otto poderá executar operações suportadas em ${pendingChange.module.label}. As permissões do utilizador e as confirmações exigidas continuam a aplicar-se.`
-                : `Novas escritas do Otto em ${pendingChange?.module.label ?? "este módulo"} serão bloqueadas de imediato.`}
+              {pendingChange && `Alterar ${pendingChange.module.label} para ${pendingChange.level === "write" ? "Criar e editar" : pendingChange.level === "read" ? "Consultar" : "Desativado"}. As permissões do utilizador e as confirmações de ações continuam a aplicar-se.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {(mutationError || availability.error) && <p role="alert" className="text-sm text-destructive">{errorMessage(mutationError || availability.error, "Não foi possível alterar o acesso.")}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isUpdating}>Voltar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isUpdating || updatingModule}>Voltar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmChange}
-              disabled={isUpdating}
-              className={pendingChange?.isGranted ? undefined : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+              onClick={(event) => { event.preventDefault(); void confirmChange(); }}
+              disabled={isUpdating || updatingModule}
+
             >
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-              {pendingChange?.isGranted ? "Conceder" : "Revogar"}
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

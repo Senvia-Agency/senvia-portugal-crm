@@ -154,6 +154,7 @@ export function useOttoWriteGrants(options: UseOttoWriteGrantsOptions = {}) {
     error: grantsQuery.error,
     refetch: grantsQuery.refetch,
     setGrant: mutation.mutate,
+    setGrantAsync: mutation.mutateAsync,
     isUpdating: mutation.isPending,
     mutationError: mutation.error,
   };

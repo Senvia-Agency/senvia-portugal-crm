@@ -611,6 +611,7 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
   'sale_renewal_due_today',
   'sale_renewal_due_in_2_days',
   'sale_renewal_overdue',
+  'sale_payment_overdue_10d',
   'referral_month_earned',
   'referral_month_started',
   'referral_month_ending_2d',

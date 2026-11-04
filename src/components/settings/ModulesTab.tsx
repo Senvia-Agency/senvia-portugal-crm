@@ -1,4 +1,4 @@
-import { FileText, Calendar, ShoppingBag, Store, UserCheck, Mail, Wallet, Zap, Search, MessageSquare, Users, Workflow } from "lucide-react";
+import { FileText, Calendar, ShoppingBag, Store, UserCheck, Mail, Wallet, Zap, Search, MessageSquare } from "lucide-react";
 import type { ElementType } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,11 +24,6 @@ const MODULES: readonly ModuleConfig[] = [
   { key: 'calendar', label: 'Agenda', description: 'Agendamento de eventos, reuniões e lembretes', icon: Calendar },
   { key: 'marketing', label: 'Marketing', description: 'Templates de email e campanhas de marketing', icon: Mail },
   { key: 'prospects', label: 'Prospects', description: 'Importação e distribuição de prospects para a equipa comercial', icon: Search },
-];
-
-const OTTO_AVAILABILITY_MODULES: readonly ModuleConfig[] = [
-  { key: 'leads', label: 'Leads', description: 'Disponibiliza ao Otto as operações suportadas de leads', icon: Users },
-  { key: 'automations', label: 'Automações', description: 'Disponibiliza ao Otto as operações suportadas de automações', icon: Workflow },
 ];
 
 export function ModulesTab() {
@@ -131,47 +126,7 @@ export function ModulesTab() {
         )}
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold">Disponibilidade no Otto</h3>
-          <p className="text-sm text-muted-foreground">
-            Ative explicitamente os módulos que o Otto pode disponibilizar. Este controlo não concede escrita nem altera o acesso às páginas nativas.
-          </p>
-        </div>
 
-        {OTTO_AVAILABILITY_MODULES.map((module) => (
-          <Card key={module.key}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <module.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{module.label}</CardTitle>
-                    <CardDescription className="text-sm">
-                      {module.description}
-                    </CardDescription>
-                  </div>
-                </div>
-                <Switch
-                  id={`otto-availability-${module.key}`}
-                  aria-label={`Disponibilizar ${module.label} no Otto`}
-                  checked={modules[module.key]}
-                  onCheckedChange={(checked) =>
-                    updateModule({ module: module.key, enabled: checked })
-                  }
-                  disabled={isUpdating}
-                />
-              </div>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Os módulos Senvia desativados não aparecem no menu de navegação. A disponibilidade no Otto não altera a navegação e continua a exigir uma autorização de escrita separada.
-      </p>
     </div>
   );
 }
