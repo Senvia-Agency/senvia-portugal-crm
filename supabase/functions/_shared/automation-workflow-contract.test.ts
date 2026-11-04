@@ -35,9 +35,14 @@ describe("automation workflow contract", () => {
   });
 
   test("accepts only declared triggers and valid IANA schedules", () => {
-    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "native_event", event: "lead_created" } }).ok).toBe(true);
-    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "authenticated_manual" } }).ok).toBe(true);
-    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "native_event", event: "invented_event" } }).ok).toBe(false);
+    const nativeLead = { ...complete, trigger: { kind: "native_event", event: "lead_created", timeZone: "Europe/Lisbon" }, query: { entity: "leads", select: ["name"] }, stages: [{ id: "notify", nodeId: "send-reminder", conditions: [] }] };
+    expect(parseAutomationWorkflowDefinition(nativeLead).ok).toBe(true);
+    expect(parseAutomationWorkflowDefinition({ ...nativeLead, query: { entity: "clients", select: ["name"] } }).ok).toBe(false);
+    expect(parseAutomationWorkflowDefinition({ ...nativeLead, trigger: { kind: "native_event", event: "message_received", timeZone: "Europe/Lisbon" } }).ok).toBe(false);
+    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "authenticated_manual", timeZone: "Europe/Lisbon" } }).ok).toBe(true);
+    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "native_event", event: "lead_created" } }).ok).toBe(false);
+    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "authenticated_manual" } }).ok).toBe(false);
+    expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "native_event", event: "invented_event", timeZone: "Europe/Lisbon" } }).ok).toBe(false);
     expect(parseAutomationWorkflowDefinition({ ...complete, trigger: { kind: "daily_schedule", localTime: "09:30", timeZone: "Mars/Olympus" } }).ok).toBe(false);
   });
 
@@ -81,5 +86,7 @@ describe("automation workflow contract", () => {
     const condition = [{ field: "created_at", operator: "before", value: "2026-11-04" }] as const;
     expect(evaluateWorkflowConditions(record.value, condition, { todayIso: "2026-11-04", timeZone: "America/New_York" })).toBe(true);
     expect(evaluateWorkflowConditions(record.value, condition, { todayIso: "2026-11-04", timeZone: "UTC" })).toBe(false);
+    expect(evaluateWorkflowConditions(record.value, [{ field: "created_at", operator: "equals", value: "2026-11-03" }], { todayIso: "2026-11-04", timeZone: "America/New_York" })).toBe(true);
+    expect(evaluateWorkflowConditions(record.value, [{ field: "created_at", operator: "not_equals", value: "2026-11-04" }], { todayIso: "2026-11-04", timeZone: "America/New_York" })).toBe(true);
   });
 });
