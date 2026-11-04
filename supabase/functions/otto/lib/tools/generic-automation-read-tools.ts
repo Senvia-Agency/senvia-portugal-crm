@@ -52,6 +52,23 @@ function safeSummary(flow: ReturnType<typeof parseAutomationFlowRow>) {
 
 export const genericAutomationReadTools = [
   {
+    name: "list_automation_whatsapp_channels",
+    module: "automations",
+    description: "Listar caixas WhatsApp nativas acessíveis para escolher o canal de uma automação.",
+    parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+    permission: { module: "automations", subarea: "flows", action: "view" },
+    execute: async (_args, ctx) => {
+      const { data, error } = await ctx.supabaseUser.from("messaging_channels")
+        .select("id,label,status,channel_type,provider,archived_at,metadata_public")
+        .eq("organization_id", ctx.orgId).eq("channel_type", "whatsapp")
+        .eq("provider", "evolution").is("archived_at", null);
+      if (error || !Array.isArray(data)) return AUTOMATION_DATABASE_ERROR;
+      const channels = data.filter((row) => row.metadata_public?.native_inbox === true)
+        .map(({ id, label, status }) => ({ id, label, status }));
+      return { channels, count: channels.length };
+    },
+  },
+  {
     name: "get_automation_builder_schema",
     module: "automations",
     description: "Descobrir os gatilhos, passos, configurações e regras de grafo que o construtor nativo de automações suporta.",

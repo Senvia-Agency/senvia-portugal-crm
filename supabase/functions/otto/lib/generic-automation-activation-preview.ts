@@ -144,7 +144,7 @@ export async function buildAutomationActivationSnapshot(
     return id ? [id] : [];
   }));
   const channelIds = unique(flow.graph.nodes.flatMap(({ type, config }) => {
-    const id = type === "send_whatsapp" ? nonEmptyString(config.channel_id) : null;
+    const id = (type === "send_whatsapp" || type === "wait_reply") ? nonEmptyString(config.channel_id) : null;
     return id ? [id] : [];
   }));
   const [templates, channels] = await Promise.all([
@@ -164,11 +164,11 @@ export async function buildAutomationActivationSnapshot(
       if (!message && !media) continue;
       const channelId = nonEmptyString(config.channel_id);
       const channel = channelId ? channels.get(channelId) : null;
-      if (channelId && !channel) return { ok: false };
+      if (!channelId || !channel || channel.status !== "connected") return { ok: false };
       effects.push([
         `• ${node.id} · WhatsApp`,
         `  Destinatário: telefone do contacto inscrito no fluxo.`,
-        `  Canal: ${channel ? `${channel.label} (${channel.id}, ${channel.status})` : "primeira caixa WhatsApp nativa ligada no momento do envio"}.`,
+        `  Canal: ${channel.label} (${channel.id}, ${channel.status}).`,
         `  Mensagem: ${message}${replyOptions(config, node.type === "wait_reply")}`,
         `  Anexo: ${media ? JSON.stringify(media) : "nenhum"}.`,
       ].join("\n"));
