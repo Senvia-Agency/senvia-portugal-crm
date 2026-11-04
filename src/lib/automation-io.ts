@@ -190,6 +190,11 @@ export const TRIGGER_INPUTS: Record<AutomationTriggerType, TriggerInput> = {
     contact: true,
     fields: [...SALE_CYCLE_FIELDS, { key: 'periodo', label: 'Período cobrado' }],
   },
+  sale_payment_overdue_10d: {
+    source: 'O cliente da venda com pagamento vencido',
+    contact: true,
+    fields: [...SALE_CYCLE_FIELDS, { key: 'dias_em_atraso', label: 'Dias em atraso' }],
+  },
   sale_renewal_overdue: {
     source: 'O cliente da venda recorrente',
     contact: true,

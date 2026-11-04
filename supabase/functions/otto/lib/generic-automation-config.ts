@@ -115,6 +115,7 @@ function schemaAccepts(type: NativeAutomationNodeType, config: Readonly<Record<s
     case "sale_renewal_due_today":
     case "sale_renewal_due_in_2_days":
     case "sale_renewal_overdue":
+    case "sale_payment_overdue_10d":
     case "referral_month_earned":
     case "referral_month_started":
     case "referral_month_ending_2d":

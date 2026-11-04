@@ -87,16 +87,16 @@ async function loadContexts(db: any, saleIds: string[]): Promise<Map<string, Sal
   return out;
 }
 
-function buildRecord(id: string, ctx: SaleContext, extra: Record<string, unknown>): Record<string, unknown> | null {
+function buildRecord(id: string, ctx: SaleContext, extra: Record<string, unknown>, allowPhoneOnly = false): Record<string, unknown> | null {
   // A client with no email cannot be written to; the engine would fail the
   // run at the send step anyway, so skip it here with a reason in the logs.
-  if (!ctx.client?.email) return null;
+  if (!ctx.client || (!ctx.client.email && !(allowPhoneOnly && ctx.client.phone))) return null;
   return {
     id,
     sale_id: ctx.sale?.id ?? '',
     client_id: ctx.sale?.client_id ?? '',
     nome: ctx.client.name ?? '',
-    email: ctx.client.email,
+    email: ctx.client.email ?? '',
     telefone: ctx.client.phone ?? '',
     empresa: ctx.client.company ?? '',
     codigo_venda: ctx.sale?.code ?? '',
@@ -270,7 +270,7 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       data_vencimento: ptDate(payment.payment_date),
       periodo: payment.notes || 'Pagamento agendado',
       dias_em_atraso: String(daysBetween(payment.payment_date, today)),
-    }), 'overdue_10d');
+    }, true), 'overdue_10d');
   }
 
   for (const c of liveCycles) {
@@ -310,7 +310,7 @@ export async function announceSaleCycles(db: any, target: EngineTarget) {
       data_vencimento: ptDate(c.due_date),
       periodo: `${ptDate(c.period_start)} a ${ptDate(c.period_end)}`,
       dias_em_atraso: String(daysBetween(c.due_date, today)),
-    }), 'overdue_10d');
+    }, true), 'overdue_10d');
   }
 
   return summary;
