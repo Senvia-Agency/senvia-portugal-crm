@@ -15,7 +15,7 @@ import { InboxWorkspaceToolbar } from '@/components/inbox/workspace/InboxWorkspa
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 import '@/components/inbox/inbox-workplace.css';
 import { useInterfaceStore } from '@/stores/useInterfaceStore';
-import { useAuth } from '@/contexts/AuthContext';
+import { isActiveMember, useAuth } from '@/contexts/AuthContext';
 import { ChatWorkspace } from '@/features/workplace/chat/ChatWorkspace';
 import { WEBMAIL_ENABLED } from '@/components/layout/workspaceNavigation';
 
@@ -61,7 +61,7 @@ export function InboxContent() {
   // fora de propósito — tem pastas, rascunhos e anexos, é um cliente próprio e
   // não uma lista de conversas.
   const [todasConversas, setTodasConversas] = useState(false);
-  const { user, organization } = useAuth();
+  const { user, organization, organizations } = useAuth();
   // Internal team messages, a box of their own beside the client channels (not in the compact side panel).
   const [teamChat, setTeamChat] = useState(false);
   const teamChatOn = TEAM_CHAT_ENABLED && !compact && teamChat && !!user && !!organization;
@@ -136,7 +136,7 @@ export function InboxContent() {
     onSelectEmail: escolherEmail,
     onSelectFolder: (fid: string) => { setTeamChat(false); setEmailFolderId(fid); setRailSheetOpen(false); },
     webmailLink: emailApart && !compact,
-    teamChat: TEAM_CHAT_ENABLED && !compact ? {
+    teamChat: TEAM_CHAT_ENABLED && !compact && isActiveMember(organizations, organization?.id) ? {
       active: teamChatOn,
       onSelect: () => { setEmailChannelId(null); setMetaChannelId(null); setTodasConversas(false); setTeamChat(true); setRailSheetOpen(false); },
     } : undefined,

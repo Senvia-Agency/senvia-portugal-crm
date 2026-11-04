@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isActiveMember, useAuth } from '@/contexts/AuthContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamMembers } from '@/hooks/useTeam';
@@ -17,8 +18,12 @@ export const chatKeys = {
 const retryUnlessMissing = (count: number, error: unknown) => !isMissingMigration(error) && count < 2;
 
 /** The caller's conversations; joins the organization's "Geral" channel first. Live via Realtime. */
-export function useChatConversations(organizationId: string | undefined, userId: string | undefined, enabled = true) {
+export function useChatConversations(organizationId: string | undefined, userId: string | undefined, requested = true) {
   const client = useQueryClient();
+  // Internal messages are for the people of the organization: a super admin
+  // visiting one is not in its chat (the server refuses it with a 403).
+  const { organizations } = useAuth();
+  const enabled = requested && isActiveMember(organizations, organizationId);
   const query = useQuery({
     queryKey: chatKeys.list(organizationId),
     enabled: enabled && !!organizationId,
