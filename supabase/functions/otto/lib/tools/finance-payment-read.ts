@@ -93,6 +93,8 @@ async function searchFinancePayments(
       };
     }),
     count: visible.length,
+    filters: { status: input.data.status ?? null, start_date: input.data.start_date ?? null, end_date: input.data.end_date ?? null },
+    results_may_be_incomplete: payments.data.length >= maxResults * 4 || visible.length >= maxResults,
   };
 }
 
