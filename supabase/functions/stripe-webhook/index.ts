@@ -358,6 +358,45 @@ serve(async (req) => {
 // Throws on failure. The caller returns 500 so Stripe retries the delivery —
 // previously every error here was swallowed and the webhook answered 200, which
 // told Stripe the payment had been processed and permanently dropped it.
+/** A renewal paid at 0 € (free month): advance the client's agency sale and its recurrence. */
+async function advanceFreeRenewal(supabase: any, invoice: Stripe.Invoice, billing: BillingContext) {
+  if (!billing.current || !billing.organizationId || invoice.billing_reason !== "subscription_cycle") return;
+  const sub = billing.subscription as Stripe.Subscription | null;
+  if (!sub) return;
+  const { data: sales, error } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("organization_id", SENVIA_AGENCY_ORG_ID)
+    .eq("client_org_id", billing.organizationId)
+    .in("status", ["pending", "in_progress", "fulfilled", "delivered"])
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) throw new Error(`sales query failed: ${error.message}`);
+  const saleId = sales?.[0]?.id as string | undefined;
+  if (!saleId) return;
+  const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000).toISOString().slice(0, 10) : null;
+  const periodEnd = invoice.period_end ? new Date(invoice.period_end * 1000).toISOString().slice(0, 10) : null;
+  const paidAt = invoice.status_transitions?.paid_at ?? invoice.created;
+  const nextCycle = subPeriodEnd(sub);
+  // invoiceAmount 0: the sale and recurrence move on; no billing cycle or
+  // fiscal document is created for a free month.
+  await syncPaidStripeSale(supabase, {
+    saleId,
+    organizationId: SENVIA_AGENCY_ORG_ID,
+    invoiceId: invoice.id,
+    customerId: typeof invoice.customer === "string" ? invoice.customer : null,
+    subscriptionId: invoiceSubscriptionId(invoice),
+    paymentDate: new Date(paidAt * 1000).toISOString().slice(0, 10),
+    periodStart,
+    periodEnd,
+    nextCycleDate: nextCycle ? new Date(nextCycle * 1000).toISOString().slice(0, 10) : periodEnd,
+    invoiceAmount: 0,
+    recurringAmount: sub.items.data.reduce((sum: number, item: any) => item.price?.recurring && item.price.unit_amount != null
+      ? sum + (item.price.unit_amount / 100) * (item.quantity || 1) : sum, 0),
+  });
+  logStep("invoice.paid: free month — renewal advanced", { invoice: invoice.id, saleId });
+}
+
 async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.Invoice, billing: BillingContext) {
   const orgId = billing.organizationId;
   {
@@ -374,7 +413,15 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     }
 
     const amount = (invoice.amount_paid || 0) / 100;
-    if (amount <= 0) { logStep("invoice.paid: zero amount"); return; }
+    if (amount <= 0) {
+      // A 0 € renewal is a free month (a referral reward): no money, so no
+      // payment row — but the period is covered, so the sale's renewal date
+      // must move on, or the agency sees it as overdue (Daniel Moreira,
+      // 2026-10-25).
+      await advanceFreeRenewal(supabase, invoice, billing);
+      logStep("invoice.paid: zero amount", { invoice: invoice.id });
+      return;
+    }
 
     // At-least-once delivery: Stripe redelivers on timeout/5xx. Without this the
     // same invoice inserts a second sale_payments row — double-recorded revenue.
