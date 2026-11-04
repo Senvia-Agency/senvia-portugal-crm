@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
 
-const MIGRATION = new URL("../../migrations/20261104200000_configured_workflow_scheduler.sql", import.meta.url);
+const MIGRATION = new URL("../../migrations/20261104153526_configured_workflow_scheduler.sql", import.meta.url);
 const ORG_A = "11111111-1111-4111-8111-111111111111";
 const ORG_B = "22222222-2222-4222-8222-222222222222";
 const FLOW_A = "33333333-3333-4333-8333-333333333333";

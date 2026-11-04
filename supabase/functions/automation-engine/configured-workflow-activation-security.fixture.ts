@@ -13,7 +13,7 @@ export const LEGACY_FLOW = "55555555-5555-4555-8555-555555555555";
 export const DIGEST_A = "a".repeat(64);
 
 const MIGRATION = new URL(
-  "../../migrations/20261104202000_configured_workflow_activation_proofs.sql",
+  "../../migrations/20261104153556_configured_workflow_activation_proofs.sql",
   import.meta.url,
 );
 
