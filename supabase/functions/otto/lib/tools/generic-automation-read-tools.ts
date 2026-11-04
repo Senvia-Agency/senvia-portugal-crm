@@ -65,7 +65,8 @@ export const genericAutomationReadTools = [
       if (error || !Array.isArray(data)) return AUTOMATION_DATABASE_ERROR;
       const channels = data.filter((row) => row.metadata_public?.native_inbox === true)
         .map(({ id, label, status }) => ({ id, label, status }));
-      return { channels, count: channels.length };
+      const connected = channels.filter((channel) => channel.status === "connected");
+      return { channels, count: channels.length, connected_count: connected.length, unique_connected_channel: connected.length === 1 ? connected[0] : null };
     },
   },
   {
@@ -78,7 +79,10 @@ export const genericAutomationReadTools = [
       schema_version: 1,
       flow_statuses: AUTOMATION_FLOW_STATUSES,
       reentry_policies: AUTOMATION_REENTRY_POLICIES,
-      creatable_triggers: CREATABLE_AUTOMATION_TRIGGERS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type] })),
+      creatable_triggers: CREATABLE_AUTOMATION_TRIGGERS.map((type) => ({
+        type, label: AUTOMATION_NODE_LABELS[type],
+        ...(type === "sale_payment_overdue_10d" ? { coverage: "Ciclos recorrentes pendentes e pagamentos de venda autónomos pendentes há mais de 10 dias completos, associados a vendas não canceladas; exclui pagamento já representado pelo ciclo e exige contacto do cliente.", recipient_source: "Email e telefone do cliente associado à venda, quando disponíveis." } : {}),
+      })),
       legacy_editable_triggers: LEGACY_AUTOMATION_TRIGGERS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type], creatable: false })),
       creatable_actions: CREATABLE_AUTOMATION_ACTIONS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type] })),
       compatible_existing_actions: COMPATIBLE_AUTOMATION_ACTIONS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type], creatable: false })),
