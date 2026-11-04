@@ -49,10 +49,13 @@ export function useOttoChat() {
     setScope(activeScope);
     return () => {
       lifecycleRef.current += 1;
+      if (streamAbortRef.current && useOttoStore.getState().scope === activeScope) {
+        setLoading(false);
+      }
       streamAbortRef.current?.abort();
       actionAbortRef.current?.abort();
     };
-  }, [activeScope, setScope]);
+  }, [activeScope, setScope, setLoading]);
 
   const uploadAttachments = useCallback(async (files: readonly File[]): Promise<string[]> => {
     if (!organization?.id || files.length === 0) return [];

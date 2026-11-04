@@ -164,6 +164,7 @@ async function consumeSse(body: ReadableStream<Uint8Array>, handlers: OttoStream
   const decoder = new TextDecoder();
   const frameLines: string[] = [];
   let buffer = "";
+  let completed = false;
 
   const consumeLine = (rawLine: string): void => {
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
@@ -183,7 +184,9 @@ async function consumeSse(body: ReadableStream<Uint8Array>, handlers: OttoStream
       if (field === "data") dataLines.push(value);
     }
     frameLines.length = 0;
-    if (dataLines.length > 0) handleFrame(eventName, dataLines.join("\n"), handlers);
+    const data = dataLines.join("\n");
+    if (data === "[DONE]") completed = true;
+    else if (dataLines.length > 0) handleFrame(eventName, data, handlers);
   };
 
   while (true) {
@@ -194,6 +197,10 @@ async function consumeSse(body: ReadableStream<Uint8Array>, handlers: OttoStream
     while (newlineIndex !== -1) {
       consumeLine(buffer.slice(0, newlineIndex));
       buffer = buffer.slice(newlineIndex + 1);
+      if (completed) {
+        void reader.cancel().catch(() => undefined);
+        return;
+      }
       newlineIndex = buffer.indexOf("\n");
     }
   }
