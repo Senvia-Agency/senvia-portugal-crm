@@ -1,5 +1,6 @@
 import { Inbox as InboxIcon, Send, FileText, ShieldAlert, Trash2, Archive, Folder } from 'lucide-react';
 import type { EmailFolder, EmailFolderRole, EmailAddress } from '@/hooks/useEmail';
+import { tr, intlLocale } from '@/i18n';
 
 export const ROLE_META: Record<EmailFolderRole, { label: string; Icon: typeof InboxIcon }> = {
   inbox: { label: 'Entrada', Icon: InboxIcon },
@@ -12,7 +13,7 @@ export const ROLE_META: Record<EmailFolderRole, { label: string; Icon: typeof In
 };
 
 export function folderLabel(f: EmailFolder) {
-  return f.role === 'custom' ? f.name : ROLE_META[f.role].label;
+  return f.role === 'custom' ? f.name : tr(ROLE_META[f.role].label);
 }
 
 export function initials(name: string) {
@@ -28,14 +29,14 @@ export function fmtListDate(value: string | null) {
   const d = new Date(value);
   const now = new Date();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (d.getTime() >= startToday) return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
-  return d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  if (d.getTime() >= startToday) return d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short' });
+  return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
 export function fmtFullDate(value: string | null) {
   if (!value) return '';
-  return new Date(value).toLocaleString('pt-PT', {
+  return new Date(value).toLocaleString(intlLocale(), {
     weekday: 'short', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }

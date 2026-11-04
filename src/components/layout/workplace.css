@@ -1,0 +1,199 @@
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] {
+  --workplace-canvas: 220 33% 98%;
+  --workplace-line: 220 25% 90%;
+  --workplace-ink: 222 47% 14%;
+  --workplace-blue: 217 91% 60%;
+  --workplace-depth: 0 2px 3px hsl(222 47% 11% / .025), 0 8px 24px hsl(222 47% 11% / .035);
+}
+.app-shell[data-interface='workspace'] main {
+  background: hsl(var(--workplace-canvas));
+}
+/* Module colours: one per module, spread around the wheel so neighbours in the
+   menu never look alike. Used by the menu tile, the page header and small marks
+   (see module-identity.ts). */
+[data-module] { --module-tone: 218 14% 46%; }
+[data-module='dashboard'] { --module-tone: 222 80% 55%; }
+[data-module='feed'] { --module-tone: 6 80% 58%; }
+[data-module='inbox'] { --module-tone: 258 70% 60%; }
+[data-module='webmail'] { --module-tone: 25 90% 53%; }
+[data-module='marketing'] { --module-tone: 203 85% 48%; }
+[data-module='messages'] { --module-tone: 300 58% 54%; }
+[data-module='tasks'] { --module-tone: 88 58% 40%; }
+[data-module='calendar'] { --module-tone: 344 78% 58%; }
+[data-module='timeclock'] { --module-tone: 52 80% 40%; }
+[data-module='referrals'] { --module-tone: 292 76% 52%; }
+[data-module='news'] { --module-tone: 46 95% 48%; }
+[data-module='leads'] { --module-tone: 186 82% 38%; }
+[data-module='clients'] { --module-tone: 241 60% 61%; }
+[data-module='proposals'] { --module-tone: 40 90% 46%; }
+[data-module='sales'] { --module-tone: 142 58% 39%; }
+[data-module='prospects'] { --module-tone: 322 66% 55%; }
+[data-module='finance'] { --module-tone: 165 72% 34%; }
+[data-module='automations'] { --module-tone: 278 58% 58%; }
+
+/* The tile: the module colour under the same soft light for every module. */
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .module-nav-icon {
+  color: white;
+  border-color: hsl(0 0% 100% / .14);
+  background: linear-gradient(160deg, hsl(0 0% 100% / .18), hsl(0 0% 100% / 0) 60%), hsl(var(--module-tone));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .18), 0 2px 4px hsl(var(--module-tone) / .18);
+  border-radius: .65rem;
+}
+.app-shell[data-interface='workspace'] aside.gradient-sidebar {
+  background: linear-gradient(165deg, hsl(222 47% 11%), hsl(224 48% 7%));
+}
+.app-shell[data-interface='workspace'] .workspace-topbar {
+  background: hsl(222 47% 10%);
+  border-bottom: 1px solid hsl(0 0% 100% / .055);
+}
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-page-header h1 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: -.035em;
+  font-weight: 750;
+}
+/* The page carries its module's tile, same colour and light as in the menu. */
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-page-header h1 > svg {
+  box-sizing: content-box;
+  padding: 8px;
+  border-radius: .7rem;
+  color: white;
+  background: linear-gradient(160deg, hsl(0 0% 100% / .18), hsl(0 0% 100% / 0) 60%), hsl(var(--module-tone));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .18), 0 2px 4px hsl(var(--module-tone) / .18);
+}
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-card {
+  border-color: hsl(var(--workplace-line));
+  border-radius: .875rem;
+  box-shadow: var(--workplace-depth);
+}
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-button {
+  border-radius: .7rem;
+  font-weight: 600;
+}
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-button[data-variant='default'] {
+  background: linear-gradient(145deg, hsl(215 96% 64%), hsl(221 83% 53%));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .16), 0 3px 8px hsl(217 91% 60% / .18);
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.app-shell, .workplace-portal)[data-interface='workspace'] .workplace-button,
+  :is(.app-shell, .workplace-portal)[data-interface='workspace'] .module-nav-icon { transition: none; }
+}
+.module-nav-icon[data-nav-tone='overview'] {
+  --module-nav-tone: var(--nav-communication);
+}
+
+/* Shared Workplace chrome, extracted from the supplied Realize reference. */
+:is(.app-shell, .workplace-portal)[data-interface='workspace'] {
+  --workplace-shell: 240 9% 5%;
+  --workplace-canvas: 248 33% 98%;
+  --workplace-tabs: 246 17% 94%;
+  --workplace-line: 245 25% 90%;
+  --workplace-ink: 245 28% 14%;
+  --workplace-muted: 245 13% 44%;
+  --workplace-radius: 1.75rem;
+  --workplace-card-radius: 1.75rem;
+  --workplace-depth: 0 2px 3px hsl(245 28% 14% / .025), 0 8px 20px hsl(245 28% 14% / .04);
+}
+.dark :is(.app-shell, .workplace-portal)[data-interface='workspace'] {
+  --workplace-canvas: 240 12% 10%;
+  --workplace-tabs: 240 10% 14%;
+  --workplace-line: 240 10% 22%;
+  --workplace-ink: 240 15% 94%;
+  --workplace-muted: 240 9% 68%;
+}
+.app-shell[data-interface='workspace'] { background: hsl(var(--workplace-shell)); }
+.app-shell[data-interface='workspace'] aside.gradient-sidebar {
+  background: hsl(var(--workplace-shell));
+  border-right-color: transparent;
+}
+.app-shell[data-interface='workspace'] .workspace-topbar {
+  background: hsl(var(--workplace-shell));
+  border-bottom-color: transparent;
+}
+.app-shell[data-interface='workspace'] .workspace-sidebar-brand { border-bottom-color: transparent; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-org { padding-block: .5rem; border-color: hsl(0 0% 100% / .07); }
+/* Menu: tighter rows so more modules fit without scrolling. */
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav { padding: .75rem .5rem; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav > :not([hidden]) ~ :not([hidden]) { margin-top: .875rem; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav > div > :not([hidden]) ~ :not([hidden]) { margin-top: 2px; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav > div > p { padding-bottom: .375rem; color: hsl(240 6% 56%); font-weight: 600; letter-spacing: .12em; }
+/* A thin scrollbar that only shows while the pointer is over the menu (the fade marks the cut edge). */
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav::-webkit-scrollbar { width: 4px; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav::-webkit-scrollbar-button { display: none; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav::-webkit-scrollbar-thumb { border-radius: 4px; background: transparent; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-nav:is(:hover, :focus-within)::-webkit-scrollbar-thumb { background: hsl(0 0% 100% / .16); }
+@supports not selector(::-webkit-scrollbar) {
+  .app-shell[data-interface='workspace'] .workspace-sidebar-nav { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .app-shell[data-interface='workspace'] .workspace-sidebar-nav:is(:hover, :focus-within) { scrollbar-color: hsl(0 0% 100% / .16) transparent; }
+}
+.app-shell[data-interface='workspace'] .workspace-sidebar-link {
+  min-height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: .875rem;
+  padding-block: 3px;
+  padding-inline: .5rem;
+  color: hsl(240 8% 72%);
+  font-size: .875rem;
+  font-weight: 500;
+}
+.app-shell[data-interface='workspace'] .workspace-sidebar-link:hover { background: hsl(0 0% 100% / .05); color: white; }
+/* The open module: its own colour behind the row and a bar at the edge — nothing else looks like it. */
+.app-shell[data-interface='workspace'] .workspace-sidebar-link[aria-current='page'],
+.app-shell[data-interface='workspace'] .workspace-sidebar-link[aria-current='page']:hover {
+  border-color: hsl(var(--module-tone) / .45);
+  background: linear-gradient(90deg, hsl(var(--module-tone) / .3), hsl(var(--module-tone) / .12));
+  color: white;
+  font-weight: 600;
+  box-shadow: none;
+}
+.app-shell[data-interface='workspace'] .workspace-sidebar-link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  height: 1.375rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: hsl(var(--module-tone));
+  transform: translateY(-50%);
+}
+.app-shell[data-interface='workspace'] .workspace-sidebar-link[aria-current='page'] .module-nav-icon { box-shadow: 0 0 0 2px hsl(0 0% 100% / .14), 0 2px 6px hsl(var(--module-tone) / .35); }
+/* The page card stops .5rem above the bottom of the screen, so a full-height page is the
+   screen minus the top bar and that gap. Counting only the top bar left every page 8px too
+   tall: at the end of a list the whole window scrolled and the interface jumped up. */
+.app-shell[data-interface='workspace'] { --workplace-page-height: calc(100dvh - 4.5rem); }
+.app-shell[data-interface='workspace'] :is(.workspace-main, .workspace-main > div:last-child) { min-height: var(--workplace-page-height); }
+.app-shell[data-interface='workspace'] .workspace-main {
+  border-radius: var(--workplace-radius);
+  margin-bottom: .5rem;
+  background: hsl(var(--workplace-canvas));
+  box-shadow: none;
+  overflow: clip;
+}
+.app-shell[data-interface='workspace'] .workspace-main > div:last-child { background: hsl(var(--workplace-canvas)); }
+@media (min-width: 1024px) {
+  .app-shell[data-interface='workspace'] .workspace-topbar { position: sticky; top: 0; z-index: 35; }
+}
+.workplace-brand-caption { display: none; }
+.app-shell[data-interface='workspace'] .workspace-sidebar-brand [aria-label='Senvia OS'] { flex-direction: column; align-items: flex-start; gap: .125rem; }
+.app-shell[data-interface='workspace'] .workplace-brand-caption { display: block; max-width: 10.5rem; overflow: hidden; padding-left: .125rem; color: hsl(240 10% 75%); font-size: .625rem; font-weight: 600; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.app-shell[data-interface='workspace'] [data-workspace-search] { border-radius: 999px; }
+.app-shell[data-interface='workspace'] .mobile-workplace-header { background: hsl(var(--workplace-shell)); color: white; border-color: hsl(0 0% 100% / .08); }
+.app-shell[data-interface='workspace'] .mobile-workplace-header > div { gap: .25rem; padding-inline: .5rem; }
+.app-shell[data-interface='workspace'] .workplace-mobile-controls .workplace-time-preview { width: 2.5rem; height: 2.5rem; padding: 0; }
+.app-shell[data-interface='workspace'] .workplace-mobile-controls .workplace-time-preview :is(time, .workplace-time-dot, .workplace-time-label) { display: none; }
+.app-shell[data-interface='workspace'] .workplace-mobile-controls .workplace-time-preview > svg { border: 0; padding: 0; }
+.app-shell[data-interface='workspace'] .workplace-mobile-controls .workplace-time-separator { display: none; }
+.app-shell[data-interface='workspace'] .mobile-workplace-header > div > button { color: hsl(0 0% 100% / .9); }
+/* Account actions live in the shared top-right menu in Workplace mode. */
+.app-shell[data-interface='workspace'] .workspace-sidebar-account { display: none; }
+@media (min-width: 1024px) { .app-shell[data-interface='workspace'] .workspace-topbar { padding-inline: .25rem; } }
+.app-shell[data-interface='workspace'] .workspace-sidebar-org button { color: hsl(240 10% 90%); }
+.app-shell[data-interface='workspace'] .workspace-sidebar-org button:is(:hover, :focus-visible, [data-state='open']) { background: hsl(0 0% 100% / .09); }
+.app-shell[data-interface='workspace'] .workspace-topbar .interface-version-switch { border-color: hsl(0 0% 100% / .18); border-radius: 999px; background: hsl(0 0% 100% / .06); color: hsl(0 0% 100% / .9); }
+.mobile-workplace-header .interface-version-switch--compact { height: 2.5rem; gap: .25rem; padding-inline: .375rem; border-radius: 999px; background: hsl(0 0% 100% / .06); border-color: hsl(0 0% 100% / .18); color: white; font-size: .625rem; }
+.mobile-workplace-header .interface-version-switch--compact > span:last-child { width: 1.5rem; height: 1rem; }
+.mobile-workplace-header .interface-version-switch--compact > span:last-child > span { height: .75rem; width: .75rem; }
+.mobile-workplace-header .interface-version-switch--compact > span:last-child > span.translate-x-3 { transform: translateX(.5rem); }
+@media (max-width: 420px) { .app-shell[data-interface='workspace'] .mobile-workplace-header > div > img { width: 4rem; } .app-shell[data-interface='workspace'] .workplace-mobile-controls { gap: .125rem; } }

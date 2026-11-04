@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/table";
 import { Activity, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AdminShell, AdminStatBand, AdminTableSkeleton, type AdminStat } from "@/components/system-admin/AdminShell";
+import { useLanguage, tr, dateLocale } from "@/i18n";
 
 // Mirrors public.trial_activation_overview (security_invoker view).
 interface TrialRow {
@@ -50,10 +50,10 @@ const LEVEL_META: Record<Level, { label: string; badge: string; bar: string }> =
 const STUCK_HOURS = 48;
 
 function fmtLastActive(hours: number | null): string {
-  if (hours === null) return "nunca";
-  if (hours < 1) return "agora mesmo";
-  if (hours < 24) return `há ${hours}h`;
-  return `há ${Math.floor(hours / 24)}d`;
+  if (hours === null) return tr("nunca");
+  if (hours < 1) return tr("agora mesmo");
+  if (hours < 24) return tr("há {{n}}h", { n: hours });
+  return tr("há {{n}}d", { n: Math.floor(hours / 24) });
 }
 
 function isStuck(r: TrialRow): boolean {
@@ -62,6 +62,7 @@ function isStuck(r: TrialRow): boolean {
 
 export default function SystemAdminTrialActivation() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { switchOrganization } = useAuth();
   const [onlyStuck, setOnlyStuck] = useState(false);
 
@@ -118,41 +119,41 @@ export default function SystemAdminTrialActivation() {
   };
 
   const stats: AdminStat[] = [
-    { label: "Trials ativos", value: metrics.activeCount, loading: isLoading },
+    { label: t("Trials ativos"), value: metrics.activeCount, loading: isLoading },
     {
-      label: "Chegaram ao aha",
+      label: t("Chegaram ao aha"),
       value: metrics.reachedAha,
       tone: "primary",
       loading: isLoading,
-      hint: metrics.activeCount > 0 ? `${Math.round((metrics.reachedAha / metrics.activeCount) * 100)}% dos ativos` : "primeira venda",
+      hint: metrics.activeCount > 0 ? t("{{pct}}% dos ativos", { pct: Math.round((metrics.reachedAha / metrics.activeCount) * 100) }) : t("primeira venda"),
     },
     {
-      label: `Parados +${STUCK_HOURS}h`,
+      label: t("Parados +{{n}}h", { n: STUCK_HOURS }),
       value: metrics.stuck,
       tone: metrics.stuck > 0 ? "warning" : "default",
       loading: isLoading,
-      hint: metrics.stuck > 0 ? "precisam de toque" : "tudo a mexer",
+      hint: metrics.stuck > 0 ? t("precisam de toque") : t("tudo a mexer"),
     },
     {
-      label: "Conversão",
+      label: t("Conversão"),
       value: metrics.conversionRate === null ? "—" : `${metrics.conversionRate}%`,
       tone: "success",
       loading: isLoading,
-      hint: `${metrics.payingCount} a pagar`,
+      hint: t("{{n}} a pagar", { n: metrics.payingCount }),
     },
   ];
 
   return (
     <AdminShell
-      title="Ativação de Trials"
-      description={'Onde está cada trial no funil de ativação. O "aha" é a primeira venda registada.'}
+      title={t("Ativação de Trials")}
+      description={t('Onde está cada trial no funil de ativação. O "aha" é a primeira venda registada.')}
       icon={Activity}
     >
       {isError ? (
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-sm text-muted-foreground">
-              Não foi possível carregar os dados de ativação. A vista pode ainda não estar disponível na base de dados.
+              {t("Não foi possível carregar os dados de ativação. A vista pode ainda não estar disponível na base de dados.")}
             </p>
           </CardContent>
         </Card>
@@ -164,7 +165,7 @@ export default function SystemAdminTrialActivation() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">
-                Funil de ativação{!isLoading && ` (${metrics.activeCount} trials ativos)`}
+                {t("Funil de ativação")}{!isLoading && ` ${t("({{n}} trials ativos)", { n: metrics.activeCount })}`}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -175,11 +176,11 @@ export default function SystemAdminTrialActivation() {
           {/* Tabela */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
-              <CardTitle className="text-sm">Trials ativos</CardTitle>
+              <CardTitle className="text-sm">{t("Trials ativos")}</CardTitle>
               {!isLoading && (
                 <div className="inline-flex rounded-lg border bg-muted/40 p-0.5 text-xs">
-                  <FilterTab active={!onlyStuck} onClick={() => setOnlyStuck(false)} label={`Todos ${activeRows.length}`} />
-                  <FilterTab active={onlyStuck} onClick={() => setOnlyStuck(true)} label={`Parados +48h ${metrics.stuck}`} />
+                  <FilterTab active={!onlyStuck} onClick={() => setOnlyStuck(false)} label={t("Todos {{n}}", { n: activeRows.length })} />
+                  <FilterTab active={onlyStuck} onClick={() => setOnlyStuck(true)} label={t("Parados +48h {{n}}", { n: metrics.stuck })} />
                 </div>
               )}
             </CardHeader>
@@ -191,11 +192,11 @@ export default function SystemAdminTrialActivation() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Organização</TableHead>
-                        <TableHead className="text-center">Dias restantes</TableHead>
-                        <TableHead className="text-center">Nível</TableHead>
-                        <TableHead className="hidden text-center sm:table-cell">Sinais</TableHead>
-                        <TableHead className="text-right">Última atividade</TableHead>
+                        <TableHead>{t("Organização")}</TableHead>
+                        <TableHead className="text-center">{t("Dias restantes")}</TableHead>
+                        <TableHead className="text-center">{t("Nível")}</TableHead>
+                        <TableHead className="hidden text-center sm:table-cell">{t("Sinais")}</TableHead>
+                        <TableHead className="text-right">{t("Última atividade")}</TableHead>
                         <TableHead className="w-8" />
                       </TableRow>
                     </TableHeader>
@@ -203,7 +204,7 @@ export default function SystemAdminTrialActivation() {
                       {displayedRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                            {onlyStuck ? "Nenhum trial parado há mais de 48h. 🎉" : "Nenhum trial ativo de momento."}
+                            {onlyStuck ? t("Nenhum trial parado há mais de 48h. 🎉") : t("Nenhum trial ativo de momento.")}
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -214,7 +215,7 @@ export default function SystemAdminTrialActivation() {
                             <TableRow
                               key={r.organization_id}
                               onClick={() => handleAccess(r.organization_id)}
-                              title={`Aceder a ${r.name}`}
+                              title={t("Aceder a {{name}}", { name: r.name })}
                               className={cn("group cursor-pointer", stuck && "bg-amber-50/50 dark:bg-amber-950/20")}
                             >
                               <TableCell className="font-medium">{r.name}</TableCell>
@@ -224,19 +225,19 @@ export default function SystemAdminTrialActivation() {
                                 </span>
                                 {r.trial_ends_at && (
                                   <span className="ml-1 hidden text-xs text-muted-foreground md:inline">
-                                    ({format(new Date(r.trial_ends_at), "dd MMM", { locale: pt })})
+                                    ({format(new Date(r.trial_ends_at), "dd MMM", { locale: dateLocale() })})
                                   </span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge variant="secondary" className={cn("border-transparent", meta.badge)}>{meta.label}</Badge>
+                                <Badge variant="secondary" className={cn("border-transparent", meta.badge)}>{t(meta.label)}</Badge>
                               </TableCell>
                               <TableCell className="hidden text-center sm:table-cell">
                                 <div className="flex items-center justify-center gap-1">
-                                  <SignalDot on={!!r.first_lead_at} title="Leads" letter="L" />
-                                  <SignalDot on={!!r.first_client_at} title="Clientes" letter="C" />
-                                  <SignalDot on={!!r.first_sale_at} title="Vendas" letter="V" />
-                                  <SignalDot on={!!r.first_proposal_at} title="Propostas" letter="P" />
+                                  <SignalDot on={!!r.first_lead_at} title={t("Leads")} letter="L" />
+                                  <SignalDot on={!!r.first_client_at} title={t("Clientes")} letter="C" />
+                                  <SignalDot on={!!r.first_sale_at} title={t("Vendas")} letter="V" />
+                                  <SignalDot on={!!r.first_proposal_at} title={t("Propostas")} letter="P" />
                                 </div>
                               </TableCell>
                               <TableCell className={cn("text-right", stuck ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
@@ -277,6 +278,7 @@ function FilterTab({ active, onClick, label }: { active: boolean; onClick: () =>
 }
 
 function FunnelBar({ funnel, total, loading }: { funnel: Record<Level, number>; total: number; loading?: boolean }) {
+  const { t } = useLanguage();
   // Progression order: none -> minimum -> medium -> advanced.
   const order: Level[] = ["none", "minimum", "medium", "advanced"];
   return (
@@ -289,7 +291,7 @@ function FunnelBar({ funnel, total, loading }: { funnel: Record<Level, number>; 
                 key={k}
                 className={LEVEL_META[k].bar}
                 style={{ width: `${(funnel[k] / total) * 100}%` }}
-                title={`${LEVEL_META[k].label}: ${funnel[k]}`}
+                title={`${t(LEVEL_META[k].label)}: ${funnel[k]}`}
               />
             ) : null,
           )}
@@ -298,7 +300,7 @@ function FunnelBar({ funnel, total, loading }: { funnel: Record<Level, number>; 
         {order.map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5">
             <span className={cn("h-2 w-2 rounded-full", LEVEL_META[k].bar)} />
-            {LEVEL_META[k].label}
+            {t(LEVEL_META[k].label)}
             <span className="font-medium text-foreground tabular-nums">{loading ? "·" : funnel[k]}</span>
           </span>
         ))}

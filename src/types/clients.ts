@@ -1,6 +1,7 @@
 import { Lead } from "@/types";
 
-export type ClientStatus = 'active' | 'inactive' | 'vip';
+// 'vip' was a third status until 2026-10; old rows read as active (see useClients).
+export type ClientStatus = 'active' | 'inactive';
 export type ClientSource = 'lead' | 'referral' | 'direct' | 'website' | 'other';
 export type BillingTarget = 'client' | 'company';
 
@@ -69,13 +70,11 @@ export interface CrmClient {
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   active: 'Ativo',
   inactive: 'Inativo',
-  vip: 'VIP',
 };
 
 export const CLIENT_STATUS_STYLES: Record<ClientStatus, { bg: string; text: string; border: string }> = {
   active: { bg: 'bg-success/10', text: 'text-success', border: 'border-success/20' },
   inactive: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-muted' },
-  vip: { bg: 'bg-warning/10', text: 'text-warning', border: 'border-warning/20' },
 };
 
 export const CLIENT_SOURCE_LABELS: Record<string, string> = {

@@ -10,6 +10,7 @@ import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, Loa
 import { createPortal } from 'react-dom';
 import { useDialogContainer } from '@/components/ui/portal-container';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 export interface MediaItem {
   url: string;
@@ -36,6 +37,7 @@ export const MediaViewer = memo(function MediaViewer({
   onNavigate: (index: number) => void;
   onDownload?: (item: MediaItem) => void;
 }) {
+  const { t } = useLanguage();
   const item = items[index];
   const portalContainer = useDialogContainer();
   const ownerDocument = portalContainer?.ownerDocument ?? document;
@@ -175,7 +177,7 @@ export const MediaViewer = memo(function MediaViewer({
       ref={containerRef}
       data-inbox-workspace-control
       role="dialog"
-      aria-label="Pré-visualização de ficheiro"
+      aria-label={t("Pré-visualização de ficheiro")}
       className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
       onMouseMove={showControlsBriefly}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -187,11 +189,11 @@ export const MediaViewer = memo(function MediaViewer({
       )}>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-white/90">
-            {item?.title || item?.filename || (item?.type === 'video' ? 'Vídeo' : 'Imagem')}
+            {item?.title || item?.filename || (item?.type === 'video' ? t('Vídeo') : t('Imagem'))}
           </p>
           {(item?.subtitle || items.length > 1) && (
             <p className="text-xs text-white/50">
-              {[item?.subtitle, items.length > 1 ? `${index + 1} de ${items.length}` : null]
+              {[item?.subtitle, items.length > 1 ? t('{{n}} de {{total}}', { n: index + 1, total: items.length }) : null]
                 .filter(Boolean).join(' · ')}
             </p>
           )}
@@ -200,7 +202,7 @@ export const MediaViewer = memo(function MediaViewer({
           <button
             type="button"
             onClick={() => onDownload(item)}
-            title="Transferir"
+            title={t("Transferir")}
             className="mr-2 flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
           >
             <Download className="h-5 w-5" />
@@ -209,7 +211,7 @@ export const MediaViewer = memo(function MediaViewer({
         <button
           type="button"
           onClick={onClose}
-          title="Fechar (Esc)"
+          title={t("Fechar (Esc)")}
           className="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
         >
           <X className="h-5 w-5" />
@@ -221,7 +223,7 @@ export const MediaViewer = memo(function MediaViewer({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavigate(index - 1); resetZoom(); }}
-          title="Anterior (←)"
+          title={t("Anterior (←)")}
           className={cn(
             'absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-all hover:bg-white/10 hover:text-white',
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none',
@@ -236,7 +238,7 @@ export const MediaViewer = memo(function MediaViewer({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavigate(index + 1); resetZoom(); }}
-          title="Seguinte (→)"
+          title={t("Seguinte (→)")}
           className={cn(
             'absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-all hover:bg-white/10 hover:text-white',
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none',
@@ -276,7 +278,7 @@ export const MediaViewer = memo(function MediaViewer({
           )}
           <img
             src={item.url}
-            alt={item.filename || 'Imagem'}
+            alt={item.filename || t('Imagem')}
             draggable={false}
             onLoad={() => setImgLoaded(true)}
             className={cn(
@@ -340,7 +342,7 @@ export const MediaViewer = memo(function MediaViewer({
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(1, z - 0.3))}
-            title="Diminuir zoom (-)"
+            title={t("Diminuir zoom (-)")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:bg-white/10"
           >
             <ZoomOut className="h-4 w-4" />
@@ -351,7 +353,7 @@ export const MediaViewer = memo(function MediaViewer({
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(5, z + 0.3))}
-            title="Aumentar zoom (+)"
+            title={t("Aumentar zoom (+)")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:bg-white/10"
           >
             <ZoomIn className="h-4 w-4" />
@@ -360,7 +362,7 @@ export const MediaViewer = memo(function MediaViewer({
           <button
             type="button"
             onClick={resetZoom}
-            title="Repor zoom (0)"
+            title={t("Repor zoom (0)")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:bg-white/10"
           >
             <Maximize2 className="h-4 w-4" />

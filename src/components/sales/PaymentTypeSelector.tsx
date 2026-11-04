@@ -7,6 +7,7 @@ import {
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import { formatCurrency } from "@/lib/format";
+import { useLanguage } from "@/i18n";
 
 interface PaymentTypeSelectorProps {
   open: boolean;
@@ -23,13 +24,14 @@ export function PaymentTypeSelector({
   onSelectTotal,
   onSelectInstallments,
 }: PaymentTypeSelectorProps) {
+  const { t } = useLanguage();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-sm sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>Tipo de Pagamento</AlertDialogTitle>
+          <AlertDialogTitle>{t("Tipo de Pagamento")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Como deseja registar o pagamento?
+            {t("Como deseja registar o pagamento?")}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -44,7 +46,7 @@ export function PaymentTypeSelector({
               <CheckCircle2 className="h-5 w-5 text-primary" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-semibold">Pronto Pagamento</p>
+              <p className="text-sm font-semibold">{t("Pronto Pagamento")}</p>
               <p className="text-xs text-muted-foreground">
                 {formatCurrency(remainingAmount)}
               </p>
@@ -61,9 +63,9 @@ export function PaymentTypeSelector({
               <CalendarClock className="h-5 w-5 text-primary" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-semibold">Agendar Pagamento</p>
+              <p className="text-sm font-semibold">{t("Agendar Pagamento")}</p>
               <p className="text-xs text-muted-foreground">
-                Agendar em parcelas
+                {t("Agendar em parcelas")}
               </p>
             </div>
           </button>

@@ -28,6 +28,7 @@ import { MessageTemplateField } from './MessageTemplateField';
 import { UpgradeModal } from '@/components/shared/UpgradeModal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useLanguage } from '@/i18n';
 
 type Tab = 'forms' | 'ai';
 
@@ -38,6 +39,7 @@ export function FormsManager() {
   const duplicateForm = useDuplicateForm();
   const updateForm = useUpdateForm();
   const updateOrganization = useUpdateOrganization();
+  const { t } = useLanguage();
   const { limits, planName } = useSubscription();
 
   const [activeTab, setActiveTab] = useState<Tab>('forms');
@@ -72,7 +74,7 @@ export function FormsManager() {
 
   const handleCopyUrl = async (form: Form) => {
     await navigator.clipboard.writeText(getFormUrl(form));
-    toast.success('URL copiado!');
+    toast.success(t('URL copiado!'));
   };
 
   const handleCopyEmbed = async (form: Form, embedMode: 'iframe' | 'redirect') => {
@@ -82,7 +84,7 @@ export function FormsManager() {
       ? `<div id="senvia-form"></div>\n<script src="${PRODUCTION_URL}/embed.js" data-form="${slug}" data-path="${formPath}" data-mode="iframe"></script>`
       : `<script src="${PRODUCTION_URL}/embed.js" data-form="${slug}" data-path="${formPath}" data-mode="redirect"></script>`;
     await navigator.clipboard.writeText(code);
-    toast.success('Código embed copiado!');
+    toast.success(t('Código embed copiado!'));
   };
 
   const handleDeleteConfirm = () => {
@@ -142,7 +144,7 @@ export function FormsManager() {
             )}
           >
             <Icon className="h-4 w-4" />
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -152,12 +154,12 @@ export function FormsManager() {
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Crie e gira múltiplos formulários para diferentes campanhas
+              {t('Crie e gira múltiplos formulários para diferentes campanhas')}
             </p>
             <Button
               onClick={() => {
                 if (limits.maxForms !== null && forms && forms.length >= limits.maxForms) {
-                  toast.error(`Limite de ${limits.maxForms} formulários atingido no plano ${planName}`);
+                  toast.error(t('Limite de {{n}} formulários atingido no plano {{plan}}', { n: limits.maxForms, plan: planName }));
                   setShowUpgradeModal(true);
                   return;
                 }
@@ -166,7 +168,7 @@ export function FormsManager() {
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Novo Formulário</span>
+              <span className="hidden sm:inline">{t('Novo Formulário')}</span>
             </Button>
           </div>
 
@@ -201,40 +203,40 @@ export function FormsManager() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setEditingForm(form)}>
-                          <Edit className="h-4 w-4 mr-2" />Editar
+                          <Edit className="h-4 w-4 mr-2" />{t('Editar')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleOpenForm(form)}>
-                          <ExternalLink className="h-4 w-4 mr-2" />Abrir
+                          <ExternalLink className="h-4 w-4 mr-2" />{t('Abrir')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyUrl(form)}>
-                          <Copy className="h-4 w-4 mr-2" />Copiar URL
+                          <Copy className="h-4 w-4 mr-2" />{t('Copiar URL')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyEmbed(form, 'iframe')}>
-                          <Code className="h-4 w-4 mr-2" />Copiar Embed (Formulário)
+                          <Code className="h-4 w-4 mr-2" />{t('Copiar Embed (Formulário)')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyEmbed(form, 'redirect')}>
-                          <Code className="h-4 w-4 mr-2" />Copiar Embed (Botão)
+                          <Code className="h-4 w-4 mr-2" />{t('Copiar Embed (Botão)')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => {
                           if (limits.maxForms !== null && forms && forms.length >= limits.maxForms) {
-                            toast.error(`Limite de ${limits.maxForms} formulários atingido no plano ${planName}`);
+                            toast.error(t('Limite de {{n}} formulários atingido no plano {{plan}}', { n: limits.maxForms, plan: planName }));
                             setShowUpgradeModal(true);
                             return;
                           }
                           duplicateForm.mutate(form.id);
                         }}>
-                          <Copy className="h-4 w-4 mr-2" />Duplicar
+                          <Copy className="h-4 w-4 mr-2" />{t('Duplicar')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {!form.is_default && (
                           <DropdownMenuItem onClick={() => updateForm.mutate({ id: form.id, is_default: true })}>
-                            <Star className="h-4 w-4 mr-2" />Definir como Principal
+                            <Star className="h-4 w-4 mr-2" />{t('Definir como Principal')}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onClick={() => updateForm.mutate({ id: form.id, is_active: !form.is_active })}>
                           {form.is_active
-                            ? <><PowerOff className="h-4 w-4 mr-2" />Desativar</>
-                            : <><Power className="h-4 w-4 mr-2" />Ativar</>}
+                            ? <><PowerOff className="h-4 w-4 mr-2" />{t('Desativar')}</>
+                            : <><Power className="h-4 w-4 mr-2" />{t('Ativar')}</>}
                         </DropdownMenuItem>
                         {!form.is_default && (
                           <>
@@ -243,7 +245,7 @@ export function FormsManager() {
                               onClick={() => setFormToDelete(form)}
                               className="text-destructive focus:text-destructive"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />Eliminar
+                              <Trash2 className="h-4 w-4 mr-2" />{t('Eliminar')}
                             </DropdownMenuItem>
                           </>
                         )}
@@ -256,14 +258,14 @@ export function FormsManager() {
                   <div className="flex flex-wrap gap-1.5">
                     {form.is_default && (
                       <Badge variant="default" className="gap-1 text-xs">
-                        <Star className="h-3 w-3" />Principal
+                        <Star className="h-3 w-3" />{t('Principal')}
                       </Badge>
                     )}
                     <Badge variant="secondary" className="text-xs">
-                      {form.form_settings.mode === 'conversational' ? 'Conversacional' : 'Tradicional'}
+                      {form.form_settings.mode === 'conversational' ? t('Conversacional') : t('Tradicional')}
                     </Badge>
                     {!form.is_active && (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">Inativo</Badge>
+                      <Badge variant="outline" className="text-xs text-muted-foreground">{t('Inativo')}</Badge>
                     )}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground truncate">{getFormUrl(form)}</p>
@@ -275,9 +277,9 @@ export function FormsManager() {
               <Card className="border-dashed sm:col-span-2 lg:col-span-3">
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                  <p className="text-sm text-muted-foreground text-center mb-4">Ainda não tem formulários criados</p>
+                  <p className="text-sm text-muted-foreground text-center mb-4">{t('Ainda não tem formulários criados')}</p>
                   <Button onClick={() => setShowCreateModal(true)} variant="outline">
-                    <Plus className="h-4 w-4 mr-2" />Criar Primeiro Formulário
+                    <Plus className="h-4 w-4 mr-2" />{t('Criar Primeiro Formulário')}
                   </Button>
                 </CardContent>
               </Card>
@@ -290,9 +292,9 @@ export function FormsManager() {
       {activeTab === 'ai' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-base font-semibold">Primeira Resposta Automática</h2>
+            <h2 className="text-base font-semibold">{t('Primeira Resposta Automática')}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Mensagem enviada por WhatsApp ao lead quando submete um formulário. A IA classifica o lead e envia a mensagem certa.
+              {t('Mensagem enviada por WhatsApp ao lead quando submete um formulário. A IA classifica o lead e envia a mensagem certa.')}
             </p>
           </div>
 
@@ -313,10 +315,10 @@ export function FormsManager() {
                 )}>
                   {aiMode === 'global' && <span className="h-2 w-2 rounded-full bg-primary" />}
                 </span>
-                <span className="text-sm font-medium">Resposta Global</span>
+                <span className="text-sm font-medium">{t('Resposta Global')}</span>
               </div>
               <p className="text-xs text-muted-foreground pl-6">
-                Uma só configuração aplicada a todos os formulários do SENVIA OS.
+                {t('Uma só configuração aplicada a todos os formulários do SENVIA OS.')}
               </p>
             </button>
 
@@ -335,10 +337,10 @@ export function FormsManager() {
                 )}>
                   {aiMode === 'per_form' && <span className="h-2 w-2 rounded-full bg-primary" />}
                 </span>
-                <span className="text-sm font-medium">Resposta por Formulário</span>
+                <span className="text-sm font-medium">{t('Resposta por Formulário')}</span>
               </div>
               <p className="text-xs text-muted-foreground pl-6">
-                Cada formulário define a sua própria mensagem e regras de classificação.
+                {t('Cada formulário define a sua própria mensagem e regras de classificação.')}
               </p>
             </button>
           </div>
@@ -348,7 +350,7 @@ export function FormsManager() {
             <div className="flex gap-3 rounded-lg border bg-muted/40 p-4">
               <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
-                A mensagem e as regras de classificação são definidas dentro de cada formulário, no separador <strong className="text-foreground">Automação</strong> do editor. Abre um formulário no separador <strong className="text-foreground">Formulários</strong> e configura aí.
+                {t('A mensagem e as regras de classificação são definidas dentro de cada formulário, no separador Automação do editor. Abre um formulário no separador Formulários e configura aí.')}
               </p>
             </div>
           )}
@@ -357,15 +359,15 @@ export function FormsManager() {
           {aiMode === 'global' && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="global-ai-rules">Regras de Qualificação da IA</Label>
+                <Label htmlFor="global-ai-rules">{t('Regras de Qualificação da IA')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Descreve quando classificar o lead como Quente, Morno ou Frio.
+                  {t('Descreve quando classificar o lead como Quente, Morno ou Frio.')}
                 </p>
                 <Textarea
                   id="global-ai-rules"
                   value={globalAiRules}
                   onChange={(e) => setGlobalAiRules(e.target.value)}
-                  placeholder={"Ex:\nQuente: mencionou urgência ou pediu orçamento imediato\nMorno: interesse claro mas sem urgência\nFrio: apenas curiosidade ou informação geral"}
+                  placeholder={t("Ex:\nQuente: mencionou urgência ou pediu orçamento imediato\nMorno: interesse claro mas sem urgência\nFrio: apenas curiosidade ou informação geral")}
                   rows={6}
                   className="font-mono text-sm"
                 />
@@ -374,41 +376,41 @@ export function FormsManager() {
               <div className="grid gap-5 sm:grid-cols-3">
                 <MessageTemplateField
                   id="tpl-hot"
-                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Mensagem Quente</span>}
+                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />{t('Mensagem Quente')}</span>}
                   value={globalTplHot}
                   onChange={setGlobalTplHot}
-                  placeholder={"Olá {{primeiro_nome}}! 🚀\n\nVi que tens interesse urgente..."}
+                  placeholder={t("Olá {{primeiro_nome}}! 🚀\n\nVi que tens interesse urgente...", { primeiro_nome: "{{primeiro_nome}}" })}
                   rows={10}
                   className="text-sm"
                 />
                 <MessageTemplateField
                   id="tpl-warm"
-                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500" />Mensagem Morno</span>}
+                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500" />{t('Mensagem Morno')}</span>}
                   value={globalTplWarm}
                   onChange={setGlobalTplWarm}
-                  placeholder={"Olá {{primeiro_nome}}! 👋\n\nObrigado pelo teu interesse..."}
+                  placeholder={t("Olá {{primeiro_nome}}! 👋\n\nObrigado pelo teu interesse...", { primeiro_nome: "{{primeiro_nome}}" })}
                   rows={10}
                   className="text-sm"
                 />
                 <MessageTemplateField
                   id="tpl-cold"
-                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />Mensagem Frio</span>}
+                  label={<span className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />{t('Mensagem Frio')}</span>}
                   value={globalTplCold}
                   onChange={setGlobalTplCold}
-                  placeholder={"Olá {{primeiro_nome}}! 😊\n\nRecebemos o teu contacto..."}
+                  placeholder={t("Olá {{primeiro_nome}}! 😊\n\nRecebemos o teu contacto...", { primeiro_nome: "{{primeiro_nome}}" })}
                   rows={10}
                   className="text-sm"
                 />
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Clica numa variável para a inserir no texto. As variáveis são substituídas pelos dados do lead no envio.
+                {t('Clica numa variável para a inserir no texto. As variáveis são substituídas pelos dados do lead no envio.')}
               </p>
 
               <div className="flex justify-end">
                 <Button onClick={handleSaveGlobalAI} disabled={updateOrganization.isPending} className="gap-2">
                   {updateOrganization.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Guardar
+                  {t('Guardar')}
                 </Button>
               </div>
             </div>
@@ -422,18 +424,18 @@ export function FormsManager() {
       <AlertDialog open={!!formToDelete} onOpenChange={() => setFormToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar formulário?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar formulário?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O formulário "{formToDelete?.name}" será eliminado permanentemente. Os leads associados serão mantidos.
+              {t('Esta ação não pode ser desfeita. O formulário "{{name}}" será eliminado permanentemente. Os leads associados serão mantidos.', { name: formToDelete?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t('Eliminar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -442,7 +444,7 @@ export function FormsManager() {
       <UpgradeModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
-        featureName="Formulários"
+        featureName={t('Formulários')}
         requiredPlan="Pro"
       />
     </div>

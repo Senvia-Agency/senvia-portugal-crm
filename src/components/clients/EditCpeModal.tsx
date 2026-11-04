@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { useUpdateCpe } from '@/hooks/useCpes';
 import { EQUIPMENT_TYPES, COMERCIALIZADORES, ENERGY_TYPES, ENERGY_COMERCIALIZADORES, NIVEL_TENSAO_OPTIONS, type Cpe, type CpeStatus, type NivelTensao } from '@/types/cpes';
+import { useLanguage } from "@/i18n";
 
 interface EditCpeModalProps {
   cpe: Cpe;
@@ -29,6 +30,7 @@ interface EditCpeModalProps {
 }
 
 export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: EditCpeModalProps) {
+  const { t } = useLanguage();
   const updateCpe = useUpdateCpe();
   
   const [equipmentType, setEquipmentType] = useState('');
@@ -44,15 +46,15 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
   const [consumoAnual, setConsumoAnual] = useState('');
 
   // Conditional labels and options based on niche
-  const typeLabel = isTelecom ? 'Tipo *' : 'Tipo de Equipamento *';
-  const serialLabel = isTelecom ? 'Local de Consumo (CPE/CUI)' : 'Número de Série';
-  const serialPlaceholder = isTelecom ? 'Ex: PT0002000012345678XX' : 'Ex: SN123456789';
+  const typeLabel = isTelecom ? t("Tipo *") : t("Tipo de Equipamento *");
+  const serialLabel = isTelecom ? t("Local de Consumo (CPE/CUI)") : t("Número de Série");
+  const serialPlaceholder = isTelecom ? t("Ex: PT0002000012345678XX") : t("Ex: SN123456789");
   const typeOptions = isTelecom ? ENERGY_TYPES : EQUIPMENT_TYPES;
   const comercializadorOptions = isTelecom ? ENERGY_COMERCIALIZADORES : COMERCIALIZADORES;
-  const modalTitle = isTelecom ? 'Editar CPE/CUI' : 'Editar CPE';
+  const modalTitle = isTelecom ? t("Editar CPE/CUI") : t("Editar CPE");
   const modalDescription = isTelecom 
-    ? 'Atualize os dados do ponto de consumo.' 
-    : 'Atualize os dados do equipamento.';
+    ? t("Atualize os dados do ponto de consumo.") 
+    : t("Atualize os dados do equipamento.");
 
   useEffect(() => {
     if (cpe && open) {
@@ -148,17 +150,17 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
             <Label>{typeLabel}</Label>
             <Select value={equipmentType} onValueChange={setEquipmentType}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
+                <SelectValue placeholder={t("Selecione o tipo")} />
               </SelectTrigger>
               <SelectContent>
                 {typeOptions.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                  <SelectItem key={type} value={type}>{t(type)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {equipmentType === 'Outro' && (
               <Input
-                placeholder="Especifique o tipo"
+                placeholder={t("Especifique o tipo")}
                 value={customEquipmentType}
                 onChange={(e) => setCustomEquipmentType(e.target.value)}
               />
@@ -177,10 +179,10 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
 
           {/* Comercializador */}
           <div className="space-y-2">
-            <Label>Comercializador *</Label>
+            <Label>{t("Comercializador *")}</Label>
             <Select value={comercializador} onValueChange={setComercializador}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o comercializador" />
+                <SelectValue placeholder={t("Selecione o comercializador")} />
               </SelectTrigger>
               <SelectContent>
                 {comercializadorOptions.map((c) => (
@@ -190,7 +192,7 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
             </Select>
             {comercializador === 'Outro' && (
               <Input
-                placeholder="Nome do comercializador"
+                placeholder={t("Nome do comercializador")}
                 value={customComercializador}
                 onChange={(e) => setCustomComercializador(e.target.value)}
               />
@@ -200,14 +202,14 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
           {/* Warning when comercializador changed */}
           {comercializadorChanged && (
             <div className="rounded-md bg-warning/10 border border-warning/20 p-3 text-xs text-warning">
-              ⚠️ Ao alterar o comercializador, é obrigatório definir a nova data de fim de fidelização.
+              {t("⚠️ Ao alterar o comercializador, é obrigatório definir a nova data de fim de fidelização.")}
             </div>
           )}
 
           {/* Fidelização */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Início Fidelização</Label>
+              <Label>{t("Início Fidelização")}</Label>
               <Input
                 type="date"
                 value={fidelizacaoStart}
@@ -215,7 +217,7 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
               />
             </div>
             <div className="space-y-2">
-              <Label>Fim Fidelização {comercializadorChanged ? '*' : ''}</Label>
+              <Label>{t("Fim Fidelização")} {comercializadorChanged ? '*' : ''}</Label>
               <Input
                 type="date"
                 value={fidelizacaoEnd}
@@ -228,10 +230,10 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
           {/* Status or Nivel Tensão */}
           {isTelecom ? (
             <div className="space-y-2">
-              <Label>Nível Tensão</Label>
+              <Label>{t("Nível Tensão")}</Label>
               <Select value={nivelTensao} onValueChange={(v) => setNivelTensao(v as NivelTensao)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o nível" />
+                  <SelectValue placeholder={t("Selecione o nível")} />
                 </SelectTrigger>
                 <SelectContent>
                   {NIVEL_TENSAO_OPTIONS.map((nt) => (
@@ -242,16 +244,16 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Estado</Label>
+              <Label>{t("Estado")}</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as CpeStatus)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="inactive">Inativo</SelectItem>
-                  <SelectItem value="returned">Devolvido</SelectItem>
+                  <SelectItem value="active">{t("Ativo")}</SelectItem>
+                  <SelectItem value="pending">{t("Pendente")}</SelectItem>
+                  <SelectItem value="inactive">{t("Inativo")}</SelectItem>
+                  <SelectItem value="returned">{t("Devolvido")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -260,27 +262,27 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
           {/* Consumo Anual - only for telecom/energy */}
           {isTelecom && (
             <div className="space-y-2">
-              <Label>Consumo Anual (kWh)</Label>
+              <Label>{t("Consumo Anual (kWh)")}</Label>
               <div className="relative">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Ex: 3500"
+                  placeholder={t("Ex: 3500")}
                   value={consumoAnual}
                   onChange={(e) => setConsumoAnual(e.target.value)}
                   className="pr-12"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">kWh</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("kWh")}</span>
               </div>
             </div>
           )}
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label>Notas</Label>
+            <Label>{t("Notas")}</Label>
             <Textarea
-              placeholder="Observações sobre o equipamento..."
+              placeholder={t("Observações sobre o equipamento...")}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
@@ -289,10 +291,10 @@ export function EditCpeModal({ cpe, open, onOpenChange, isTelecom = false }: Edi
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button type="submit" disabled={!isValid || updateCpe.isPending}>
-              {updateCpe.isPending ? 'A guardar...' : 'Guardar'}
+              {updateCpe.isPending ? t("A guardar...") : t("Guardar")}
             </Button>
           </DialogFooter>
         </form>

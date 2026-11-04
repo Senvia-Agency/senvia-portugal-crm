@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tr, useLanguage } from '@/i18n';
 
 /**
  * Fim do login da Meta — a última paragem do popup.
@@ -18,6 +19,7 @@ import { useEffect, useState } from 'react';
  * registos de acesso do servidor nem no histórico partilhado.
  */
 export default function MetaOAuthDone() {
+  const { t } = useLanguage();
   const [presa, setPresa] = useState(false);
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export default function MetaOAuthDone() {
       const bruto = window.location.hash.replace(/^#/, '');
       if (bruto) payload = JSON.parse(decodeURIComponent(escape(atob(bruto))));
     } catch {
-      payload = { error: 'Resposta da Meta ilegível. Tenta ligar outra vez.' };
+      payload = { error: tr('Resposta da Meta ilegível. Tente ligar outra vez.') };
     }
 
     // O CRM está à espera desta mensagem para saber que a caixa foi criada.
@@ -45,8 +47,8 @@ export default function MetaOAuthDone() {
   return (
     <div className="flex min-h-screen items-center justify-center p-6 text-center">
       <div>
-        <p className="text-sm font-medium">Ligação concluída.</p>
-        <p className="mt-1 text-sm text-muted-foreground">Podes fechar esta janela.</p>
+        <p className="text-sm font-medium">{t('Ligação concluída.')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('Pode fechar esta janela.')}</p>
       </div>
     </div>
   );

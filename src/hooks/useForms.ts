@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 import { Form, FormSettings, DEFAULT_FORM_SETTINGS, migrateFormSettings } from '@/types';
 import { Json } from '@/integrations/supabase/types';
 
@@ -119,17 +120,17 @@ export function useCreateForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forms'] });
       toast({
-        title: 'Formulário criado',
-        description: 'O novo formulário foi criado com sucesso.',
+        title: tr('Formulário criado'),
+        description: tr('O novo formulário foi criado com sucesso.'),
       });
     },
     onError: (error: any) => {
       console.error('Error creating form:', error);
       const message = error.message?.includes('unique_org_form_slug')
-        ? 'Já existe um formulário com este slug.'
-        : 'Não foi possível criar o formulário.';
+        ? tr('Já existe um formulário com este slug.')
+        : tr('Não foi possível criar o formulário.');
       toast({
-        title: 'Erro',
+        title: tr('Erro'),
         description: message,
         variant: 'destructive',
       });
@@ -206,17 +207,17 @@ export function useUpdateForm() {
       queryClient.invalidateQueries({ queryKey: ['forms'] });
       queryClient.invalidateQueries({ queryKey: ['form'] });
       toast({
-        title: 'Formulário atualizado',
-        description: 'As alterações foram guardadas.',
+        title: tr('Formulário atualizado'),
+        description: tr('As alterações foram guardadas.'),
       });
     },
     onError: (error: any) => {
       console.error('Error updating form:', error);
       const message = error.message?.includes('unique_org_form_slug')
-        ? 'Já existe um formulário com este slug.'
-        : 'Não foi possível atualizar o formulário.';
+        ? tr('Já existe um formulário com este slug.')
+        : tr('Não foi possível atualizar o formulário.');
       toast({
-        title: 'Erro',
+        title: tr('Erro'),
         description: message,
         variant: 'destructive',
       });
@@ -241,7 +242,7 @@ export function useDeleteForm() {
         .single();
 
       if (form?.is_default) {
-        throw new Error('Não é possível eliminar o formulário principal.');
+        throw new Error(tr('Não é possível eliminar o formulário principal.'));
       }
 
       const { error } = await supabase
@@ -255,15 +256,15 @@ export function useDeleteForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forms'] });
       toast({
-        title: 'Formulário eliminado',
-        description: 'O formulário foi eliminado com sucesso.',
+        title: tr('Formulário eliminado'),
+        description: tr('O formulário foi eliminado com sucesso.'),
       });
     },
     onError: (error: any) => {
       console.error('Error deleting form:', error);
       toast({
-        title: 'Erro',
-        description: error.message || 'Não foi possível eliminar o formulário.',
+        title: tr('Erro'),
+        description: error.message || tr('Não foi possível eliminar o formulário.'),
         variant: 'destructive',
       });
     },
@@ -335,15 +336,15 @@ export function useDuplicateForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forms'] });
       toast({
-        title: 'Formulário duplicado',
-        description: 'A cópia do formulário foi criada.',
+        title: tr('Formulário duplicado'),
+        description: tr('A cópia do formulário foi criada.'),
       });
     },
     onError: (error: any) => {
       console.error('Error duplicating form:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível duplicar o formulário.',
+        title: tr('Erro'),
+        description: tr('Não foi possível duplicar o formulário.'),
         variant: 'destructive',
       });
     },

@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { 
   User, 
   Calendar, 
@@ -22,13 +21,16 @@ import {
   Mail,
   Info,
   Clock,
+  ShoppingBag,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SALE_STATUS_PILLS, TELECOM_STATUS_PILLS } from "./sale-display";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +101,18 @@ import { openPdfInNewTab } from "@/lib/download";
 import { useSaleActivationHistory } from "@/hooks/useSaleActivationHistory";
 import { useSaleFieldsSettings } from "@/hooks/useSaleFieldsSettings";
 import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
+import { useLanguage, dateLocale, intlLocale } from "@/i18n";
+
+/** One figure of the strip under the header. */
+function HeaderFigure({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
+  return (
+    <div className="min-w-[8rem] flex-1 rounded-xl border border-border/70 bg-card px-3.5 py-2">
+      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className={cn("truncate text-base font-semibold tabular-nums", tone)}>{value}</p>
+      {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
 
 interface SaleDetailsModalProps {
   sale: SaleWithDetails | null;
@@ -108,6 +122,7 @@ interface SaleDetailsModalProps {
 }
 
 export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetailsModalProps) {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<SaleStatus>("in_progress");
   const [notes, setNotes] = useState("");
   const [draftMode, setDraftMode] = useState<"invoice" | "invoice_receipt" | null>(null);
@@ -198,8 +213,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const { modules } = useModules();
   const showEnergy = isTelecom && modules.energy;
   const { data: saleFields } = useSaleFieldsSettings();
-  const cpeLabel = isTelecom ? 'CPE/CUI (Pontos de Consumo)' : 'CPEs (Equipamentos)';
-  const serialLabel = isTelecom ? 'Local de Consumo' : 'Nº Série';
+  const cpeLabel = isTelecom ? t("CPE/CUI (Pontos de Consumo)") : t("CPEs (Equipamentos)");
+  const serialLabel = isTelecom ? t("Local de Consumo") : t("Nº Série");
 
   // The install is booked as a window ("das 9h às 12h"): the date column
   // carries the start, scheduled_install_end the end. A midnight start with
@@ -207,8 +222,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const installWindow = (() => {
     const start = (sale?.scheduled_install_date?.split('T')[1] ?? '').slice(0, 5);
     const end = (sale?.scheduled_install_end?.split('T')[1] ?? '').slice(0, 5);
-    if (!start || start === '00:00') return end ? `até ${end}` : '';
-    return end ? `das ${start} às ${end}` : `às ${start}`;
+    if (!start || start === '00:00') return end ? t("até {{time}}", { time: end }) : '';
+    return end ? t("das {{start}} às {{end}}", { start, end }) : t("às {{time}}", { time: start });
   })();
 
   const [showFulfilledConfirm, setShowFulfilledConfirm] = useState(false);
@@ -410,36 +425,148 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
-          {/* Header */}
-          <DialogHeader className="pl-6 pr-14 py-4 border-b border-border/50 shrink-0">
-            <DialogTitle className="text-base font-semibold">Detalhes da Venda</DialogTitle>
+          <DialogHeader className="sr-only">
+            <DialogTitle>{t("Venda")} {sale.code ? `#${sale.code}` : ''}</DialogTitle>
+            <DialogDescription>{t("Estado, cliente, produtos, pagamentos e faturação da venda")}</DialogDescription>
           </DialogHeader>
+
+          {/* Header: which sale, for whom, what it is worth, and what to do next (invoice, edit). */}
+          <header className="shrink-0 border-b bg-background px-4 pb-3 pt-3 pr-14 sm:px-6 sm:pr-14">
+            <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-3">
+              <Button variant="back" size="icon" onClick={() => onOpenChange(false)} className="h-9 w-9 shrink-0 rounded-full" aria-label={t("Voltar")}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary" aria-hidden="true">
+                <ShoppingBag className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1 basis-48">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="truncate text-xl font-semibold tracking-tight">{t("Venda")} {sale.code ? `#${sale.code}` : ''}</h2>
+                  {isTelecom ? (
+                    <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', telecomStatus ? TELECOM_STATUS_PILLS[telecomStatus] : 'bg-muted text-muted-foreground')}>
+                      {telecomStatus ? t(TELECOM_STATUS_LABELS[telecomStatus]) : t("Sem estado")}
+                    </span>
+                  ) : (
+                    <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', SALE_STATUS_PILLS[status])}>{t(SALE_STATUS_LABELS[status])}</span>
+                  )}
+                </div>
+                <p className="truncate text-xs text-muted-foreground">
+                  {[sale.client?.name || sale.lead?.name, format(new Date(sale.sale_date), "d MMM yyyy", { locale: dateLocale() }),
+                    sale.seller_id || sale.created_by ? t("vendedor {{name}}", { name: splitBeneficiaryName(sale.seller_id || sale.created_by!) }) : null]
+                    .filter(Boolean).join(' · ')}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(() => {
+                const canEmit = sale.status !== 'cancelled' && hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
+                if (canEmit) {
+                  const paidInFull = isSalePaidInFull(paymentObligation, salePayments);
+                  const mode = paidInFull ? "invoice_receipt" as const : "invoice" as const;
+                  const emitLabel = paidInFull ? t("Emitir Fatura-Recibo") : t("Emitir Fatura");
+                  return (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm" className="h-9 rounded-full"
+                        onClick={() => setDraftMode(mode)}
+                      >
+                        <Eye className="h-4 w-4" />
+                        {t("Ver Rascunho Fatura")}
+                      </Button>
+                      <Button
+                        variant="senvia"
+                        size="sm" className="h-9 rounded-full"
+                        disabled={issueInvoice.isPending || issueInvoiceReceipt.isPending}
+                        onClick={() => {
+                          if (mode === 'invoice_receipt') {
+                            issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '' }, {
+                              onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", organization?.id, "sale", sale.id] }),
+                            });
+                          } else {
+                            issueInvoice.mutate({ saleId: sale.id, organizationId: organization?.id || '' });
+                          }
+                        }}
+                      >
+                        {(issueInvoice.isPending || issueInvoiceReceipt.isPending) ? (
+                          <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
+                        {emitLabel}
+                      </Button>
+                    </>
+                  );
+                }
+
+                // Post-emission actions
+                const hasInvoice = !!sale.invoicexpress_id;
+                if (hasInvoice) {
+                  return (
+                    <>
+                      {sale.invoice_pdf_url && !sale.recurrence && (
+                        <Button
+                          variant="outline"
+                          size="sm" className="h-9 rounded-full"
+                          onClick={() => openPdfInNewTab(sale.invoice_pdf_url!)}
+                        >
+                          <FileDown className="h-4 w-4" />
+                          {t("Ver fatura")}
+                        </Button>
+                      )}
+                      {(sale.client?.email || sale.lead?.email) && !sale.recurrence && (
+                        <EmailTemplateGate triggerType={getFiscalEmailTrigger(saleDocumentType)}>
+                          <Button
+                            variant="outline"
+                            size="sm" className="h-9 rounded-full"
+                            onClick={() => setInvoiceEmailModal(true)}
+                          >
+                            <Mail className="h-4 w-4" />
+                            {t("Enviar fatura")}
+                          </Button>
+                        </EmailTemplateGate>
+                      )}
+                      {supportsCreditNoteActions && !sale.credit_note_id && (
+                        <Button
+                          variant="destructive"
+                          size="sm" className="h-9 rounded-full"
+                          onClick={() => setInvoiceCreditNoteModal(true)}
+                        >
+                          <FileText className="h-4 w-4" />
+                          {t("Nota de Crédito")}
+                        </Button>
+                      )}
+                    </>
+                  );
+                }
+
+                return null;
+              })()}
+                {sale.status !== 'cancelled' && onEdit && !isLocked && (
+                  <Button size="sm" className="h-9 rounded-full" onClick={() => { onOpenChange(false); onEdit(sale); }}>
+                    <Pencil className="h-4 w-4" />{t("Editar")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* The sale's numbers, always in view. */}
+            <div className="mx-auto mt-3 flex w-full max-w-6xl flex-wrap gap-2">
+              <HeaderFigure
+                label={isTelecom ? t("Comissão") : hasInvoiceXpress ? t("Valor total (s/ IVA)") : t("Valor total")}
+                value={formatCurrency(isTelecom ? sellerCommissionTotal : sale.total_value)} tone="text-primary" />
+              {hasInvoiceXpress && <HeaderFigure label={t("Com IVA")} value={formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)} hint={t("IVA {{value}}", { value: formatCurrency(vatCalc.totalVat) })} />}
+              {!isTelecom && salePayments.length > 0 && <>
+                <HeaderFigure label={t("Pago")} value={formatCurrency(paymentSummary.totalPaid)} tone="text-emerald-600 dark:text-emerald-400" hint={t("{{n}}% da venda", { n: Math.round(paymentSummary.percentage) })} />
+                <HeaderFigure label={t("Em falta")} value={formatCurrency(paymentSummary.remaining)} tone={paymentSummary.remaining > 0 ? 'text-amber-600 dark:text-amber-400' : undefined} />
+              </>}
+              {sale.recurrence && <HeaderFigure label={t("Mensalidade")} value={`${formatCurrency(sale.recurrence.amount)}${t("/mês")}`} />}
+            </div>
+          </header>
 
 
           {/* Content - 2 column layout */}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-6xl mx-auto p-4 sm:p-6">
-              {/* Mobile: Total first */}
-              <div className="lg:hidden mb-4">
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground">
-                    {/* Telecom is paid by the operator, not the client: the
-                        contracted monthly price is not what this sale is worth
-                        to us. Show the commission the seller earns on it. */}
-                    {isTelecom ? 'Comissão' : hasInvoiceXpress ? 'Valor Total (s/ IVA)' : 'Valor Total'}
-                  </p>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatCurrency(isTelecom ? sellerCommissionTotal : sale.total_value)}
-                  </p>
-                  {hasInvoiceXpress && (
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-primary/10">
-                      <span className="text-xs text-muted-foreground">IVA: {formatCurrency(vatCalc.totalVat)}</span>
-                      <span className="text-sm font-semibold">c/ IVA: {formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* LEFT COLUMN (60%) */}
                 <div className="lg:col-span-3 space-y-4">
@@ -448,24 +575,24 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <FileText className="h-4 w-4" />
-                        Dados da Venda
+                        {t("Dados da Venda")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <p className="text-xs text-muted-foreground">Código</p>
+                          <p className="text-xs text-muted-foreground">{t("Código")}</p>
                           <p className="text-sm font-medium font-mono">{sale.code}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Data da Venda</p>
+                          <p className="text-xs text-muted-foreground">{t("Data da Venda")}</p>
                           <p className="text-sm font-medium">
-                            {format(new Date(sale.sale_date), "d MMM yyyy", { locale: pt })}
+                            {format(new Date(sale.sale_date), "d MMM yyyy", { locale: dateLocale() })}
                           </p>
                         </div>
                         <div>
                           {/* Who is paid for this sale — not necessarily who typed it in. */}
-                          <p className="text-xs text-muted-foreground">Vendedor</p>
+                          <p className="text-xs text-muted-foreground">{t("Vendedor")}</p>
                           <p className="text-sm font-medium">
                             {sale.seller_id || sale.created_by
                               ? splitBeneficiaryName(sale.seller_id || sale.created_by!)
@@ -473,7 +600,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Estado</p>
+                          <p className="text-xs text-muted-foreground">{t("Estado")}</p>
                           {isTelecom ? (
                             <Select
                               value={telecomStatus || NO_TELECOM_STATUS}
@@ -484,15 +611,15 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                 'w-full h-8 text-xs border mt-0.5',
                                 telecomStatus && TELECOM_STATUS_COLORS[telecomStatus],
                               )}>
-                                <SelectValue placeholder="Sem estado" />
+                                <SelectValue placeholder={t("Sem estado")} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value={NO_TELECOM_STATUS} disabled>Sem estado</SelectItem>
+                                <SelectItem value={NO_TELECOM_STATUS} disabled>{t("Sem estado")}</SelectItem>
                                 {TELECOM_STATUSES.map((s) => (
                                   <SelectItem key={s} value={s}>
                                     <span className="flex flex-col items-start">
                                       <span className={cn('px-2 py-0.5 rounded text-xs font-medium', TELECOM_STATUS_COLORS[s])}>
-                                        {TELECOM_STATUS_LABELS[s]}
+                                        {t(TELECOM_STATUS_LABELS[s])}
                                       </span>
                                       {TELECOM_STATUS_HINTS[s] && (
                                         <span className="mt-0.5 text-[11px] text-muted-foreground">{TELECOM_STATUS_HINTS[s]}</span>
@@ -511,7 +638,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                 {SALE_STATUSES.map((s) => (
                                   <SelectItem key={s} value={s}>
                                     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', SALE_STATUS_COLORS[s])}>
-                                      {SALE_STATUS_LABELS[s]}
+                                      {t(SALE_STATUS_LABELS[s])}
                                     </span>
                                   </SelectItem>
                                 ))}
@@ -521,7 +648,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         </div>
                         {saleFields?.edp_proposal_number?.visible && (sale as any).edp_proposal_number && (
                           <div>
-                            <p className="text-xs text-muted-foreground">{saleFields.edp_proposal_number.label}</p>
+                            <p className="text-xs text-muted-foreground">{t(saleFields.edp_proposal_number.label)}</p>
                             <p className="text-sm font-medium font-mono">{(sale as any).edp_proposal_number}</p>
                           </div>
                         )}
@@ -529,16 +656,16 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             single most asked-about field on a sale. */}
                         {isTelecom && (
                           <div className="col-span-2">
-                            <p className="text-xs text-muted-foreground">Data de Instalação</p>
+                            <p className="text-xs text-muted-foreground">{t("Data de Instalação")}</p>
                             {sale.scheduled_install_date ? (
                               <p className="text-sm font-medium">
-                                {format(new Date(sale.scheduled_install_date), "d MMM yyyy", { locale: pt })}
+                                {format(new Date(sale.scheduled_install_date), "d MMM yyyy", { locale: dateLocale() })}
                                 {installWindow && (
                                   <span className="text-muted-foreground font-normal"> · {installWindow}</span>
                                 )}
                               </p>
                             ) : (
-                              <p className="text-sm font-medium text-muted-foreground">Sem data marcada</p>
+                              <p className="text-sm font-medium text-muted-foreground">{t("Sem data marcada")}</p>
                             )}
                           </div>
                         )}
@@ -548,11 +675,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           const tone = days < 0 ? "text-destructive" : days <= 30 ? "text-amber-600" : "";
                           return (
                             <div>
-                              <p className="text-xs text-muted-foreground">Fim da fidelização</p>
+                              <p className="text-xs text-muted-foreground">{t("Fim da fidelização")}</p>
                               <p className={`text-sm font-medium ${tone}`}>
-                                {format(end, "d MMM yyyy", { locale: pt })}
+                                {format(end, "d MMM yyyy", { locale: dateLocale() })}
                                 <span className="text-muted-foreground font-normal">
-                                  {" · "}{days < 0 ? `terminou há ${-days} dias` : days === 0 ? "termina hoje" : `faltam ${days} dias`}
+                                  {" · "}{days < 0 ? t("terminou há {{n}} dias", { n: -days }) : days === 0 ? t("termina hoje") : t("faltam {{n}} dias", { n: days })}
                                 </span>
                               </p>
                             </div>
@@ -561,7 +688,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       </div>
                       {isLocked && (
                         <p className="text-xs text-muted-foreground mt-3">
-                          Esta venda está {isDeliveredAndLocked ? 'concluída' : isCancelledAndLocked ? 'cancelada' : 'entregue'} e não pode ser alterada.
+                          {isDeliveredAndLocked ? t("Esta venda está concluída e não pode ser alterada.") : isCancelledAndLocked ? t("Esta venda está cancelada e não pode ser alterada.") : t("Esta venda está entregue e não pode ser alterada.")}
                         </p>
                       )}
                     </CardContent>
@@ -573,7 +700,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <User className="h-4 w-4" />
-                          Cliente
+                          {t("Cliente")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-2">
@@ -588,11 +715,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
 
                         {sale.client && (
                           <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                            <p className="text-xs text-muted-foreground">Faturar a {billingCompany ? 'empresa' : 'cliente'}</p>
-                            <p className="font-medium">{billingName || 'Nome em falta'}</p>
-                            <p className="text-muted-foreground">NIF: {billingNif || 'Não definido'}</p>
+                            <p className="text-xs text-muted-foreground">{billingCompany ? t("Faturar à empresa") : t("Faturar ao cliente")}</p>
+                            <p className="font-medium">{billingName || t("Nome em falta")}</p>
+                            <p className="text-muted-foreground">{t("NIF:")} {billingNif || t("Não definido")}</p>
                             {billingCompany && !hasCompanyFiscalAddress && (
-                              <p className="text-amber-600">Preenche a morada escolhida para a empresa na ficha do cliente para emitir.</p>
+                              <p className="text-amber-600">{t("Preenche a morada escolhida para a empresa na ficha do cliente para emitir.")}</p>
                             )}
                           </div>
                         )}
@@ -601,13 +728,13 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           <div className="grid grid-cols-2 gap-2">
                             {sale.client?.nif && (
                               <div>
-                                <p className="text-xs text-muted-foreground">NIF</p>
+                                <p className="text-xs text-muted-foreground">{t("NIF")}</p>
                                 <p className="text-sm font-medium font-mono">{sale.client.nif}</p>
                               </div>
                             )}
                             {sale.client?.company && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Empresa</p>
+                                <p className="text-xs text-muted-foreground">{t("Empresa")}</p>
                                 <p className="text-sm font-medium">{sale.client.company}</p>
                               </div>
                             )}
@@ -616,7 +743,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
 
                         {(sale.client?.email || sale.lead?.email) && (
                           <div>
-                            <p className="text-xs text-muted-foreground">Email</p>
+                            <p className="text-xs text-muted-foreground">{t("Email")}</p>
                             <p className="text-sm">{sale.client?.email || sale.lead?.email}</p>
                           </div>
                         )}
@@ -632,14 +759,14 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               onClick={openWhatsApp}
                             >
                               <MessageSquare className="h-3 w-3 mr-1" />
-                              WhatsApp
+                              {t("WhatsApp")}
                             </Button>
                           </div>
                         )}
 
                         {(sale.client?.address_line1 || sale.client?.city || sale.client?.postal_code) && (
                           <div>
-                            <p className="text-xs text-muted-foreground">Morada</p>
+                            <p className="text-xs text-muted-foreground">{t("Morada")}</p>
                             <div className="text-sm">
                               {sale.client?.address_line1 && <p>{sale.client.address_line1}</p>}
                               {sale.client?.address_line2 && <p>{sale.client.address_line2}</p>}
@@ -664,59 +791,59 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Zap className="h-4 w-4 text-amber-500" />
-                          Dados de Energia
+                          {t("Dados de Energia")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {sale.negotiation_type && (
                             <div className="sm:col-span-2">
-                              <p className="text-xs text-muted-foreground">Tipo de Negociação</p>
+                              <p className="text-xs text-muted-foreground">{t("Tipo de Negociação")}</p>
                               <p className="text-sm font-medium">
-                                {NEGOTIATION_TYPE_LABELS[sale.negotiation_type as keyof typeof NEGOTIATION_TYPE_LABELS] || sale.negotiation_type}
+                                {t(NEGOTIATION_TYPE_LABELS[sale.negotiation_type as keyof typeof NEGOTIATION_TYPE_LABELS]) || sale.negotiation_type}
                               </p>
                             </div>
                           )}
                           {displayConsumoAnual != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Consumo Anual</p>
-                              <p className="text-sm font-medium">{displayConsumoAnual.toLocaleString('pt-PT')} kWh</p>
+                              <p className="text-xs text-muted-foreground">{t("Consumo Anual")}</p>
+                              <p className="text-sm font-medium">{displayConsumoAnual.toLocaleString(intlLocale())} {t("kWh")}</p>
                             </div>
                           )}
                           {displayAnosContrato != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Contrato</p>
+                              <p className="text-xs text-muted-foreground">{t("Contrato")}</p>
                               <p className="text-sm font-medium">{displayAnosContrato} {displayAnosContrato === 1 ? 'ano' : 'anos'}</p>
                             </div>
                           )}
                           {displayDbl != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">DBL</p>
-                              <p className="text-sm font-medium">{displayDbl.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
+                              <p className="text-xs text-muted-foreground">{t("DBL")}</p>
+                              <p className="text-sm font-medium">{displayDbl.toLocaleString(intlLocale(), { minimumFractionDigits: 2 })}</p>
                             </div>
                           )}
                           {displayMargem != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Margem</p>
+                              <p className="text-xs text-muted-foreground">{t("Margem")}</p>
                               <p className="text-sm font-medium">{formatCurrency(displayMargem)}</p>
                             </div>
                           )}
                           {displayComissao != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Comissão</p>
+                              <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                               <p className="text-sm font-medium text-green-500">{formatCurrency(displayComissao)}</p>
                             </div>
                           )}
                           {(displayContratoInicio || displayContratoFim) && (
                             <div className="sm:col-span-2">
-                              <p className="text-xs text-muted-foreground">Período do Contrato</p>
+                              <p className="text-xs text-muted-foreground">{t("Período do Contrato")}</p>
                               <p className="text-sm font-medium">
                                 {displayContratoInicio
-                                  ? format(new Date(displayContratoInicio), "dd/MM/yyyy", { locale: pt })
+                                  ? format(new Date(displayContratoInicio), "dd/MM/yyyy", { locale: dateLocale() })
                                   : '—'}
                                 {' → '}
                                 {displayContratoFim
-                                  ? format(new Date(displayContratoFim), "dd/MM/yyyy", { locale: pt })
+                                  ? format(new Date(displayContratoFim), "dd/MM/yyyy", { locale: dateLocale() })
                                   : '—'}
                               </p>
                             </div>
@@ -732,22 +859,22 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Wrench className="h-4 w-4 text-blue-500" />
-                          Dados do Serviço
+                          {t("Dados do Serviço")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-3">
                           {sale.negotiation_type && (
                             <div className="col-span-2">
-                              <p className="text-xs text-muted-foreground">Tipo de Negociação</p>
+                              <p className="text-xs text-muted-foreground">{t("Tipo de Negociação")}</p>
                               <p className="text-sm font-medium">
-                                {NEGOTIATION_TYPE_LABELS[sale.negotiation_type as keyof typeof NEGOTIATION_TYPE_LABELS] || sale.negotiation_type}
+                                {t(NEGOTIATION_TYPE_LABELS[sale.negotiation_type as keyof typeof NEGOTIATION_TYPE_LABELS]) || sale.negotiation_type}
                               </p>
                             </div>
                           )}
                           {sale.servicos_produtos && sale.servicos_produtos.length > 0 && (
                             <div className="col-span-2 space-y-2">
-                              <p className="text-xs text-muted-foreground">Serviços/Produtos</p>
+                              <p className="text-xs text-muted-foreground">{t("Serviços/Produtos")}</p>
                               {saleServicosDetails ? (
                                 <div className="space-y-2">
                                   {sale.servicos_produtos.map((s) => {
@@ -758,7 +885,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                           <span className="text-sm font-medium">{detail?.name || s}</span>
                                           <div className="flex shrink-0 items-center gap-2 text-sm">
                                             <span className="text-muted-foreground">
-                                              Qtd. {formatOperationalUnits(detail?.quantidade ?? 1)}
+                                              {t("Qtd.")} {formatOperationalUnits(detail?.quantidade ?? 1)}
                                             </span>
                                             {detail?.price != null && (
                                               <span className="font-medium">{formatCurrency(detail.price)}</span>
@@ -783,12 +910,12 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                             variant="outline"
                                             className="bg-sky-500/10 text-sky-600 border-sky-500/30 text-[11px] font-medium"
                                           >
-                                            {TELECOM_TECHNOLOGY_LABELS[detail.tecnologia]}
+                                            {t(TELECOM_TECHNOLOGY_LABELS[detail.tecnologia])}
                                           </Badge>
                                         )}
                                         {!isTelecom && detail?.activation_date && (
                                           <Badge variant="outline" className="text-[11px]">
-                                            Ativação: {format(new Date(`${detail.activation_date}T12:00:00`), 'dd/MM/yyyy')}
+                                            {t("Ativação:")} {format(new Date(`${detail.activation_date}T12:00:00`), 'dd/MM/yyyy')}
                                           </Badge>
                                         )}
                                         {/* No commission figure here on purpose. What used to sit
@@ -812,16 +939,16 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           )}
                           {sale.modelo_servico && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Modelo</p>
+                              <p className="text-xs text-muted-foreground">{t("Modelo")}</p>
                               <p className="text-sm font-medium">
-                                {MODELO_SERVICO_LABELS[sale.modelo_servico as keyof typeof MODELO_SERVICO_LABELS] || sale.modelo_servico}
+                                {t(MODELO_SERVICO_LABELS[sale.modelo_servico as keyof typeof MODELO_SERVICO_LABELS]) || sale.modelo_servico}
                               </p>
                             </div>
                           )}
                           {sale.kwp && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Potência</p>
-                              <p className="text-sm font-medium">{sale.kwp.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} kWp</p>
+                              <p className="text-xs text-muted-foreground">{t("Potência")}</p>
+                              <p className="text-sm font-medium">{sale.kwp.toLocaleString(intlLocale(), { minimumFractionDigits: 2 })} {t("kWp")}</p>
                             </div>
                           )}
                           {(myCommissionTotal > 0 || (isAdmin && !!sale.comissao)) && (
@@ -829,7 +956,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               {/* The headline number is what people actually earn on this
                                   sale — never sales.comissao, which is the operator's gross
                                   and read as if it were the seller's pay. */}
-                              <p className="text-xs text-muted-foreground">Comissão</p>
+                              <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                               <p className="text-sm font-medium text-green-500">
                                 {formatCurrency(myCommissionTotal)}
                               </p>
@@ -839,7 +966,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               {visibleSplits.length > 0 && (
                                 <div className="mt-2 space-y-1 border-t pt-2">
                                   <p className="text-xs text-muted-foreground">
-                                    {isAdmin ? 'Repartição' : 'Detalhe'}
+                                    {isAdmin ? t("Repartição") : t("Detalhe")}
                                   </p>
                                   {visibleSplits.map((split) => (
                                     <div key={split.id} className="flex items-center justify-between gap-2">
@@ -864,7 +991,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                   part of anyone's personal pay. */}
                               {isAdmin && !!sale.org_commission && (
                                 <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
-                                  <span className="text-xs text-muted-foreground">Comissão da organização</span>
+                                  <span className="text-xs text-muted-foreground">{t("Comissão da organização")}</span>
                                   <span className="text-xs font-medium text-amber-600">
                                     {formatCurrency(sale.org_commission)}
                                   </span>
@@ -897,9 +1024,9 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                 <Badge variant="outline" className="text-xs">{cpe.equipment_type}</Badge>
                                 <Badge variant="secondary" className="text-xs">{cpe.comercializador}</Badge>
                                 {sale.negotiation_type === 'renovacao' ? (
-                                  <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">Renovação</Badge>
+                                  <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">{t("Renovação")}</Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">Novo</Badge>
+                                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">{t("Novo")}</Badge>
                                 )}
                               </div>
                               {cpe.serial_number && (
@@ -911,59 +1038,59 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {cpe.consumo_anual != null && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Consumo Anual</p>
-                                    <p className="text-sm font-medium">{Number(cpe.consumo_anual).toLocaleString('pt-PT')} kWh</p>
+                                    <p className="text-xs text-muted-foreground">{t("Consumo Anual")}</p>
+                                    <p className="text-sm font-medium">{Number(cpe.consumo_anual).toLocaleString(intlLocale())} {t("kWh")}</p>
                                   </div>
                                 )}
                                 {cpe.duracao_contrato != null && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Duração</p>
+                                    <p className="text-xs text-muted-foreground">{t("Duração")}</p>
                                     <p className="text-sm font-medium">{cpe.duracao_contrato} {cpe.duracao_contrato === 1 ? 'ano' : 'anos'}</p>
                                   </div>
                                 )}
                                 {cpe.dbl != null && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">DBL</p>
-                                    <p className="text-sm font-medium">{Number(cpe.dbl).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
+                                    <p className="text-xs text-muted-foreground">{t("DBL")}</p>
+                                    <p className="text-sm font-medium">{Number(cpe.dbl).toLocaleString(intlLocale(), { minimumFractionDigits: 2 })}</p>
                                   </div>
                                 )}
                                 {cpe.margem != null && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Margem</p>
+                                    <p className="text-xs text-muted-foreground">{t("Margem")}</p>
                                     <p className="text-sm font-medium">{formatCurrency(Number(cpe.margem))}</p>
                                   </div>
                                 )}
                                 {cpe.comissao != null && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Comissão</p>
+                                    <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                                     <p className="text-sm font-medium text-green-500">{formatCurrency(Number(cpe.comissao))}</p>
                                   </div>
                                 )}
                                 {(cpe.contrato_inicio || cpe.contrato_fim) && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Contrato</p>
+                                    <p className="text-xs text-muted-foreground">{t("Contrato")}</p>
                                     <p className="text-sm">
                                       {cpe.contrato_inicio
-                                        ? format(new Date(cpe.contrato_inicio), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.contrato_inicio), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'}
                                       {' → '}
                                       {cpe.contrato_fim
-                                        ? format(new Date(cpe.contrato_fim), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.contrato_fim), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'}
                                     </p>
                                   </div>
                                 )}
                                 {(cpe.fidelizacao_start || cpe.fidelizacao_end) && (
                                   <div className="sm:col-span-2">
-                                    <p className="text-xs text-muted-foreground">Fidelização</p>
+                                    <p className="text-xs text-muted-foreground">{t("Fidelização")}</p>
                                     <p className="text-sm">
                                       {cpe.fidelizacao_start 
-                                        ? format(new Date(cpe.fidelizacao_start), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.fidelizacao_start), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'
                                       }
                                       {' → '}
                                       {cpe.fidelizacao_end 
-                                        ? format(new Date(cpe.fidelizacao_end), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.fidelizacao_end), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'
                                       }
                                     </p>
@@ -985,7 +1112,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                   <Badge variant="secondary" className="text-xs">{cpe.comercializador}</Badge>
                                   {statusStyle && (
                                     <Badge variant="outline" className={`text-xs ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
-                                      {CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS]}
+                                      {t(CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS])}
                                     </Badge>
                                   )}
                                 </div>
@@ -997,15 +1124,15 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                 )}
                                 {(cpe.fidelizacao_start || cpe.fidelizacao_end) && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Fidelização</p>
+                                    <p className="text-xs text-muted-foreground">{t("Fidelização")}</p>
                                     <p className="text-sm">
                                       {cpe.fidelizacao_start 
-                                        ? format(new Date(cpe.fidelizacao_start), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.fidelizacao_start), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'
                                       }
                                       {' → '}
                                       {cpe.fidelizacao_end 
-                                        ? format(new Date(cpe.fidelizacao_end), "dd/MM/yyyy", { locale: pt })
+                                        ? format(new Date(cpe.fidelizacao_end), "dd/MM/yyyy", { locale: dateLocale() })
                                         : '—'
                                       }
                                     </p>
@@ -1025,7 +1152,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Package className="h-4 w-4" />
-                          Produtos/Serviços
+                          {t("Produtos/Serviços")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-2">
@@ -1085,54 +1212,36 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                 {/* RIGHT COLUMN (40%) */}
                 <div className="lg:col-span-2 space-y-4">
                   <div className="lg:sticky lg:top-6 space-y-4">
-                    {/* Total Value - Desktop only (mobile shown above) */}
-                    <div className="hidden lg:block">
-                      <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground">
-                          {isTelecom ? 'Comissão' : hasInvoiceXpress ? 'Valor Total (s/ IVA)' : 'Valor Total'}
-                        </p>
-                        <p className="text-2xl font-bold text-primary">
-                          {formatCurrency(isTelecom ? sellerCommissionTotal : sale.total_value)}
-                        </p>
-                        {hasInvoiceXpress && (
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-primary/10">
-                            <span className="text-xs text-muted-foreground">IVA: {formatCurrency(vatCalc.totalVat)}</span>
-                            <span className="text-sm font-semibold">c/ IVA: {formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
                     {/* Payment Progress */}
                     {!isTelecom && salePayments.length > 0 && (
                       <Card>
                         <CardHeader className="pb-2 p-4">
                           <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <CreditCard className="h-4 w-4" />
-                            Pagamento
+                            {t("Pagamento")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 space-y-4">
                           <div className="space-y-2">
                             <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Progresso</span>
+                              <span>{t("Progresso")}</span>
                               <span>{Math.round(paymentSummary.percentage)}%</span>
                             </div>
                             <Progress value={paymentSummary.percentage} className="h-2" />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <p className="text-xs text-muted-foreground">Total Pago</p>
+                              <p className="text-xs text-muted-foreground">{t("Total Pago")}</p>
                               <p className="text-sm font-semibold text-green-500">{formatCurrency(paymentSummary.totalPaid)}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Em Falta</p>
+                              <p className="text-xs text-muted-foreground">{t("Em Falta")}</p>
                               <p className="text-sm font-semibold text-amber-500">{formatCurrency(paymentSummary.remaining)}</p>
                             </div>
                           </div>
                           {paymentSummary.totalScheduled > 0 && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Agendado</p>
+                              <p className="text-xs text-muted-foreground">{t("Agendado")}</p>
                               <p className="text-sm font-semibold">{formatCurrency(paymentSummary.totalScheduled)}</p>
                             </div>
                           )}
@@ -1146,7 +1255,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         <CardHeader className="pb-2 p-4">
                           <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <FileText className="h-4 w-4" />
-                            Proposta Associada
+                            {t("Proposta Associada")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
@@ -1157,7 +1266,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               </Badge>
                             )}
                             <span>
-                              {format(new Date(sale.proposal.proposal_date), "d MMM yyyy", { locale: pt })}
+                              {format(new Date(sale.proposal.proposal_date), "d MMM yyyy", { locale: dateLocale() })}
                             </span>
                           </div>
                         </CardContent>
@@ -1177,7 +1286,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         <CardHeader className="pb-2 p-4">
                           <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <Clock className="h-4 w-4" />
-                            Histórico de Ativação
+                            {t("Histórico de Ativação")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
@@ -1192,7 +1301,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                 </div>
                                 <div className="pb-3 min-w-0">
                                   <p className="text-sm font-medium">
-                                    {format(new Date(entry.activation_date), "d MMM yyyy", { locale: pt })}
+                                    {format(new Date(entry.activation_date), "d MMM yyyy", { locale: dateLocale() })}
                                   </p>
                                   {entry.notes && (
                                     <Badge variant="outline" className="text-[10px] mt-0.5">
@@ -1200,7 +1309,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                     </Badge>
                                   )}
                                   <p className="text-xs text-muted-foreground mt-0.5">
-                                    {entry.profile?.full_name || 'Sistema'} · {format(new Date(entry.created_at), "d MMM yyyy HH:mm", { locale: pt })}
+                                    {entry.profile?.full_name || t("Sistema")} · {format(new Date(entry.created_at), "d MMM yyyy HH:mm", { locale: dateLocale() })}
                                   </p>
                                 </div>
                               </div>
@@ -1213,11 +1322,11 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                     {/* Observations */}
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Observações</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Observações")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <Textarea
-                          placeholder="Adicionar observações..."
+                          placeholder={t("Adicionar observações...")}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           onBlur={handleNotesBlur}
@@ -1232,125 +1341,6 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="p-4 border-t border-border/50 shrink-0">
-            <div className="flex gap-3 max-w-6xl mx-auto">
-              {(() => {
-                const canEmit = sale.status !== 'cancelled' && hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
-                if (canEmit) {
-                  const paidInFull = isSalePaidInFull(paymentObligation, salePayments);
-                  const mode = paidInFull ? "invoice_receipt" as const : "invoice" as const;
-                  const emitLabel = paidInFull ? "Emitir Fatura-Recibo" : "Emitir Fatura";
-                  return (
-                    <>
-                      <Button
-                        variant="secondary"
-                        className="flex-1"
-                        onClick={() => setDraftMode(mode)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver Rascunho Fatura
-                      </Button>
-                      <Button
-                        variant="senvia"
-                        className="flex-1"
-                        disabled={issueInvoice.isPending || issueInvoiceReceipt.isPending}
-                        onClick={() => {
-                          if (mode === 'invoice_receipt') {
-                            issueInvoiceReceipt.mutate({ saleId: sale.id, organizationId: organization?.id || '' }, {
-                              onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", organization?.id, "sale", sale.id] }),
-                            });
-                          } else {
-                            issueInvoice.mutate({ saleId: sale.id, organizationId: organization?.id || '' });
-                          }
-                        }}
-                      >
-                        {(issueInvoice.isPending || issueInvoiceReceipt.isPending) ? (
-                          <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        ) : (
-                          <FileText className="h-4 w-4 mr-2" />
-                        )}
-                        {emitLabel}
-                      </Button>
-                    </>
-                  );
-                }
-
-                // Post-emission actions
-                const hasInvoice = !!sale.invoicexpress_id;
-                if (hasInvoice) {
-                  return (
-                    <>
-                      {sale.invoice_pdf_url && (
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => openPdfInNewTab(sale.invoice_pdf_url!)}
-                        >
-                          <FileDown className="h-4 w-4 mr-2" />
-                          Ver PDF
-                        </Button>
-                      )}
-                      {(sale.client?.email || sale.lead?.email) && (
-                        <EmailTemplateGate triggerType={getFiscalEmailTrigger(saleDocumentType)} className="flex-1">
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => setInvoiceEmailModal(true)}
-                          >
-                            <Mail className="h-4 w-4 mr-2" />
-                            Enviar Email
-                          </Button>
-                        </EmailTemplateGate>
-                      )}
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        disabled={fiscalDocumentsLoading || (organization?.billing_provider === 'vendus' && !saleFiscalDocument)}
-                        onClick={() => setInvoiceDetailsModal(true)}
-                      >
-                        <Info className="h-4 w-4 mr-2" />
-                        Detalhes
-                      </Button>
-                      {supportsCreditNoteActions && !sale.credit_note_id && (
-                        <Button
-                          variant="destructive"
-                          className="flex-1"
-                          onClick={() => setInvoiceCreditNoteModal(true)}
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Nota de Crédito
-                        </Button>
-                      )}
-                    </>
-                  );
-                }
-
-                return null;
-              })()}
-              {sale.status !== 'cancelled' && onEdit && !isLocked && (
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onEdit(sale);
-                  }}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar Venda
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => onOpenChange(false)}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -1358,16 +1348,16 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
       <AlertDialog open={showDeliveredConfirm} onOpenChange={setShowDeliveredConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{pendingTelecomStatus === 'instalado' ? 'Marcar como Instalada' : 'Concluir Venda'}</AlertDialogTitle>
+            <AlertDialogTitle>{pendingTelecomStatus === 'instalado' ? t("Marcar como Instalada") : t("Concluir Venda")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ao concluir esta venda, ela não poderá mais ser editada (exceto por administradores).
-              {isTelecom && (installDay ? ' A comissão conta no mês seguinte à instalação.' : ' Sem data de instalação, a comissão fica sem mês definido.')}
+              {t("Ao concluir esta venda, deixa de poder ser editada (exceto por administradores).")}
+              {isTelecom && <>{" "}{installDay ? t("A comissão conta no mês seguinte à instalação.") : t("Sem data de instalação, a comissão fica sem mês definido.")}</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelivered}>
-              Confirmar
+              {t("Confirmar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1379,17 +1369,17 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
           <AlertDialogHeader>
             <AlertDialogTitle>
               {pendingStatus === 'in_progress'
-                ? 'Marcar como Em Progresso'
-                : (pendingTelecomStatus === 'ativo' ? 'Marcar como Ativa' : 'Marcar como Entregue')}
+                ? t("Marcar como Em Progresso")
+                : (pendingTelecomStatus === 'ativo' ? t("Marcar como Ativa") : t("Marcar como Entregue"))}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {isTelecom ? (installDay ? 'A comissão conta no mês seguinte à instalação.' : 'Sem data de instalação, a comissão fica sem mês definido.') : 'Confirma a alteração do estado da venda.'}
+              {isTelecom ? (installDay ? t("A comissão conta no mês seguinte à instalação.") : t("Sem data de instalação, a comissão fica sem mês definido.")) : t("Confirma a alteração do estado da venda.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmFulfilled}>
-              Confirmar
+              {t("Confirmar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

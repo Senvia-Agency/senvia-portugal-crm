@@ -6,14 +6,14 @@ import type { Lead } from '@/types';
 import type { CrmClient } from '@/types/clients';
 import { getProspectCom, getProspectSegment } from '@/lib/prospects/segment';
 import type { Prospect } from '@/types/prospects';
-import { PAYMENT_METHOD_LABELS, type SaleWithDetails } from '@/types/sales';
-import { NEGOTIATION_TYPE_LABELS, PROPOSAL_TYPE_LABELS } from '@/types/proposals';
+import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, SALE_STATUS_LABELS, TELECOM_STATUS_LABELS, type SaleWithDetails } from '@/types/sales';
+import { NEGOTIATION_TYPE_LABELS, PROPOSAL_STATUS_LABELS, PROPOSAL_TYPE_LABELS, type Proposal } from '@/types/proposals';
 
 // Status labels for clients
 const CLIENT_STATUS_LABELS: Record<string, string> = {
   active: 'Ativo',
   inactive: 'Inativo',
-  vip: 'VIP',
+  vip: 'Ativo',
   prospect: 'Prospeto',
 };
 
@@ -258,4 +258,62 @@ export function exportToExcel(data: Record<string, unknown>[], filename: string)
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Dados');
   XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+// Map proposals for export: the list as it is filtered on screen.
+export function mapProposalsForExport(proposals: Proposal[], isTelecom = false) {
+  return proposals.map((proposal) => {
+    const row: Record<string, unknown> = {
+      'Código': proposal.code || '',
+      'Data': formatExportDay(proposal.proposal_date),
+      'Cliente': proposal.client?.name || proposal.lead?.name || '',
+      'Email': proposal.client?.email || proposal.lead?.email || '',
+      'Telefone': proposal.client?.phone || proposal.lead?.phone || '',
+      'Estado': PROPOSAL_STATUS_LABELS[proposal.status] || proposal.status,
+      'Valor': Number(proposal.total_value || 0),
+    };
+    if (isTelecom) {
+      row['Tipo'] = proposal.proposal_type ? PROPOSAL_TYPE_LABELS[proposal.proposal_type] || proposal.proposal_type : '';
+      row['Negociação'] = proposal.negotiation_type
+        ? NEGOTIATION_TYPE_LABELS[proposal.negotiation_type] || proposal.negotiation_type
+        : '';
+      row['Comissão'] = valueOrEmpty(proposal.comissao);
+      row['kWp'] = valueOrEmpty(proposal.kwp);
+    }
+    row['Aceite em'] = formatExportDay(proposal.accepted_at);
+    row['Notas'] = proposal.notes || '';
+    return row;
+  });
+}
+
+// Map sales for export: the list as it is filtered on screen.
+export function mapSalesForExport(sales: SaleWithDetails[], isTelecom = false) {
+  return sales.map((sale) => {
+    const status = isTelecom && sale.telecom_status
+      ? TELECOM_STATUS_LABELS[sale.telecom_status] || sale.telecom_status
+      : SALE_STATUS_LABELS[sale.status] || sale.status;
+    const row: Record<string, unknown> = {
+      'Código': sale.code || '',
+      'Data': formatExportDay(sale.sale_date),
+      'Cliente': sale.client?.name || sale.lead?.name || '',
+      'Empresa': sale.client?.company || '',
+      'NIF': sale.client?.nif || '',
+      'Email': sale.client?.email || sale.lead?.email || '',
+      'Estado': status,
+    };
+    if (isTelecom) {
+      row['Tipo'] = sale.proposal_type ? PROPOSAL_TYPE_LABELS[sale.proposal_type] || sale.proposal_type : '';
+      row['Comissão'] = valueOrEmpty(sale.comissao);
+      row['kWp'] = valueOrEmpty(sale.kwp);
+      row['Consumo anual'] = valueOrEmpty(sale.consumo_anual);
+      row['Data de ativação'] = formatExportDay(sale.activation_date);
+    } else {
+      row['Valor'] = Number(sale.total_value || 0);
+      row['Pagamento'] = PAYMENT_STATUS_LABELS[sale.payment_status] || sale.payment_status || '';
+      row['Método'] = sale.payment_method ? PAYMENT_METHOD_LABELS[sale.payment_method] || sale.payment_method : '';
+      row['Fatura'] = sale.invoice_reference || '';
+    }
+    row['Notas'] = sale.notes || '';
+    return row;
+  });
 }

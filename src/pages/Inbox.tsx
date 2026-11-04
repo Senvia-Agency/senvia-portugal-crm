@@ -3,6 +3,7 @@ import { Loader2, Inbox as InboxIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DialogContainerContext } from '@/components/ui/portal-container';
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMessagingChannels, type MessagingChannel } from "@/hooks/useMessagingChannels";
 import { useMetaUnreadTotals } from "@/hooks/useMetaInbox";
@@ -12,6 +13,15 @@ import { MetaInbox } from "@/components/inbox/MetaInbox";
 import { InboxPageSlot } from '@/components/inbox/workspace/InboxWorkspaceSurface';
 import { InboxWorkspaceToolbar } from '@/components/inbox/workspace/InboxWorkspaceToolbar';
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
+import '@/components/inbox/inbox-workplace.css';
+import { useInterfaceStore } from '@/stores/useInterfaceStore';
+import { isActiveMember, useAuth } from '@/contexts/AuthContext';
+import { ChatWorkspace } from '@/features/workplace/chat/ChatWorkspace';
+import { WEBMAIL_ENABLED } from '@/components/layout/workspaceNavigation';
+
+// Internal messages are a Workplace preview feature (same gate as the /mensagens route).
+// Internal messages (Senvia 2.0) are live everywhere.
+const TEAM_CHAT_ENABLED = true;
 export default InboxPageSlot;
 const EmailListReader = lazy(() =>
   import("@/components/email/EmailListReader").then((m) => ({ default: m.EmailListReader })));
@@ -33,7 +43,9 @@ const EmailListReader = lazy(() =>
  * mas ainda não tem ecrã — é a peça que falta.
  */
 export function InboxContent() {
+  const { t } = useLanguage();
   const workspace = useInboxWorkspace();
+  const legacy = useInterfaceStore(state => state.legacy);
   const compact = workspace?.compact ?? false;
   const readerActive = !workspace || (!workspace.minimized && (!!workspace.popup || workspace.onInbox || workspace.docked));
   const isMobile = useIsMobile();
@@ -49,10 +61,17 @@ export function InboxContent() {
   // fora de propósito — tem pastas, rascunhos e anexos, é um cliente próprio e
   // não uma lista de conversas.
   const [todasConversas, setTodasConversas] = useState(false);
+  const { user, organization, organizations } = useAuth();
+  // Internal team messages, a box of their own beside the client channels (not in the compact side panel).
+  const [teamChat, setTeamChat] = useState(false);
+  const teamChatOn = TEAM_CHAT_ENABLED && !compact && teamChat && !!user && !!organization;
   const [railSheetOpen, setRailSheetOpen] = useState(false);
+  // With the WebMail, the email caixas live there (the classic interface keeps them here).
+  const emailApart = WEBMAIL_ENABLED && !legacy;
   const caixasVisiveis = useMemo(
-    () => compact ? caixas.filter((c) => c.channel_type === 'whatsapp') : caixas,
-    [caixas, compact],
+    () => compact ? caixas.filter((c) => c.channel_type === 'whatsapp')
+      : emailApart ? caixas.filter((c) => c.channel_type !== 'email') : caixas,
+    [caixas, compact, emailApart],
   );
 
   const caixasMensagens = useMemo(
@@ -64,30 +83,32 @@ export function InboxContent() {
   // Abre a primeira caixa sozinha: com uma só, obrigar a escolhê-la é um passo
   // a mais para chegar ao mesmo sítio.
   useEffect(() => {
-    if (emailChannelId || metaChannelId || todasConversas || caixas.length === 0) return;
+    if (emailChannelId || metaChannelId || todasConversas || teamChatOn || caixas.length === 0) return;
     const whatsapp = caixas.find((c) => c.channel_type === 'whatsapp');
     if (whatsapp) { setMetaChannelId(whatsapp.id); return; }
-    const email = caixas.find((c) => c.channel_type === "email");
+    const email = caixasVisiveis.find((c) => c.channel_type === "email");
     if (email) setEmailChannelId(email.id);
-    else setMetaChannelId(caixas[0].id);
-  }, [caixas, emailChannelId, metaChannelId, todasConversas]);
+    else if (caixasVisiveis[0]) setMetaChannelId(caixasVisiveis[0].id);
+  }, [caixas, caixasVisiveis, emailChannelId, metaChannelId, todasConversas, teamChatOn]);
 
   const aberta = useMemo(
     () => caixas.find((c) => c.id === (metaChannelId ?? emailChannelId)) ?? null,
     [caixas, metaChannelId, emailChannelId],
   );
-  const whatsappSelecionado = aberta?.channel_type === 'whatsapp'
+  const whatsappSelecionado = !teamChatOn && aberta?.channel_type === 'whatsapp'
     || (todasConversas && caixasMensagens.length > 0 && caixasMensagens.every((c) => c.channel_type === 'whatsapp'));
   const setWhatsAppSelected = workspace?.setWhatsAppSelected;
   useEffect(() => { setWhatsAppSelected?.(whatsappSelecionado); }, [setWhatsAppSelected, whatsappSelecionado]);
 
   const escolherMensagens = (ch: MessagingChannel) => {
+    setTeamChat(false);
     setTodasConversas(false);
     setEmailChannelId(null);
     setMetaChannelId(ch.id);
     setRailSheetOpen(false);
   };
   const escolherEmail = (ch: MessagingChannel) => {
+    setTeamChat(false);
     setTodasConversas(false);
     setMetaChannelId(null);
     setEmailChannelId(ch.id);
@@ -95,6 +116,7 @@ export function InboxContent() {
     setRailSheetOpen(false);
   };
   const verTodas = () => {
+    setTeamChat(false);
     setEmailChannelId(null);
     setMetaChannelId(null);
     setTodasConversas(true);
@@ -112,17 +134,22 @@ export function InboxContent() {
     onSelectAll: verTodas,
     onSelectMessaging: escolherMensagens,
     onSelectEmail: escolherEmail,
-    onSelectFolder: (fid: string) => { setEmailFolderId(fid); setRailSheetOpen(false); },
+    onSelectFolder: (fid: string) => { setTeamChat(false); setEmailFolderId(fid); setRailSheetOpen(false); },
+    webmailLink: emailApart && !compact,
+    teamChat: TEAM_CHAT_ENABLED && !compact && isActiveMember(organizations, organization?.id) ? {
+      active: teamChatOn,
+      onSelect: () => { setEmailChannelId(null); setMetaChannelId(null); setTodasConversas(false); setTeamChat(true); setRailSheetOpen(false); },
+    } : undefined,
   };
 
   const totalPorLer = Object.values(metaUnread ?? {}).reduce((s, n) => s + n, 0);
 
   return (
-    <div className={cn(
-      "flex flex-col overflow-hidden",
-      compact || isMobile ? "h-full" : "h-[calc(100dvh-7rem)]",
+    <div data-interface={legacy ? 'classic' : 'workspace'} data-compact={compact} className={cn(
+      "inbox-workplace flex flex-col overflow-hidden",
+      compact || isMobile ? "h-full" : legacy ? "h-[calc(100dvh-7rem)]" : "h-[var(--workplace-page-height,calc(100dvh-4rem))]",
     )}>
-      <InboxWorkspaceToolbar onOpenCaixas={() => setRailSheetOpen(true)} channelLabel={todasConversas ? 'Todas as conversas' : aberta?.label ?? 'Inbox'} />
+      <InboxWorkspaceToolbar onOpenCaixas={() => setRailSheetOpen(true)} channelLabel={teamChatOn ? t('Mensagens internas') : todasConversas ? t('Todas as conversas') : aberta?.label ?? t('Inbox')} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {!compact && <InboxCaixaRail {...railProps} />}
 
@@ -132,19 +159,21 @@ export function InboxContent() {
         <Sheet open={railSheetOpen} onOpenChange={setRailSheetOpen}>
           <SheetContent data-inbox-workspace-control side="left" className="z-[70] flex w-72 flex-col p-0 [&>button]:right-2 [&>button]:top-2 [&>button]:h-10 [&>button]:w-10 [&>button]:translate-y-0" aria-describedby={undefined}>
             <SheetHeader className="border-b p-4 pb-3">
-              <SheetTitle>Caixas</SheetTitle>
+              <SheetTitle>{t("Caixas")}</SheetTitle>
             </SheetHeader>
             <InboxCaixaRail {...railProps} className="flex min-h-0 w-full flex-1 border-r-0" />
           </SheetContent>
         </Sheet>
         </DialogContainerContext.Provider>
 
-        {todasConversas ? (
+        {teamChatOn && user && organization ? (
+          <ChatWorkspace key={`${user.id}:${organization.id}`} organizationId={organization.id} userId={user.id} embedded />
+        ) : todasConversas ? (
           <MetaInbox
             channelId={caixasMensagensIds}
             active={readerActive}
             compact={compact}
-            channelLabel="as tuas contas"
+            channelLabel={t("as tuas contas")}
             caixas={caixasMensagens}
           />
         ) : metaChannelId ? (
@@ -152,7 +181,7 @@ export function InboxContent() {
             channelId={metaChannelId}
             active={readerActive}
             compact={compact}
-            channelLabel={aberta?.label ?? "esta caixa"}
+            channelLabel={aberta?.label ?? t("esta caixa")}
             channelType={aberta?.channel_type}
             caixas={caixasMensagens}
           />
@@ -173,12 +202,12 @@ export function InboxContent() {
             <InboxIcon className="h-8 w-8 text-muted-foreground/60" />
             <p className="max-w-sm text-sm text-muted-foreground">
               {caixas.length === 0
-                ? "Ainda não tens nenhuma caixa ligada. Liga uma em Definições → Integrações."
-                : "Escolhe uma caixa à esquerda para ler e responder."}
+                ? t("Ainda não tens nenhuma caixa ligada. Liga uma em Definições → Integrações.")
+                : t("Escolhe uma caixa à esquerda para ler e responder.")}
             </p>
             {totalPorLer > 0 && (
               <p className="text-xs text-muted-foreground">
-                {totalPorLer} {totalPorLer === 1 ? "mensagem por ler" : "mensagens por ler"}
+                {t(totalPorLer === 1 ? "{{n}} mensagem por ler" : "{{n}} mensagens por ler", { n: totalPorLer })}
               </p>
             )}
           </div>

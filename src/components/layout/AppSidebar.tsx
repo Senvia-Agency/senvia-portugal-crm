@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useScrollEdges } from './useScrollEdges';
 import { LogOut, Shield, Lock, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,10 +15,14 @@ import type { AppRole } from "@/types";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { WhatsNewButton } from "@/components/announcements/WhatsNewButton";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
+import { WebmailUnreadBadge } from "@/features/webmail/WebmailUnreadBadge";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
-import { workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
+import { workspaceNavigationGroups, workspaceNavigation, type WorkspaceNavItem } from './workspaceNavigation';
+import { useReferralDashboard } from '@/hooks/useReferralDashboard';
+import { useLanguage } from '@/i18n';
 import { ModuleNavIcon } from './ModuleNavIcon';
+import { moduleOf } from './module-identity';
 
 // Hover tooltip shown only when the sidebar is collapsed (parent must be `group`).
 function CollapsedTooltip({ label }: { label: string }) {
@@ -64,8 +69,13 @@ export function AppSidebar({
   const collapsed = !expanded && (savedCollapsed || forceCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggle);
   const { modules } = useModules();
-  const { canViewModule } = usePermissions();
+  // Short screens (tablets) hide part of the list: fade the cut edge so it reads as scrollable.
+  const navRef = useRef<HTMLElement>(null);
+  const navEdges = useScrollEdges(navRef, 'y');
+  const { canViewModule, isAdmin } = usePermissions();
   const { isModuleLocked, getRequiredPlan } = useSubscription();
+  const referrals = useReferralDashboard();
+  const { t } = useLanguage();
   const activation = useActivationProgress();
   const showSetupBadge = activation.isAdmin && activation.ready && activation.done < activation.total;
   const hasPerfect2GetherModuleAccess = hasPerfect2GetherAccess({
@@ -79,6 +89,7 @@ export function AppSidebar({
   });
 
   const navItems = workspaceNavigation.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return true;
     if (!modules[item.moduleKey]) return false;
@@ -108,15 +119,15 @@ export function AppSidebar({
 
   return (
     <>
-      <aside className={cn(
-        "fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
+      <aside data-otto-target="guide-sidebar" className={cn(
+        "workspace-sidebar fixed left-0 top-0 z-40 h-dvh gradient-sidebar border-r border-white/10 transition-[width] duration-200",
         collapsed ? "w-16" : "w-64",
       )}>
         <div className="flex h-full flex-col">
-          <div className={cn("flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
+          <div className={cn("workspace-sidebar-brand flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "justify-between px-5")}>
             {!collapsed && (
               <div className="flex items-center gap-2.5" aria-label="Senvia OS">
-                <img src="/senvia-logo-white.png" alt="Senvia" width={112} height={39} className="h-auto w-28 shrink-0 object-contain" />
+                <img src="/senvia-logo-white.png" alt="Senvia" width={112} height={39} className="h-auto w-28 shrink-0 object-contain" />{/* The company in use: switching it lives in the account menu. */}<span className="workplace-brand-caption" title={organization?.name ? `Empresa: ${organization.name}` : undefined}>{organization?.name || "WORKPLACE"}</span>
               </div>
             )}
             <div className="flex items-center gap-0.5">
@@ -124,8 +135,8 @@ export function AppSidebar({
               <button
                 type="button"
                 onClick={collapsed ? onExpand ?? toggleCollapsed : onCollapse ?? toggleCollapsed}
-                title={collapsed ? "Expandir menu" : "Recolher menu"}
-                aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+                title={collapsed ? t("Expandir menu") : t("Recolher menu")}
+                aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}
                 aria-expanded={!collapsed}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
@@ -134,16 +145,18 @@ export function AppSidebar({
             </div>
           </div>
 
-          {!collapsed && (
-            <div className="border-b border-sidebar-border px-3 py-3">
+          {/* The workspace switches company from the account menu instead. */}
+          {!collapsed && legacy && (
+            <div className="workspace-sidebar-org border-b border-sidebar-border px-3 py-3">
               <OrganizationSwitcher />
             </div>
           )}
 
-          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Navegação principal">
-            {(legacy ? ['Navegação'] : ['Visão geral', 'Comercial', 'Operação']).map(group => (
+          <nav ref={navRef} data-fade-start={navEdges.start} data-fade-end={navEdges.end}
+            className="workspace-sidebar-nav scroll-fade-y min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5" aria-label={t("Navegação principal")}>
+            {(legacy ? ['Navegação'] : workspaceNavigationGroups).map(group => (
               <div key={group} className="space-y-1">
-                {!collapsed && !legacy && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{group}</p>}
+                {!collapsed && !legacy && <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#71809c]">{t(group)}</p>}
                 {navItems.filter(item => legacy || item.group === group).map(item => {
               const locked = item.moduleKey ? isModuleLocked(item.moduleKey) : false;
               const isActive = location.pathname === item.to || item.to !== "/dashboard" && location.pathname.startsWith(item.to);
@@ -153,10 +166,11 @@ export function AppSidebar({
                   key={item.to}
                   to={locked ? "#" : item.to}
                   data-otto-target={item.ottoTarget}
+                  data-module={moduleOf(item.to)}
                   onClick={(e) => { handleLockedClick(e, item); if (!e.defaultPrevented) onNavigate?.(); }}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? t(item.label) : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors duration-150",
+                    "workspace-sidebar-link group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors duration-150",
                     collapsed && "justify-center px-0",
                     locked
                       ? "cursor-pointer text-sidebar-muted/50 hover:bg-sidebar-accent/30"
@@ -166,10 +180,22 @@ export function AppSidebar({
                   )}
                 >
                   <ModuleNavIcon icon={item.icon} to={item.to} sidebar locked={locked} />
-                  {!collapsed && <span className="flex-1">{item.label}</span>}
+                  {!collapsed && <span className="flex-1">{t(item.label)}</span>}
                   {item.to === "/inbox" && !locked && (
                     <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
                       <InboxUnreadBadge />
+                    </span>
+                  )}
+                  {item.to === "/webmail" && !locked && (
+                    <span className={cn(collapsed && "absolute right-0.5 top-0.5 scale-90")}>
+                      <WebmailUnreadBadge />
+                    </span>
+                  )}
+                  {/* The reward stays in sight: earned months, or the offer itself. */}
+                  {item.to === "/indicacoes" && !collapsed && (
+                    <span className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      {referrals.totals && referrals.totals.available + referrals.totals.reserved > 0
+                        ? t("{{n}} grátis", { n: referrals.totals.available + referrals.totals.reserved }) : t("+1 mês")}
                     </span>
                   )}
                   {item.to === "/settings" && showSetupBadge && (
@@ -182,7 +208,7 @@ export function AppSidebar({
                     )
                   )}
                   {!collapsed && locked && <Lock className="h-3.5 w-3.5 text-sidebar-muted/60" />}
-                  {collapsed && <CollapsedTooltip label={item.label} />}
+                  {collapsed && <CollapsedTooltip label={t(item.label)} />}
                 </NavLink>
               );
                 })}
@@ -223,7 +249,8 @@ export function AppSidebar({
               </NavLink>
             )}
 
-            {isSuperAdmin && (
+            {/* Workplace reaches System Admin from the "Admin" button in the top bar. */}
+            {isSuperAdmin && legacy && (
               <NavLink
                 to="/system-admin"
                 onClick={onNavigate}
@@ -243,7 +270,7 @@ export function AppSidebar({
             )}
           </nav>
 
-          <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-4")}>
+          <div className={cn("workspace-sidebar-account border-t border-sidebar-border", collapsed ? "p-2" : "p-4")}>
             <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground">
                 {userName.charAt(0).toUpperCase()}
@@ -256,16 +283,16 @@ export function AppSidebar({
                     </p>
                     <p className="text-xs text-sidebar-muted">{getRoleLabel(roles)}</p>
                   </div>
-                  <button onClick={handleLogout} className="rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground" title="Terminar sessão">
+                  <button onClick={handleLogout} className="rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground" title={t("Terminar sessão")}>
                     <LogOut className="h-4 w-4" />
                   </button>
                 </>
               )}
             </div>
             {collapsed && (
-              <button onClick={handleLogout} className="group relative mt-1 flex w-full justify-center rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground" title="Terminar sessão">
+              <button onClick={handleLogout} className="group relative mt-1 flex w-full justify-center rounded-lg p-2 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground" title={t("Terminar sessão")}>
                 <LogOut className="h-4 w-4" />
-                <CollapsedTooltip label="Terminar sessão" />
+                <CollapsedTooltip label={t("Terminar sessão")} />
               </button>
             )}
           </div>

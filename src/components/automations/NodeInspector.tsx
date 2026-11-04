@@ -34,6 +34,7 @@ import type {
   AutomationGraph, AutomationGraphNode, AutomationMediaAttachment, AutomationNodeConfig, AutomationNodeType,
   AutomationReentryPolicy, AutomationTriggerType, AutomationWaitUnit, ConditionOperator, WaitReplyRule,
 } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 interface NodeInspectorProps {
   node: AutomationGraphNode;
@@ -54,6 +55,7 @@ const MESSAGE_TRIGGERS: AutomationNodeType[] = ['message_received', 'whatsapp_ke
  * now belong to the full-screen view around it.
  */
 export function NodeInspector({ node, graph, isEntry, onChange, onChangeTrigger, reentry }: NodeInspectorProps) {
+  const { t } = useLanguage();
   const config = node.config ?? {};
   const set = (patch: Partial<AutomationNodeConfig>) => onChange({ ...config, ...patch });
 
@@ -67,8 +69,7 @@ export function NodeInspector({ node, graph, isEntry, onChange, onChangeTrigger,
         <Field label="Gatilho">
           {legacyTrigger && (
             <Helper>
-              Gatilho atual: <strong>{getNodeLabel(node.type)}</strong> (gatilho do sistema). Escolher
-              outro abaixo substitui-o.
+              {t('Gatilho atual:')} <strong>{getNodeLabel(node.type)}</strong> {t('(gatilho do sistema). Escolher outro abaixo substitui-o.')}
             </Helper>
           )}
           <TriggerPicker
@@ -77,8 +78,7 @@ export function NodeInspector({ node, graph, isEntry, onChange, onChangeTrigger,
             gridClassName="sm:grid-cols-2"
           />
           <Helper>
-            Trocar o gatilho substitui a ligação com o resto do sistema — o fluxo deixa de
-            responder ao anterior assim que guardar.
+            {t('Trocar o gatilho substitui a ligação com o resto do sistema — o fluxo deixa de responder ao anterior assim que guardar.')}
           </Helper>
         </Field>
       )}
@@ -103,12 +103,13 @@ function OncePerNumberField({ node, policy, onChange }: {
   policy: AutomationReentryPolicy;
   onChange: (policy: AutomationReentryPolicy) => void;
 }) {
+  const { t } = useLanguage();
   const once = policy === 'once';
   return (
     <div className="space-y-1.5 rounded-lg border border-border bg-background p-3">
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="trigger-once-per-number" className="text-sm font-medium">
-          Só uma vez por número
+          {t('Só uma vez por número')}
         </Label>
         <Switch
           id="trigger-once-per-number"
@@ -118,15 +119,13 @@ function OncePerNumberField({ node, policy, onChange }: {
       </div>
       <Helper>
         {once
-          ? 'Cada número entra nesta automação uma vez e nunca mais, mesmo que volte a escrever daqui a um mês.'
+          ? t('Cada número entra nesta automação uma vez e nunca mais, mesmo que volte a escrever daqui a um mês.')
           : node.type === 'whatsapp_keyword'
-            ? 'Arranca sempre que a mensagem tiver uma das palavras-chave. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho.'
-            : 'Arranca sempre que a pessoa escrever. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho: o ramo «Não» sem ligação termina ali.'}
+            ? t('Arranca sempre que a mensagem tiver uma das palavras-chave. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho.')
+            : t('Arranca sempre que a pessoa escrever. Para escolher quem segue, põe uma Condição logo a seguir ao gatilho: o ramo «Não» sem ligação termina ali.')}
       </Helper>
       <Helper>
-        Ligado ou desligado, nunca correm duas ao mesmo tempo para o mesmo número: enquanto uma
-        decorre, o que a pessoa escrever fica só na Caixa de Entrada. É a mesma opção que
-        «Quem pode voltar a entrar», em Definições.
+        {t('Ligado ou desligado, nunca correm duas ao mesmo tempo para o mesmo número: enquanto uma decorre, o que a pessoa escrever fica só na Caixa de Entrada. É a mesma opção que «Quem pode voltar a entrar», em Definições.')}
       </Helper>
     </div>
   );
@@ -142,6 +141,7 @@ interface FormProps {
 }
 
 function NodeConfigForm({ node, config, graph, set }: FormProps) {
+  const { t } = useLanguage();
   const { data: stages } = usePipelineStages();
   const { data: lists } = useContactLists();
   const { data: templates } = useEmailTemplates();
@@ -161,14 +161,14 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
     case 'lead_created':
       return (
         <>
-          <Hint>Este fluxo arranca sempre que uma nova lead é criada na organização.</Hint>
+          <Hint>{t('Este fluxo arranca sempre que uma nova lead é criada na organização.')}</Hint>
           <Field label="Origem (opcional)">
             <Input
               value={(config.source as string) ?? ''}
               onChange={(e) => set({ source: e.target.value })}
-              placeholder="Ex.: Facebook Ads"
+              placeholder={t('Ex.: Facebook Ads')}
             />
-            <Helper>Deixe vazio para arrancar com leads de qualquer origem.</Helper>
+            <Helper>{t('Deixe vazio para arrancar com leads de qualquer origem.')}</Helper>
           </Field>
         </>
       );
@@ -178,11 +178,12 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
     case 'lead_created_cold':
       return (
         <Hint>
-          Arranca quando uma nova lead é classificada como {' '}
-          {node.type === 'lead_created_hot' ? 'quente' : node.type === 'lead_created_cold' ? 'fria' : 'morna'}
-          {' '}pela IA. A classificação usa as &ldquo;Regras de Qualificação por IA&rdquo; do formulário (ou da
-          organização, consoante o modo escolhido nas definições). Sem regras configuradas, toda a lead entra
-          como morna — os gatilhos quente/fria nunca disparam nesse caso.
+          {node.type === 'lead_created_hot'
+            ? t('Arranca quando uma nova lead é classificada como quente pela IA.')
+            : node.type === 'lead_created_cold'
+              ? t('Arranca quando uma nova lead é classificada como fria pela IA.')
+              : t('Arranca quando uma nova lead é classificada como morna pela IA.')}
+          {' '}{t('A classificação usa as “Regras de Qualificação por IA” do formulário (ou da organização, consoante o modo escolhido nas definições). Sem regras configuradas, toda a lead entra como morna — os gatilhos quente/fria nunca disparam nesse caso.')}
         </Hint>
       );
 
@@ -214,9 +215,9 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
           <Input
             value={config.form_slug ?? ''}
             onChange={(e) => set({ form_slug: e.target.value })}
-            placeholder="Ex.: pedido-orcamento"
+            placeholder={t('Ex.: pedido-orcamento')}
           />
-          <Helper>Deixe vazio para reagir a qualquer formulário público.</Helper>
+          <Helper>{t('Deixe vazio para reagir a qualquer formulário público.')}</Helper>
         </Field>
       );
 
@@ -247,16 +248,15 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
                   });
                 }}
               />
-              <span className="text-sm text-muted-foreground">segundos sem mensagens novas</span>
+              <span className="text-sm text-muted-foreground">{t('segundos sem mensagens novas')}</span>
             </div>
             <Helper>
-              Quem escreve «Olá» · «tudo bem?» · «queria saber o preço» recebe uma resposta, não três: a
-              automação espera este silêncio e arranca uma vez, com as mensagens todas em
-              {' '}<code>{'{{mensagem_inicial}}'}</code>. Com 0 arranca logo na primeira. Máximo {MESSAGE_BUFFER_MAX_SECONDS}.
+              {t('Quem escreve «Olá» · «tudo bem?» · «queria saber o preço» recebe uma resposta, não três: a automação espera este silêncio e arranca uma vez, com as mensagens todas em')}
+              {' '}<code>{'{{mensagem_inicial}}'}</code>. {t('Com 0 arranca logo na primeira. Máximo {{max}}.', { max: MESSAGE_BUFFER_MAX_SECONDS })}
             </Helper>
           </Field>
           <Hint>
-            Se a mensagem tiver a palavra-chave de outra automação, ganha essa e esta não arranca.
+            {t('Se a mensagem tiver a palavra-chave de outra automação, ganha essa e esta não arranca.')}
           </Hint>
         </>
       );
@@ -268,7 +268,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
             value={config.keywords ?? []}
             onChange={(keywords) => set({ keywords })}
           />
-          <Helper>Escreva e prima Enter (ou vírgula) para adicionar. A mensagem recebida só precisa de conter uma delas.</Helper>
+          <Helper>{t('Escreva e prima Enter (ou vírgula) para adicionar. A mensagem recebida só precisa de conter uma delas.')}</Helper>
         </Field>
       );
 
@@ -276,10 +276,10 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       return (
         <Field label="Novo estado da venda">
           <Select value={config.to_status ?? ''} onValueChange={(value) => set({ to_status: value })}>
-            <SelectTrigger><SelectValue placeholder="Escolher estado" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('Escolher estado')} /></SelectTrigger>
             <SelectContent>
               {SALE_STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -290,7 +290,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       return (
         <Field label="Lista">
           <Select value={config.list_id ?? ''} onValueChange={(value) => set({ list_id: value })}>
-            <SelectTrigger><SelectValue placeholder="Escolher lista" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('Escolher lista')} /></SelectTrigger>
             <SelectContent>
               {(lists ?? []).map((list) => (
                 <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>
@@ -301,10 +301,10 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       );
 
     case 'sale_renewal_due_today':
-      return <Hint>Este fluxo arranca no dia em que uma venda com renovação chega à data de renovar.</Hint>;
+      return <Hint>{t('Este fluxo arranca no dia em que uma venda com renovação chega à data de renovar.')}</Hint>;
 
     case 'sale_renewal_due_in_2_days':
-      return <Hint>Este fluxo arranca 2 dias antes da data de renovação de uma venda.</Hint>;
+      return <Hint>{t('Este fluxo arranca 2 dias antes da data de renovação de uma venda.')}</Hint>;
 
     // ── Actions ──
     case 'send_whatsapp':
@@ -324,11 +324,11 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
               }))}
               value={config.template_id ?? null}
               onValueChange={(value) => set({ template_id: value ?? undefined })}
-              placeholder="Escolher template"
-              searchPlaceholder="Pesquisar template..."
-              emptyText="Nenhum template com esse nome."
+              placeholder={t('Escolher template')}
+              searchPlaceholder={t('Pesquisar template...')}
+              emptyText={t('Nenhum template com esse nome.')}
               emptyValue="__custom__"
-              emptyLabel="Conteúdo próprio"
+              emptyLabel={t('Conteúdo próprio')}
             />
           </Field>
 
@@ -339,7 +339,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
                   ref={emailSubjectRef}
                   value={config.subject ?? ''}
                   onChange={(e) => set({ subject: e.target.value })}
-                  placeholder="Ex.: A sua proposta está pronta"
+                  placeholder={t('Ex.: A sua proposta está pronta')}
                 />
                 <VariableChips
                   targetRef={emailSubjectRef}
@@ -352,7 +352,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
                   ref={emailHtmlRef}
                   value={config.html ?? ''}
                   onChange={(e) => set({ html: e.target.value })}
-                  placeholder="<p>Olá {{nome}},</p>"
+                  placeholder={t('<p>Olá {{nome}},</p>')}
                   rows={8}
                   className="font-mono text-xs"
                 />
@@ -385,7 +385,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
               <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {WAIT_UNIT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -418,7 +418,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       return (
         <Field label="Atribuir a">
           <Select value={config.user_id ?? ''} onValueChange={(value) => set({ user_id: value })}>
-            <SelectTrigger><SelectValue placeholder="Escolher utilizador" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('Escolher utilizador')} /></SelectTrigger>
             <SelectContent>
               {(members ?? []).map((member) => (
                 <SelectItem key={member.user_id} value={member.user_id}>
@@ -434,7 +434,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       return (
         <Field label="Lista">
           <Select value={config.list_id ?? ''} onValueChange={(value) => set({ list_id: value })}>
-            <SelectTrigger><SelectValue placeholder="Escolher lista" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('Escolher lista')} /></SelectTrigger>
             <SelectContent>
               {(lists ?? []).map((list) => (
                 <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>
@@ -452,7 +452,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
               ref={taskTitleRef}
               value={config.title ?? ''}
               onChange={(e) => set({ title: e.target.value })}
-              placeholder="Ex.: Ligar à lead"
+              placeholder={t('Ex.: Ligar à lead')}
             />
             <VariableChips
               targetRef={taskTitleRef}
@@ -465,7 +465,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
               ref={taskDescriptionRef}
               value={config.description ?? ''}
               onChange={(e) => set({ description: e.target.value })}
-              placeholder="Contexto para quem vai tratar da tarefa"
+              placeholder={t('Contexto para quem vai tratar da tarefa')}
               rows={3}
             />
             <VariableChips
@@ -488,7 +488,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
               value={config.user_id ?? config.assigned_to ?? ''}
               onValueChange={(value) => set({ user_id: value })}
             >
-              <SelectTrigger><SelectValue placeholder="Responsável da lead" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t('Responsável da lead')} /></SelectTrigger>
               <SelectContent>
                 {(members ?? []).map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
@@ -505,10 +505,10 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
       return <WebhookForm config={config} set={set} />;
 
     case 'end':
-      return <Hint>O fluxo termina aqui para este contacto. Não são executados mais passos.</Hint>;
+      return <Hint>{t('O fluxo termina aqui para este contacto. Não são executados mais passos.')}</Hint>;
 
     default:
-      return <Hint>Este passo não tem opções configuráveis.</Hint>;
+      return <Hint>{t('Este passo não tem opções configuráveis.')}</Hint>;
   }
 }
 
@@ -520,6 +520,7 @@ function NodeConfigForm({ node, config, graph, set }: FormProps) {
  * run in `validateGraph`, which is what actually holds back "Ativar".
  */
 function WebhookForm({ config, set }: { config: AutomationNodeConfig; set: FormProps['set'] }) {
+  const { t } = useLanguage();
   const url = config.url ?? '';
   const urlInvalid = !!url.trim() && !isWebhookUrlValid(url);
   const headersInvalid = !isJsonConfigValid(config.headers);
@@ -531,11 +532,11 @@ function WebhookForm({ config, set }: { config: AutomationNodeConfig; set: FormP
         <Input
           value={url}
           onChange={(e) => set({ url: e.target.value })}
-          placeholder="https://exemplo.com/hook"
+          placeholder={t('https://exemplo.com/hook')}
           className={cn(urlInvalid && INVALID_FIELD_CLASS)}
           aria-invalid={urlInvalid}
         />
-        {urlInvalid && <FieldError>Endereço inválido — comece por https://</FieldError>}
+        {urlInvalid && <FieldError>{t('Endereço inválido — comece por https://')}</FieldError>}
       </Field>
       <Field label="Método">
         <Select
@@ -559,7 +560,7 @@ function WebhookForm({ config, set }: { config: AutomationNodeConfig; set: FormP
           className={cn('font-mono text-xs', headersInvalid && INVALID_FIELD_CLASS)}
           aria-invalid={headersInvalid}
         />
-        {headersInvalid && <FieldError>JSON inválido</FieldError>}
+        {headersInvalid && <FieldError>{t('JSON inválido')}</FieldError>}
       </Field>
       <Field label="Corpo (JSON)">
         <Textarea
@@ -570,9 +571,9 @@ function WebhookForm({ config, set }: { config: AutomationNodeConfig; set: FormP
           className={cn('font-mono text-xs', bodyInvalid && INVALID_FIELD_CLASS)}
           aria-invalid={bodyInvalid}
         />
-        {bodyInvalid && <FieldError>JSON inválido</FieldError>}
+        {bodyInvalid && <FieldError>{t('JSON inválido')}</FieldError>}
       </Field>
-      <Helper>Pode usar variáveis como {'{{nome}}'} dentro dos valores.</Helper>
+      <Helper>{t('Pode usar variáveis como {{token}} dentro dos valores.', { token: '{{nome}}' })}</Helper>
     </>
   );
 }
@@ -586,6 +587,7 @@ function WebhookForm({ config, set }: { config: AutomationNodeConfig; set: FormP
  * across two nodes is what people kept getting wrong, so it lives here.
  */
 function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: FormProps['set'] }) {
+  const { t } = useLanguage();
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const waitsForReply = config.wait_reply === true;
 
@@ -624,7 +626,7 @@ function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: Form
           ref={messageRef}
           value={config.message ?? ''}
           onChange={(e) => set({ message: e.target.value })}
-          placeholder="Olá {{nome}}, obrigado pelo seu contacto!"
+          placeholder={t('Olá {{nome}}, obrigado pelo seu contacto!')}
           rows={6}
         />
         <VariableChips
@@ -641,7 +643,7 @@ function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: Form
       <div className="space-y-1.5 rounded-lg border border-border bg-background p-3">
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="whatsapp-wait-reply" className="text-sm font-medium">
-            Aguardar resposta
+            {t('Aguardar resposta')}
           </Label>
           <Switch
             id="whatsapp-wait-reply"
@@ -650,7 +652,7 @@ function WhatsappForm({ config, set }: { config: AutomationNodeConfig; set: Form
           />
         </div>
         <Helper>
-          O contacto responde e o fluxo segue por caminhos diferentes conforme a resposta.
+          {t('O contacto responde e o fluxo segue por caminhos diferentes conforme a resposta.')}
         </Helper>
       </div>
 
@@ -681,6 +683,7 @@ function WhatsappChannelField({
   autoLabel?: string;
   helper?: string;
 }) {
+  const { t } = useLanguage();
   const { data: channels = [] } = useMessagingChannels();
   const whatsapp = channels.filter((c) => c.channel_type === 'whatsapp' && isNativeEvolution(c) && !c.archived_at);
   const chosen = typeof config.channel_id === 'string' ? config.channel_id : '';
@@ -697,21 +700,21 @@ function WhatsappChannelField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={AUTO_CHANNEL}>{autoLabel}</SelectItem>
+          <SelectItem value={AUTO_CHANNEL}>{t(autoLabel)}</SelectItem>
           {whatsapp.map((c) => (
             <SelectItem key={c.id} value={c.id}>
               {(c.label || 'WhatsApp') + (c.phone_number ? ` · +${c.phone_number}` : '')}
-              {c.status !== 'connected' ? ' (desligada)' : ''}
+              {c.status !== 'connected' ? ` ${t('(desligada)')}` : ''}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       {noneConnected ? (
-        <FieldError>Não há nenhuma caixa de WhatsApp ligada. Liga um número por QR code em Definições → Integrações.</FieldError>
+        <FieldError>{t('Não há nenhuma caixa de WhatsApp ligada. Liga um número por QR code em Definições → Integrações.')}</FieldError>
       ) : chosenGone ? (
-        <FieldError>A caixa escolhida já não existe. Escolhe outra.</FieldError>
+        <FieldError>{t('A caixa escolhida já não existe. Escolhe outra.')}</FieldError>
       ) : (
-        <Helper>{helper}</Helper>
+        <Helper>{t(helper)}</Helper>
       )}
     </Field>
   );
@@ -740,6 +743,7 @@ function mediaKindFromMime(mimetype: string): AutomationMediaAttachment['kind'] 
  * the legacy `media_url` is still shown as an attachment if present.
  */
 function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set: FormProps['set'] }) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -749,11 +753,11 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
 
   const handleFile = async (file: File) => {
     if (!organization?.id) {
-      toast.error('Sem organização ativa');
+      toast.error(t('Sem organização ativa'));
       return;
     }
     if (file.size > MAX_MEDIA_BYTES) {
-      toast.error('Ficheiro demasiado grande', { description: 'O limite do WhatsApp é 16 MB.' });
+      toast.error(t('Ficheiro demasiado grande'), { description: t('O limite do WhatsApp é 16 MB.') });
       return;
     }
 
@@ -789,7 +793,7 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
       });
     } catch (error) {
       console.error('Error uploading automation media:', error);
-      toast.error('Erro ao carregar o ficheiro');
+      toast.error(t('Erro ao carregar o ficheiro'));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -806,7 +810,7 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
   if (media || legacyUrl) {
     const kind = media?.kind ?? 'document';
     const KindIcon = MEDIA_KIND_ICONS[kind] ?? FileText;
-    const filename = media?.filename ?? legacyUrl?.split('/').pop() ?? 'anexo';
+    const filename = media?.filename ?? legacyUrl?.split('/').pop() ?? t('anexo');
 
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-2">
@@ -824,7 +828,7 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
           size="icon"
           className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
           onClick={handleRemove}
-          title="Remover anexo"
+          title={t('Remover anexo')}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
@@ -852,12 +856,12 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
         onClick={() => fileInputRef.current?.click()}
       >
         {isUploading ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> A carregar…</>
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('A carregar…')}</>
         ) : (
-          <><Upload className="mr-2 h-4 w-4" /> Carregar ficheiro</>
+          <><Upload className="mr-2 h-4 w-4" /> {t('Carregar ficheiro')}</>
         )}
       </Button>
-      <Helper>Imagem, vídeo ou PDF enviado junto com a mensagem. Máximo 16 MB.</Helper>
+      <Helper>{t('Imagem, vídeo ou PDF enviado junto com a mensagem. Máximo 16 MB.')}</Helper>
     </>
   );
 }
@@ -870,13 +874,13 @@ function WhatsappMediaField({ config, set }: { config: AutomationNodeConfig; set
  * (an earlier step, a person, another tool) and the flow only needs to listen.
  */
 function WaitReplyForm({ config, set }: { config: AutomationNodeConfig; set: FormProps['set'] }) {
+  const { t } = useLanguage();
   const questionRef = useRef<HTMLTextAreaElement>(null);
 
   return (
     <>
       <Hint>
-        Este passo não envia mensagem nenhuma por si só. Para perguntar <em>e</em> esperar, use um
-        passo «Enviar WhatsApp» com «Aguardar resposta» ligado.
+        {t('Este passo não envia mensagem nenhuma por si só. Para perguntar e esperar, use um passo «Enviar WhatsApp» com «Aguardar resposta» ligado.')}
       </Hint>
 
       <Field label="Pergunta (opcional)">
@@ -884,7 +888,7 @@ function WaitReplyForm({ config, set }: { config: AutomationNodeConfig; set: For
           ref={questionRef}
           value={config.question ?? ''}
           onChange={(e) => set({ question: e.target.value })}
-          placeholder="Ex.: Quer que lhe ligue para explicar?"
+          placeholder={t('Ex.: Quer que lhe ligue para explicar?')}
           rows={4}
         />
         <VariableChips
@@ -893,8 +897,7 @@ function WaitReplyForm({ config, set }: { config: AutomationNodeConfig; set: For
           onChange={(question) => set({ question })}
         />
         <Helper>
-          Se preencher, é enviada quando o fluxo chega aqui. Deixe vazio se a pergunta já foi feita
-          num passo anterior.
+          {t('Se preencher, é enviada quando o fluxo chega aqui. Deixe vazio se a pergunta já foi feita num passo anterior.')}
         </Helper>
       </Field>
 
@@ -914,6 +917,7 @@ function ReplyRulesEditor({
   config: AutomationNodeConfig;
   set: FormProps['set'];
 }) {
+  const { t } = useLanguage();
   const rules = config.rules ?? [];
   // Engine contract: timeout_amount / timeout_unit. The nested `timeout`
   // object is a legacy shape older editors saved — read it as a fallback and
@@ -962,43 +966,41 @@ function ReplyRulesEditor({
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="emoji">Numeradas com emoji (1️⃣ Sim)</SelectItem>
-            <SelectItem value="number">Numeradas (1. Sim)</SelectItem>
-            <SelectItem value="none">Não mostrar — a mensagem já explica</SelectItem>
+            <SelectItem value="emoji">{t('Numeradas com emoji (1️⃣ Sim)')}</SelectItem>
+            <SelectItem value="number">{t('Numeradas (1. Sim)')}</SelectItem>
+            <SelectItem value="none">{t('Não mostrar — a mensagem já explica')}</SelectItem>
           </SelectContent>
         </Select>
         {(() => {
           const preview = formatReplyOptions(rules, config.options_style ?? 'emoji');
           return preview ? (
             <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-              <p className="text-[11px] font-medium text-muted-foreground">Acrescentado no fim da mensagem:</p>
+              <p className="text-[11px] font-medium text-muted-foreground">{t('Acrescentado no fim da mensagem:')}</p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{preview}</p>
             </div>
           ) : (
-            <Helper>Nada é acrescentado: só sai o texto que escreveste.</Helper>
+            <Helper>{t('Nada é acrescentado: só sai o texto que escreveste.')}</Helper>
           );
         })()}
         <Helper>
-          Em qualquer caso, o contacto pode responder com o número («1», «2»…), com o nome da
-          opção ou com uma das palavras-chave dela.
+          {t('Em qualquer caso, o contacto pode responder com o número («1», «2»…), com o nome da opção ou com uma das palavras-chave dela.')}
         </Helper>
       </Field>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Respostas possíveis
+            {t('Respostas possíveis')}
           </Label>
           <Button variant="outline" size="sm" className="h-7" onClick={addRule}>
             <Plus className="mr-1 h-3.5 w-3.5" />
-            Opção
+            {t('Opção')}
           </Button>
         </div>
 
         {!rules.length && (
           <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            Sem opções. Adicione uma para ramificar consoante o que o contacto responder — cada
-            opção cria um caminho próprio no fluxo.
+            {t('Sem opções. Adicione uma para ramificar consoante o que o contacto responder — cada opção cria um caminho próprio no fluxo.')}
           </p>
         )}
 
@@ -1011,7 +1013,7 @@ function ReplyRulesEditor({
               <Input
                 value={rule.label}
                 onChange={(e) => updateRule(rule.id, { label: e.target.value })}
-                placeholder="Texto do botão"
+                placeholder={t('Texto do botão')}
                 maxLength={20}
                 className="h-8 flex-1"
               />
@@ -1020,14 +1022,14 @@ function ReplyRulesEditor({
                 size="icon"
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                 onClick={() => removeRule(rule.id)}
-                title="Remover opção"
+                title={t('Remover opção')}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <Helper>É o texto do botão (máx. 20 caracteres) e o rótulo do caminho no fluxo.</Helper>
+            <Helper>{t('É o texto do botão (máx. 20 caracteres) e o rótulo do caminho no fluxo.')}</Helper>
             <div className="space-y-1">
-              <Label className="text-[11px] font-medium text-muted-foreground">Palavras-chave</Label>
+              <Label className="text-[11px] font-medium text-muted-foreground">{t('Palavras-chave')}</Label>
               <KeywordsInput
                 value={rule.keywords ?? []}
                 onChange={(keywords) => updateRule(rule.id, { keywords })}
@@ -1053,12 +1055,12 @@ function ReplyRulesEditor({
             <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
             <SelectContent>
               {WAIT_UNIT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <Helper>Passado este tempo sem resposta, o fluxo segue pelo caminho «Sem resposta».</Helper>
+        <Helper>{t('Passado este tempo sem resposta, o fluxo segue pelo caminho «Sem resposta».')}</Helper>
       </Field>
     </>
   );
@@ -1075,6 +1077,7 @@ function ConditionForm({
   set: FormProps['set'];
   stages: PipelineStage[] | undefined;
 }) {
+  const { t } = useLanguage();
   const field = config.field ?? '';
   // The fields on offer are what THIS flow carries — the trigger's record and
   // what earlier steps added (see NodeDetailsView) — not a fixed list.
@@ -1108,19 +1111,19 @@ function ConditionForm({
             }
           }}
         >
-          <SelectTrigger><SelectValue placeholder="Escolher campo" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder={t('Escolher campo')} /></SelectTrigger>
           <SelectContent>
             {fieldOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
             ))}
-            <SelectItem value={CUSTOM_FIELD_SENTINEL}>Outro campo…</SelectItem>
+            <SelectItem value={CUSTOM_FIELD_SENTINEL}>{t('Outro campo…')}</SelectItem>
           </SelectContent>
         </Select>
         {showCustomInput && (
           <Input
             value={field}
             onChange={(e) => set({ field: e.target.value })}
-            placeholder="Nome do campo (ex.: nif)"
+            placeholder={t('Nome do campo (ex.: nif)')}
           />
         )}
       </Field>
@@ -1133,19 +1136,20 @@ function ConditionForm({
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {CONDITION_OPERATOR_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         {LOOKUP_OPERATORS.includes(operator) && (
           isPhoneField || /email/i.test(field) ? (
             <Helper>
-              Procura este {isPhoneField ? 'telefone (os últimos 9 dígitos, por isso «+351», espaços e traços não contam)' : 'email'}
-              {' '}na base de dados da organização. Quando existe, os passos seguintes podem usar
-              {' '}{'{{cliente_nome}}'}, {'{{lead_nome}}'} e {'{{encontrado_em}}'}.
+              {isPhoneField
+                ? t('Procura este telefone (os últimos 9 dígitos, por isso «+351», espaços e traços não contam) na base de dados da organização.')
+                : t('Procura este email na base de dados da organização.')}
+              {' '}{t('Quando existe, os passos seguintes podem usar {{a}}, {{b}} e {{c}}.', { a: '{{cliente_nome}}', b: '{{lead_nome}}', c: '{{encontrado_em}}' })}
             </Helper>
           ) : (
-            <FieldError>Escolhe o campo Telefone ou Email: é por eles que o contacto é procurado.</FieldError>
+            <FieldError>{t('Escolhe o campo Telefone ou Email: é por eles que o contacto é procurado.')}</FieldError>
           )
         )}
       </Field>
@@ -1165,21 +1169,20 @@ function ConditionForm({
               type={isNumeric ? 'number' : 'text'}
               value={config.value ?? ''}
               onChange={(e) => set({ value: e.target.value })}
-              placeholder={isNumeric ? '0' : isPhoneField ? '912 345 678' : 'Valor a comparar'}
+              placeholder={isNumeric ? '0' : isPhoneField ? '912 345 678' : t('Valor a comparar')}
             />
           )}
           {isPhoneField && !isValueless && (
             <Helper>
-              Compara os últimos 9 dígitos: «+351 912 345 678», «912345678» e «351912345678» contam
-              como o mesmo número.
+              {t('Compara os últimos 9 dígitos: «+351 912 345 678», «912345678» e «351912345678» contam como o mesmo número.')}
             </Helper>
           )}
         </Field>
       )}
 
       <Hint>
-        O fluxo segue pelo ramo <strong>Sim</strong> quando a condição se verifica e por{' '}
-        <strong>Não</strong> caso contrário.
+        {t('O fluxo segue pelo ramo')} <strong>{t('Sim')}</strong> {t('quando a condição se verifica e por')}{' '}
+        <strong>{t('Não')}</strong> {t('caso contrário.')}
       </Hint>
     </>
   );
@@ -1188,10 +1191,11 @@ function ConditionForm({
 // ── Small building blocks ───────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
+        {t(label)}
       </Label>
       {children}
     </div>
@@ -1227,9 +1231,10 @@ function StageSelect({
   /** Which stage property backs the option value — ids for trigger configs, keys for the engine. */
   by?: 'id' | 'key';
 }) {
+  const { t } = useLanguage();
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectTrigger><SelectValue placeholder={t(placeholder)} /></SelectTrigger>
       <SelectContent>
         {(stages ?? []).map((stage) => (
           <SelectItem key={stage.id} value={by === 'key' ? stage.key : stage.id}>
@@ -1252,6 +1257,7 @@ function KeywordsInput({
   onChange: (value: string[]) => void;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState('');
 
   const commitDraft = (raw: string) => {
@@ -1282,7 +1288,7 @@ function KeywordsInput({
             type="button"
             className="text-muted-foreground transition-colors hover:text-destructive"
             onClick={() => onChange(value.filter((k) => k !== keyword))}
-            title={`Remover ${keyword}`}
+            title={t('Remover {{name}}', { name: keyword })}
           >
             <X className="h-3 w-3" />
           </button>
@@ -1300,7 +1306,7 @@ function KeywordsInput({
           }
         }}
         onBlur={() => draft.trim() && commitDraft(draft)}
-        placeholder={value.length ? '' : 'sim, quero, interessado'}
+        placeholder={value.length ? '' : t('sim, quero, interessado')}
         className="min-w-[80px] flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
       />
     </div>

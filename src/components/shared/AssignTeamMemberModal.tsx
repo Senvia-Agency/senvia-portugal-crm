@@ -14,6 +14,7 @@ import { Loader2, User, UserMinus } from "lucide-react";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useBulkAssignLeads, useBulkAssignClients } from "@/hooks/useBulkAssign";
 import { toast } from "sonner";
+import { useLanguage } from "@/i18n";
 
 interface AssignTeamMemberModalProps {
   open: boolean;
@@ -30,6 +31,7 @@ export function AssignTeamMemberModal({
   entityType,
   onSuccess,
 }: AssignTeamMemberModalProps) {
+  const { t } = useLanguage();
   const [selectedMemberId, setSelectedMemberId] = useState<string>("none");
   const { data: teamMembers = [], isLoading: isLoadingTeam } = useTeamMembers();
   
@@ -54,27 +56,27 @@ export function AssignTeamMemberModal({
         });
       }
       
-      const entityLabel = entityType === "leads" ? "leads" : "clientes";
-      const actionLabel = assignedTo ? "atribuídos" : "desatribuídos";
-      toast.success(`${selectedIds.length} ${entityLabel} ${actionLabel} com sucesso`);
+      const successKey = entityType === "leads"
+        ? (assignedTo ? "{{n}} leads atribuídos com sucesso" : "{{n}} leads desatribuídos com sucesso")
+        : (assignedTo ? "{{n}} clientes atribuídos com sucesso" : "{{n}} clientes desatribuídos com sucesso");
+      toast.success(t(successKey, { n: selectedIds.length }));
       
       onSuccess();
       onOpenChange(false);
       setSelectedMemberId("none");
     } catch (error) {
-      toast.error("Erro ao atribuir colaborador");
+      toast.error(t("Erro ao atribuir colaborador"));
     }
   };
 
-  const entityLabel = entityType === "leads" ? "leads" : "clientes";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Atribuir Colaborador</DialogTitle>
+          <DialogTitle>{t("Atribuir Colaborador")}</DialogTitle>
           <DialogDescription>
-            Selecione o colaborador para atribuir a {selectedIds.length} {entityLabel} selecionados.
+            {t(entityType === "leads" ? "Selecione o colaborador para atribuir a {{n}} leads selecionados." : "Selecione o colaborador para atribuir a {{n}} clientes selecionados.", { n: selectedIds.length })}
           </DialogDescription>
         </DialogHeader>
 
@@ -97,7 +99,7 @@ export function AssignTeamMemberModal({
                   className="flex items-center gap-2 cursor-pointer flex-1"
                 >
                   <UserMinus className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Nenhum (remover atribuição)</span>
+                  <span className="text-muted-foreground">{t("Nenhum (remover atribuição)")}</span>
                 </Label>
               </div>
 
@@ -119,7 +121,7 @@ export function AssignTeamMemberModal({
 
               {teamMembers.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum colaborador encontrado.
+                  {t("Nenhum colaborador encontrado.")}
                 </p>
               )}
             </RadioGroup>
@@ -128,11 +130,11 @@ export function AssignTeamMemberModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button onClick={handleConfirm} disabled={isSubmitting || isLoadingTeam}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirmar
+            {t("Confirmar")}
           </Button>
         </DialogFooter>
       </DialogContent>

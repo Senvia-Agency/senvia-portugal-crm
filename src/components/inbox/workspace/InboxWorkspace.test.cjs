@@ -50,6 +50,8 @@ test('navigation, minimize, pop-out and reversal preserve the same draft owner; 
       build.onResolve({ filter: /^@\/pages\/Inbox$/ }, () => ({ path: 'reader', namespace: 'fixture' }));
       build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: fakeReader, loader: 'tsx', resolveDir: process.cwd() }));
       build.onResolve({ filter: /^(react|react-dom|react-router-dom)(\/.*)?$/ }, args => ({ path: require.resolve(args.path), external: true }));
+      build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: 'i18n', namespace: 'i18n-stub' }));
+      build.onLoad({ filter: /.*/, namespace: 'i18n-stub' }, () => ({ contents: `export const useLanguage=()=>({t:(s,o)=>o?Object.keys(o).reduce((r,k)=>r.split('{{'+k+'}}').join(o[k]),s):s});export const tr=(s,o)=>o?Object.keys(o).reduce((r,k)=>r.split('{{'+k+'}}').join(o[k]),s):s;export const intlLocale=()=>'pt-PT';export const currentLanguage=()=>'pt-PT';export const dateLocale=()=>undefined;`, loader: 'js' }));
     } }],
   });
   const { App } = require(outfile);

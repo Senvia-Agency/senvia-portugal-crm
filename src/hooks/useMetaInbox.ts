@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { tr } from '@/i18n';
 
 // As tabelas meta_* são mais recentes do que os tipos gerados do Supabase, por
 // isso o cliente tipado não as conhece. Mesmo padrão já usado noutros hooks do
@@ -262,6 +263,8 @@ export function useMetaMessages(conversationId: string | null) {
  */
 export function useMetaMedia(messageId: string, mediaId: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
+  // O tipo do ficheiro que chegou: manda mais do que o tipo guardado no anexo.
+  const [mime, setMime] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -279,7 +282,7 @@ export function useMetaMedia(messageId: string, mediaId: string | null | undefin
         // blob chega intacto E com o tipo certo, que é o que faz o `<img>`
         // saber o que está a mostrar.
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Sessão expirada. Recarrega a página.');
+        if (!session) throw new Error(tr('Sessão expirada. Recarrega a página.'));
 
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-media`,
@@ -296,15 +299,16 @@ export function useMetaMedia(messageId: string, mediaId: string | null | undefin
 
         if (!res.ok) {
           const corpo = await res.json().catch(() => ({}));
-          throw new Error(corpo?.error || `Não foi possível abrir o ficheiro (${res.status})`);
+          throw new Error(corpo?.error || tr('Não foi possível abrir o ficheiro ({{status}})', { status: res.status }));
         }
 
         const blob = await res.blob();
         if (!vivo) return;
         criado = URL.createObjectURL(blob);
+        setMime(blob.type || null);
         setUrl(criado);
       } catch (e) {
-        if (vivo) setErro((e as Error).message || 'Não foi possível abrir o ficheiro.');
+        if (vivo) setErro((e as Error).message || tr('Não foi possível abrir o ficheiro.'));
       }
     })();
 
@@ -314,7 +318,7 @@ export function useMetaMedia(messageId: string, mediaId: string | null | undefin
     };
   }, [messageId, mediaId]);
 
-  return { url, erro, aCarregar: !url && !erro && !!mediaId };
+  return { url, mime, erro, aCarregar: !url && !erro && !!mediaId };
 }
 
 /** Um modelo aprovado pela Meta, tal como ela o devolve. */
@@ -365,7 +369,7 @@ export function useSyncWhatsAppTemplates() {
 
   return useMutation({
     mutationFn: async (channelId: string) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('meta-connect', {
         body: {
           action: 'whatsapp_templates_sync',
@@ -562,13 +566,13 @@ export function useSendMetaAttachment() {
       const limite = ehImagem ? 8 * 1024 * 1024 : 25 * 1024 * 1024;
       if (file.size > limite) {
         throw new Error(
-          `O Instagram aceita no máximo ${ehImagem ? '8' : '25'} MB para este tipo de ficheiro.`,
+          tr('O Instagram aceita no máximo {{mb}} MB para este tipo de ficheiro.', { mb: ehImagem ? '8' : '25' }),
         );
       }
 
       // Sem organização não há caminho válido — e o erro que vinha da política
       // do balde não dizia isso a ninguém.
-      if (!organization?.id) throw new Error('Organização não encontrada. Recarrega a página.');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada. Recarrega a página.'));
 
       // A ORGANIZAÇÃO TEM DE SER A PRIMEIRA PASTA. A política do balde faz
       // `is_org_member(auth.uid(), (storage.foldername(name))[1]::uuid)`, ou
@@ -579,7 +583,7 @@ export function useSendMetaAttachment() {
       const { error: upErr } = await supabase.storage
         .from('automation-media')
         .upload(caminho, file, { contentType: file.type, upsert: false });
-      if (upErr) throw new Error(`Falha ao carregar o ficheiro: ${upErr.message}`);
+      if (upErr) throw new Error(tr('Falha ao carregar o ficheiro: {{error}}', { error: upErr.message }));
 
       const { data: pub } = supabase.storage.from('automation-media').getPublicUrl(caminho);
 

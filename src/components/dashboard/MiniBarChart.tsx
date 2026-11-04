@@ -14,6 +14,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { intlLocale, useLanguage } from "@/i18n";
 
 type SingleBarDatum = { name: string; value: number };
 type GroupedBarDatum = {
@@ -50,12 +51,13 @@ const metricLabels: Record<string, string> = {
   pendentes: "Pendentes",
 };
 
-const numberFormatter = new Intl.NumberFormat("pt-PT", {
+// Built per call so the numbers follow the chosen language.
+const numberFormatter = () => new Intl.NumberFormat(intlLocale(), {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });
 
-const currencyFormatter = new Intl.NumberFormat("pt-PT", {
+const currencyFormatter = () => new Intl.NumberFormat(intlLocale(), {
   style: "currency",
   currency: "EUR",
   minimumFractionDigits: 0,
@@ -126,10 +128,11 @@ export function MiniBarChart({
   showLegend = false,
   formatAsCurrency = false,
 }: MiniBarChartProps) {
+  const { t } = useLanguage();
   if (!data || data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Sem dados
+        {t("Sem dados")}
       </div>
     );
   }
@@ -143,12 +146,12 @@ export function MiniBarChart({
   const bottomMargin = isGrouped ? (isPortalVariant ? 94 : 72) : showLabels ? 28 : 8;
   const chartConfig: ChartConfig = isGrouped
     ? {
-        objetivo: { label: "Objetivo", color: metricColors.objetivo },
-        ativos: { label: "Ativos", color: metricColors.ativos },
-        pendentes: { label: "Pendentes", color: metricColors.pendentes },
+        objetivo: { label: t("Objetivo"), color: metricColors.objetivo },
+        ativos: { label: t("Ativos"), color: metricColors.ativos },
+        pendentes: { label: t("Pendentes"), color: metricColors.pendentes },
       }
     : {
-        value: { label: "Valor", color },
+        value: { label: t("Valor"), color },
       };
 
   return (
@@ -170,14 +173,14 @@ export function MiniBarChart({
               hideLabel
               formatter={(value, name, item) => {
                 const label = isGrouped
-                  ? metricLabels[String(name).toLowerCase()] ?? String(name)
-                  : String(item.payload?.name ?? name ?? "Valor");
+                  ? t(metricLabels[String(name).toLowerCase()] ?? String(name))
+                  : String(item.payload?.name ?? name ?? t("Valor"));
 
                 return (
                   <div className="flex min-w-[10rem] items-center justify-between gap-6">
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-mono font-medium tabular-nums text-foreground">
-                      {formatAsCurrency ? currencyFormatter.format(Number(value)) : numberFormatter.format(Number(value))}
+                      {formatAsCurrency ? currencyFormatter().format(Number(value)) : numberFormatter().format(Number(value))}
                     </span>
                   </div>
                 );
@@ -193,7 +196,7 @@ export function MiniBarChart({
             width={isPortalVariant ? 48 : 42}
             domain={[0, yAxisMax]}
             tickCount={5}
-            tickFormatter={(value: number) => formatAsCurrency ? currencyFormatter.format(value) : numberFormatter.format(value)}
+            tickFormatter={(value: number) => formatAsCurrency ? currencyFormatter().format(value) : numberFormatter().format(value)}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
         )}

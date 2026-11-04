@@ -48,6 +48,7 @@ import {
 } from "@/hooks/ecommerce";
 import { formatCurrency } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/i18n";
 
 const variantSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -69,6 +70,7 @@ interface ProductVariantsModalProps {
 
 export function ProductVariantsModal({ product, open, onOpenChange }: ProductVariantsModalProps) {
   const { data: variants, isLoading } = useProductVariants(product.id);
+  const { t } = useLanguage();
   const createVariant = useCreateVariant();
   const updateVariant = useUpdateVariant();
   const deleteVariant = useDeleteVariant();
@@ -161,7 +163,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Variantes - {product.name}</DialogTitle>
+          <DialogTitle>{t("Variantes - {{name}}", { name: product.name })}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -170,7 +172,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
               <div className="flex justify-end">
                 <Button onClick={handleCreate} size="sm">
                   <Plus className="mr-2 h-4 w-4" />
-                  Nova Variante
+                  {t("Nova Variante")}
                 </Button>
               </div>
 
@@ -182,11 +184,11 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
               ) : variants?.length === 0 ? (
                 <div className="flex min-h-[150px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center">
                   <p className="text-sm text-muted-foreground">
-                    Sem variantes. Crie variantes para oferecer diferentes opções (tamanhos, cores, etc.)
+                    {t("Sem variantes. Crie variantes para oferecer diferentes opções (tamanhos, cores, etc.)")}
                   </p>
                   <Button onClick={handleCreate} className="mt-4" size="sm">
                     <Plus className="mr-2 h-4 w-4" />
-                    Criar Variante
+                    {t("Criar Variante")}
                   </Button>
                 </div>
               ) : (
@@ -194,12 +196,12 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Nome</TableHead>
+                        <TableHead>{t("Nome")}</TableHead>
                         <TableHead>SKU</TableHead>
-                        <TableHead>Preço</TableHead>
-                        <TableHead>Stock</TableHead>
-                        <TableHead>Ativo</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead>{t("Preço")}</TableHead>
+                        <TableHead>{t("Stock")}</TableHead>
+                        <TableHead>{t("Ativo")}</TableHead>
+                        <TableHead className="text-right">{t("Ações")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -229,7 +231,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                           </TableCell>
                           <TableCell>
                             <Badge variant={variant.is_active ? "default" : "secondary"}>
-                              {variant.is_active ? "Sim" : "Não"}
+                              {variant.is_active ? t("Sim") : t("Não")}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -263,9 +265,9 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome da Variante *</FormLabel>
+                      <FormLabel>{t("Nome da Variante *")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Tamanho M - Azul" {...field} />
+                        <Input placeholder={t("Ex: Tamanho M - Azul")} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -292,7 +294,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                     name="price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preço (€) *</FormLabel>
+                        <FormLabel>{t("Preço (€) *")}</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.01" {...field} />
                         </FormControl>
@@ -308,7 +310,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                     name="stock_quantity"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Stock</FormLabel>
+                        <FormLabel>{t("Stock")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} />
                         </FormControl>
@@ -322,7 +324,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                     name="low_stock_threshold"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Alerta Stock Baixo</FormLabel>
+                        <FormLabel>{t("Alerta Stock Baixo")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} />
                         </FormControl>
@@ -337,7 +339,7 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                   name="is_active"
                   render={({ field }) => (
                     <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                      <FormLabel>Variante Ativa</FormLabel>
+                      <FormLabel>{t("Variante Ativa")}</FormLabel>
                       <FormControl>
                         <Switch checked={field.value} onCheckedChange={field.onChange} />
                       </FormControl>
@@ -354,13 +356,13 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
                       setEditingVariant(null);
                     }}
                   >
-                    Cancelar
+                    {t("Cancelar")}
                   </Button>
                   <Button
                     type="submit"
                     disabled={createVariant.isPending || updateVariant.isPending}
                   >
-                    {editingVariant ? "Guardar" : "Criar Variante"}
+                    {editingVariant ? t("Guardar") : t("Criar Variante")}
                   </Button>
                 </div>
               </form>
@@ -372,15 +374,15 @@ export function ProductVariantsModal({ product, open, onOpenChange }: ProductVar
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminar Variante</AlertDialogTitle>
+              <AlertDialogTitle>{t("Eliminar Variante")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem a certeza que deseja eliminar esta variante?
+                {t("Tem a certeza que deseja eliminar esta variante?")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
               <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                Eliminar
+                {t("Eliminar")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { workspaceNavigation } from './workspaceNavigation';
+import { useEffect, useRef, useState } from "react";
+import { useScrollEdges } from './useScrollEdges';
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Settings, Shield, Calendar, FileText, ShoppingBag, Store, UserCheck, Mail, Wallet, Lock, Building2, Search, MessageSquare, Percent } from "lucide-react";
+import { Shield, Lock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useModules, EnabledModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useLanguage } from "@/i18n";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { InboxUnreadBadge } from "./InboxUnreadBadge";
+import { WebmailUnreadBadge } from "@/features/webmail/WebmailUnreadBadge";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { ModuleNavIcon } from './ModuleNavIcon';
@@ -20,26 +24,16 @@ interface NavItem {
   moduleKey?: keyof EnabledModules;
 }
 
-const allNavItems: NavItem[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Painel" },
-  { to: "/leads", icon: Users, label: "Leads" },
-  { to: "/inbox", icon: MessageSquare, label: "Caixa", moduleKey: 'inbox' },
-  { to: "/clients", icon: UserCheck, label: "Clientes", moduleKey: 'clients' },
-  { to: "/proposals", icon: FileText, label: "Propostas", moduleKey: 'proposals' },
-  { to: "/sales", icon: ShoppingBag, label: "Vendas", moduleKey: 'sales' },
-  { to: "/financeiro", icon: Wallet, label: "Finanças", moduleKey: 'finance' },
-  { to: "/calendar", icon: Calendar, label: "Agenda", moduleKey: 'calendar' },
-  { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
-  { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/settings", icon: Settings, label: "Definições" },
-];
+const allNavItems = workspaceNavigation;
+
 
 export function MobileBottomNav() {
   const location = useLocation();
   const { setOpen: setOttoOpen } = useOttoStore();
   const { isSuperAdmin, organization, organizations } = useAuth();
   const { modules } = useModules();
-  const { canViewModule } = usePermissions();
+  const { canViewModule, isAdmin } = usePermissions();
+  const { t } = useLanguage();
   const { isModuleLocked, getRequiredPlan } = useSubscription();
   const hasPerfect2GetherModuleAccess = hasPerfect2GetherAccess({
     organizationId: organization?.id,
@@ -56,8 +50,33 @@ export function MobileBottomNav() {
   // the way while the keyboard is open; it returns when the keyboard closes.
   const keyboardOpen = useKeyboardOpen();
 
+  // More modules than fit across a phone: the strip scrolls sideways, fades at the
+  // edges that hide items, and also follows a mouse wheel (desktop narrow windows).
+  const stripRef = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(stripRef, 'x');
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const atStart = strip.scrollLeft <= 0;
+      const atEnd = strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 1;
+      if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return;
+      event.preventDefault();
+      strip.scrollLeft += event.deltaY;
+    };
+    strip.addEventListener('wheel', onWheel, { passive: false });
+    return () => strip.removeEventListener('wheel', onWheel);
+  }, []);
+  // The current page's item must be visible, even when it sits past the screen edge.
+  useEffect(() => {
+    stripRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [location.pathname]);
+
   // Plan-locked items stay visible; admin-disabled or no-permission items are hidden
   const navItems = allNavItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return true;
     if (!modules[item.moduleKey]) return false;
@@ -94,7 +113,8 @@ export function MobileBottomNav() {
           keyboardOpen && "translate-y-full pointer-events-none",
         )}
       >
-          <div className="flex items-center h-16 px-2 overflow-x-auto no-scrollbar gap-2">
+          <div ref={stripRef} data-fade-start={edges.start} data-fade-end={edges.end}
+            className="scroll-fade-x flex items-center h-16 px-2 overflow-x-auto overscroll-x-contain no-scrollbar gap-2">
           {allItems.map((item) => {
             const locked = 'moduleKey' in item && item.moduleKey ? isModuleLocked(item.moduleKey) : false;
             const isActive = location.pathname === item.to || 
@@ -102,7 +122,7 @@ export function MobileBottomNav() {
             
             return (
               <NavLink
-                key={item.to}
+                key={item.to} aria-label={t(item.label)}
                 to={locked ? "#" : item.to}
                 onClick={(e) => 'moduleKey' in item ? handleLockedClick(e, item as NavItem) : undefined}
                 className={cn(
@@ -122,12 +142,15 @@ export function MobileBottomNav() {
                   {item.to === "/inbox" && !locked && (
                     <InboxUnreadBadge className="absolute -right-2.5 -top-1.5 h-4 min-w-[16px] px-1 text-[9px]" />
                   )}
+                  {item.to === "/webmail" && !locked && (
+                    <WebmailUnreadBadge className="absolute -right-2.5 -top-1.5 h-4 min-w-[16px] px-1 text-[9px]" />
+                  )}
                 </div>
                 <span className={cn(
-                  "text-[10px] font-medium",
+                  "whitespace-nowrap text-[10px] font-medium",
                   isActive && !locked && "text-primary"
                 )}>
-                  {item.label}
+                  {item.to === '/inbox' ? 'Inbox' : t(item.label)}
                 </span>
               </NavLink>
             );

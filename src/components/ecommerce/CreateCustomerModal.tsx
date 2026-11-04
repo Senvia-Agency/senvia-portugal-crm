@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useCreateCustomer } from "@/hooks/ecommerce";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -39,6 +40,7 @@ interface CreateCustomerModalProps {
 
 export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalProps) {
   const createCustomer = useCreateCustomer();
+  const { t } = useLanguage();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -70,7 +72,7 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Novo Cliente</DialogTitle>
+          <DialogTitle>{t("Novo Cliente")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -80,9 +82,9 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome *</FormLabel>
+                  <FormLabel>{t("Nome *")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome completo" {...field} />
+                    <Input placeholder={t("Nome completo")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -108,7 +110,7 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefone</FormLabel>
+                  <FormLabel>{t("Telefone")}</FormLabel>
                   <FormControl>
                     <Input placeholder="+351 912 345 678" {...field} />
                   </FormControl>
@@ -122,9 +124,9 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas</FormLabel>
+                  <FormLabel>{t("Notas")}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Notas sobre o cliente..." {...field} />
+                    <Textarea placeholder={t("Notas sobre o cliente...")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -137,8 +139,8 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <FormLabel>Aceita Marketing</FormLabel>
-                    <FormDescription>Receber emails e promoções</FormDescription>
+                    <FormLabel>{t("Aceita Marketing")}</FormLabel>
+                    <FormDescription>{t("Receber emails e promoções")}</FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -149,10 +151,10 @@ export function CreateCustomerModal({ open, onOpenChange }: CreateCustomerModalP
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={createCustomer.isPending}>
-                {createCustomer.isPending ? "A criar..." : "Criar Cliente"}
+                {createCustomer.isPending ? t("A criar...") : t("Criar Cliente")}
               </Button>
             </div>
           </form>

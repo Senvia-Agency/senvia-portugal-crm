@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useMemo } from 'react';
 import type { ClientCommunication, CommunicationType } from '@/types/communications';
+import { tr } from "@/i18n";
 
 export type HistoryEventType = 'proposal' | 'sale' | 'meeting' | 'note' | 'call' | 'whatsapp' | 'email';
 
@@ -131,7 +132,7 @@ export function useClientHistory(clientId: string | null) {
       items.push({
         id: p.id,
         type: 'proposal',
-        title: p.code ? `Proposta ${p.code}` : 'Proposta',
+        title: p.code ? tr("Proposta {{code}}", { code: p.code }) : tr('Proposta'),
         description: p.notes || undefined,
         date: p.created_at || '',
         value: p.total_value,
@@ -145,7 +146,7 @@ export function useClientHistory(clientId: string | null) {
       items.push({
         id: s.id,
         type: 'sale',
-        title: s.code ? `Venda ${s.code}` : 'Venda',
+        title: s.code ? tr("Venda {{code}}", { code: s.code }) : tr('Venda'),
         description: s.notes || undefined,
         date: s.created_at || '',
         value: s.total_value,
@@ -170,11 +171,12 @@ export function useClientHistory(clientId: string | null) {
     // Add communications
     communications.forEach((c) => {
       const type = c.type as HistoryEventType;
-      const directionLabel = c.direction === 'inbound' ? 'recebida' : c.direction === 'outbound' ? 'enviada' : '';
-      const typeLabel = COMMUNICATION_TYPE_LABELS[c.type];
+      const typeLabel = tr(COMMUNICATION_TYPE_LABELS[c.type]);
       const title = c.subject 
         ? `${typeLabel}: ${c.subject}` 
-        : `${typeLabel}${directionLabel ? ` ${directionLabel}` : ''}`;
+        : c.direction === 'inbound' ? tr("{{type}} recebida", { type: typeLabel })
+        : c.direction === 'outbound' ? tr("{{type}} enviada", { type: typeLabel })
+        : typeLabel;
       
       items.push({
         id: c.id,

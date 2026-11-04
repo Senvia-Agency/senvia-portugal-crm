@@ -38,6 +38,7 @@ import {
   productTechnologies,
   cardConfigFor,
 } from '@/types/proposals';
+import { useLanguage, tr, intlLocale } from "@/i18n";
 
 interface OperatorRef {
   id: string;
@@ -94,23 +95,24 @@ export function ServicosSection({
   totalComissao,
   hideModeloServico,
 }: ServicosSectionProps) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-4 p-4 rounded-lg border bg-secondary/30 border-border">
       <div className="flex items-center gap-2 text-foreground">
         <Wrench className="h-4 w-4" />
-        <span className="font-medium text-sm">Outros Serviços</span>
+        <span className="font-medium text-sm">{t("Outros Serviços")}</span>
       </div>
 
       {/* Modelo de Serviço */}
       {!hideModeloServico && (
         <div className="space-y-2">
-          <Label className="text-sm">Modelo de Serviço</Label>
+          <Label className="text-sm">{t("Modelo de Serviço")}</Label>
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant={modeloServico === 'transacional' ? 'default' : 'outline'} size="sm" className="h-9" onClick={() => onModeloServicoChange('transacional')}>
-              Transacional
+              {t("Transacional")}
             </Button>
             <Button type="button" variant={modeloServico === 'saas' ? 'default' : 'outline'} size="sm" className="h-9" onClick={() => onModeloServicoChange('saas')}>
-              SAAS
+              {t("SAAS")}
             </Button>
           </div>
         </div>
@@ -170,6 +172,7 @@ function CatalogProducts({
   onSellerCommissionChange?: (total: number) => void;
   attempted?: boolean;
 }) {
+  const { t } = useLanguage();
   // Three numbers per line, each with one meaning (see getSaleLineCommission):
   //   gross  — what the operator pays the org. This is what gets STORED in
   //            detail.comissao and saved to sales.comissao.
@@ -317,9 +320,9 @@ function CatalogProducts({
   return (
     <>
       <div className="space-y-3">
-        <Label className="text-sm">Produtos do Catálogo</Label>
+        <Label className="text-sm">{t("Produtos do Catálogo")}</Label>
         {attempted && servicosProdutos.length === 0 && (
-          <p className="text-xs text-destructive">Selecione pelo menos 1 produto</p>
+          <p className="text-xs text-destructive">{t("Selecione pelo menos 1 produto")}</p>
         )}
 
         {/* Step one: the type. It narrows the search below and, for Fibra or
@@ -328,7 +331,7 @@ function CatalogProducts({
         {typesWithProducts.length > 0 && (
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <Tags className="h-3 w-3 shrink-0" /> Tipo
+              <Tags className="h-3 w-3 shrink-0" /> {t("Tipo")}
             </Label>
             <div className="flex flex-wrap items-center gap-1.5">
               {typesWithProducts.map((t) => {
@@ -359,17 +362,17 @@ function CatalogProducts({
             them while no type is picked). */}
         <div className="space-y-1.5 border-t pt-3">
           <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <Package className="h-3 w-3 shrink-0" /> Produto
+            <Package className="h-3 w-3 shrink-0" /> {t("Produto")}
           </Label>
           <SearchableCombobox
             options={comboboxOptions}
             value={null}
             onValueChange={handleAddProduct}
-            placeholder="Pesquisar e adicionar produto..."
-            searchPlaceholder="Escreva para pesquisar..."
-            emptyText="Nenhum produto encontrado."
+            placeholder={t("Pesquisar e adicionar produto...")}
+            searchPlaceholder={t("Escreva para pesquisar...")}
+            emptyText={t("Nenhum produto encontrado.")}
             emptyValue="__none__"
-            emptyLabel="Nenhum"
+            emptyLabel={t("Nenhum")}
           />
         </div>
 
@@ -438,10 +441,10 @@ function CatalogProducts({
                     >
                       <SelectTrigger className="h-6 w-auto gap-1 px-2 text-[11px]">
                         <Radio className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        <SelectValue placeholder="Operadora" />
+                        <SelectValue placeholder={t("Operadora")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">Sem operadora</SelectItem>
+                        <SelectItem value="__none__">{t("Sem operadora")}</SelectItem>
                         {operators.map((op) => (
                           <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>
                         ))}
@@ -455,12 +458,12 @@ function CatalogProducts({
                   ))}
                   {hasCommission && !isTiered && (
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                      {myUnitCommission.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })} comissão/unid.
+                      {myUnitCommission.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })} {t("comissão/unid.")}
                     </Badge>
                   )}
                   {isTiered && (
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                      Comissão por escalão
+                      {t("Comissão por escalão")}
                     </Badge>
                   )}
                 </div>
@@ -476,7 +479,7 @@ function CatalogProducts({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Nome</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Nome")}</Label>
                   <Input
                     value={detail.name ?? catProduct.name}
                     onChange={(e) => {
@@ -487,7 +490,7 @@ function CatalogProducts({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Preço (€)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Preço (€)")}</Label>
                   <NumberInput
                     step={0.01}
                     min={0}
@@ -503,7 +506,7 @@ function CatalogProducts({
                     the same package. Tiered products additionally resolve
                     their band (and price) from it. */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Quantidade</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Quantidade")}</Label>
                   <NumberInput
                     min={0.5}
                     step={0.5}
@@ -521,7 +524,7 @@ function CatalogProducts({
                 </div>
                 {needsTech && (
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Tecnologia</Label>
+                    <Label className="text-xs text-muted-foreground">{t("Tecnologia")}</Label>
                     <Select
                       value={tecnologia ?? ""}
                       onValueChange={(v) => {
@@ -531,11 +534,11 @@ function CatalogProducts({
                       }}
                     >
                       <SelectTrigger className={cn("h-8 text-sm", !tecnologia && "border-destructive text-muted-foreground")}>
-                        <SelectValue placeholder="Escolher" />
+                        <SelectValue placeholder={t("Escolher")} />
                       </SelectTrigger>
                       <SelectContent>
                         {(productTechnologies(catProduct) ?? TELECOM_TECHNOLOGIES).map((t) => (
-                          <SelectItem key={t} value={t}>{TELECOM_TECHNOLOGY_LABELS[t]}</SelectItem>
+                          <SelectItem key={t} value={t}>{tr(TELECOM_TECHNOLOGY_LABELS[t])}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -544,12 +547,12 @@ function CatalogProducts({
               </div>
               {needsTech && !tecnologia && (
                 <p className="text-[11px] text-destructive">
-                  Escolhe a tecnologia — a comissão desta linha depende dela.
+                  {t("Escolhe a tecnologia — a comissão desta linha depende dela.")}
                 </p>
               )}
               {supportsExtraCards && (
                 <div className="space-y-1 max-w-[200px]">
-                  <Label className="text-xs text-muted-foreground">Número de Cartões</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Número de Cartões")}</Label>
                   <NumberInput
                     min={0}
                     step={1}
@@ -566,8 +569,8 @@ function CatalogProducts({
                       pays extra-card commission — spell it out, since "3
                       cartões" alone doesn't say how many of those are extra. */}
                   <p className="text-[11px] text-muted-foreground">
-                    {includedCards} incluído{includedCards === 1 ? '' : 's'}
-                    {extraCardsCount > 0 && <> · {extraCardsCount} extra{extraCardsCount === 1 ? '' : 's'}</>}
+                    {includedCards} {t("incluído")}{includedCards === 1 ? '' : 's'}
+                    {extraCardsCount > 0 && <> · {extraCardsCount} {t("extra")}{extraCardsCount === 1 ? '' : 's'}</>}
                   </p>
                 </div>
               )}
@@ -576,19 +579,20 @@ function CatalogProducts({
                 // no line with his name or his profile on it. "0,00 €" here read
                 // as a broken calculation; it is a missing row in the catalog.
                 <p className="text-xs text-amber-600">
-                  {viewerIsSeller ? 'Não tens' : 'O vendedor não tem'} linha de comissão neste produto —
-                  {' '}um admin acrescenta-a em Definições → Produtos.
+                  {viewerIsSeller
+                    ? t("Não tens linha de comissão neste produto — um admin acrescenta-a em Definições → Produtos.")
+                    : t("O vendedor não tem linha de comissão neste produto — um admin acrescenta-a em Definições → Produtos.")}
                 </p>
               ) : hasCommission && (
                 <div className="text-xs text-muted-foreground">
-                  {viewerIsSeller ? 'A tua parte' : 'Comissão do vendedor'} ({quantidade} unid.): <span className="font-medium text-foreground">
+                  {viewerIsSeller ? t("A tua parte ({{n}} unid.):", { n: quantidade }) : t("Comissão do vendedor ({{n}} unid.):", { n: quantidade })} <span className="font-medium text-foreground">
                     {myLineCommission.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}
                   </span>
                   {/* The operator gross used to sit here. It is the
                       organization's number, not the sale's — it belongs to the
                       Financeiro cards, where only an admin ever looks. */}
                   {isTiered && !catProduct.quantity_tiers?.some(t => quantidade >= t.min && (t.max == null || quantidade <= t.max)) && (
-                    <span className="ml-1 text-destructive">(sem escalão para esta quantidade)</span>
+                    <span className="ml-1 text-destructive">{t("(sem escalão para esta quantidade)")}</span>
                   )}
                 </div>
               )}
@@ -600,14 +604,14 @@ function CatalogProducts({
       {servicosProdutos.length > 0 && (
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Valor Total (€)</Label>
+            <Label className="text-xs text-muted-foreground">{t("Valor Total (€)")}</Label>
             <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
               {totalPrice ? totalPrice.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) : '—'}
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">
-              {viewerIsSeller ? 'A Tua Comissão (€)' : 'Comissão do Vendedor (€)'}
+              {viewerIsSeller ? t("A Tua Comissão (€)") : t("Comissão do Vendedor (€)")}
             </Label>
             <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
               {totalSellerComissao ? totalSellerComissao.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) : '—'}
@@ -646,12 +650,13 @@ function LegacyProducts({
   totalKwp?: number;
   totalComissao?: number;
 }) {
+  const { t } = useLanguage();
   return (
     <>
       <div className="space-y-3">
-        <Label className="text-sm">Produtos</Label>
+        <Label className="text-sm">{t("Produtos")}</Label>
         {attempted && servicosProdutos.length === 0 && (
-          <p className="text-xs text-destructive">Selecione pelo menos 1 produto</p>
+          <p className="text-xs text-destructive">{t("Selecione pelo menos 1 produto")}</p>
         )}
         {configs.map((config) => {
           const isActive = servicosProdutos.includes(config.name);
@@ -675,11 +680,11 @@ function LegacyProducts({
                     return (
                       <div key={field} className="space-y-1 min-w-[100px] flex-1">
                         <Label className="text-xs text-muted-foreground">
-                          {FIELD_LABELS[field]} <span className="text-destructive">*</span>
-                          {isComissaoAuto && <span className="ml-1 text-primary">(auto)</span>}
+                          {t(FIELD_LABELS[field])} <span className="text-destructive">*</span>
+                          {isComissaoAuto && <span className="ml-1 text-primary">{t("(auto)")}</span>}
                         </Label>
                         {attempted && (detail[field] === undefined || detail[field] <= 0) && (
-                          <p className="text-[10px] text-destructive">Obrigatório</p>
+                          <p className="text-[10px] text-destructive">{t("Obrigatório")}</p>
                         )}
                         <Input
                           type="number"
@@ -687,7 +692,7 @@ function LegacyProducts({
                           min="0"
                           value={detail[field] ?? ''}
                           onChange={(e) => onUpdateDetail(config.name, field, e.target.value ? parseFloat(e.target.value) : undefined)}
-                          placeholder={field === 'kwp' && config.kwpAuto ? 'Auto' : '0'}
+                          placeholder={field === 'kwp' && config.kwpAuto ? t("Auto") : '0'}
                           className="h-8"
                           readOnly={(field === 'kwp' && !!config.kwpAuto && detail.valor !== undefined) || !!isComissaoAuto}
                         />
@@ -703,15 +708,15 @@ function LegacyProducts({
 
       <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">kWp Total</Label>
+          <Label className="text-xs text-muted-foreground">{t("kWp Total")}</Label>
           <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
-            {totalKwp ? totalKwp.toLocaleString('pt-PT', { maximumFractionDigits: 2 }) : '—'}
+            {totalKwp ? totalKwp.toLocaleString(intlLocale(), { maximumFractionDigits: 2 }) : '—'}
           </div>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Comissão Total (€)</Label>
+          <Label className="text-xs text-muted-foreground">{t("Comissão Total (€)")}</Label>
           <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
-            {totalComissao ? totalComissao.toLocaleString('pt-PT', { maximumFractionDigits: 2 }) : '—'}
+            {totalComissao ? totalComissao.toLocaleString(intlLocale(), { maximumFractionDigits: 2 }) : '—'}
           </div>
         </div>
       </div>

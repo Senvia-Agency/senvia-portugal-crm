@@ -4,6 +4,7 @@ import {
 } from '@xyflow/react';
 import { Plus, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 export interface AutomationEdgeData extends Record<string, unknown> {
   /** Branch name shown as a pill sitting on the curve ("Respondeu", "Sim"…). */
@@ -31,6 +32,7 @@ export type AutomationFlowEdgeType = Edge<AutomationEdgeData, 'automation'>;
 export const AutomationFlowEdge = memo(({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data,
 }: EdgeProps<AutomationFlowEdgeType>) => {
+  const { t } = useLanguage();
   const [path, labelX, labelY] = getBezierPath({
     sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
   });
@@ -83,7 +85,7 @@ export const AutomationFlowEdge = memo(({
                 event.stopPropagation();
                 data.onPullStart?.(id, event);
               }}
-              title="Clica para inserir um passo aqui, ou arrasta para criar outro caminho"
+              title={t('Clica para inserir um passo aqui, ou arrasta para criar outro caminho')}
               className={cn(
                 'nopan nodrag pointer-events-auto flex h-5 w-5 cursor-grab items-center justify-center rounded-full',
                 'border border-border bg-card text-muted-foreground shadow-sm transition-all',
@@ -103,8 +105,8 @@ export const AutomationFlowEdge = memo(({
                 event.stopPropagation();
                 data.onUnlink?.(id);
               }}
-              title="Desligar"
-              aria-label="Desligar esta ligação"
+              title={t('Desligar')}
+              aria-label={t('Desligar esta ligação')}
               className={cn(
                 'nopan nodrag pointer-events-auto flex h-5 w-5 items-center justify-center rounded-full',
                 'border border-border bg-card text-muted-foreground shadow-sm transition-all',

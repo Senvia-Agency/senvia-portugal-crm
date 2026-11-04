@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useDistributeProspects } from "@/hooks/useProspects";
 import type { ProspectSalesperson } from "@/types/prospects";
 import { Loader2, Users } from "lucide-react";
+import { useLanguage } from "@/i18n";
 
 interface DistributeProspectsDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export function DistributeProspectsDialog({
   onDistributed,
 }: DistributeProspectsDialogProps) {
   const distributeProspects = useDistributeProspects();
+  const { t } = useLanguage();
   const [quantityInput, setQuantityInput] = useState(String(selectedCount));
   const [mode, setMode] = useState<DistributionMode>("all");
   const [selectedSalespersonIds, setSelectedSalespersonIds] = useState<string[]>([]);
@@ -83,9 +85,9 @@ export function DistributeProspectsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="flex h-full flex-col overflow-hidden p-0">
         <DialogHeader className="border-b px-4 py-4 md:px-6">
-          <DialogTitle>Distribuir leads selecionados</DialogTitle>
+          <DialogTitle>{t("Distribuir leads selecionados")}</DialogTitle>
           <DialogDescription>
-            Escolhe quantos dos prospects selecionados queres distribuir e para quais comerciais.
+            {t("Escolhe quantos dos prospects selecionados queres distribuir e para quais comerciais.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -94,16 +96,16 @@ export function DistributeProspectsDialog({
             {/* Left column */}
             <div className="space-y-4">
               <div className="rounded-xl border bg-card p-4">
-                <p className="text-sm font-medium">Quantidade selecionada</p>
+                <p className="text-sm font-medium">{t("Quantidade selecionada")}</p>
                 <p className="mt-2 text-3xl font-semibold">{selectedCount}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Estes são os prospects elegíveis que selecionaste na lista.
+                  {t("Estes são os prospects elegíveis que selecionaste na lista.")}
                 </p>
               </div>
 
               <div className="rounded-xl border bg-card p-4">
                 <label htmlFor="prospects-quantity" className="text-sm font-medium">
-                  Quantidade a distribuir
+                  {t("Quantidade a distribuir")}
                 </label>
                 <Input
                   id="prospects-quantity"
@@ -117,15 +119,15 @@ export function DistributeProspectsDialog({
                   className="mt-3"
                 />
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Podes distribuir entre 1 e {selectedCount} prospect{selectedCount === 1 ? "" : "s"}.
+                  {t(selectedCount === 1 ? "Podes distribuir entre 1 e {{n}} prospect." : "Podes distribuir entre 1 e {{n}} prospects.", { n: selectedCount })}
                 </p>
                 {!hasValidQuantity ? (
                   <p className="mt-2 text-sm text-destructive">
-                    Introduz uma quantidade válida dentro do total selecionado.
+                    {t("Introduz uma quantidade válida dentro do total selecionado.")}
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Serão distribuídos os primeiros {parsedQuantity} prospect{parsedQuantity === 1 ? "" : "s"} da seleção atual.
+                    {t(parsedQuantity === 1 ? "Será distribuído o primeiro prospect da seleção atual." : "Serão distribuídos os primeiros {{n}} prospects da seleção atual.", { n: parsedQuantity })}
                   </p>
                 )}
               </div>
@@ -135,12 +137,12 @@ export function DistributeProspectsDialog({
             <div className="rounded-xl border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Comerciais</p>
+                <p className="text-sm font-medium">{t("Comerciais")}</p>
               </div>
 
               {salespeople.length === 0 ? (
                 <p className="mt-4 text-sm text-muted-foreground">
-                  Não existem comerciais elegíveis nesta organização.
+                  {t("Não existem comerciais elegíveis nesta organização.")}
                 </p>
               ) : (
                 <div className="mt-4 space-y-4">
@@ -152,13 +154,13 @@ export function DistributeProspectsDialog({
                     <div className="flex items-center gap-2">
                       <RadioGroupItem value="all" id="mode-all" />
                       <Label htmlFor="mode-all" className="cursor-pointer text-sm">
-                        Todos os comerciais (round-robin)
+                        {t("Todos os comerciais (round-robin)")}
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <RadioGroupItem value="selected" id="mode-selected" />
                       <Label htmlFor="mode-selected" className="cursor-pointer text-sm">
-                        Comerciais selecionados
+                        {t("Comerciais selecionados")}
                       </Label>
                     </div>
                   </RadioGroup>
@@ -172,7 +174,7 @@ export function DistributeProspectsDialog({
                           size="sm"
                           onClick={() => setSelectedSalespersonIds(salespeople.map((s) => s.user_id))}
                         >
-                          Selecionar todos
+                          {t("Selecionar todos")}
                         </Button>
                         <Button
                           type="button"
@@ -180,7 +182,7 @@ export function DistributeProspectsDialog({
                           size="sm"
                           onClick={() => setSelectedSalespersonIds([])}
                         >
-                          Limpar
+                          {t("Limpar")}
                         </Button>
                       </div>
 
@@ -201,7 +203,7 @@ export function DistributeProspectsDialog({
 
                       {selectedSalespersonIds.length === 0 && (
                         <p className="text-sm text-destructive">
-                          Seleciona pelo menos um comercial.
+                          {t("Seleciona pelo menos um comercial.")}
                         </p>
                       )}
                     </div>
@@ -215,11 +217,11 @@ export function DistributeProspectsDialog({
         <div className="border-t px-4 py-4 md:px-6">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button onClick={handleDistribute} disabled={isDisabled}>
               {distributeProspects.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Distribuir {parsedQuantity || 0} lead{parsedQuantity === 1 ? "" : "s"}
+              {t(parsedQuantity === 1 ? "Distribuir {{n}} lead" : "Distribuir {{n}} leads", { n: parsedQuantity || 0 })}
             </Button>
           </div>
         </div>

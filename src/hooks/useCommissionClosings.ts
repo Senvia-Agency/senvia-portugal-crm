@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 
 export interface CommissionClosingItem {
   id: string;
@@ -122,13 +123,13 @@ export function useCommissionClosings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission-closings', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['commission-closing-items', organizationId] });
-      toast.success('Mês fechado com sucesso');
+      toast.success(tr('Mês fechado com sucesso'));
     },
     onError: (err: any) => {
       if (err?.message?.includes('unique') || err?.code === '23505') {
-        toast.error('Este mês já foi fechado');
+        toast.error(tr('Este mês já foi fechado'));
       } else {
-        toast.error('Erro ao fechar o mês');
+        toast.error(tr('Erro ao fechar o mês'));
       }
     },
   });
@@ -144,9 +145,9 @@ export function useCommissionClosings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission-closings', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['commission-closing-items', organizationId] });
-      toast.success('Fechamento eliminado');
+      toast.success(tr('Fecho eliminado'));
     },
-    onError: () => toast.error('Erro ao eliminar fechamento'),
+    onError: () => toast.error(tr('Erro ao eliminar fecho')),
   });
 
   return {

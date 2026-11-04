@@ -28,6 +28,7 @@ import {
 import { FormSettings, CustomField, FieldType, FIELD_TYPE_LABELS } from '@/types';
 import { AddFieldModal } from './AddFieldModal';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 interface CustomFieldsEditorProps {
   settings: FormSettings;
@@ -61,6 +62,7 @@ const FIXED_FIELD_TYPES: Record<FixedFieldKey, string> = {
 export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsEditorProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingField, setEditingField] = useState<CustomField | null>(null);
+  const { t } = useLanguage();
 
   // Update fixed field configuration
   const updateFixedField = (
@@ -169,7 +171,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
             </button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            {field.required ? "Clique para tornar opcional" : "Clique para tornar obrigatório"}
+            {field.required ? t("Clique para tornar opcional") : t("Clique para tornar obrigatório")}
           </TooltipContent>
         </Tooltip>
         
@@ -183,13 +185,13 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
           value={field.label || ''}
           onChange={(e) => updateFixedField(fieldKey, { label: e.target.value })}
           className="flex-1 min-w-0 h-9"
-          placeholder="Label do campo"
+          placeholder={t("Label do campo")}
           maxLength={50}
         />
 
         {/* Type Badge */}
         <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">
-          {FIXED_FIELD_TYPES[fieldKey]}
+          {t(FIXED_FIELD_TYPES[fieldKey])}
         </Badge>
         
         {/* Remove Button */}
@@ -205,7 +207,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            Remover campo
+            {t('Remover campo')}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -237,7 +239,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
             </button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            {field.required ? "Clique para tornar opcional" : "Clique para tornar obrigatório"}
+            {field.required ? t("Clique para tornar opcional") : t("Clique para tornar obrigatório")}
           </TooltipContent>
         </Tooltip>
 
@@ -251,13 +253,13 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
           value={field.label || ''}
           onChange={(e) => updateField(field.id, { label: e.target.value })}
           className="flex-1 min-w-[140px] h-9"
-          placeholder="Label do campo"
+          placeholder={t("Label do campo")}
           maxLength={50}
         />
         
         {/* Type Badge */}
         <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">
-          {FIELD_TYPE_LABELS[field.type]}
+          {t(FIELD_TYPE_LABELS[field.type])}
           {field.type === 'select' && field.options && ` (${field.options.length})`}
         </Badge>
         
@@ -313,7 +315,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
                 <ChevronUp className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Mover para cima</TooltipContent>
+            <TooltipContent side="top">{t('Mover para cima')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -327,7 +329,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Mover para baixo</TooltipContent>
+            <TooltipContent side="top">{t('Mover para baixo')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -340,7 +342,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
                 <Pencil className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Editar campo</TooltipContent>
+            <TooltipContent side="top">{t('Editar campo')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -353,7 +355,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Remover campo</TooltipContent>
+            <TooltipContent side="top">{t('Remover campo')}</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -368,13 +370,13 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
             <FileText className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-sm font-medium mb-1">Nenhum campo adicionado</h3>
+          <h3 className="text-sm font-medium mb-1">{t('Nenhum campo adicionado')}</h3>
           <p className="text-xs text-muted-foreground mb-4 max-w-[200px]">
-            Clique no botão abaixo para adicionar campos ao formulário
+            {t('Clique no botão abaixo para adicionar campos ao formulário')}
           </p>
           <Button onClick={() => setIsAddModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Adicionar Campo
+            {t('Adicionar Campo')}
           </Button>
         </div>
       ) : (
@@ -383,11 +385,11 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
           <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
             <span className="flex items-center gap-1.5">
               <Asterisk className="h-3.5 w-3.5 text-amber-500" />
-              Obrigatório
+              {t('Obrigatório')}
             </span>
             <span className="flex items-center gap-1.5">
               <Trash2 className="h-3.5 w-3.5 text-destructive" />
-              Remover
+              {t('Remover')}
             </span>
           </div>
           
@@ -407,7 +409,7 @@ export function CustomFieldsEditor({ settings, onUpdateSettings }: CustomFieldsE
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Adicionar Campo
+            {t('Adicionar Campo')}
           </Button>
         </>
       )}

@@ -72,6 +72,25 @@ Para o frontend/Edge Functions chegarem ao gateway, expor `:8730` num subdomíni
 HTTPS (ex.: `email-gw.senvia.pt`) via o nginx que já serve o Chatwoot. Custo
 extra de infra: 0 €.
 
+## Ligações, envio e assinaturas (2026-11-04)
+
+- **Limite por servidor** (`host-slots.js`): no máximo 2 caixas do mesmo servidor
+  fazem login + sincronização inicial ao mesmo tempo, e no máximo 2 envios SMTP
+  por servidor. O alojamento partilhado (cPanel) recusa ligações a mais.
+- **Nova tentativa**: o SMTP tenta mais uma vez só quando falha a ligar (antes de
+  o servidor aceitar a mensagem, para nunca enviar duas vezes). O IMAP volta a
+  ligar 5 s depois. As Edge Functions de email tentam ligar mais uma vez
+  (`_shared/imap-retry.ts`) e o browser envia no máximo 2 pedidos destes de cada vez.
+- **Envio sem IMAP**: enviar já não exige a ligação IMAP ativa. A cópia em
+  Enviados fica para a sincronização seguinte.
+- **Erros de envio claros** (`smtp-errors.js`): o motivo em pt-PT, com a resposta
+  do servidor.
+- **Imagens da assinatura embutidas** (`inline-images.js`): as imagens do bucket
+  `email-signatures` vão dentro do email (`cid:`) em vez de link. Só o storage da
+  Senvia é descarregado (`INLINE_IMAGE_HOST` muda o host, se for preciso).
+
+Precisa de reconstruir e relançar o contentor (ver abaixo).
+
 ## Depois de 2026-08-13: as passwords mudaram de sítio
 
 `imap_password` e `smtp_password` deixaram de estar em `messaging_channels.metadata`

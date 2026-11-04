@@ -11,6 +11,7 @@ import { NODE_CATEGORY_STYLES, NODE_DEFINITIONS, TRIGGER_GROUPS, triggerGroupOf 
 import { AUTOMATION_RECIPES, type AutomationRecipe } from '@/lib/automation-recipes';
 import { GroupChip } from '@/components/automations/TriggerPicker';
 import { useCreateAutomationFlow } from '@/hooks/useAutomationFlows';
+import { useLanguage } from '@/i18n';
 
 interface RecipeGalleryDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ interface RecipeGalleryDialogProps {
  * and lands in the editor with the texts ready to edit.
  */
 export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogProps) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const createFlow = useCreateAutomationFlow();
   const [search, setSearch] = useState('');
@@ -34,11 +36,11 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
     () => AUTOMATION_RECIPES.filter((recipe) => {
       if (group && triggerGroupOf(recipe.trigger_type) !== group) return false;
       if (!term) return true;
-      const haystack = [recipe.name, recipe.summary, ...recipe.outline, NODE_DEFINITIONS[recipe.trigger_type].label]
+      const haystack = [recipe.name, recipe.summary, ...recipe.outline, t(NODE_DEFINITIONS[recipe.trigger_type].label)]
         .map(normalizeString).join(' ');
       return haystack.includes(term);
     }),
-    [term, group],
+    [term, group, t],
   );
 
   const groupsPresent = useMemo(
@@ -72,10 +74,10 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
         <DialogHeader className="shrink-0 border-b px-4 py-4 pr-14 sm:px-6">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Modelos de automação
+            {t('Modelos de automação')}
           </DialogTitle>
           <DialogDescription>
-            Fluxos completos para os casos mais comuns. Escolhe um, ajustas os textos e ativas.
+            {t('Fluxos completos para os casos mais comuns. Escolhe um, ajustas os textos e ativas.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -86,16 +88,16 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Pesquisar modelo por nome, passo ou gatilho..."
+                placeholder={t('Pesquisar modelo por nome, passo ou gatilho...')}
                 className="h-10 border-primary/40 bg-primary/[0.05] pl-10 pr-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-                aria-label="Pesquisar modelo"
+                aria-label={t('Pesquisar modelo')}
                 autoFocus
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
-                  aria-label="Limpar pesquisa"
+                  aria-label={t('Limpar pesquisa')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
                 >
                   <X className="h-4 w-4" />
@@ -104,7 +106,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
             </div>
             <div className="flex flex-wrap gap-1.5">
               <GroupChip active={group === null} onClick={() => setGroup(null)}>
-                Todos <span className="tabular-nums opacity-60">{AUTOMATION_RECIPES.length}</span>
+                {t('Todos')} <span className="tabular-nums opacity-60">{AUTOMATION_RECIPES.length}</span>
               </GroupChip>
               {groupsPresent.map((item) => (
                 <GroupChip
@@ -112,7 +114,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
                   active={group === item.key}
                   onClick={() => setGroup(group === item.key ? null : item.key)}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </GroupChip>
               ))}
             </div>
@@ -123,7 +125,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
           <div className="mx-auto max-w-6xl">
             {visible.length === 0 ? (
               <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                Nenhum modelo corresponde à pesquisa.
+                {t('Nenhum modelo corresponde à pesquisa.')}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -145,11 +147,11 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
                             <h3 className="text-sm font-semibold text-foreground">{recipe.name}</h3>
                             {recipe.conversational && (
                               <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
-                                Conversa
+                                {t('Conversa')}
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">Gatilho: {trigger.label}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">{t('Gatilho: {{name}}', { name: t(trigger.label) })}</p>
                         </div>
                       </div>
 
@@ -168,7 +170,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
                         <p className="text-[11px] text-muted-foreground">{recipe.editHint}</p>
                         <Button size="sm" onClick={() => handleUse(recipe)} disabled={createFlow.isPending} className="shrink-0">
                           {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                          Usar este modelo
+                          {t('Usar este modelo')}
                         </Button>
                       </div>
                     </article>
@@ -180,7 +182,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
         </div>
 
         <div className="flex shrink-0 justify-end border-t px-4 py-3 sm:px-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('Fechar')}</Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, FileText, DollarSign, Calendar, MessageSquare, Save, Eye, EyeOff } from 'lucide-react';
 import { useProposalFieldsSettings, useUpdateProposalFieldsSettings } from '@/hooks/useProposalFieldsSettings';
 import { ProposalFieldKey, ProposalFieldsSettings, DEFAULT_PROPOSAL_FIELDS_SETTINGS, PROPOSAL_FIELD_ORDER } from '@/types/field-settings';
+import { useLanguage } from '@/i18n';
 
 const FIELD_ICONS: Record<ProposalFieldKey, React.ReactNode> = {
   type: <FileText className="h-4 w-4" />,
@@ -16,6 +17,7 @@ const FIELD_ICONS: Record<ProposalFieldKey, React.ReactNode> = {
 };
 
 export function ProposalFieldsEditor() {
+  const { t } = useLanguage();
   const { data: savedSettings, isLoading } = useProposalFieldsSettings();
   const updateSettings = useUpdateProposalFieldsSettings();
   const [settings, setSettings] = useState<ProposalFieldsSettings>(DEFAULT_PROPOSAL_FIELDS_SETTINGS);
@@ -44,13 +46,13 @@ export function ProposalFieldsEditor() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Campos de Propostas</CardTitle>
-        <CardDescription>Configure quais campos são visíveis e obrigatórios ao criar propostas.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />{t('Campos de Propostas')}</CardTitle>
+        <CardDescription>{t('Configure quais campos são visíveis e obrigatórios ao criar propostas.')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-2 border-b">
-          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>Visível</span></div>
-          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>Obrigatório</span></div>
+          <div className="flex items-center gap-1.5"><Eye className="h-4 w-4" /><span>{t('Visível')}</span></div>
+          <div className="flex items-center gap-1.5"><span className="text-destructive font-medium">*</span><span>{t('Obrigatório')}</span></div>
         </div>
 
         <div className="space-y-3">
@@ -80,7 +82,7 @@ export function ProposalFieldsEditor() {
         <div className="flex justify-end pt-4">
           <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
             {updateSettings.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Guardar Alterações
+            {t('Guardar Alterações')}
           </Button>
         </div>
       </CardContent>

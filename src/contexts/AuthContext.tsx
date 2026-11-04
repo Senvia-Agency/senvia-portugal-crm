@@ -44,6 +44,11 @@ interface Organization {
   billing_provider?: string | null;
 }
 
+/** Whether the user really belongs to the organization (a super admin visiting one does not). */
+export function isActiveMember(memberships: readonly { organization_id: string; is_active: boolean }[], organizationId: string | null | undefined) {
+  return !!organizationId && memberships.some((m) => m.organization_id === organizationId && m.is_active);
+}
+
 interface UserOrganizationMembership {
   organization_id: string;
   organization_name: string;

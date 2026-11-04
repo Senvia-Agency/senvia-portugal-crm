@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 
 export interface LeadIntakeWebhook {
   id: string;
@@ -62,7 +63,7 @@ export function useCreateLeadIntakeWebhook() {
       assigned_user_ids: string[];
       rotate_enabled: boolean;
     }) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { error } = await supabase.from('lead_intake_webhooks' as any).insert({
         organization_id: organization.id,
@@ -78,10 +79,10 @@ export function useCreateLeadIntakeWebhook() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-intake-webhooks'] });
-      toast({ title: 'Webhook criado', description: 'O webhook de entrada foi criado com sucesso.' });
+      toast({ title: tr('Webhook criado'), description: tr('O webhook de entrada foi criado com sucesso.') });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível criar o webhook.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível criar o webhook.'), variant: 'destructive' });
     },
   });
 }
@@ -120,7 +121,7 @@ export function useUpdateLeadIntakeWebhook() {
       queryClient.invalidateQueries({ queryKey: ['lead-intake-webhooks'] });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível atualizar o webhook.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível atualizar o webhook.'), variant: 'destructive' });
     },
   });
 }
@@ -136,10 +137,10 @@ export function useDeleteLeadIntakeWebhook() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead-intake-webhooks'] });
-      toast({ title: 'Webhook eliminado' });
+      toast({ title: tr('Webhook eliminado') });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível eliminar o webhook.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível eliminar o webhook.'), variant: 'destructive' });
     },
   });
 }

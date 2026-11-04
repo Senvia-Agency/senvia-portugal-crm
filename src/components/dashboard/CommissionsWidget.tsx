@@ -1,98 +1,61 @@
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { format, startOfMonth } from "date-fns";
+import { ArrowRight, Percent } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSalesCommissions } from "@/hooks/useSalesCommissions";
-import { useStripeCommissions } from "@/hooks/useStripeCommissions";
+import { useCommercialCommissions } from "@/hooks/useCommercialCommissions";
 import { useAuth } from "@/contexts/AuthContext";
-import { Percent, TrendingUp, Receipt, RefreshCw } from "lucide-react";
+import { useDashboardPeriod } from "@/stores/useDashboardPeriod";
+import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
+/**
+ * The logged-in user's own commissions for the dashboard period, counted the
+ * same way as Financeiro → Comissões (earned as the client pays).
+ */
 export function CommissionsWidget() {
-  const { data: entries, isLoading } = useSalesCommissions();
-  const { data: stripeData, isLoading: stripeLoading } = useStripeCommissions();
+  const { t } = useLanguage();
   const { user } = useAuth();
-
-  if (isLoading || stripeLoading) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <Skeleton className="h-5 w-40" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-24 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // This dashboard widget is always personal: the logged-in user's own
-  // commissions (direct from their sales + recurring from their subscriptions).
-  // The team-wide view lives in Financeiro → Comissões.
-  const myEntries = (entries || []).filter(e => e.userId === user?.id);
-  const totalCommissions = myEntries.reduce((sum, e) => sum + e.totalCommission, 0);
-  const totalSales = myEntries.reduce((sum, e) => sum + e.totalSales, 0);
-  const totalCount = myEntries.reduce((sum, e) => sum + e.salesCount, 0);
-
-  // Stripe recurring commissions (this user's only)
-  const stripeByUser = (stripeData?.byUser || []).filter(u => u.userId === user?.id);
-  const myStripeTotal = stripeByUser.reduce((s, u) => s + u.totalCommission, 0);
-
-  const hasDirectData = myEntries.length > 0;
-  const hasRecurringData = stripeByUser.length > 0;
-
-  if (!hasDirectData && !hasRecurringData) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Percent className="h-4 w-4" />
-            Comissões
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Sem dados de comissões para este período.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const formatCurrency = (v: number) =>
-    new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(v);
+  const { from, to } = useDashboardPeriod();
+  const month = useMemo(() => format(startOfMonth(new Date()), "yyyy-MM-dd"), []);
+  const dateRange = from ? { from, to: to ?? undefined } : undefined;
+  const { data, isLoading } = useCommercialCommissions(month, null, { dateRange });
+  const mine = data?.commercials.find((commercial) => commercial.userId === user?.id);
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
           <Percent className="h-4 w-4" />
-          Comissões
+          {t("As minhas comissões")}
         </CardTitle>
+        <Link to="/financeiro?tab=comissoes" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          {t("Ver")}<ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Summary cards */}
-        <div className={`grid grid-cols-2 gap-3 ${hasRecurringData ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
-          <div className="rounded-lg border bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Vendas</p>
-            <p className="text-lg font-bold text-foreground">{formatCurrency(totalSales)}</p>
-            <p className="text-xs text-muted-foreground">{totalCount} vendas</p>
-          </div>
-          <div className="rounded-lg border bg-muted/30 p-3 text-center">
-            <TrendingUp className="h-4 w-4 mx-auto mb-1 text-primary" />
-            <p className="text-xs text-muted-foreground">Comissões Diretas</p>
-            <p className="text-lg font-bold text-primary">{formatCurrency(totalCommissions)}</p>
-          </div>
-          {hasRecurringData && (
-            <div className="rounded-lg border bg-muted/30 p-3 text-center">
-              <RefreshCw className="h-4 w-4 mx-auto mb-1 text-primary" />
-              <p className="text-xs text-muted-foreground">Recorrentes</p>
-              <p className="text-lg font-bold text-primary">{formatCurrency(myStripeTotal)}</p>
+      <CardContent>
+        {isLoading ? <Skeleton className="h-16 w-full" /> : !mine ? (
+          <p className="text-sm text-muted-foreground">{t("Sem comissões neste período.")}</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">{t("Ganhas")}</p>
+              <p className="text-lg font-bold tabular-nums">{formatCurrency(mine.total)}</p>
             </div>
-          )}
-          <div className="rounded-lg border bg-muted/30 p-3 text-center">
-            <Receipt className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-lg font-bold text-foreground">
-              {formatCurrency(totalCommissions + myStripeTotal)}
-            </p>
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">{t("Por pagar")}</p>
+              <p className={cn("text-lg font-bold tabular-nums", mine.totalPending > 0.005 && "text-amber-600 dark:text-amber-400")}>
+                {formatCurrency(mine.totalPending)}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">{t("A ganhar")}</p>
+              <p className="text-lg font-bold tabular-nums text-muted-foreground">{formatCurrency(mine.toEarn)}</p>
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

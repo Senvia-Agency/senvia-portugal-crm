@@ -29,11 +29,13 @@ import { CreateProductModal } from "./CreateProductModal";
 import { EditProductModal } from "./EditProductModal";
 import { ProductImagesModal } from "./ProductImagesModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
+import { useLanguage } from "@/i18n";
 
 export function ProductsTable() {
   const { data: products, isLoading } = useEcommerceProducts();
   const updateProduct = useUpdateEcommerceProduct();
   const deleteProduct = useDeleteEcommerceProduct();
+  const { t } = useLanguage();
   
   const [createOpen, setCreateOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<EcommerceProduct | null>(null);
@@ -69,24 +71,24 @@ export function ProductsTable() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {products?.length || 0} produtos
+          {t((products?.length || 0) === 1 ? "{{n}} produto" : "{{n}} produtos", { n: products?.length || 0 })}
         </p>
         <Button onClick={() => setCreateOpen(true)} size="sm">
           <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
+          {t("Novo Produto")}
         </Button>
       </div>
 
       {products?.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed p-8">
           <Package className="h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 font-semibold">Sem produtos</h3>
+          <h3 className="mt-4 font-semibold">{t("Sem produtos")}</h3>
           <p className="text-sm text-muted-foreground">
-            Crie o seu primeiro produto para começar a vender.
+            {t("Crie o seu primeiro produto para começar a vender.")}
           </p>
           <Button onClick={() => setCreateOpen(true)} className="mt-4">
             <Plus className="mr-2 h-4 w-4" />
-            Criar Produto
+            {t("Criar Produto")}
           </Button>
         </div>
       ) : (
@@ -94,12 +96,12 @@ export function ProductsTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Produto</TableHead>
+                <TableHead>{t("Produto")}</TableHead>
                 <TableHead>SKU</TableHead>
-                <TableHead>Preço</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("Preço")}</TableHead>
+                <TableHead>{t("Stock")}</TableHead>
+                <TableHead>{t("Ativo")}</TableHead>
+                <TableHead className="text-right">{t("Ações")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -157,7 +159,7 @@ export function ProductsTable() {
                         {product.stock_quantity ?? 0}
                       </Badge>
                     ) : (
-                      <span className="text-sm text-muted-foreground">Ilimitado</span>
+                      <span className="text-sm text-muted-foreground">{t("Ilimitado")}</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -172,7 +174,7 @@ export function ProductsTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setImagesProduct(product)}
-                        title="Imagens"
+                        title={t("Imagens")}
                       >
                         <Image className="h-4 w-4" />
                       </Button>
@@ -180,7 +182,7 @@ export function ProductsTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setVariantsProduct(product)}
-                        title="Variantes"
+                        title={t("Variantes")}
                       >
                         <Package className="h-4 w-4" />
                       </Button>
@@ -188,7 +190,7 @@ export function ProductsTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setEditProduct(product)}
-                        title="Editar"
+                        title={t("Editar")}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -196,7 +198,7 @@ export function ProductsTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteId(product.id)}
-                        title="Eliminar"
+                        title={t("Eliminar")}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -240,15 +242,15 @@ export function ProductsTable() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Produto</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar Produto")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar este produto? Esta ação não pode ser revertida.
+              {t("Tem a certeza que deseja eliminar este produto? Esta ação não pode ser revertida.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

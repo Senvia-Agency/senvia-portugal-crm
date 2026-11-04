@@ -83,9 +83,11 @@ All functions live in `supabase/functions/{name}/index.ts` (Deno runtime). Deplo
 
 ## Notifications
 
+
 | Function | Purpose |
 |----------|---------|
 | `send-push-notification` | Sends web push notification via VAPID. |
+| `time-clock-reminders` | pg_cron every 5 min (x-automation-secret). Calls `time_clock_due_reminders()` and pushes the Ponto reminders (entrada, almoço, regresso, fim do dia) via `send-push-notification`. |
 | `notify-finance-request` | Notifies admins of new finance requests. |
 | `notify-request-status` | Notifies requester of status change. |
 

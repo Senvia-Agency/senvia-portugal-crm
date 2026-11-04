@@ -18,6 +18,7 @@ import { InvoiceDraftModal } from "@/components/sales/InvoiceDraftModal";
 import { SALE_STATUS_LABELS } from "@/types/sales";
 import type { SaleWithDetails } from "@/types/sales";
 import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
+import { useLanguage } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -71,6 +72,7 @@ function EmitInvoiceForSale({ sale, onClose }: { sale: SaleWithDetails; onClose:
 
 export function SaleInvoicePicker({ open, onOpenChange }: Props) {
   const { data: sales = [] } = useSales();
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<SaleWithDetails | null>(null);
 
@@ -98,14 +100,14 @@ export function SaleInvoicePicker({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova Fatura</DialogTitle>
-          <DialogDescription>Escolhe a venda para emitir a fatura.</DialogDescription>
+          <DialogTitle>{t("Nova Fatura")}</DialogTitle>
+          <DialogDescription>{t("Escolhe a venda para emitir a fatura.")}</DialogDescription>
         </DialogHeader>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar por cliente ou código..."
+            placeholder={t("Pesquisar por cliente ou código...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -115,7 +117,7 @@ export function SaleInvoicePicker({ open, onOpenChange }: Props) {
         <div className="max-h-[50dvh] space-y-2 overflow-y-auto">
           {eligible.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Sem vendas elegíveis (precisam de cliente com NIF, estar entregues e ainda sem fatura).
+              {t("Sem vendas elegíveis (precisam de cliente com NIF, estar entregues e ainda sem fatura).")}
             </p>
           ) : (
             eligible.map((s) => (
@@ -132,7 +134,7 @@ export function SaleInvoicePicker({ open, onOpenChange }: Props) {
                     <Badge variant="outline" className="shrink-0 text-[10px]">{s.code}</Badge>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {SALE_STATUS_LABELS[s.status]} · {formatCurrency(s.gross_value ?? s.total_value)}
+                    {t(SALE_STATUS_LABELS[s.status])} · {formatCurrency(s.gross_value ?? s.total_value)}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

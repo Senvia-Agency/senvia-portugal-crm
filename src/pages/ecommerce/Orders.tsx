@@ -5,12 +5,14 @@ import { SEO } from "@/components/SEO";
 
 
 import { OrdersTable } from "@/components/ecommerce/OrdersTable";
+import { useLanguage } from "@/i18n";
 
 export default function EcommerceOrders() {
+  const { t } = useLanguage();
 
   return (
     <>
-      <SEO title="Pedidos | E-commerce | Senvia OS" description="Gerir pedidos da loja" />
+      <SEO title={`${t("Pedidos")} | E-commerce | Senvia OS`} description={t("Gerir pedidos da loja")} />
 
       <div className="space-y-6 p-4 md:p-6 pb-nav-safe md:pb-6">
         <div className="flex items-center gap-4">
@@ -22,9 +24,9 @@ export default function EcommerceOrders() {
           <div>
             <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
               <ShoppingCart className="h-5 w-5 shrink-0 text-primary" />
-              Pedidos
+              {t("Pedidos")}
             </h1>
-            <p className="text-sm text-muted-foreground">Gerir encomendas e estados</p>
+            <p className="text-sm text-muted-foreground">{t("Gerir encomendas e estados")}</p>
           </div>
         </div>
 

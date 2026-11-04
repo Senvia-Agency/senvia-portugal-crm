@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { ArrowRight, Mail, Phone, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { BUCKET_META, classifyOrg, since, until, type OrgBucket } from "./orgStatus";
 import type { AdminContact, OrgStripeData } from "./OrganizationsTable";
+import { useLanguage, dateLocale } from "@/i18n";
 
 export interface DetailOrg {
   id: string;
@@ -51,7 +51,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function fmt(date: string | null | undefined): string {
   if (!date) return "—";
-  return format(new Date(date), "dd MMM yyyy", { locale: pt });
+  return format(new Date(date), "dd MMM yyyy", { locale: dateLocale() });
 }
 
 /**
@@ -70,6 +70,7 @@ export function OrgDetailSheet({
   onAccess,
   onManageSeats,
 }: OrgDetailSheetProps) {
+  const { t } = useLanguage();
   if (!org) return null;
 
   const now = new Date();
@@ -84,12 +85,12 @@ export function OrgDetailSheet({
             <span className="min-w-0 truncate">{org.name}</span>
             {isCurrent && (
               <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                atual
+                {t("atual")}
               </span>
             )}
           </SheetTitle>
           <SheetDescription className="flex flex-wrap items-center gap-2">
-            <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
+            <Badge className={cn("text-[10px]", meta.badge)}>{t(meta.label)}</Badge>
             <span className="text-xs">{org.slug}</span>
             {org.code && <span className="text-xs">· {org.code}</span>}
           </SheetDescription>
@@ -101,12 +102,12 @@ export function OrgDetailSheet({
             onClick={() => onAccess(org.id)}
             disabled={isCurrent}
           >
-            {isCurrent ? "Já estás nesta organização" : "Aceder a esta organização"}
+            {isCurrent ? t("Já estás nesta organização") : t("Aceder a esta organização")}
             {!isCurrent && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
 
           <div>
-            <h3 className="mb-1 text-xs font-medium text-muted-foreground">Responsável</h3>
+            <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("Responsável")}</h3>
             {contact.name || contact.email || org.contact_phone ? (
               <div className="space-y-1.5 rounded-lg border bg-muted/30 p-3">
                 {contact.name && (
@@ -135,17 +136,17 @@ export function OrgDetailSheet({
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Sem contacto registado.</p>
+              <p className="text-sm text-muted-foreground">{t("Sem contacto registado.")}</p>
             )}
           </div>
 
           <Separator />
 
           <div>
-            <h3 className="mb-1 text-xs font-medium text-muted-foreground">Subscrição</h3>
+            <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("Subscrição")}</h3>
             <div className="divide-y">
-              <Row label="Plano">{stripe?.stripe_plan || org.plan || "—"}</Row>
-              <Row label="Valor mensal">
+              <Row label={t("Plano")}>{stripe?.stripe_plan || org.plan || "—"}</Row>
+              <Row label={t("Valor mensal")}>
                 {stripe?.has_stripe_subscription ? (
                   <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
                     €{stripe.stripe_amount}
@@ -154,30 +155,30 @@ export function OrgDetailSheet({
                   "—"
                 )}
               </Row>
-              <Row label="Cliente desde">{fmt(org.first_paid_at)}</Row>
+              <Row label={t("Cliente desde")}>{fmt(org.first_paid_at)}</Row>
               {org.trial_ends_at && status === "trial" && (
-                <Row label="Trial termina">
-                  {fmt(org.trial_ends_at)} <span className="text-muted-foreground">· faltam {until(org.trial_ends_at, now)}</span>
+                <Row label={t("Trial termina")}>
+                  {fmt(org.trial_ends_at)} <span className="text-muted-foreground">· {t("faltam {{time}}", { time: until(org.trial_ends_at, now) })}</span>
                 </Row>
               )}
               {org.payment_failed_at && (
-                <Row label="Pagamento falhou">
-                  <span className="text-destructive">há {since(org.payment_failed_at, now)}</span>
+                <Row label={t("Pagamento falhou")}>
+                  <span className="text-destructive">{t("há {{time}}", { time: since(org.payment_failed_at, now) })}</span>
                 </Row>
               )}
-              <Row label="Renovação">{fmt(stripe?.stripe_period_end ?? org.current_period_end)}</Row>
+              <Row label={t("Renovação")}>{fmt(stripe?.stripe_period_end ?? org.current_period_end)}</Row>
             </div>
           </div>
 
           <Separator />
 
           <div>
-            <h3 className="mb-1 text-xs font-medium text-muted-foreground">Conta</h3>
+            <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("Conta")}</h3>
             <div className="divide-y">
-              <Row label="Membros">
+              <Row label={t("Membros")}>
                 <span className="tabular-nums">{org.member_count}</span>
               </Row>
-              <Row label="Lugares extra">
+              <Row label={t("Lugares extra")}>
                 <button
                   type="button"
                   onClick={() => onManageSeats(org)}
@@ -185,12 +186,12 @@ export function OrgDetailSheet({
                 >
                   {org.extra_seats && org.extra_seats > 0
                     ? `+${org.extra_seats} (${org.extra_seats * 5}€)`
-                    : "gerir"}
+                    : t("gerir")}
                 </button>
               </Row>
-              <Row label="Criada">{fmt(org.created_at)}</Row>
-              <Row label="Última atividade">
-                {org.last_active_at ? `há ${since(org.last_active_at, now)}` : "nunca"}
+              <Row label={t("Criada")}>{fmt(org.created_at)}</Row>
+              <Row label={t("Última atividade")}>
+                {org.last_active_at ? t("há {{time}}", { time: since(org.last_active_at, now) }) : t("nunca")}
               </Row>
             </div>
           </div>

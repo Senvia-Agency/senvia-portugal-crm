@@ -14,6 +14,7 @@ import {
   type CommissionSplit,
   type TelecomTechnology,
 } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface Member {
   user_id: string;
@@ -56,9 +57,10 @@ export function CommissionSplitRow({
   extraCards,
 }: CommissionSplitRowProps) {
   const byTech = productNeedsTechnologyChoice(technologies);
+  const { t } = useLanguage();
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <TonedField tone="neutral" label="Tipo">
+      <TonedField tone="neutral" label={t('Tipo')}>
         <Select
           value={split.kind}
           onValueChange={(v) =>
@@ -78,13 +80,13 @@ export function CommissionSplitRow({
             <SelectItem value="user">
               <span className="flex items-center gap-1.5">
                 <User className="h-3 w-3" />
-                Pessoa
+                {t('Pessoa')}
               </span>
             </SelectItem>
             <SelectItem value="profile">
               <span className="flex items-center gap-1.5">
                 <Shield className="h-3 w-3" />
-                Perfil
+                {t('Perfil')}
               </span>
             </SelectItem>
           </SelectContent>
@@ -93,13 +95,13 @@ export function CommissionSplitRow({
 
       <TonedField
         tone="neutral"
-        label={split.kind === 'user' ? 'Quem recebe' : 'Perfil do vendedor'}
+        label={split.kind === 'user' ? t('Quem recebe') : t('Perfil do vendedor')}
         className="flex-1 min-w-[160px]"
       >
         {split.kind === 'user' ? (
           <Select value={split.user_id || ''} onValueChange={(v) => onChange({ user_id: v }, true)}>
             <SelectTrigger className={cn(tonedInputClass, 'w-full font-normal')}>
-              <SelectValue placeholder="Escolher pessoa..." />
+              <SelectValue placeholder={t('Escolher pessoa...')} />
             </SelectTrigger>
             <SelectContent>
               {members.map((m) => (
@@ -110,7 +112,7 @@ export function CommissionSplitRow({
         ) : (
           <Select value={split.profile_id || ''} onValueChange={(v) => onChange({ profile_id: v }, true)}>
             <SelectTrigger className={cn(tonedInputClass, 'w-full font-normal')}>
-              <SelectValue placeholder="Escolher perfil..." />
+              <SelectValue placeholder={t('Escolher perfil...')} />
             </SelectTrigger>
             <SelectContent>
               {profiles.map((p) => (
@@ -143,7 +145,7 @@ export function CommissionSplitRow({
                 key={tech}
                 tone="commission"
                 icon={<Wallet className="h-3 w-3 shrink-0" />}
-                label={`${TELECOM_TECHNOLOGY_LABELS[tech]} ${mode === 'fixed' ? '(€)' : tech === 'satelite' ? '(% da fibra)' : '(%)'}`}
+                label={`${t(TELECOM_TECHNOLOGY_LABELS[tech])} ${mode === 'fixed' ? '(€)' : tech === 'satelite' ? t('(% da fibra)') : '(%)'}`}
               >
                 <div className="flex items-center gap-1">
                   <Input
@@ -185,7 +187,7 @@ export function CommissionSplitRow({
       <TonedField
         tone="commission"
         icon={<Wallet className="h-3 w-3 shrink-0" />}
-        label={split.type === 'fixed' ? 'Comissão (€)' : 'Comissão (%)'}
+        label={split.type === 'fixed' ? t('Comissão (€)') : t('Comissão (%)')}
       >
         <div className="flex items-center gap-1">
           {!byTech && (
@@ -231,12 +233,12 @@ export function CommissionSplitRow({
           paid the operator's whole amount must not get them. On by default:
           absent means the seller gets the extra, as before. */}
       {extraCards && (
-        <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label="Cartões extra">
+        <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label={t('Cartões extra')}>
           <div className="flex h-8 items-center gap-2">
             <Switch
               checked={split.extra_cards !== false}
               onCheckedChange={(on) => onChange({ extra_cards: on ? undefined : false }, true)}
-              aria-label="Recebe a comissão dos cartões extra"
+              aria-label={t('Recebe a comissão dos cartões extra')}
             />
             {/* This person's own € per extra card; empty = the product's. */}
             {split.extra_cards !== false && (
@@ -246,9 +248,9 @@ export function CommissionSplitRow({
                 step="0.5"
                 inputMode="decimal"
                 value={split.extra_card_value ?? ''}
-                placeholder="Produto"
-                title="€ por cartão extra para esta pessoa. Vazio = o valor do produto."
-                aria-label="Euros por cartão extra para esta pessoa"
+                placeholder={t('Produto')}
+                title={t('€ por cartão extra para esta pessoa. Vazio = o valor do produto.')}
+                aria-label={t('Euros por cartão extra para esta pessoa')}
                 onChange={(e) => {
                   const raw = e.target.value.trim();
                   const value = raw === '' ? undefined : Number(raw);

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useCreateEcommerceProduct } from "@/hooks/ecommerce";
 import { useActiveCategories } from "@/hooks/ecommerce";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -56,6 +57,7 @@ interface CreateProductModalProps {
 
 export function CreateProductModal({ open, onOpenChange }: CreateProductModalProps) {
   const createProduct = useCreateEcommerceProduct();
+  const { t } = useLanguage();
   const { data: categories } = useActiveCategories();
 
   const form = useForm<FormData>({
@@ -109,7 +111,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo Produto</DialogTitle>
+          <DialogTitle>{t("Novo Produto")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -119,9 +121,9 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome *</FormLabel>
+                  <FormLabel>{t("Nome *")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome do produto" {...field} />
+                    <Input placeholder={t("Nome do produto")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,11 +150,11 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoria</FormLabel>
+                    <FormLabel>{t("Categoria")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar categoria" />
+                          <SelectValue placeholder={t("Selecionar categoria")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -174,9 +176,9 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
               name="short_description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição Curta</FormLabel>
+                  <FormLabel>{t("Descrição Curta")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Breve descrição" {...field} />
+                    <Input placeholder={t("Breve descrição")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -188,10 +190,10 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição Completa</FormLabel>
+                  <FormLabel>{t("Descrição Completa")}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Descrição detalhada do produto"
+                      placeholder={t("Descrição detalhada do produto")}
                       className="min-h-[100px]"
                       {...field}
                     />
@@ -207,7 +209,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço (€)</FormLabel>
+                    <FormLabel>{t("Preço (€)")}</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="0.00" {...field} />
                     </FormControl>
@@ -221,11 +223,11 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 name="compare_at_price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço Comparativo (€)</FormLabel>
+                    <FormLabel>{t("Preço Comparativo (€)")}</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="0.00" {...field} />
                     </FormControl>
-                    <FormDescription>Preço original (para mostrar desconto)</FormDescription>
+                    <FormDescription>{t("Preço original (para mostrar desconto)")}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -233,7 +235,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
             </div>
 
             <div className="rounded-lg border p-4 space-y-4">
-              <h4 className="font-medium">Inventário</h4>
+              <h4 className="font-medium">{t("Inventário")}</h4>
               
               <FormField
                 control={form.control}
@@ -241,8 +243,8 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between">
                     <div>
-                      <FormLabel>Controlar Stock</FormLabel>
-                      <FormDescription>Monitorizar quantidade disponível</FormDescription>
+                      <FormLabel>{t("Controlar Stock")}</FormLabel>
+                      <FormDescription>{t("Monitorizar quantidade disponível")}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -258,7 +260,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                     name="stock_quantity"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Quantidade em Stock</FormLabel>
+                        <FormLabel>{t("Quantidade em Stock")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} />
                         </FormControl>
@@ -272,7 +274,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                     name="low_stock_threshold"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Alerta de Stock Baixo</FormLabel>
+                        <FormLabel>{t("Alerta de Stock Baixo")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} />
                         </FormControl>
@@ -285,7 +287,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
             </div>
 
             <div className="rounded-lg border p-4 space-y-4">
-              <h4 className="font-medium">Opções</h4>
+              <h4 className="font-medium">{t("Opções")}</h4>
               
               <FormField
                 control={form.control}
@@ -293,8 +295,8 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between">
                     <div>
-                      <FormLabel>Produto Digital</FormLabel>
-                      <FormDescription>Não requer envio físico</FormDescription>
+                      <FormLabel>{t("Produto Digital")}</FormLabel>
+                      <FormDescription>{t("Não requer envio físico")}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -309,8 +311,8 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between">
                     <div>
-                      <FormLabel>Ativo</FormLabel>
-                      <FormDescription>Disponível para venda</FormDescription>
+                      <FormLabel>{t("Ativo")}</FormLabel>
+                      <FormDescription>{t("Disponível para venda")}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -322,10 +324,10 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={createProduct.isPending}>
-                {createProduct.isPending ? "A criar..." : "Criar Produto"}
+                {createProduct.isPending ? t("A criar...") : t("Criar Produto")}
               </Button>
             </div>
           </form>

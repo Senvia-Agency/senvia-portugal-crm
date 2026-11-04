@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from "react";
 import { ArrowLeft, CheckCircle2, ChevronRight, Clipboard, ExternalLink, FileText, Loader2, PlayCircle, Printer, Send, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -153,17 +154,7 @@ function WebhookUrlBlock() {
           {options.length > 1 && (
             <label className="flex flex-wrap items-center gap-2">
               <span>Webhook:</span>
-              <select
-                value={selected.id}
-                onChange={(event) => setSelectedId(event.target.value)}
-                className="rounded border border-white/20 bg-slate-950 px-2 py-1 text-xs text-white"
-              >
-                {options.map((webhook) => (
-                  <option key={webhook.id} value={webhook.id}>
-                    {webhook.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={selected.id} onValueChange={setSelectedId}><SelectTrigger aria-label="Webhook" className="h-8 w-auto border-white/20 bg-slate-950 text-xs text-white"><SelectValue /></SelectTrigger><SelectContent>{options.map(webhook => <SelectItem key={webhook.id} value={webhook.id}>{webhook.name}</SelectItem>)}</SelectContent></Select>
             </label>
           )}
         </div>

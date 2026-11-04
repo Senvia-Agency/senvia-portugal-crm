@@ -1,26 +1,32 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
 import {
-  ArrowRight, CalendarClock, CalendarDays, Check, CircleDollarSign,
-  CreditCard, FileText, Plus, Receipt, Search, Users, Wallet,
+  AlertTriangle, ArrowRight, Banknote, CalendarClock, FileText, Inbox, Landmark, LayoutDashboard, Percent, Plus, Receipt, Wallet,
+  type LucideIcon,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
-import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AddExpenseModal } from "@/components/finance/AddExpenseModal";
 import { BankAccountsTab } from "@/components/finance/BankAccountsTab";
+import { CommissionsContent } from "@/components/finance/CommissionsContent";
 import { FinanceCardDetail, type FinanceDetailType } from "@/components/finance/FinanceCardDetail";
 import { InvoicesContent } from "@/components/finance/InvoicesContent";
+import { ExpensesContent } from "@/components/finance/ExpensesContent";
+import { CashflowPanel, Figure, FinanceTabNav, Panel } from "@/components/finance/FinanceLayout";
+import { ReceivablesContent, type ReceivableView } from "@/components/finance/ReceivablesContent";
 import { RenewalAlertsWidget } from "@/components/finance/RenewalAlertsWidget";
+import { PageModuleIcon } from "@/components/layout/ModuleNavIcon";
+import { FilterRow } from "@/components/shared/FilterPills";
+import { filterChipClass } from "@/components/shared/filter-pills";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { CommercialCommissionsData } from "@/hooks/useCommercialCommissions";
+import InternalRequests from "@/pages/finance/InternalRequests";
 import type { FinanceStats, PaymentWithSale } from "@/types/finance";
+import { useLanguage } from "@/i18n";
 
 interface GenericFinanceDashboardProps {
   stats: FinanceStats;
@@ -31,248 +37,226 @@ interface GenericFinanceDashboardProps {
   onDateRangeChange: (range?: DateRange) => void;
   detailView: FinanceDetailType | null;
   onDetailViewChange: (view: FinanceDetailType | null) => void;
-  myConfirmedTotal: number;
-  myPendingTotal: number;
-  teamCommissionTotal: number;
-  teamSalesCount: number;
-  onMyCommissions: () => void;
+  /** Commissions of the selected period, the same figures the Comissões tab shows. */
+  commissions?: CommercialCommissionsData;
+  commissionsLoading: boolean;
+  myUserId?: string;
 }
 
-const moneyCards: Array<{
-  title: string;
-  icon: typeof Wallet;
-  tone: "blue" | "green" | "amber" | "red" | "violet";
-  detail: FinanceDetailType;
-  value: (stats: FinanceStats) => number;
-  foot: (stats: FinanceStats, filtered: boolean) => string;
-}> = [
-  { title: "Faturado", icon: FileText, tone: "blue", detail: "faturado", value: (s) => s.totalBilled, foot: (_s, filtered) => filtered ? "No período" : "Histórico total" },
-  { title: "Recebido", icon: Check, tone: "green", detail: "received", value: (s) => s.totalReceived, foot: (_s, filtered) => filtered ? "No período" : "Total recebido" },
-  { title: "Pendente", icon: CalendarClock, tone: "amber", detail: "pending", value: (s) => s.totalPending, foot: () => "Total por receber" },
-  { title: "Despesas", icon: Receipt, tone: "red", detail: "expenses", value: (s) => s.totalExpenses, foot: (_s, filtered) => filtered ? "No período" : "Total registado" },
-  { title: "Balanço", icon: CircleDollarSign, tone: "violet", detail: "balance", value: (s) => s.balance, foot: () => "Recebido menos despesas" },
-  { title: "A vencer · 7 dias", icon: CalendarDays, tone: "blue", detail: "dueSoon", value: (s) => s.dueSoon, foot: (s) => `${s.dueSoonCount} pagamento${s.dueSoonCount === 1 ? "" : "s"}` },
+/** The finance page, organised by what one comes to do. ?tab= opens one directly. */
+export type FinanceTab = "resumo" | "receber" | "faturas" | "despesas" | "comissoes" | "contas" | "pedidos";
+
+const TABS: readonly { key: FinanceTab; label: string; icon: LucideIcon }[] = [
+  { key: "resumo", label: "Resumo", icon: LayoutDashboard },
+  { key: "receber", label: "A receber", icon: CalendarClock },
+  { key: "faturas", label: "Faturas", icon: FileText },
+  { key: "despesas", label: "Despesas", icon: Receipt },
+  { key: "comissoes", label: "Comissões", icon: Percent },
+  { key: "contas", label: "Contas", icon: Landmark },
+  { key: "pedidos", label: "Pedidos", icon: Inbox },
 ];
 
-const toneClasses = {
-  blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300",
-  green: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300",
-  amber: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-  red: "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300",
-  violet: "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300",
+const SEARCH_PLACEHOLDER: Record<FinanceTab, string> = {
+  resumo: "Pesquisar pagamentos por cliente, venda ou referência",
+  receber: "Pesquisar pagamentos por cliente, venda ou referência",
+  faturas: "Pesquisar documentos por referência ou cliente",
+  despesas: "Pesquisar despesas por descrição ou categoria",
+  comissoes: "Pesquisar comissões por comercial ou venda",
+  contas: "Pesquisar",
+  pedidos: "Pesquisar",
+};
+
+const PaymentLine = ({ payment, tone, onClick }: { payment: PaymentWithSale; tone: "late" | "soon"; onClick: () => void }) => {
+  const { t } = useLanguage();
+  return (
+  <button type="button" onClick={onClick}
+    className="grid w-full grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/40">
+    <span className={cn("text-xs tabular-nums", tone === "late" ? "font-medium text-destructive" : "text-muted-foreground")}>
+      {format(parseISO(payment.payment_date), "dd/MM/yy")}
+    </span>
+    <span className="min-w-0">
+      <span className="block truncate text-sm font-medium">{payment.client_name || t("Venda {{code}}", { code: payment.sale.code })}</span>
+      <span className="block truncate text-xs text-muted-foreground">{payment.sale.invoice_reference || t("Venda {{code}}", { code: payment.sale.code })}</span>
+    </span>
+    <span className="whitespace-nowrap text-sm font-semibold tabular-nums">{formatCurrency(payment.amount)}</span>
+  </button>
+  );
 };
 
 export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
-  const [tab, setTab] = useState("resumo");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab") as FinanceTab | null;
+  const tab: FinanceTab = TABS.some((item) => item.key === tabParam) ? tabParam! : "resumo";
   const [search, setSearch] = useState("");
-  const [expenseSearch, setExpenseSearch] = useState("");
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const { stats, isLoading, dateRange } = props;
 
-  const chartData = useMemo(() => props.stats.cashflowTrend.map((point) => ({
-    ...point,
-    label: format(parseISO(point.date), "dd MMM", { locale: pt }),
-  })), [props.stats.cashflowTrend]);
+  // ?status= picks the view inside "A receber" (em atraso, recebidos…).
+  const statusParam = searchParams.get("status") as ReceivableView | null;
+  const openTab = (next: FinanceTab, status?: ReceivableView) => {
+    props.onDetailViewChange(null);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (next === "resumo") params.delete("tab"); else params.set("tab", next);
+      if (status) params.set("status", status); else params.delete("status");
+      return params;
+    }, { replace: true });
+  };
 
-  const receivables = useMemo(() => {
-    const rows = search.trim() ? props.allPayments : props.stats.dueSoonPayments;
-    const term = search.trim().toLocaleLowerCase("pt-PT");
-    return rows.filter((payment) => {
-      if (search.trim() && payment.status !== "paid" && payment.status !== "pending") return false;
-      if (!search.trim() && payment.status !== "pending") return false;
-      if (!term) return true;
-      return [payment.client_name, payment.sale.code, payment.invoice_reference, payment.sale.invoice_reference, payment.notes]
-        .some((value) => value?.toLocaleLowerCase("pt-PT").includes(term));
-    }).sort((a, b) => a.payment_date.localeCompare(b.payment_date)).slice(0, 5);
-  }, [props.allPayments, props.stats.dueSoonPayments, search]);
+  // Searching from the summary means looking for a payment: go where payments are.
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    if (value.trim() && tab === "resumo") openTab("receber");
+  };
 
-  const selectedPeriod = props.dateRange?.from
-    ? `${format(props.dateRange.from, "d MMM yyyy", { locale: pt })}${props.dateRange.to ? ` – ${format(props.dateRange.to, "d MMM yyyy", { locale: pt })}` : ""}`
-    : "Todo o histórico";
 
-  const handleNewInvoice = () => navigate("/financeiro/nova-fatura");
+  const today = format(new Date(), "yyyy-MM-dd");
+  const overdue = useMemo(() => props.allPayments
+    .filter((payment) => payment.status === "pending" && payment.payment_date < today)
+    .sort((a, b) => a.payment_date.localeCompare(b.payment_date)), [props.allPayments, today]);
+  const dueSoon = useMemo(() => [...stats.dueSoonPayments]
+    .filter((payment) => payment.status === "pending")
+    .sort((a, b) => a.payment_date.localeCompare(b.payment_date)), [stats.dueSoonPayments]);
+
+  const filtered = !!dateRange?.from;
+  const mine = props.commissions?.commercials.find((commercial) => commercial.userId === props.myUserId);
+  const resultTone = stats.balance < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400";
+
+  const detail = (type: FinanceDetailType, searchTerm = search) => (
+    <FinanceCardDetail
+      type={type}
+      dateRange={dateRange}
+      payments={props.payments}
+      allPayments={props.allPayments}
+      dueSoonPayments={stats.dueSoonPayments}
+      searchTerm={searchTerm}
+      onBack={() => (tab === "resumo" ? props.onDetailViewChange(null) : openTab("resumo"))}
+    />
+  );
 
   return (
-    <div className="min-h-full space-y-5 p-4 pb-20 md:p-6 md:pb-8 lg:p-8">
-      <header className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão financeira</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">Financeiro</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Acompanhe faturação, recebimentos e despesas num só lugar.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={handleNewInvoice} className="h-10 px-4">
-            <Plus className="mr-1.5 h-4 w-4" /> Nova fatura
-          </Button>
-          <Button variant="outline" onClick={() => setExpenseOpen(true)} className="h-10 px-4">
-            <Plus className="mr-1.5 h-4 w-4" /> Nova despesa
-          </Button>
-        </div>
-      </header>
-
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="h-10 w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto">
-          <TabsTrigger value="resumo" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Resumo</TabsTrigger>
-          <TabsTrigger value="contas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Contas</TabsTrigger>
-          <TabsTrigger value="faturas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Faturas</TabsTrigger>
-          <TabsTrigger value="despesas" className="h-10 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent">Despesas</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resumo" className="mt-5 space-y-5">
-          <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 md:flex-row md:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Pesquisar recebimentos por cliente, venda ou referência…"
-                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-                aria-label="Pesquisar recebimentos"
-              />
-            </div>
-            <DateRangePicker value={props.dateRange} onChange={props.onDateRangeChange} placeholder="Todo o histórico" className="w-full md:w-[260px]" />
+    <div className="crm-page">
+      <div className="space-y-4 p-4 sm:p-6 lg:px-8 lg:py-7">
+        {/* One line: title, and the two things one comes to add. */}
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          <PageModuleIcon to="/financeiro" />
+          <h1 className="text-2xl font-semibold tracking-tight">{t("Financeiro")}</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" className="h-9 rounded-full px-3" onClick={() => setExpenseOpen(true)}>
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">{t("Nova despesa")}</span>
+            </Button>
+            <Button className="h-9 rounded-full px-4" onClick={() => navigate("/financeiro/nova-fatura")}>
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">{t("Nova fatura")}</span>
+            </Button>
           </div>
+        </header>
 
-          {props.detailView ? (
-            <FinanceCardDetail
-              type={props.detailView}
-              dateRange={props.dateRange}
-              payments={props.payments}
-              allPayments={props.allPayments}
-              dueSoonPayments={props.stats.dueSoonPayments}
-              // The search bar above drives the list too — without this the
-              // detail showed a second box of its own and the top one did
-              // nothing to it.
-              searchTerm={search}
-              onBack={() => props.onDetailViewChange(null)}
-            />
-          ) : (
-            <>
-              <section className="rounded-xl border bg-muted/20 p-3 md:p-4" aria-labelledby="finance-period-title">
-                <div className="mb-3 flex items-center justify-between gap-3 px-1">
-                  <div>
-                    <h2 id="finance-period-title" className="font-semibold tracking-tight">Visão geral do período</h2>
-                    <p className="text-xs text-muted-foreground">{selectedPeriod}</p>
-                  </div>
-                  <span className="hidden text-xs text-muted-foreground lg:inline">Selecione um indicador para ver os movimentos</span>
-                </div>
-                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-                    {moneyCards.map(({ title, icon: Icon, tone, detail, value, foot }) => (
-                    <Card key={title} role="button" tabIndex={0} onClick={() => detail === "expenses" ? setTab("despesas") : props.onDetailViewChange(detail)}
-                      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); detail === "expenses" ? setTab("despesas") : props.onDetailViewChange(detail); } }}
-                      className="group cursor-pointer border-border/70 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      <CardContent className="flex min-h-[116px] items-start gap-3 p-4">
-                        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${toneClasses[tone]}`}><Icon className="h-5 w-5" /></span>
-                        <div className="min-w-0 pt-0.5">
-                          <p className="text-xs font-medium text-muted-foreground">{title}</p>
-                          {props.isLoading ? <Skeleton className="mt-2 h-7 w-24" /> : <p className="mt-1 whitespace-nowrap text-xl font-semibold tracking-tight">{formatCurrency(value(props.stats))}</p>}
-                          <p className="mt-1 text-[11px] text-muted-foreground">{foot(props.stats, !!props.dateRange?.from)}</p>
-                        </div>
-                        <ArrowRight className="ml-auto mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </section>
+        <FinanceTabNav tabs={TABS} current={tab} onSelect={(next) => openTab(next)} badges={{ receber: overdue.length }} />
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.8fr)]">
-                <Card className="min-w-0 overflow-hidden">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                    <div><CardTitle className="text-base">Fluxo de caixa</CardTitle><p className="mt-1 text-xs text-muted-foreground">Entradas e saídas ao longo do período</p></div>
-                    <Wallet className="h-5 w-5 text-primary" />
-                  </CardHeader>
-                  <CardContent className="pt-3">
-                    {props.isLoading ? <Skeleton className="h-[250px] w-full" /> : chartData.length === 0 ? (
-                      <div className="grid h-[250px] place-items-center text-sm text-muted-foreground">Sem movimentos neste período.</div>
-                    ) : (
-                      <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="genericReceivedFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.24} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.02} /></linearGradient>
-                              <linearGradient id="genericExpenseFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f43f5e" stopOpacity={0.2} /><stop offset="100%" stopColor="#f43f5e" stopOpacity={0.02} /></linearGradient>
-                            </defs>
-                            <CartesianGrid vertical={false} strokeDasharray="3 5" className="stroke-border" />
-                            <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={16} />
-                            <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(n) => `€${n}`} width={48} />
-                            <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
-                            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                            <Area type="monotone" dataKey="received" name="Recebido" stroke="#059669" strokeWidth={2} fill="url(#genericReceivedFill)" />
-                            <Area type="monotone" dataKey="expenses" name="Despesas" stroke="#e11d48" strokeWidth={2} fill="url(#genericExpenseFill)" />
-                            <Area type="monotone" dataKey="scheduled" name="Agendado" stroke="#2563eb" strokeWidth={2} fill="none" />
-                          </AreaChart>
-                        </ResponsiveContainer>
+        {tab !== "contas" && tab !== "pedidos" && (
+          <FilterRow search={search} onSearch={handleSearch} placeholder={t(SEARCH_PLACEHOLDER[tab])}
+            hasActive={!!search.trim() || filtered} onClear={() => { setSearch(""); props.onDateRangeChange(undefined); }}>
+            <DateRangePicker value={dateRange} onChange={props.onDateRangeChange} placeholder={t("Todo o histórico")}
+              className={cn(filterChipClass(filtered), "w-auto justify-start [&_svg]:mr-0")} />
+          </FilterRow>
+        )}
+
+        {tab === "resumo" && (props.detailView ? detail(props.detailView) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+              <Figure label={t("Faturado")} value={formatCurrency(stats.totalBilled)} hint={filtered ? t("no período") : t("todo o histórico")}
+                loading={isLoading} onClick={() => props.onDetailViewChange("faturado")} />
+              <Figure label={t("Recebido")} value={formatCurrency(stats.totalReceived)} tone="text-emerald-600 dark:text-emerald-400"
+                hint={filtered ? t("no período") : t("todo o histórico")} loading={isLoading} onClick={() => openTab("receber", "paid")} />
+              <Figure label={t("Por receber")} value={formatCurrency(stats.totalPending)} tone="text-amber-600 dark:text-amber-400"
+                hint={t("{{value}} nos próximos 7 dias", { value: formatCurrency(stats.dueSoon) })} loading={isLoading} onClick={() => openTab("receber", "open")} />
+              <Figure label={t("Em atraso")} value={formatCurrency(stats.totalOverdue)}
+                tone={stats.overdueCount > 0 ? "text-destructive" : undefined}
+                hint={t(stats.overdueCount === 1 ? "{{n}} pagamento" : "{{n}} pagamentos", { n: stats.overdueCount })} loading={isLoading}
+                onClick={() => openTab("receber", "overdue")} />
+              <Figure label={t("Despesas")} value={formatCurrency(stats.totalExpenses)} tone="text-rose-600 dark:text-rose-400"
+                hint={filtered ? t("no período") : t("todo o histórico")} loading={isLoading} onClick={() => openTab("despesas")} />
+              <Figure label={t("Balanço")} value={formatCurrency(stats.balance)} tone={resultTone}
+                hint={t("recebido menos despesas")} loading={isLoading} onClick={() => props.onDetailViewChange("balance")} />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <div className="min-w-0 space-y-4">
+                <CashflowPanel trend={stats.cashflowTrend} loading={isLoading} />
+
+                {/* What comes in next and what the team earns, side by side under the chart. */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Panel title={t("Próximos 7 dias")} icon={CalendarClock}
+                    action={<Button variant="outline" size="sm" className="h-8 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => openTab("receber", "open")}>{t("Ver tudo")}<ArrowRight className="h-3.5 w-3.5" /></Button>}>
+                    {dueSoon.length ? (
+                      <div className="divide-y">
+                        {dueSoon.slice(0, 5).map((payment) => <PaymentLine key={payment.id} payment={payment} tone="soon" onClick={() => openTab("receber", "open")} />)}
                       </div>
+                    ) : <p className="py-6 text-center text-sm text-muted-foreground">{t("Nada a receber nos próximos 7 dias.")}</p>}
+                  </Panel>
+                  <Panel title={t("Comissões")} icon={Banknote}
+                    action={<Button variant="outline" size="sm" className="h-8 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => openTab("comissoes")}>{t("Ver comissões")}<ArrowRight className="h-3.5 w-3.5" /></Button>}>
+                    {props.commissionsLoading ? <Skeleton className="h-16 w-full" /> : (
+                      <button type="button" onClick={() => openTab("comissoes")} className="w-full space-y-3 text-left">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">{t("Ganhas")}</p>
+                            <p className="text-lg font-semibold tabular-nums">{formatCurrency(props.commissions?.total ?? 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">{t("Por pagar")}</p>
+                            <p className={cn("text-lg font-semibold tabular-nums", (props.commissions?.totalPending ?? 0) > 0.005 && "text-amber-600 dark:text-amber-400")}>
+                              {formatCurrency(props.commissions?.totalPending ?? 0)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">{t("A ganhar")}</p>
+                            <p className="text-lg font-semibold tabular-nums text-muted-foreground">{formatCurrency(props.commissions?.totalToEarn ?? 0)}</p>
+                          </div>
+                        </div>
+                        {mine && (
+                          <p className="border-t pt-2.5 text-xs text-muted-foreground">
+                            {t("As minhas:")} <span className="font-medium text-foreground">{formatCurrency(mine.total)}</span> {t("ganhas")}
+                            {mine.totalPending > 0.005 && <> · {t("{{value}} por pagar", { value: formatCurrency(mine.totalPending) })}</>}
+                          </p>
+                        )}
+                      </button>
                     )}
-                  </CardContent>
-                </Card>
+                  </Panel>
+                </div>
+              </div>
+
+              <div className="min-w-0 space-y-4">
+                <Panel title={t("Em atraso")} icon={AlertTriangle}
+                  className={overdue.length ? "border-destructive/30" : undefined}
+                  action={overdue.length > 0 && <span className="text-sm font-semibold tabular-nums text-destructive">{formatCurrency(overdue.reduce((sum, p) => sum + Number(p.amount), 0))}</span>}>
+                  {overdue.length ? (
+                    <div className="divide-y">
+                      {overdue.slice(0, 5).map((payment) => <PaymentLine key={payment.id} payment={payment} tone="late" onClick={() => openTab("receber", "overdue")} />)}
+                      {overdue.length > 5 && (
+                        <button type="button" onClick={() => openTab("receber", "overdue")} className="w-full pt-2.5 text-left text-xs font-medium text-primary hover:underline">
+                          {t("Mais {{n}} em atraso", { n: overdue.length - 5 })}
+                        </button>
+                      )}
+                    </div>
+                  ) : <p className="py-4 text-center text-sm text-muted-foreground">{t("Nenhum pagamento em atraso.")}</p>}
+                </Panel>
+
                 <RenewalAlertsWidget />
               </div>
-
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(270px,0.7fr)]">
-                <Card className="min-w-0">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <div><CardTitle className="text-base">{search ? "Resultados" : "Próximos recebimentos"}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{search ? "Pagamentos encontrados" : "Pagamentos previstos para os próximos 7 dias"}</p></div>
-                    <Button variant="ghost" size="sm" className="h-8" onClick={() => props.onDetailViewChange(search ? "pending" : "dueSoon")}>Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
-                  </CardHeader>
-                  <CardContent className="pt-1">
-                    {receivables.length ? (
-                      <div className="divide-y">
-                        {receivables.map((payment) => (
-                          <button key={payment.id} onClick={() => props.onDetailViewChange(payment.status === "paid" ? "received" : "pending")} className="grid w-full grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40">
-                            <span className="text-xs tabular-nums text-muted-foreground">{format(parseISO(payment.payment_date), "dd/MM/yy")}</span>
-                            <span className="min-w-0"><span className="block truncate text-sm font-medium">{payment.client_name || `Venda ${payment.sale.code}`}</span><span className="block truncate text-xs text-muted-foreground">{payment.sale.invoice_reference || `Venda ${payment.sale.code}`}</span></span>
-                            <span className="text-right"><span className="block whitespace-nowrap text-sm font-semibold">{formatCurrency(payment.amount)}</span><span className={`text-[11px] ${payment.status === "paid" ? "text-emerald-600" : "text-amber-600"}`}>{payment.status === "paid" ? "Pago" : "A vencer"}</span></span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : <div className="py-8 text-center text-sm text-muted-foreground">{search ? "Não foram encontrados pagamentos." : "Não há pagamentos previstos para os próximos 7 dias."}</div>}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div><CardTitle className="flex items-center gap-2 text-base"><CreditCard className="h-4 w-4 text-primary" />Comissões</CardTitle><p className="mt-1 text-xs text-muted-foreground">Resumo da atividade comercial</p></div>
-                    <Button variant="ghost" size="sm" className="-mr-2 -mt-1 h-8" onClick={() => props.onDetailViewChange("commissions")}>Ver todas <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-1">
-                    <div><p className="text-2xl font-semibold tracking-tight text-primary">{formatCurrency(props.teamCommissionTotal)}</p><p className="text-xs text-muted-foreground">{props.teamSalesCount} venda{props.teamSalesCount === 1 ? "" : "s"} {props.dateRange?.from ? "no período" : "no total"}</p></div>
-                    <div className="flex items-center justify-between border-t pt-3"><span className="text-xs text-muted-foreground">As minhas comissões</span><button onClick={props.onMyCommissions} className="text-sm font-semibold hover:text-primary">{formatCurrency(props.myConfirmedTotal)}</button></div>
-                    {props.myPendingTotal > 0 && <p className="text-[11px] text-muted-foreground">{formatCurrency(props.myPendingTotal)} pendentes</p>}
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="contas" className="mt-5"><BankAccountsTab /></TabsContent>
-        <TabsContent value="faturas" className="mt-5"><InvoicesContent /></TabsContent>
-        <TabsContent value="despesas" className="mt-5">
-          <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-card p-3 md:flex-row md:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={expenseSearch}
-                onChange={(event) => setExpenseSearch(event.target.value)}
-                placeholder="Pesquisar despesas por descrição ou categoria…"
-                className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-                aria-label="Pesquisar despesas"
-              />
             </div>
-            <DateRangePicker value={props.dateRange} onChange={props.onDateRangeChange} placeholder="Todo o histórico" className="w-full md:w-[260px]" />
-          </div>
-          <FinanceCardDetail
-            type="expenses"
-            dateRange={props.dateRange}
-            searchTerm={expenseSearch}
-            payments={props.payments}
-            allPayments={props.allPayments}
-            dueSoonPayments={props.stats.dueSoonPayments}
-            onBack={() => setTab("resumo")}
-          />
-        </TabsContent>
-      </Tabs>
+          </>
+        ))}
+
+        {tab === "receber" && <ReceivablesContent key={statusParam ?? "default"} search={search} dateRange={dateRange} initialView={statusParam ?? undefined} />}
+        {tab === "faturas" && <InvoicesContent search={search} dateRange={dateRange} />}
+        {tab === "despesas" && <ExpensesContent search={search} dateRange={dateRange} />}
+        {tab === "comissoes" && <CommissionsContent search={search} dateRange={dateRange} />}
+        {tab === "contas" && <BankAccountsTab />}
+        {tab === "pedidos" && <InternalRequests />}
+      </div>
       <AddExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
     </div>
   );

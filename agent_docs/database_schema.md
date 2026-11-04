@@ -295,6 +295,58 @@ Each confirmed referral reward can store a unique `stripe_coupon_id` in `organiz
 
 `sale_chargebacks` and `bds_manual_chargebacks` retain `created_at` for audit and add `application_month` (the first day of the commission month chosen on confirmation) and `applied_at` (when the deduction is included in a commission payment). Confirmed chargebacks require an application month. Pending or dismissed chargebacks do not reduce commissions. Both tables remain isolated by organization RLS; the new indexes support organization, month and status lookups. Existing confirmed rows are initially assigned their creation month. The separate `20261007174000` data patch assigns the six reviewed BDS chargebacks to September 2026 only when the expected records match exactly.
 
+## Workplace Feed (20261023122606, 20261026120000)
+
+Organization feed for the Workplace preview. All tables carry `organization_id`; a restrictive `workplace_scope` policy requires `meets_mfa_policy` and active membership (or super_admin) for every operation, and a permissive SELECT lets members read everything in their organization. No client DELETE on posts or comments: publications and recognitions are permanent.
+
+- `workplace_posts`: `author_id` (profiles), `body`, `kind` (`publication` | `announcement` | `recognition`), `pinned`, `created_at`, `updated_at`. Members insert publications and recognitions unpinned; announcements and pinning require `is_org_admin`. The update trigger keeps id, organization, author, creation time, recipient and recognition type immutable.
+  - Recognitions add `recipient_id` (profiles, must be an active member and not the author) and `recognition_type` (`great_work`, `team_spirit`, `creativity`, `leadership`, `helpful`, `professional`, `innovation`, `dedication`, `congrats`, `thanks`); the body is the reason, 30–1000 characters. Both columns are NULL for other kinds. An insert trigger for authenticated clients fixes `created_at` to `now()` and limits each author to 3 recognitions per 24 hours per organization, and 1 per recipient per 24 hours. Partial indexes: `(organization_id, recipient_id, created_at DESC)` and `(organization_id, author_id, created_at DESC)` where `kind = 'recognition'`.
+- `workplace_comments`: `post_id` (composite FK with organization), `author_id`, `body` (1–2000). Members insert their own.
+- `workplace_reactions`: `post_id`, `user_id`, `emoji` (one of 👍 ❤️ 👏 🎉 😂 😮 😢 🙏; defaults to ❤️, which also covers likes made before emojis). Primary key `(post_id, user_id, emoji)`: a person may add several different emojis. Members insert and delete only their own rows.
+
+All three tables are in the `supabase_realtime` publication.
+
+## Workplace Mensagens (20261026150000)
+
+Internal conversations between members of the same organization. Only conversation members read messages; organization admins have no access to other people's conversations. Conversations and memberships are created only through SECURITY DEFINER functions that validate the organization (`workplace_chat_require_org`: active member and `meets_mfa_policy`). `workplace_chat_is_member(conversation)` (member + still an active organization member + MFA) gates every policy, the file bucket and the private realtime topic.
+
+- `workplace_chat_conversations`: `organization_id`, `kind` (`direct` | `group` | `channel`), `title` (required except 1:1), `direct_key` (`<org>:<smaller user>:<larger user>`, unique, one 1:1 per pair), `is_default` (one "Geral" channel per organization, partial unique index), `created_by`, `last_message_at`/`last_message_id`. Read-only for clients.
+- `workplace_chat_members`: `(conversation_id, user_id)` primary key, `role` (`owner` | `admin` | `member`), `joined_at`, `last_read_at` (visible to the other members: unread counts and "Visto"). Read-only for clients.
+- `workplace_chat_member_settings`: personal `is_pinned`, `is_muted`, `is_archived`, visible and writable only by their owner (FK to the membership, removed with it).
+- `workplace_chat_messages`: `conversation_id`, `organization_id` (set by trigger), `sender_id`, `kind` (`text` | `image` | `file` | `audio`), `body` (≤ 4000), attachment path/name/size (≤ 25 MB)/mime, `duration_sec`, `reply_to_id` (same conversation only), `forwarded`, `edited_at`, `deleted_at`. Clients may update only `body` (text edits) and `deleted_at`; deleting clears body and attachment fields and is final. No client DELETE. Index `(conversation_id, created_at DESC)` and `(organization_id, created_at DESC)`.
+- `workplace_chat_reactions`: `(message_id, user_id, emoji)` primary key, composite FK `(message_id, conversation_id)`; emoji one of 👍 ❤️ 👏 🎉 😂 😮 😢 🙏. Members add and remove their own.
+
+Functions (authenticated): `workplace_chat_bootstrap(org)` (creates/joins "Geral"), `workplace_chat_start_direct(org, user)`, `workplace_chat_create_group(org, title, members)` (1–99 colleagues, creator owner), `workplace_chat_add_members(conversation, members)` (group owner/admin), `workplace_chat_leave_group(conversation)` (oldest member becomes owner if none remains), `workplace_chat_rename_group(conversation, title)` (any member), `workplace_chat_mark_read(conversation)`, `workplace_chat_list_conversations(org)` (preferences, member count, unread, 1:1 peer, last message preview), `workplace_chat_search_messages(org, term, limit)` (accent/case-insensitive via `immutable_unaccent`, RLS applies).
+
+Storage: private bucket `workplace-chat-files` (25 MB; images, PDF, text/CSV, ZIP, Office, audio), paths `<conversation>/<file>`; members read and upload, the uploader deletes. Realtime: messages, members, settings and conversations are in `supabase_realtime`; typing and reaction nudges use the private broadcast topic `workplace-chat-<conversation>` (policies on `realtime.messages`).
+
+### Feed attachments (20261026170000)
+
+`workplace_posts.attachments` is a JSON array (max 4) of `{ path, name, size, mime }`; a trigger requires each `path` to start with `<post id>/`, a name of 1–255 characters, a numeric size up to 15 MB and a MIME type. Files live in the private bucket `workplace-feed-files` (15 MB; images, PDF, Word, Excel, PowerPoint) under `<post>/<file>`: organization members (or super admin) with MFA read them (`workplace_feed_can_see`), only the post's author uploads (`workplace_feed_is_author`, so the post is created first and its attachment list updated after the upload), and the uploader deletes.
+
+## WebMail (20261026190000)
+
+Personal layer of the WebMail on top of the email caixas (`messaging_channels` with `channel_type = 'email'`, still created by admins and synced by `email-gateway`). Every row belongs to one person and only they see it. Rows tied to a caixa also require `pode_aceder_caixa(auth.uid(), channel_id)`; contact rows require `is_org_member`. A trigger (`email_personal_row_org`) always copies `organization_id` from the caixa and refreshes `updated_at`.
+
+- `email_account_preferences`: primary key `(user_id, channel_id)`. Columns: `label` (the person's own name for the caixa, 1–60 characters; the admin's `messaging_channels.label` stays the shared name), `color` (`#rrggbb`), `notify` (new-mail push, default true), `is_default` (the caixa "Escrever" opens with; partial unique index, one per person and organization), `position` (sidebar order).
+- `email_signatures`: `id`, `user_id`, `channel_id`, `name` (1–60), `html` (≤ 20 000), `is_default` (partial unique index, at most one per person and caixa), `position`. Written through `email_save_signatures(channel, items)`, which replaces the person's list for that caixa in one step and leaves exactly one default (the first one when none is marked). The caixa-wide signatures in `messaging_channels.metadata.signatures` remain the fallback while a person has none.
+- `email_contacts`: primary key `(user_id, organization_id, email)`; `email` lowercase, `name`, `uses`, `last_used_at`. Filled by `email_remember_contacts(org, items)` after each send (up to 100 addresses per call; known addresses get `uses + 1`). Index `(user_id, organization_id, uses DESC, last_used_at DESC)`.
+- `email_contact_lists`: `id`, `user_id`, `organization_id`, `name` (1–60, unique per person and organization, case-insensitive), `members` (JSON array of `{ email, name }`, max 500).
+
+Storage: public bucket `email-signatures` (5 MB; PNG, JPEG, GIF, WebP) so recipients can load signature images; each person uploads and deletes only under `<user id>/`.
+
+`notificar_email_novo` (new mail in an Inbox folder) now leaves out people whose `notify` is false for that caixa: assignees minus muted people, or, when the caixa has no assignees and someone muted it, the active organization members minus muted people. With nobody left, no push is sent.
+
+## Email rules (20261028120000)
+
+`email_rules`: rules of one caixa, shared by everyone who can open it. RLS policy `email_rules_caixa` (all commands) requires `pode_aceder_caixa(auth.uid(), channel_id)`; `authenticated` may select, insert and delete, and update only `name`, `enabled`, `position`, `match_all`, `conditions`, `actions`, `stop_processing` (a rule never changes caixa). Deleting a rule never touches any email.
+
+- Columns: `id`, `organization_id`, `channel_id` (FK `messaging_channels`, cascade), `name` (1–60), `enabled`, `position` (0–1000, lower runs first), `match_all` (all conditions vs any one), `conditions`, `actions`, `stop_processing` (later rules skip a message this one matched), `match_count` and `last_matched_at` (written by the gateway), `created_by`, `created_at`, `updated_at`. Indexes `(channel_id, position)` and `(organization_id)`.
+- `conditions` (1–10): `{ field: from|to|cc|subject|body|has_attachments, operator: contains|not_contains|equals|starts_with|ends_with, value }`, value 1–200 characters; `has_attachments` only takes `equals` with `"true"`/`"false"`. `actions` (1–5): `{ type: move, folderId }` or `{ type: mark_read|flag|archive|trash|spam }`, each type once and at most one destination (move, archive, trash, spam). Enforced by the check `email_rules_shape` (`email_rule_shape_ok`).
+- Trigger `email_rules_before_write` (before insert, and before updates of the editable columns or `channel_id`, so the gateway's counter updates do not fire it): copies `organization_id` from the caixa, limits a caixa to 50 rules (`email_rule_limit`), forces `created_by`, `match_count = 0` on insert, and when the actions change requires each `move` folder to be a non-Inbox folder of the same caixa (`email_rule_folder`). A rule whose folder is deleted later can still be switched off or reordered.
+- `email_reorder_rules(channel, ids[])` (security invoker) sets `position` from the order given.
+
+The email gateway applies the enabled rules, in order, to each Inbox message above the highest Inbox UID it had saved before connecting (so mail that arrived while it was down still goes through them, and a caixa's existing mail never does): flags add up across matching rules, the first destination wins. It also refuses to delete a folder that a rule moves mail to.
 ## Automatic receipts for non-recurring sales (20261027100000)
 
 The client sets the default and every sale follows it unless it makes its own choice. No new table.
@@ -322,6 +374,28 @@ The client's "Documentos automáticos" (inside the Faturação card) also issue 
 - `sales.fiscal_auto_invoices` (boolean): copied from the client by `copy_client_auto_invoice_to_sale_trg` (BEFORE INSERT, non-recurring sales only); NULL on sales created before the migration, which are never issued unless someone turns it on for that sale. `sales.fiscal_invoice_last_error` (text): why the automatic Fatura stopped; while set the worker does not try again, `retry_automatic_sale_invoice(sale)` clears it (finance → invoices → issue permission).
 - `list_due_automatic_sale_invoices(limit)` (service role) returns sales with the option on, at least 2 minutes old, not cancelled, without an FT/FR or legacy InvoiceXpress document, without a recurrence, in a KeyInvoice organization that is not telecom. `keyinvoice-fiscal-worker` issues them through `issueKeyInvoiceSaleDocument` (same code and idempotency key as "Emitir Fatura"): an FT, or an FR when the sale is already fully paid. Email follows `coalesce(sales.fiscal_auto_email, crm_clients.fiscal_auto_email)` and `sales.fiscal_email_recipient`.
 - `queue_automatic_sale_receipt` returns `waiting:invoice` (no alert) for a paid payment of such a sale whose FT is not issued yet; `zz_queue_first_month_receipts_after_invoice_trg` now also queues the receipts of the payments already paid when the FT of an automatic-invoice sale is issued.
+
+## Ponto / time clock (20261103120000)
+
+Modelled on Realize without GPS or NFC. A day is four actions: `start` (Iniciar dia), `pause` (Pausa), `resume` (Retomar), `stop` (Terminar dia). Clients never write the entry tables: everything goes through SECURITY DEFINER functions, and every insert/update lands in an append-only history.
+
+- `time_clock_entries`: `organization_id`, `user_id` (no FK: a timesheet outlives the account), `action`, `punched_at`, `source` (`app` | `admin`), `status` (`valid` | `pending` | `voided`), `employee_note`/`admin_note` (≤ 300), `created_by`/`updated_by`. Never deleted (trigger), only voided. RLS: own rows (active member + MFA) or org admins (`is_org_admin`).
+- `time_clock_entry_history`: `entry_id`, `action` (create/update/void/restore/approve/reject), `changed_fields`, `old_data`/`new_data`, `reason` (from the `app.time_clock_reason` setting), `changed_by`, `changed_by_name`. Immutable. Same read rule as the entries.
+- `work_schedules`: `(user_id, organization_id)` PK, `reminders`, `days` (ISO weekdays), `start_time`/`end_time`, `lunch_start`/`lunch_end` (both or neither, inside the day), `tolerance_min` (0–120). Owners read/write their own; admins read.
+- `time_clock_reminders_sent`: `(organization_id, user_id, day, slot)` PK, slot `entrada` | `almoco` | `regresso` | `saida`. Service role only.
+
+Functions: `time_clock_punch(org, action, note, at)` (state from the last non-voided entry, one 12 h old means closed; the same action within 60 s returns the first; `resume` after a stop today turns that stop into a pause; a time other than now needs a reason and is `pending`), `time_clock_correct_entry(entry, at, reason)` (own entry, last 12 h, between its neighbours, becomes `pending`), `time_clock_admin_save_entry(org, entry or null, user, action, at, reason, note)` and `time_clock_admin_set_status(org, ids, valid or voided, reason)` (admins, never on their own entries, reason required), `time_clock_due_reminders()` (service role; Europe/Lisbon; marks what it returns as sent). The pg_cron job `time-clock-reminders` (every 5 min) calls the edge function of the same name.
+
+Storage: public bucket `avatars` (2 MB, webp/jpeg/png), paths `<user_id>/<timestamp>.<ext>`, each user writes only their own folder; the URL goes to `profiles.avatar_url`.
+
+## Video reviews (20261104150000)
+
+Programme: an organization sends a video of 30 s or more about how Senvia OS helped it. Senvia approves it; the organization posts it on Instagram tagging @senvia_agency and sends the post link; Senvia confirms the post, and only then a 25% coupon (valid once) is put on the Stripe subscription, so it comes out of the next monthly invoice.
+
+- `review_submissions`: `organization_id`, `submitted_by`, `video_path` (bucket `review-videos`, private, 200 MB, mp4/mov/webm, folder = organization id), `duration_seconds` (≥ 30), `consent_publish` (must be true), `status` (`pending` → `video_approved` → `post_submitted` → `approved`; `rejected` from any open step, with `reject_reason`), `instagram_url` (instagram.com/p|reel|reels|tv), review fields, `discount_percent` (25), `stripe_coupon_id`, `applied_at`. One live review per organization (partial unique index on pending/video_approved/post_submitted/approved): a rejected review can be sent again; once one is approved, submit_review_video refuses (review_already_rewarded), so the discount is given once. RLS: organization members read; no client writes.
+- RPCs (authenticated, org admins only): `submit_review_video(org, path, seconds, consent)`, `submit_review_post(review, url)`.
+- Edge function `review-video` (super admins): `list` (with 1 h signed video URLs), `approve_video`, `approve_post` (claims the row first, creates the coupon with an idempotency key, keeps the subscription's existing discounts, puts it back to `post_submitted` if Stripe refuses), `reject`.
+- Screens: Indicações → card `VideoReviewCard` (company); Administração → Avaliações (`/system-admin/reviews`).
 
 ## Commissions follow the payments outside telecom
 

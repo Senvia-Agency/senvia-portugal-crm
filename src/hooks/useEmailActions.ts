@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { EmailMessage, EmailAddress, EmailDraft } from './useEmail';
+import { invokeImapFunction } from '@/lib/imap-edge-queue';
 
 const db = supabase as unknown as { from: (t: string) => any };
 
@@ -167,9 +168,7 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
     });
 
     try {
-      const { data, error } = await supabase.functions.invoke('email-message-action', {
-        body: { action, message_ids: eligibleIds },
-      });
+      const { data, error } = await invokeImapFunction('email-message-action', { action, message_ids: eligibleIds });
       const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
         ? data.error
         : null;
@@ -202,7 +201,7 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
     syncUnread: (targetFolderId: string) => queue('sync_unread', { folderId: targetFolderId }),
     fetchBody: async (messageId: string) => {
       if (!orgId || !channelId) throw new Error('Caixa não selecionada');
-      const { error } = await supabase.functions.invoke('email-fetch-body', { body: { message_id: messageId } });
+      const { error } = await invokeImapFunction('email-fetch-body', { message_id: messageId });
       if (error) {
         const detail = await error.context?.json?.().catch(() => null);
         throw new Error(detail?.error || 'Não foi possível carregar o conteúdo do email.');

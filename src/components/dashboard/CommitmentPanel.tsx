@@ -11,17 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Target, Pencil, Plus } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, intlLocale, useLanguage } from "@/i18n";
 import { EditCommitmentModal } from "./EditCommitmentModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PrintCardButton } from "./PrintCardButton";
 
 function formatCurrency(val: number) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR" }).format(val);
 }
 
 function formatNumber(val: number) {
-  return new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(val);
+  return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(val);
 }
 
 interface RowData {
@@ -36,6 +36,7 @@ interface RowData {
 }
 
 export function CommitmentPanel() {
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [] } = useTeamMembers();
@@ -48,7 +49,7 @@ export function CommitmentPanel() {
 
   const isTelecom = organization?.niche === 'telecom';
   const showEnergy = isTelecom && modules.energy;
-  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: pt });
+  const currentMonthLabel = format(startOfMonth(selectedMonth), "MMMM yyyy", { locale: dateLocale() });
 
   const buildRows = (): RowData[] => {
     if (isAdmin) {
@@ -56,7 +57,7 @@ export function CommitmentPanel() {
         const mc = allCommitments.find((c) => c.user_id === m.user_id);
         return {
           userId: m.user_id,
-          name: m.full_name + (m.user_id === user?.id ? " (eu)" : ""),
+          name: m.full_name + (m.user_id === user?.id ? t(" (eu)") : ""),
           nifs: Number(mc?.total_nifs || 0),
           instalacoes: Number(mc?.total_instalacoes || 0),
           energia: Number(mc?.total_energia_mwh || 0),
@@ -68,7 +69,7 @@ export function CommitmentPanel() {
       if (user?.id && !memberRows.some((r) => r.userId === user.id) && commitment) {
         memberRows.unshift({
           userId: user.id,
-          name: (profile?.full_name || "Eu") + " (eu)",
+          name: (profile?.full_name || t("Eu")) + t(" (eu)"),
           nifs: Number(commitment.total_nifs || 0),
           instalacoes: Number(commitment.total_instalacoes || 0),
           energia: Number(commitment.total_energia_mwh || 0),
@@ -81,7 +82,7 @@ export function CommitmentPanel() {
     }
     return [{
       userId: user?.id || "",
-      name: profile?.full_name || "Eu",
+      name: profile?.full_name || t("Eu"),
       nifs: Number(commitment?.total_nifs || 0),
       instalacoes: Number(commitment?.total_instalacoes || 0),
       energia: Number(commitment?.total_energia_mwh || 0),
@@ -114,7 +115,7 @@ export function CommitmentPanel() {
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               <CardTitle className="text-base capitalize">
-                Compromisso — {currentMonthLabel}
+                {t("Compromisso — {{month}}", { month: currentMonthLabel })}
               </CardTitle>
             </div>
             <div className="flex items-center gap-1">
@@ -133,21 +134,21 @@ export function CommitmentPanel() {
             </div>
           ) : rows.every((r) => !r.hasCommitment) ? (
             <div className="text-center py-6">
-              <p className="text-sm text-muted-foreground mb-3">Nenhum compromisso definido para este mês.</p>
+              <p className="text-sm text-muted-foreground mb-3">{t("Nenhum compromisso definido para este mês.")}</p>
               <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Definir Compromisso
+                <Plus className="h-4 w-4 mr-1" /> {t("Definir Compromisso")}
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Colaborador</TableHead>
+                  <TableHead className="text-xs">{t("Colaborador")}</TableHead>
                   <TableHead className="text-xs text-right">NIFs</TableHead>
-                  {isTelecom && <TableHead className="text-xs text-right">Instalações</TableHead>}
-                  {showEnergy && <TableHead className="text-xs text-right">Energia (MWh)</TableHead>}
+                  {isTelecom && <TableHead className="text-xs text-right">{t("Instalações")}</TableHead>}
+                  {showEnergy && <TableHead className="text-xs text-right">{t("Energia (MWh)")}</TableHead>}
                   {showEnergy && <TableHead className="text-xs text-right hidden sm:table-cell">Solar (kWp)</TableHead>}
-                  <TableHead className="text-xs text-right">Comissão</TableHead>
+                  <TableHead className="text-xs text-right">{t("Comissão")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -163,7 +164,7 @@ export function CommitmentPanel() {
                 ))}
                 {isAdmin && rows.length > 1 && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell className="text-xs font-semibold py-1.5">TOTAL</TableCell>
+                    <TableCell className="text-xs font-semibold py-1.5">{t("TOTAL")}</TableCell>
                     <TableCell className="text-xs text-right font-semibold py-1.5">{totals.nifs}</TableCell>
                     {isTelecom && <TableCell className="text-xs text-right font-semibold py-1.5">{totals.instalacoes}</TableCell>}
                     {showEnergy && <TableCell className="text-xs text-right font-semibold py-1.5">{formatNumber(totals.energia)}</TableCell>}

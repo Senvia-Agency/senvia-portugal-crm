@@ -20,6 +20,7 @@ import { openPdfInNewTab } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmailTemplateRequirement } from "@/hooks/useEmailTemplateRequirement";
 import { EMAIL_TEMPLATE_TRIGGER_LABELS, getFiscalEmailTrigger } from "@/lib/email-template-triggers";
+import { useLanguage } from "@/i18n";
 
 interface InvoiceActionItem {
   id: string;
@@ -42,6 +43,7 @@ interface InvoiceActionsMenuProps {
 
 export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const { organization } = useAuth();
+  const { t } = useLanguage();
   const [showDetails, setShowDetails] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -55,7 +57,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const canSendFiscalEmail = !!(invoice.invoiceId || invoice.invoicexpressId);
   const emailTrigger = getFiscalEmailTrigger(invoice.documentType);
   const emailTemplate = useEmailTemplateRequirement(emailTrigger);
-  const emailTemplateMessage = `Configure um template de email ativo com o gatilho «${EMAIL_TEMPLATE_TRIGGER_LABELS[emailTrigger]}» em Marketing → Templates antes de enviar.`;
+  const emailTemplateMessage = t("Configure um template de email ativo com o gatilho «{{trigger}}» em Marketing → Templates antes de enviar.", { trigger: t(EMAIL_TEMPLATE_TRIGGER_LABELS[emailTrigger]) });
   const supportsProviderActions = organization?.billing_provider !== 'vendus'
     && invoice.provider !== 'vendus' && !!invoice.invoicexpressId;
   const hasLocalPdf = !!invoice.invoiceFileUrl;
@@ -67,7 +69,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
     try {
       await openPdfInNewTab(invoice.invoiceFileUrl);
     } catch {
-      toast.error("Erro ao abrir PDF");
+      toast.error(t("Erro ao abrir PDF"));
     } finally {
       setViewing(false);
     }
@@ -112,19 +114,19 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           {hasDocument && (
             <DropdownMenuItem onClick={() => setShowDetails(true)}>
               <Eye className="h-4 w-4 mr-2" />
-              Ver Detalhes
+              {t("Ver Detalhes")}
             </DropdownMenuItem>
           )}
 
           {hasLocalPdf ? (
             <DropdownMenuItem onClick={handleView} disabled={viewing}>
               {viewing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
-              Ver PDF
+              {t("Ver PDF")}
             </DropdownMenuItem>
           ) : supportsProviderActions ? (
             <DropdownMenuItem onClick={handleSync} disabled={syncInvoice.isPending}>
               <RefreshCw className={`h-4 w-4 mr-2 ${syncInvoice.isPending ? 'animate-spin' : ''}`} />
-              Sincronizar PDF
+              {t("Sincronizar PDF")}
             </DropdownMenuItem>
           ) : null}
 
@@ -141,7 +143,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
               }}
             >
               <Mail className="h-4 w-4 mr-2" />
-              Enviar por Email
+              {t("Enviar por Email")}
               {!emailTemplate.isLoading && !emailTemplate.isConfigured && (
                 <span className="ml-auto" title={emailTemplateMessage} aria-label={emailTemplateMessage}>
                   <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
@@ -156,7 +158,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
               {!isKeyInvoice && !invoice.creditNoteId && (
                 <DropdownMenuItem onClick={() => setShowCreditNote(true)}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Nota de Crédito
+                  {t("Nota de Crédito")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem 
@@ -164,7 +166,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
                 className="text-destructive focus:text-destructive"
               >
                 <Ban className="h-4 w-4 mr-2" />
-                {isKeyInvoice ? 'Nota de Crédito' : 'Anular Documento'}
+                {isKeyInvoice ? t("Nota de Crédito") : t("Anular Documento")}
               </DropdownMenuItem>
             </>
           )}

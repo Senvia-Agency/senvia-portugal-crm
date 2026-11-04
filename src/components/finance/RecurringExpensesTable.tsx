@@ -20,6 +20,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { matchesSearch } from '@/lib/utils';
 import { describeSchedule, monthlyEquivalent, storedSchedule, type RecurrenceSchedule } from '@/lib/expense-recurrence';
 import type { Expense } from '@/types/expenses';
+import { useLanguage } from '@/i18n';
 
 interface RecurringExpensesTableProps {
   searchTerm?: string;
@@ -39,6 +40,7 @@ export function useRecurringExpenseCount(): number {
  * date filter — a schedule set up in June still books October.
  */
 export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all' }: RecurringExpensesTableProps) {
+  const { t } = useLanguage();
   const { data: expenses = [], isLoading } = useExpenses();
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
@@ -77,19 +79,19 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{rows.length} recorrente(s)</span>
-        {pausedCount > 0 && ` · ${pausedCount} em pausa`}
-        {' · '}custo fixo ≈ <span className="font-medium text-foreground tabular-nums">{formatCurrency(perMonth)}</span>/mês
+        <span className="font-medium text-foreground">{t("{{n}} recorrente(s)", { n: rows.length })}</span>
+        {pausedCount > 0 && ` · ${t("{{n}} em pausa", { n: pausedCount })}`}
+        {' · '}{t("custo fixo ≈")} <span className="font-medium text-foreground tabular-nums">{formatCurrency(perMonth)}</span>{t("/mês")}
       </p>
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Repete</TableHead>
-              <TableHead>Próximo lançamento</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
+              <TableHead>{t("Descrição")}</TableHead>
+              <TableHead>{t("Repete")}</TableHead>
+              <TableHead>{t("Próximo lançamento")}</TableHead>
+              <TableHead className="text-right">{t("Valor")}</TableHead>
               <TableHead className="w-[1%]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -97,7 +99,7 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                  Nenhuma despesa recorrente. Ao adicionar ou editar uma despesa, liga a «Recorrência».
+                  {t("Nenhuma despesa recorrente. Ao adicionar ou editar uma despesa, liga a «Recorrência».")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -106,7 +108,7 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
                   <TableCell className="min-w-[180px]">
                     <div className="flex items-center gap-2 font-medium">
                       {expense.description}
-                      {paused && <Badge variant="secondary" className="text-[10px]">Pausada</Badge>}
+                      {paused && <Badge variant="secondary" className="text-[10px]">{t("Pausada")}</Badge>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                       {expense.category && (
@@ -115,24 +117,24 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
                           {expense.category.name}
                         </span>
                       )}
-                      <span>desde {formatDate(expense.expense_date)}</span>
+                      <span>{t("desde {{date}}", { date: formatDate(expense.expense_date) })}</span>
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{describeSchedule(schedule)}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums">
-                    {paused ? 'Em pausa' : expense.next_recurrence_date ? formatDate(expense.next_recurrence_date) : '—'}
+                    {paused ? t('Em pausa') : expense.next_recurrence_date ? formatDate(expense.next_recurrence_date) : '—'}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="font-medium tabular-nums">{formatCurrency(expense.amount)}</div>
                     {schedule.frequency !== 'monthly' && (
                       <div className="text-xs text-muted-foreground tabular-nums">
-                        ≈ {formatCurrency(monthlyEquivalent(Number(expense.amount) || 0, schedule.frequency))}/mês
+                        ≈ {formatCurrency(monthlyEquivalent(Number(expense.amount) || 0, schedule.frequency))}{t("/mês")}
                       </div>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar" onClick={() => setEditExpense(expense)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title={t("Editar")} onClick={() => setEditExpense(expense)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       {paused ? (
@@ -140,18 +142,18 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          title="Retomar"
+                          title={t("Retomar")}
                           disabled={updateExpense.isPending}
                           onClick={() => updateExpense.mutate({ id: expense.id, is_recurring: true })}
                         >
                           <PlayCircle className="h-4 w-4 text-primary" />
                         </Button>
                       ) : (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Pausar" onClick={() => setStopId(expense.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title={t("Pausar")} onClick={() => setStopId(expense.id)}>
                           <PauseCircle className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Eliminar" onClick={() => setDeleteId(expense.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title={t("Eliminar")} onClick={() => setDeleteId(expense.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -174,15 +176,17 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
       <AlertDialog open={!!stopId} onOpenChange={(open) => !open && setStopId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Pausar recorrência?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Pausar recorrência?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {stopping
-                ? `«${stopping.description}» deixa de ser lançada enquanto estiver em pausa${stopping.next_recurrence_date ? ` (a próxima seria a ${formatDate(stopping.next_recurrence_date)})` : ''}. Continua nesta lista; «Retomar» volta a lançá-la a partir do vencimento seguinte, sem os períodos em pausa.`
+                ? (stopping.next_recurrence_date
+                  ? t("«{{name}}» deixa de ser lançada enquanto estiver em pausa (a próxima seria a {{date}}). Continua nesta lista; «Retomar» volta a lançá-la a partir do vencimento seguinte, sem os períodos em pausa.", { name: stopping.description, date: formatDate(stopping.next_recurrence_date) })
+                  : t("«{{name}}» deixa de ser lançada enquanto estiver em pausa. Continua nesta lista; «Retomar» volta a lançá-la a partir do vencimento seguinte, sem os períodos em pausa.", { name: stopping.description }))
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 // Keeps the expense and its schedule; only the bookings stop.
@@ -190,7 +194,7 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
                 setStopId(null);
               }}
             >
-              Pausar
+              {t("Pausar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -199,15 +203,15 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar despesa?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar despesa?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting
-                ? `Remove a despesa de ${formatDate(deleting.expense_date)} e deixa de lançar as próximas. As despesas que a recorrência já lançou ficam. Para só deixar de lançar por agora, usa «Pausar».`
+                ? t("Remove a despesa de {{date}} e deixa de lançar as próximas. As despesas que a recorrência já lançou ficam. Para só deixar de lançar por agora, usa «Pausar».", { date: formatDate(deleting.expense_date) })
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteId) deleteExpense.mutate(deleteId);
@@ -215,7 +219,7 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

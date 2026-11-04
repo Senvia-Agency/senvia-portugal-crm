@@ -3,6 +3,7 @@ import { MetricCardWithChart } from "./MetricCardWithChart";
 import { MiniAreaChart } from "./MiniAreaChart";
 import { MiniBarChart } from "./MiniBarChart";
 import { MiniPieChart } from "./MiniPieChart";
+import { useLanguage } from "@/i18n";
 
 interface LeadsSectionProps {
   totalLeads: {
@@ -25,17 +26,18 @@ export function LeadsSection({
   websiteLeads,
   socialLeads,
 }: LeadsSectionProps) {
+  const { t } = useLanguage();
   return (
     <section>
       <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
         <Users className="h-5 w-5 text-primary" />
-        Entrada
+        {t("Entrada", { context: "incoming" })}
       </h2>
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         <MetricCardWithChart
-          title="Total de Leads"
+          title={t("Total de Leads")}
           value={totalLeads.count.toString()}
-          subtitle="Últimos 7 dias"
+          subtitle={t("Últimos 7 dias")}
           icon={<Users className="h-4 w-4" />}
           trend={
             totalLeads.trend.length > 1 ? {
@@ -57,9 +59,9 @@ export function LeadsSection({
         />
         
         <MetricCardWithChart
-          title="Leads do Site"
+          title={t("Leads do Site")}
           value={websiteLeads.count.toString()}
-          subtitle={`${websiteLeads.percentage}% do total`}
+          subtitle={t("{{n}}% do total", { n: websiteLeads.percentage })}
           icon={<Globe className="h-4 w-4" />}
           chart={
             <MiniBarChart 
@@ -72,11 +74,11 @@ export function LeadsSection({
         />
         
         <MetricCardWithChart
-          title="Leads das Redes Sociais"
+          title={t("Leads das Redes Sociais")}
           value={socialLeads.count.toString()}
           subtitle={socialLeads.bySource.length > 0 
             ? socialLeads.bySource.map(s => s.name).join(', ')
-            : 'Nenhuma fonte identificada'
+            : t('Nenhuma fonte identificada')
           }
           icon={<Share2 className="h-4 w-4" />}
           chart={
@@ -84,7 +86,7 @@ export function LeadsSection({
               <MiniPieChart 
                 data={socialLeads.bySource.length > 0 
                   ? socialLeads.bySource 
-                  : [{ name: 'Sem dados', value: 1 }]
+                  : [{ name: t('Sem dados'), value: 1 }]
                 } 
               />
             </div>

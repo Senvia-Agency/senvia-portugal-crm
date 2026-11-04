@@ -21,8 +21,11 @@ import { RecurringExpensesTable, useRecurringExpenseCount } from '@/components/f
 import { cn } from '@/lib/utils';
 import { parseISO, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { usesFinanceTabs } from '@/lib/finance-tabs';
 import type { Expense } from '@/types/expenses';
+import { useLanguage } from '@/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +37,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/** Expenses now live in the finance page's Despesas tab; telecom keeps this page for now. */
 export default function Expenses() {
+  const { organization } = useAuth();
+  if (organization && usesFinanceTabs(organization.niche)) return <Navigate to="/financeiro?tab=despesas" replace />;
+  return <LegacyExpenses />;
+}
+
+function LegacyExpenses() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: expenses, isLoading } = useExpenses();
@@ -121,28 +132,28 @@ export default function Expenses() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/financeiro')}>
+            <Button variant="back" size="icon" onClick={() => navigate('/financeiro')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <Receipt className="h-5 w-5 shrink-0 text-primary" />
-                Despesas
+                {t("Despesas")}
               </h1>
-              <p className="text-sm text-muted-foreground">Gerir custos e despesas</p>
+              <p className="text-sm text-muted-foreground">{t("Gerir custos e despesas")}</p>
             </div>
           </div>
           <Button onClick={() => setShowAdd(true)} className="gap-2">
             <Plus className="h-4 w-4" />
-            Adicionar Despesa
+            {t("Adicionar Despesa")}
           </Button>
         </div>
 
         {/* View */}
         <div className="inline-flex rounded-lg border border-border bg-card p-1">
           {([
-            ['all', 'Todas as despesas'],
-            ['recurring', `Recorrentes (${recurringCount})`],
+            ['all', t('Todas as despesas')],
+            ['recurring', t('Recorrentes ({{n}})', { n: recurringCount })],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -166,7 +177,7 @@ export default function Expenses() {
               <div className="relative flex-1 min-w-0 sm:min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Pesquisar..."
+                  placeholder={t("Pesquisar...")}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
@@ -177,18 +188,18 @@ export default function Expenses() {
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  placeholder="Período"
+                  placeholder={t("Período")}
                   className="w-full sm:w-auto"
                 />
               )}
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Categoria" />
+                  <SelectValue placeholder={t("Categoria")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas categorias</SelectItem>
-                  <SelectItem value="none">Sem categoria</SelectItem>
+                  <SelectItem value="all">{t("Todas as categorias")}</SelectItem>
+                  <SelectItem value="none">{t("Sem categoria")}</SelectItem>
                   {categories?.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
@@ -203,7 +214,7 @@ export default function Expenses() {
               {hasFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
                   <X className="h-4 w-4" />
-                  Limpar
+                  {t("Limpar")}
                 </Button>
               )}
             </div>
@@ -215,7 +226,7 @@ export default function Expenses() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">
-              {filteredExpenses.length} despesa(s) · Total: {formatCurrency(totalInPeriod)}
+              {t("{{n}} despesa(s) · Total: {{total}}", { n: filteredExpenses.length, total: formatCurrency(totalInPeriod) })}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 md:p-6 md:pt-0">
@@ -227,17 +238,17 @@ export default function Expenses() {
               </div>
             ) : filteredExpenses.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                <p>Nenhuma despesa encontrada.</p>
+                <p>{t("Nenhuma despesa encontrada.")}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead>{t("Data")}</TableHead>
+                      <TableHead>{t("Descrição")}</TableHead>
+                      <TableHead>{t("Categoria")}</TableHead>
+                      <TableHead className="text-right">{t("Valor")}</TableHead>
                       <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -257,7 +268,7 @@ export default function Expenses() {
                           {schedule && (
                             <div className="truncate text-xs text-muted-foreground">
                               {describeSchedule(schedule)}
-                              {expense.next_recurrence_date && ` · próximo ${formatDate(expense.next_recurrence_date)}`}
+                              {expense.next_recurrence_date && ` · ${t("próxima {{date}}", { date: formatDate(expense.next_recurrence_date) })}`}
                             </div>
                           )}
                         </TableCell>
@@ -317,17 +328,17 @@ export default function Expenses() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar despesa?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar despesa?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting?.is_recurring
-                ? `Remove a despesa de ${formatDate(deleting.expense_date)} e deixa de lançar as próximas. As despesas que a recorrência já lançou ficam. Para só deixar de lançar, usa «Parar recorrência».`
-                : 'Esta ação é irreversível. A despesa será permanentemente removida.'}
+                ? t("Remove a despesa de {{date}} e deixa de lançar as próximas. As despesas que a recorrência já lançou ficam. Para só deixar de lançar, usa «Parar recorrência».", { date: formatDate(deleting.expense_date) })
+                : t('Esta ação é irreversível. A despesa será permanentemente removida.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FormMode, DEFAULT_FORM_SETTINGS } from '@/types';
 import { PRODUCTION_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 interface CreateFormModalProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
   const { organization } = useAuth();
   const createForm = useCreateForm();
   const { data: stages = [] } = usePipelineStages();
+  const { t } = useLanguage();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -100,33 +102,33 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Novo Formulário</DialogTitle>
+          <DialogTitle>{t('Novo Formulário')}</DialogTitle>
           <DialogDescription>
-            Crie um formulário para uma campanha ou serviço específico.
+            {t('Crie um formulário para uma campanha ou serviço específico.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="form-name">Nome do Formulário</Label>
+            <Label htmlFor="form-name">{t('Nome do Formulário')}</Label>
             <Input
               id="form-name"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="ex: Campanha Facebook Março"
+              placeholder={t('ex: Campanha Facebook Março')}
               maxLength={100}
             />
           </div>
 
           {/* Slug */}
           <div className="space-y-2">
-            <Label htmlFor="form-slug">Slug (URL)</Label>
+            <Label htmlFor="form-slug">{t('Slug (URL)')}</Label>
             <Input
               id="form-slug"
               value={slug}
               onChange={(e) => setSlug(generateSlug(e.target.value))}
-              placeholder="ex: campanha-fb-marco"
+              placeholder={t('ex: campanha-fb-marco')}
               maxLength={50}
             />
             <p className="text-xs text-muted-foreground truncate">
@@ -136,7 +138,7 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
 
           {/* Mode Selection */}
           <div className="space-y-2">
-            <Label>Tipo de Formulário</Label>
+            <Label>{t('Tipo de Formulário')}</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -160,7 +162,7 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
                 <span className={cn(
                   "font-medium text-sm",
                   mode === 'traditional' ? "text-primary" : "text-foreground"
-                )}>Tradicional</span>
+                )}>{t('Tradicional')}</span>
                 {mode === 'traditional' && (
                   <div className="absolute top-2 right-2">
                     <Check className="h-4 w-4 text-primary" />
@@ -190,7 +192,7 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
                 <span className={cn(
                   "font-medium text-sm",
                   mode === 'conversational' ? "text-primary" : "text-foreground"
-                )}>Conversacional</span>
+                )}>{t('Conversacional')}</span>
                 {mode === 'conversational' && (
                   <div className="absolute top-2 right-2">
                     <Check className="h-4 w-4 text-primary" />
@@ -204,17 +206,17 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Target className="h-3.5 w-3.5 text-muted-foreground" />
-              Etapa Inicial do Lead
+              {t('Etapa Inicial do Lead')}
             </Label>
             <Select
               value={targetStage || 'default'}
               onValueChange={(v) => setTargetStage(v === 'default' ? null : v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Primeira etapa (padrão)" />
+                <SelectValue placeholder={t('Primeira etapa (predefinida)')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Primeira etapa (padrão)</SelectItem>
+                <SelectItem value="default">{t('Primeira etapa (predefinida)')}</SelectItem>
                 {stages.map((stage) => (
                   <SelectItem key={stage.id} value={stage.key}>
                     {stage.name}
@@ -223,14 +225,14 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Os leads deste formulário entrarão diretamente nesta etapa do pipeline.
+              {t('Os leads deste formulário entrarão diretamente nesta etapa do pipeline.')}
             </p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button 
             onClick={handleCreate} 
@@ -239,10 +241,10 @@ export function CreateFormModal({ open, onOpenChange }: CreateFormModalProps) {
             {createForm.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                A criar...
+                {t('A criar...')}
               </>
             ) : (
-              'Criar Formulário'
+              t('Criar Formulário')
             )}
           </Button>
         </DialogFooter>

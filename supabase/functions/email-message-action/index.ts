@@ -3,6 +3,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { ImapFlow } from 'npm:imapflow@1.7.8';
 import ipaddr from 'npm:ipaddr.js@2.5.0';
+import { connectWithRetry } from '../_shared/imap-retry.ts';
 import { applyMailboxAction, emailMessageActions, type EmailMessageAction } from './imap-action.ts';
 
 const headers = {
@@ -130,24 +131,28 @@ Deno.serve(async (req) => {
     }
 
     const address = await publicImapAddress(host);
-    const client = new ImapFlow({
-      host: address,
-      servername: host,
-      port: 993,
-      secure: true,
-      tls: { rejectUnauthorized: true, servername: host },
-      auth: { user, pass: password },
-      logger: false,
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
-      disableAutoIdle: true,
-    });
-    client.on('error', () => {});
-    const timeout = setTimeout(() => client.close(), 45_000);
+    let client: ImapFlow | null = null;
+    const timeout = setTimeout(() => client?.close(), 45_000);
     try {
-      await client.connect();
-      const mailboxResult = await applyMailboxAction(client, {
+      client = await connectWithRetry(() => {
+        const c = new ImapFlow({
+          host: address,
+          servername: host,
+          port: 993,
+          secure: true,
+          tls: { rejectUnauthorized: true, servername: host },
+          auth: { user, pass: password },
+          logger: false,
+          connectionTimeout: 10_000,
+          greetingTimeout: 10_000,
+          socketTimeout: 20_000,
+          disableAutoIdle: true,
+        });
+        c.on('error', () => {});
+        return c;
+      });
+      const imap = client;
+      const mailboxResult = await applyMailboxAction(imap, {
         action: input.action,
         sourcePath: source.path,
         sourceIsTrash: source.role === 'trash',
@@ -172,13 +177,13 @@ Deno.serve(async (req) => {
         cachePending = Boolean(error);
       }
       await Promise.all([
-        refreshFolderCount(client, admin, source, first.channel_id, first.organization_id),
-        ...(target ? [refreshFolderCount(client, admin, target, first.channel_id, first.organization_id)] : []),
+        refreshFolderCount(imap, admin, source, first.channel_id, first.organization_id),
+        ...(target ? [refreshFolderCount(imap, admin, target, first.channel_id, first.organization_id)] : []),
       ]);
       return json({ ok: true, processed: input.messageIds.length, cache_pending: cachePending });
     } finally {
       clearTimeout(timeout);
-      client.close();
+      (client as ImapFlow | null)?.close();
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : '';

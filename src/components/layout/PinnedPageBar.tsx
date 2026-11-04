@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 /**
  * The one-line bar every list page pins to the top: what page, which tab,
@@ -51,13 +52,14 @@ export function PinnedPageBar({
   subtitle?: string;
 }) {
   const [open, setOpen] = usePersistedState<boolean>(storageKey, false);
+  const { t } = useLanguage();
 
   if (layout === 'dashboard') {
     return (
       <div className={cn('space-y-5 p-4 pb-6 md:p-6 lg:p-8', className)}>
         <header className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">{t("Gestão comercial")}</p>
             <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">{title}</h1>
             {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           </div>
@@ -77,7 +79,7 @@ export function PinnedPageBar({
   }
 
   return (
-    <div className={cn('sticky top-[calc(6.5rem+var(--safe-area-top))] md:top-0 z-20 border-b bg-background', className)}>
+    <div className={cn('sticky top-[calc(3.5rem+var(--safe-area-top))] md:top-0 z-20 border-b bg-background', className)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 md:px-6 py-2">
         <span className="flex items-center gap-1.5 text-sm font-semibold">
           <Icon className="h-4 w-4 text-primary" />
@@ -106,7 +108,7 @@ export function PinnedPageBar({
               onClick={() => setOpen(!open)}
             >
               <SlidersHorizontal className="h-4 w-4 mr-1" />
-              Filtros{chips.length > 0 ? ` (${chips.length})` : ''}
+              {t("Filtros")}{chips.length > 0 ? ` (${chips.length})` : ''}
             </Button>
           )}
           {actions}

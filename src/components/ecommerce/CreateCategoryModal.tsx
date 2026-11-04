@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useCreateCategory } from "@/hooks/ecommerce";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -39,6 +40,7 @@ interface CreateCategoryModalProps {
 
 export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalProps) {
   const createCategory = useCreateCategory();
+  const { t } = useLanguage();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -81,7 +83,7 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Nova Categoria</DialogTitle>
+          <DialogTitle>{t("Nova Categoria")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -91,10 +93,10 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome *</FormLabel>
+                  <FormLabel>{t("Nome *")}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Nome da categoria"
+                      placeholder={t("Nome da categoria")}
                       {...field}
                       onChange={(e) => {
                         field.onChange(e);
@@ -116,7 +118,7 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
                   <FormControl>
                     <Input placeholder="categoria-url" {...field} />
                   </FormControl>
-                  <FormDescription>URL amigável (gerado automaticamente)</FormDescription>
+                  <FormDescription>{t("URL amigável (gerado automaticamente)")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -127,9 +129,9 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição</FormLabel>
+                  <FormLabel>{t("Descrição")}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Descrição da categoria" {...field} />
+                    <Textarea placeholder={t("Descrição da categoria")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -141,11 +143,11 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
               name="position"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Posição</FormLabel>
+                  <FormLabel>{t("Posição")}</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
-                  <FormDescription>Ordem de exibição (menor = primeiro)</FormDescription>
+                  <FormDescription>{t("Ordem de exibição (menor = primeiro)")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -157,8 +159,8 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <FormLabel>Ativa</FormLabel>
-                    <FormDescription>Categoria visível na loja</FormDescription>
+                    <FormLabel>{t("Ativa")}</FormLabel>
+                    <FormDescription>{t("Categoria visível na loja")}</FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -169,10 +171,10 @@ export function CreateCategoryModal({ open, onOpenChange }: CreateCategoryModalP
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={createCategory.isPending}>
-                {createCategory.isPending ? "A criar..." : "Criar Categoria"}
+                {createCategory.isPending ? t("A criar...") : t("Criar Categoria")}
               </Button>
             </div>
           </form>

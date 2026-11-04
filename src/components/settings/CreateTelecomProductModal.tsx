@@ -8,6 +8,7 @@ import { OperatorField, PriceField, OperatorPaysField, OperatorPaysHint, Product
 import { TonedField, tonedInputClass } from './FieldTone';
 import type { Operator } from '@/hooks/useOperators';
 import type { CatalogProduct } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 const EMPTY_PRODUCT: CatalogProduct = {
   name: '',
@@ -64,6 +65,7 @@ export function CreateTelecomProductModal({
   isPending,
 }: CreateTelecomProductModalProps) {
   const [draft, setDraft] = useState<CatalogProduct>(EMPTY_PRODUCT);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (open) setDraft(EMPTY_PRODUCT);
@@ -97,9 +99,9 @@ export function CreateTelecomProductModal({
           <DialogHeader className="shrink-0 border-b px-4 sm:px-6 py-4 pr-14">
             <div className="flex items-center gap-2">
               <Settings2 className="h-5 w-5 text-primary" />
-              <DialogTitle className="text-base sm:text-lg">Novo Produto Telecom</DialogTitle>
+              <DialogTitle className="text-base sm:text-lg">{t('Novo Produto Telecom')}</DialogTitle>
             </div>
-            <DialogDescription>Operadora, nome, preço e regras de comissão do produto.</DialogDescription>
+            <DialogDescription>{t('Operadora, nome, preço e regras de comissão do produto.')}</DialogDescription>
           </DialogHeader>
 
           {/* Fixed header, outside the scroll box — same as the edit dialog,
@@ -110,17 +112,17 @@ export function CreateTelecomProductModal({
             {/* Same header as the edit page, with the name in it: one row of
                 equal boxes, in the order the money is read. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <TonedField tone="neutral" label="Nome *">
+              <TonedField tone="neutral" label={t('Nome *')}>
                 <Input
                   id="telecom-name"
                   value={draft.name}
                   onChange={(e) => patch({ name: e.target.value })}
-                  placeholder="Ex: 3P - 34 a 42"
+                  placeholder={t('Ex: 3P - 34 a 42')}
                   autoFocus
                   className={`${tonedInputClass} w-full font-normal`}
                 />
                 {isDuplicate && (
-                  <p className="text-xs text-destructive">Já existe um produto com este nome.</p>
+                  <p className="text-xs text-destructive">{t('Já existe um produto com este nome.')}</p>
                 )}
               </TonedField>
               <OperatorField product={draft} operators={operators} onCommit={patch} />
@@ -149,10 +151,10 @@ export function CreateTelecomProductModal({
 
           <div className="shrink-0 border-t px-4 sm:px-6 py-3 flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={!trimmed || isDuplicate || isPending}>
-              {isPending ? 'A criar...' : 'Criar Produto'}
+              {isPending ? t('A criar...') : t('Criar Produto')}
             </Button>
           </div>
         </form>

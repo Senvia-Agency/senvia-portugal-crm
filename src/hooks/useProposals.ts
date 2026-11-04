@@ -5,6 +5,7 @@ import { useTeamFilter } from '@/hooks/useTeamFilter';
 import { useToast } from '@/hooks/use-toast';
 import { validateServicosDetails } from '@/lib/proposal-servicos-validation';
 import type { Proposal, ProposalProduct, ProposalStatus } from '@/types/proposals';
+import { tr } from "@/i18n";
 
 export function useProposals() {
   const { organization } = useAuth();
@@ -221,10 +222,10 @@ export function useCreateProposal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proposals'] });
-      toast({ title: 'Proposta criada', description: 'A proposta foi criada com sucesso.' });
+      toast({ title: tr("Proposta criada"), description: tr("A proposta foi criada com sucesso.") });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível criar a proposta.', variant: 'destructive' });
+      toast({ title: tr("Erro"), description: tr("Não foi possível criar a proposta."), variant: 'destructive' });
     },
   });
 }
@@ -282,10 +283,10 @@ export function useUpdateProposal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proposals'] });
-      toast({ title: 'Proposta atualizada', description: 'As alterações foram guardadas.' });
+      toast({ title: tr("Proposta atualizada"), description: tr("As alterações foram guardadas.") });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível atualizar a proposta.', variant: 'destructive' });
+      toast({ title: tr("Erro"), description: tr("Não foi possível atualizar a proposta."), variant: 'destructive' });
     },
   });
 }
@@ -301,7 +302,7 @@ export function useUpdateProposalProducts() {
     }) => {
       // Empty lines can mean the edit form has not finished loading. Never
       // delete saved proposal products in that state.
-      if (products.length === 0) throw new Error('A proposta não tem produtos para guardar');
+      if (products.length === 0) throw new Error(tr('A proposta não tem produtos para guardar'));
       const { data: existing, error: readError } = await supabase
         .from('proposal_products')
         .select('id, product_id')
@@ -361,7 +362,7 @@ export function useUpdateProposalProducts() {
       queryClient.invalidateQueries({ queryKey: ['proposal_products', variables.proposalId] });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível atualizar os produtos.', variant: 'destructive' });
+      toast({ title: tr("Erro"), description: tr("Não foi possível atualizar os produtos."), variant: 'destructive' });
     },
   });
 }
@@ -381,10 +382,10 @@ export function useDeleteProposal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proposals'] });
-      toast({ title: 'Proposta eliminada', description: 'A proposta foi removida.' });
+      toast({ title: tr("Proposta eliminada"), description: tr("A proposta foi removida.") });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível eliminar a proposta.', variant: 'destructive' });
+      toast({ title: tr("Erro"), description: tr("Não foi possível eliminar a proposta."), variant: 'destructive' });
     },
   });
 }

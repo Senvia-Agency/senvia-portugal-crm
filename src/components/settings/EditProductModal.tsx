@@ -13,6 +13,7 @@ import { ProductImageGallery } from './ProductImageGallery';
 import { ProductFiscalFields } from './ProductFiscalFields';
 import { ProductStripeSync } from './ProductStripeSync';
 import type { Product } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface EditProductModalProps {
   product: Product;
@@ -22,6 +23,7 @@ interface EditProductModalProps {
 
 export function EditProductModal({ product, open, onOpenChange }: EditProductModalProps) {
   const updateProduct = useUpdateProduct();
+  const { t } = useLanguage();
   const { data: org } = useOrganization();
   // Per-product commission field is relevant for telecom (matrix products) or
   // when a non-telecom org chose the "per product/service" commission mode.
@@ -88,12 +90,12 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Editar Produto</DialogTitle>
+          <DialogTitle>{t('Editar Produto')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="max-h-[60dvh] space-y-4 overflow-y-auto pr-1">
             <div className="space-y-2">
-            <Label htmlFor="edit-name">Nome *</Label>
+            <Label htmlFor="edit-name">{t('Nome *')}</Label>
             <Input
               id="edit-name"
               value={name}
@@ -102,7 +104,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Descrição</Label>
+            <Label htmlFor="edit-description">{t('Descrição')}</Label>
             <Textarea
               id="edit-description"
               value={description}
@@ -112,7 +114,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-price">Preço Base (€)</Label>
+            <Label htmlFor="edit-price">{t('Preço Base (€)')}</Label>
             <Input
               id="edit-price"
               type="number"
@@ -139,15 +141,15 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
 
           {showCommission && (
           <div className="rounded-lg border bg-primary/5 p-4 space-y-3">
-            <p className="text-sm font-medium">Comissão por unidade</p>
+            <p className="text-sm font-medium">{t('Comissão por unidade')}</p>
             <p className="text-xs text-muted-foreground -mt-1">
               {isTelecom
-                ? "Valor pago ao comercial por cada unidade vendida deste produto. Vendas de energia (com CPE) ignoram este campo e usam o motor próprio."
-                : "Valor pago ao comercial por cada unidade vendida deste produto."}
+                ? t('Valor pago ao comercial por cada unidade vendida deste produto. Vendas de energia (com CPE) ignoram este campo e usam o motor próprio.')
+                : t('Valor pago ao comercial por cada unidade vendida deste produto.')}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="edit-commission" className="text-xs">Angariação (€)</Label>
+                <Label htmlFor="edit-commission" className="text-xs">{t('Angariação (€)')}</Label>
                 <Input
                   id="edit-commission"
                   type="number"
@@ -160,7 +162,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-commission-renewal" className="text-xs">
-                  Renovação (€)
+                  {t('Renovação (€)')}
                 </Label>
                 <Input
                   id="edit-commission-renewal"
@@ -181,7 +183,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 text-primary" />
                 <Label htmlFor="edit-recurring" className="font-medium cursor-pointer">
-                  Produto Recorrente
+                  {t('Produto Recorrente')}
                 </Label>
               </div>
               <Switch
@@ -192,7 +194,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
             </div>
             {isRecurring && (
               <p className="text-xs text-muted-foreground">
-                Este produto é cobrado mensalmente. Vendas com este produto terão opção de renovação.
+                {t('Este produto é cobrado mensalmente. Vendas com este produto terão opção de renovação.')}
               </p>
             )}
             {/* Usa o is_recurring GRAVADO, não o do formulário: sincronizar um
@@ -201,7 +203,7 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
             <ProductStripeSync productId={product.id} isRecurring={product.is_recurring} />
           </div>
           <div className="flex items-center justify-between">
-            <Label htmlFor="edit-active">Produto ativo</Label>
+            <Label htmlFor="edit-active">{t('Produto ativo')}</Label>
             <Switch
               id="edit-active"
               checked={isActive}
@@ -216,10 +218,10 @@ export function EditProductModal({ product, open, onOpenChange }: EditProductMod
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button type="submit" disabled={updateProduct.isPending || !name.trim() || exemptionMissing || retentionInvalid}>
-              {updateProduct.isPending ? 'A guardar...' : 'Guardar'}
+              {updateProduct.isPending ? t('A guardar...') : t('Guardar')}
             </Button>
           </DialogFooter>
         </form>

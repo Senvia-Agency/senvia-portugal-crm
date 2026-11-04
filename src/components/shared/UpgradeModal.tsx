@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useStripeSubscription } from "@/hooks/useStripeSubscription";
 import { SENVIA_OS_PLAN } from "@/lib/stripe-plans";
+import { useLanguage } from "@/i18n";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface UpgradeModalProps {
 
 export function UpgradeModal({ open, onOpenChange, featureName }: UpgradeModalProps) {
   const { createCheckout, isLoading } = useStripeSubscription();
+  const { t } = useLanguage();
 
   // Legacy callers still pass a tier (or an empty initial value). There is now
   // only one offer, which must also exist while this dialog is closed.
@@ -35,27 +37,27 @@ export function UpgradeModal({ open, onOpenChange, featureName }: UpgradeModalPr
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-2">
             <Sparkles className="h-7 w-7 text-primary" />
           </div>
-          <DialogTitle className="text-xl">Plano SENVIA OS</DialogTitle>
+          <DialogTitle className="text-xl">{t("Plano SENVIA OS")}</DialogTitle>
           <DialogDescription className="text-center text-sm">
-            <strong>{featureName}</strong> está incluído no plano{' '}
-            <span className="font-semibold text-primary">{targetPlan.name}</span> ({targetPlan.priceMonthly}€/mês).
+            <strong>{featureName}</strong> {t("está incluído no plano")}{' '}
+            <span className="font-semibold text-primary">{targetPlan.name}</span> ({t("{{price}}€/mês", { price: targetPlan.priceMonthly })}).
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground space-y-2 mt-2">
-          <p>O plano inclui:</p>
+          <p>{t("O plano inclui:")}</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
-              Acesso ao módulo <strong>{featureName}</strong>
+              {t("Acesso ao módulo")} <strong>{featureName}</strong>
             </li>
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
-              Formulários ilimitados
+              {t("Formulários ilimitados")}
             </li>
             <li className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" />
-              Integrações avançadas
+              {t("Integrações avançadas")}
             </li>
           </ul>
         </div>
@@ -66,13 +68,13 @@ export function UpgradeModal({ open, onOpenChange, featureName }: UpgradeModalPr
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
-                Subscrever {targetPlan.name}
+                {t("Subscrever {{plan}}", { plan: targetPlan.name })}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
           </Button>
           <Button variant="ghost" className="w-full" onClick={() => onOpenChange(false)}>
-            Agora não
+            {t("Agora não")}
           </Button>
         </div>
       </DialogContent>

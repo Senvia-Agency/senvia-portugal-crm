@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { CalendarIcon, CreditCard, Receipt, FileText } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import type { PaymentMethod, PaymentRecordStatus } from "@/types/sales";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/types/sales";
+import { useLanguage, dateLocale } from "@/i18n";
 
 export interface DraftPayment {
   id: string;
@@ -54,6 +54,7 @@ export function AddDraftPaymentModal({
   onAdd,
   hideInvoiceReference,
 }: AddDraftPaymentModalProps) {
+  const { t } = useLanguage();
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
@@ -93,7 +94,7 @@ export function AddDraftPaymentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Adicionar Pagamento</DialogTitle>
+          <DialogTitle>{t("Adicionar Pagamento")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -101,7 +102,7 @@ export function AddDraftPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
-                Valor *
+                {t("Valor *")}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
@@ -118,7 +119,7 @@ export function AddDraftPaymentModal({
               </div>
               {remaining > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Em falta: {formatCurrency(remaining)}
+                  {t("Em falta:")} {formatCurrency(remaining)}
                 </p>
               )}
             </div>
@@ -126,7 +127,7 @@ export function AddDraftPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                Data *
+                {t("Data *")}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -138,8 +139,8 @@ export function AddDraftPaymentModal({
                     )}
                   >
                     {paymentDate
-                      ? format(paymentDate, "dd/MM/yyyy", { locale: pt })
-                      : "Selecionar..."}
+                      ? format(paymentDate, "dd/MM/yyyy", { locale: dateLocale() })
+                      : t("Selecionar...")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -147,7 +148,7 @@ export function AddDraftPaymentModal({
                     mode="single"
                     selected={paymentDate}
                     onSelect={(date) => date && setPaymentDate(date)}
-                    locale={pt}
+                    locale={dateLocale()}
                   />
                 </PopoverContent>
               </Popover>
@@ -155,15 +156,15 @@ export function AddDraftPaymentModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Método de Pagamento</Label>
+            <Label>{t("Método de Pagamento")}</Label>
             <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar método..." />
+                <SelectValue placeholder={t("Selecionar método...")} />
               </SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((method) => (
                   <SelectItem key={method} value={method}>
-                    {PAYMENT_METHOD_LABELS[method]}
+                    {t(PAYMENT_METHOD_LABELS[method])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -171,7 +172,7 @@ export function AddDraftPaymentModal({
           </div>
 
           <div className="space-y-2">
-              <Label>Estado</Label>
+              <Label>{t("Estado")}</Label>
               <RadioGroup
                 value={status}
                 onValueChange={(v) => setStatus(v as PaymentRecordStatus)}
@@ -179,11 +180,11 @@ export function AddDraftPaymentModal({
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="paid" id="draft-paid" />
-                  <Label htmlFor="draft-paid" className="font-normal cursor-pointer">Pago</Label>
+                  <Label htmlFor="draft-paid" className="font-normal cursor-pointer">{t("Pago")}</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="pending" id="draft-pending" />
-                  <Label htmlFor="draft-pending" className="font-normal cursor-pointer">Agendado</Label>
+                  <Label htmlFor="draft-pending" className="font-normal cursor-pointer">{t("Agendado")}</Label>
                 </div>
               </RadioGroup>
             </div>
@@ -191,18 +192,18 @@ export function AddDraftPaymentModal({
           {hideInvoiceReference ? (
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
               <Receipt className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
-              A fatura pode ser emitida após criar a venda.
+              {t("A fatura pode ser emitida após criar a venda.")}
             </p>
           ) : (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
-                Referência da Fatura
+                {t("Referência da Fatura")}
               </Label>
               <Input
                 value={invoiceReference}
                 onChange={(e) => setInvoiceReference(e.target.value)}
-                placeholder="FT 2024/0001"
+                placeholder={t("FT 2024/0001")}
               />
             </div>
           )}
@@ -210,22 +211,22 @@ export function AddDraftPaymentModal({
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              Notas
+              {t("Notas")}
             </Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observações..."
+              placeholder={t("Observações...")}
               rows={2}
             />
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button type="submit" className="flex-1" disabled={!amount}>
-              Adicionar
+              {t("Adicionar")}
             </Button>
           </div>
         </form>

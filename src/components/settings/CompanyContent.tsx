@@ -8,6 +8,8 @@ import { Building, User, Loader2, Save, Copy, Check } from "lucide-react";
 import { PLAN_LABELS, OrganizationPlan } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { BillingDetailsCard } from "./BillingDetailsCard";
+import { useLanguage } from "@/i18n";
 
 // Organization identity + GDPR (extracted from the former GeneralContent). Lives
 // under "A Minha Conta" › Dados da Empresa — institutional data, edited by admins.
@@ -37,6 +39,7 @@ export const CompanyContent = ({
   updateOrganizationIsPending,
 }: CompanyContentProps) => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [copiedSlug, setCopiedSlug] = useState(false);
 
   const isOnTrial = (() => {
@@ -51,10 +54,10 @@ export const CompanyContent = ({
     try {
       await navigator.clipboard.writeText(organization.slug);
       setCopiedSlug(true);
-      toast({ title: 'Copiado!', description: 'Código da empresa copiado para a área de transferência.' });
+      toast({ title: t('Copiado!'), description: t('Código da empresa copiado para a área de transferência.') });
       setTimeout(() => setCopiedSlug(false), 2000);
     } catch (err) {
-      toast({ title: 'Erro', description: 'Não foi possível copiar.', variant: 'destructive' });
+      toast({ title: t('Erro'), description: t('Não foi possível copiar.'), variant: 'destructive' });
     }
   };
 
@@ -62,13 +65,13 @@ export const CompanyContent = ({
     <div className="space-y-6 max-w-4xl">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Building className="h-5 w-5" />Organização</CardTitle>
-          <CardDescription>Informações da sua organização.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Building className="h-5 w-5" />{t('Organização')}</CardTitle>
+          <CardDescription>{t('Informações da sua organização.')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="org-name">Nome</Label>
+              <Label htmlFor="org-name">{t('Nome')}</Label>
               {isAdmin ? (
                 <div className="flex gap-2">
                   <Input
@@ -76,7 +79,7 @@ export const CompanyContent = ({
                     data-otto-target="settings-company-name"
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="Nome da organização"
+                    placeholder={t('Nome da organização')}
                   />
                   <Button
                     size="icon"
@@ -91,10 +94,10 @@ export const CompanyContent = ({
               )}
             </div>
             <div>
-              <Label>Plano</Label>
+              <Label>{t('Plano')}</Label>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant={isOnTrial ? 'outline' : (organization?.plan === 'elite' || organization?.plan === 'pro' ? 'default' : 'secondary')}>
-                  {isOnTrial ? 'Trial' : (organization?.plan ? PLAN_LABELS[organization.plan as OrganizationPlan] : 'Starter')}
+                  {isOnTrial ? t('Trial') : (organization?.plan ? PLAN_LABELS[organization.plan as OrganizationPlan] : 'Starter')}
                 </Badge>
               </div>
             </div>
@@ -103,7 +106,7 @@ export const CompanyContent = ({
           <Separator />
 
           <div className="space-y-2">
-            <Label htmlFor="org-slug">Código da Empresa</Label>
+            <Label htmlFor="org-slug">{t('Código da Empresa')}</Label>
             <div className="flex gap-2">
               <Input
                 id="org-slug"
@@ -121,20 +124,22 @@ export const CompanyContent = ({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Partilhe este código para convidar colaboradores para a sua empresa.
+              {t('Partilhe este código para convidar colaboradores para a sua empresa.')}
             </p>
           </div>
         </CardContent>
       </Card>
 
+      {isAdmin && <BillingDetailsCard />}
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" />GDPR</CardTitle>
-          <CardDescription>Informações sobre proteção de dados.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" />{t('RGPD')}</CardTitle>
+          <CardDescription>{t('Informações sobre proteção de dados.')}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Todos os leads registados nesta plataforma consentiram explicitamente o tratamento dos seus dados pessoais para fins comerciais, conforme exigido pelo RGPD. Os dados são armazenados de forma segura e podem ser eliminados a pedido do titular.
+            {t('Todos os leads registados nesta plataforma consentiram explicitamente o tratamento dos seus dados pessoais para fins comerciais, conforme exigido pelo RGPD. Os dados são armazenados de forma segura e podem ser eliminados a pedido do titular.')}
           </p>
         </CardContent>
       </Card>

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { useCreateCpe } from '@/hooks/useCpes';
 import { EQUIPMENT_TYPES, COMERCIALIZADORES, ENERGY_TYPES, ENERGY_COMERCIALIZADORES, NIVEL_TENSAO_OPTIONS, type CpeStatus, type NivelTensao } from '@/types/cpes';
+import { useLanguage } from "@/i18n";
 
 interface CreateCpeModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface CreateCpeModalProps {
 }
 
 export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false }: CreateCpeModalProps) {
+  const { t } = useLanguage();
   const createCpe = useCreateCpe();
   
   const [equipmentType, setEquipmentType] = useState('');
@@ -44,15 +46,15 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
   const [consumoAnual, setConsumoAnual] = useState('');
 
   // Conditional labels and options based on niche
-  const typeLabel = isTelecom ? 'Tipo *' : 'Tipo de Equipamento *';
-  const serialLabel = isTelecom ? 'Local de Consumo (CPE/CUI)' : 'Número de Série';
-  const serialPlaceholder = isTelecom ? 'Ex: PT0002000012345678XX' : 'Ex: SN123456789';
+  const typeLabel = isTelecom ? t("Tipo *") : t("Tipo de Equipamento *");
+  const serialLabel = isTelecom ? t("Local de Consumo (CPE/CUI)") : t("Número de Série");
+  const serialPlaceholder = isTelecom ? t("Ex: PT0002000012345678XX") : t("Ex: SN123456789");
   const typeOptions = isTelecom ? ENERGY_TYPES : EQUIPMENT_TYPES;
   const comercializadorOptions = isTelecom ? ENERGY_COMERCIALIZADORES : COMERCIALIZADORES;
-  const modalTitle = isTelecom ? 'Adicionar CPE/CUI' : 'Adicionar CPE';
+  const modalTitle = isTelecom ? t("Adicionar CPE/CUI") : t("Adicionar CPE");
   const modalDescription = isTelecom 
-    ? 'Registe um novo ponto de consumo para este cliente.' 
-    : 'Registe um novo equipamento para este cliente.';
+    ? t("Registe um novo ponto de consumo para este cliente.") 
+    : t("Registe um novo equipamento para este cliente.");
 
   const resetForm = () => {
     setEquipmentType('');
@@ -114,17 +116,17 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
             <Label>{typeLabel}</Label>
             <Select value={equipmentType} onValueChange={setEquipmentType}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
+                <SelectValue placeholder={t("Selecione o tipo")} />
               </SelectTrigger>
               <SelectContent>
                 {typeOptions.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                  <SelectItem key={type} value={type}>{t(type)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {equipmentType === 'Outro' && (
               <Input
-                placeholder="Especifique o tipo"
+                placeholder={t("Especifique o tipo")}
                 value={customEquipmentType}
                 onChange={(e) => setCustomEquipmentType(e.target.value)}
               />
@@ -143,10 +145,10 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
 
           {/* Comercializador */}
           <div className="space-y-2">
-            <Label>Comercializador *</Label>
+            <Label>{t("Comercializador *")}</Label>
             <Select value={comercializador} onValueChange={setComercializador}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o comercializador" />
+                <SelectValue placeholder={t("Selecione o comercializador")} />
               </SelectTrigger>
               <SelectContent>
                 {comercializadorOptions.map((c) => (
@@ -156,7 +158,7 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
             </Select>
             {comercializador === 'Outro' && (
               <Input
-                placeholder="Nome do comercializador"
+                placeholder={t("Nome do comercializador")}
                 value={customComercializador}
                 onChange={(e) => setCustomComercializador(e.target.value)}
               />
@@ -166,7 +168,7 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
           {/* Fidelização */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Início Fidelização</Label>
+              <Label>{t("Início Fidelização")}</Label>
               <Input
                 type="date"
                 value={fidelizacaoStart}
@@ -174,7 +176,7 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
               />
             </div>
             <div className="space-y-2">
-              <Label>Fim Fidelização</Label>
+              <Label>{t("Fim Fidelização")}</Label>
               <Input
                 type="date"
                 value={fidelizacaoEnd}
@@ -186,10 +188,10 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
           {/* Status or Nivel Tensão */}
           {isTelecom ? (
             <div className="space-y-2">
-              <Label>Nível Tensão</Label>
+              <Label>{t("Nível Tensão")}</Label>
               <Select value={nivelTensao} onValueChange={(v) => setNivelTensao(v as NivelTensao)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o nível" />
+                  <SelectValue placeholder={t("Selecione o nível")} />
                 </SelectTrigger>
                 <SelectContent>
                   {NIVEL_TENSAO_OPTIONS.map((nt) => (
@@ -200,16 +202,16 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Estado</Label>
+              <Label>{t("Estado")}</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as CpeStatus)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="inactive">Inativo</SelectItem>
-                  <SelectItem value="returned">Devolvido</SelectItem>
+                  <SelectItem value="active">{t("Ativo")}</SelectItem>
+                  <SelectItem value="pending">{t("Pendente")}</SelectItem>
+                  <SelectItem value="inactive">{t("Inativo")}</SelectItem>
+                  <SelectItem value="returned">{t("Devolvido")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -218,27 +220,27 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
           {/* Consumo Anual - only for telecom/energy */}
           {isTelecom && (
             <div className="space-y-2">
-              <Label>Consumo Anual (kWh)</Label>
+              <Label>{t("Consumo Anual (kWh)")}</Label>
               <div className="relative">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Ex: 3500"
+                  placeholder={t("Ex: 3500")}
                   value={consumoAnual}
                   onChange={(e) => setConsumoAnual(e.target.value)}
                   className="pr-12"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">kWh</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("kWh")}</span>
               </div>
             </div>
           )}
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label>Notas</Label>
+            <Label>{t("Notas")}</Label>
             <Textarea
-              placeholder="Observações sobre o equipamento..."
+              placeholder={t("Observações sobre o equipamento...")}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
@@ -247,10 +249,10 @@ export function CreateCpeModal({ open, onOpenChange, clientId, isTelecom = false
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button type="submit" disabled={!isValid || createCpe.isPending}>
-              {createCpe.isPending ? 'A guardar...' : 'Adicionar'}
+              {createCpe.isPending ? t("A guardar...") : t("Adicionar")}
             </Button>
           </DialogFooter>
         </form>

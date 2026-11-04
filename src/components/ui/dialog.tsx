@@ -3,12 +3,17 @@ import { useDialogContainer, useDialogPresentation, useWorkspaceModalMode, Dialo
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSidebarStore } from "@/stores/useSidebarStore";
+// A fullScreen dialog sits beside the sidebar: its content registers here and the root goes
+// non-modal, so the sidebar stays lit and clickable (a click there closes the dialog).
+const FullScreenDialogContext = React.createContext<((fullScreen: boolean) => void) | null>(null);
 const Dialog = ({ modal = true, open, defaultOpen = false, onOpenChange, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) => {
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen);
+  const [fullScreen, setFullScreen] = React.useState(false);
   const isOpen = open ?? internalOpen;
   const docked = useWorkspaceModalMode(isOpen);
-  return <DialogPresentationContext.Provider value={docked}><DialogPrimitive.Root open={isOpen} modal={docked ? false : modal}
-    onOpenChange={(next) => { setInternalOpen(next); onOpenChange?.(next); }} {...props} /></DialogPresentationContext.Provider>;
+  return <DialogPresentationContext.Provider value={docked}><FullScreenDialogContext.Provider value={setFullScreen}><DialogPrimitive.Root open={isOpen} modal={docked || fullScreen ? false : modal}
+    onOpenChange={(next) => { setInternalOpen(next); onOpenChange?.(next); }} {...props} /></FullScreenDialogContext.Provider></DialogPresentationContext.Provider>;
 };
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = ({ container, ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) => {
@@ -27,7 +32,7 @@ const DialogOverlay = React.forwardRef<React.ElementRef<typeof DialogPrimitive.O
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const dialogContentVariants = {
   default: "pointer-events-auto fixed left-1/2 -translate-x-1/2 z-50 grid w-full max-w-[calc(100vw-2rem)] sm:max-w-lg h-auto overflow-y-auto gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg top-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)] bottom-auto max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-2rem)] sm:top-[50%] sm:-translate-y-[50%] sm:max-h-[calc(100dvh-2rem)]",
-  fullScreen: "pointer-events-auto fixed z-50 w-full max-w-none bg-background p-4 md:p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 inset-x-0 bottom-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px))] pb-safe lg:top-0 lg:h-full lg:left-64 lg:w-[calc(100%-16rem)] flex flex-col overflow-hidden",
+  fullScreen: "pointer-events-auto fixed z-50 w-full max-w-none bg-background p-4 md:p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 inset-x-0 bottom-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px))] pb-safe md:left-16 md:w-[calc(100%-4rem)] lg:top-0 lg:h-full lg:left-64 lg:w-[calc(100%-16rem)] flex flex-col overflow-hidden",
 };
 
 interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
@@ -40,14 +45,23 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
   variant = "default",
   onInteractOutside,
   ...props
-}, ref) => <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content 
-      ref={ref} 
+}, ref) => {
+  const fullScreen = variant === "fullScreen";
+  const setFullScreen = React.useContext(FullScreenDialogContext);
+  const sidebarCollapsed = useSidebarStore((s) => s.collapsed);
+  React.useLayoutEffect(() => {
+    if (!fullScreen || !setFullScreen) return;
+    setFullScreen(true);
+    return () => setFullScreen(false);
+  }, [fullScreen, setFullScreen]);
+  return <DialogPortal>
+    <DialogOverlay className={fullScreen ? "hidden" : undefined} />
+    <DialogPrimitive.Content
+      ref={ref}
       data-workspace-dialog-content={variant}
       onInteractOutside={(e) => {
         onInteractOutside?.(e);
-        if (e.target instanceof Element && e.target.closest('[aria-label="Inbox lateral"], [data-inbox-workspace-control]')) e.preventDefault();
+        if (e.target instanceof Element && e.target.closest('[aria-label="Inbox lateral"], [data-inbox-workspace-control], [data-sonner-toaster]')) e.preventDefault();
       }}
       onOpenAutoFocus={(e) => {
         if (window.matchMedia('(max-width: 768px)').matches) {
@@ -60,15 +74,17 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
           e.preventDefault();
         }
       }}
-      className={cn(dialogContentVariants[variant], className)}
+      className={cn(dialogContentVariants[variant], fullScreen && sidebarCollapsed && "lg:left-16 lg:w-[calc(100%-4rem)]", className)}
       {...props}>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-safe rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-        <X className="h-4 w-4" />
+      {/* A real button, bordered and in full colour, so closing is never hard to find. */}
+      <DialogPrimitive.Close title="Fechar" className="absolute right-4 top-safe z-10 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm ring-offset-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <X className="h-4 w-4" strokeWidth={2.5} />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
-  </DialogPortal>);
+  </DialogPortal>;
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 const DialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({
   className,

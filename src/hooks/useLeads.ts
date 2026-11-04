@@ -6,6 +6,7 @@ import { usePipelineStages } from '@/hooks/usePipelineStages';
 import type { Lead, LeadStatus, LeadTemperature, LeadTipologia } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
+import { tr } from '@/i18n';
 
 export function useLeads() {
   const { organization } = useAuth();
@@ -88,8 +89,8 @@ export function useUpdateLeadStatus() {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar o estado do lead.',
+        title: tr('Erro'),
+        description: tr('Não foi possível atualizar o estado do lead.'),
         variant: 'destructive',
       });
       console.error('Error updating lead status:', error);
@@ -116,14 +117,14 @@ export function useUpdateLead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast({
-        title: 'Sucesso',
-        description: 'Lead atualizado com sucesso.',
+        title: tr('Sucesso'),
+        description: tr('Lead atualizado com sucesso.'),
       });
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar o lead.',
+        title: tr('Erro'),
+        description: tr('Não foi possível atualizar o lead.'),
         variant: 'destructive',
       });
       console.error('Error updating lead:', error);
@@ -147,14 +148,14 @@ export function useDeleteLead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast({
-        title: 'Lead eliminado',
-        description: 'O lead foi eliminado permanentemente (RGPD).',
+        title: tr('Lead eliminado'),
+        description: tr('O lead foi eliminado permanentemente (RGPD).'),
       });
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: 'Não foi possível eliminar o lead.',
+        title: tr('Erro'),
+        description: tr('Não foi possível eliminar o lead.'),
         variant: 'destructive',
       });
       console.error('Error deleting lead:', error);
@@ -267,17 +268,17 @@ export function useCreateLead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast({
-        title: 'Lead criado',
-        description: 'O lead foi adicionado com sucesso.',
+        title: tr('Lead criado'),
+        description: tr('O lead foi adicionado com sucesso.'),
       });
     },
     onError: (error: any) => {
       const msg = error?.message || error?.details || JSON.stringify(error);
       toast({
-        title: 'Erro ao criar lead',
+        title: tr('Erro ao criar lead'),
         description: msg?.includes('row-level security')
-          ? 'Erro de permissão. Tente sair e entrar novamente.'
-          : 'Não foi possível criar o lead.',
+          ? tr('Erro de permissão. Tente sair e entrar novamente.')
+          : tr('Não foi possível criar o lead.'),
         variant: 'destructive',
       });
       console.error('Error creating lead:', { message: msg, code: error?.code, details: error?.details, hint: error?.hint });
@@ -385,10 +386,10 @@ export function useArchiveLeads() {
     },
     onSuccess: (n) => {
       invalidate();
-      toast({ title: 'Leads arquivadas', description: `${n} lead(s) arquivada(s). Podes restaurá-las em "Ver arquivadas".` });
+      toast({ title: tr('Leads arquivadas'), description: tr('{{n}} lead(s) arquivada(s). Podes restaurá-las em "Ver leads arquivadas".', { n }) });
     },
     onError: (error) => {
-      toast({ title: 'Erro', description: 'Não foi possível arquivar os leads.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível arquivar os leads.'), variant: 'destructive' });
       console.error('Error archiving leads:', error);
     },
   });
@@ -409,10 +410,10 @@ export function useUnarchiveLeads() {
     },
     onSuccess: (n) => {
       invalidate();
-      toast({ title: 'Leads restauradas', description: `${n} lead(s) restaurada(s).` });
+      toast({ title: tr('Leads restauradas'), description: tr('{{n}} lead(s) restaurada(s).', { n }) });
     },
     onError: (error) => {
-      toast({ title: 'Erro', description: 'Não foi possível restaurar os leads.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível restaurar os leads.'), variant: 'destructive' });
       console.error('Error unarchiving leads:', error);
     },
   });
@@ -438,10 +439,10 @@ export function useArchiveLeadsByStage() {
     },
     onSuccess: (n) => {
       invalidate();
-      toast({ title: 'Leads arquivadas', description: `${n} lead(s) da etapa arquivada(s).` });
+      toast({ title: tr('Leads arquivadas'), description: tr('{{n}} lead(s) da etapa arquivada(s).', { n }) });
     },
     onError: (error) => {
-      toast({ title: 'Erro', description: 'Não foi possível arquivar a etapa.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível arquivar a etapa.'), variant: 'destructive' });
       console.error('Error archiving by stage:', error);
     },
   });

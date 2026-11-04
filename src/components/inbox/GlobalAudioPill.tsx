@@ -2,9 +2,11 @@
 // containing it is not currently open. Lets the user pause/resume from anywhere.
 import { Play, Pause, X } from 'lucide-react';
 import { useGlobalAudio } from '@/stores/useGlobalAudio';
+import { useLanguage } from '@/i18n';
 
 export function GlobalAudioPill({ activeMessageId }: { activeMessageId: number | null }) {
   const { url, messageId, playing, cur, dur, toggle, stop } = useGlobalAudio();
+  const { t } = useLanguage();
 
   if (!url || !playing) return null;
   if (messageId != null && messageId === activeMessageId) return null;
@@ -25,7 +27,7 @@ export function GlobalAudioPill({ activeMessageId }: { activeMessageId: number |
         <Pause className="h-3.5 w-3.5" />
       </button>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium">Mensagem de voz</span>
+        <span className="text-xs font-medium">{t("Mensagem de voz")}</span>
         <span className="text-[10px] tabular-nums text-muted-foreground">
           {fmt(cur)} / {fmt(dur)}
         </span>

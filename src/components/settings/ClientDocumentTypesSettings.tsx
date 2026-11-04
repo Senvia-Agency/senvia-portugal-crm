@@ -8,6 +8,7 @@ import {
   useUpdateClientDocumentTypes,
   type ClientDocumentType,
 } from '@/hooks/useClientDocumentTypes';
+import { useLanguage } from '@/i18n';
 
 /** Stable key from a label, so checked documents survive a label rename. */
 function slugify(label: string): string {
@@ -31,6 +32,7 @@ export function ClientDocumentTypesSettings() {
   const [types, setTypes] = useState<ClientDocumentType[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [justSaved, setJustSaved] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     setTypes(saved);
@@ -61,19 +63,19 @@ export function ClientDocumentTypesSettings() {
         <div>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Documentos de Cliente
+            {t('Documentos de Cliente')}
           </CardTitle>
           <CardDescription>
-            A lista de documentos que aparece como checklist na ficha de cada cliente.
+            {t('A lista de documentos que aparece como checklist na ficha de cada cliente.')}
           </CardDescription>
         </div>
         {updateTypes.isPending ? (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> A guardar...
+            <Loader2 className="h-3 w-3 animate-spin" /> {t('A guardar...')}
           </span>
         ) : justSaved ? (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Check className="h-3 w-3 text-green-500" /> Guardado
+            <Check className="h-3 w-3 text-green-500" /> {t('Guardado')}
           </span>
         ) : null}
       </CardHeader>
@@ -83,17 +85,17 @@ export function ClientDocumentTypesSettings() {
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addType(); } }}
-            placeholder="Ex: CTR"
+            placeholder={t('Ex: CTR')}
             className="h-9"
           />
           <Button type="button" onClick={addType} disabled={!newLabel.trim()} className="h-9 shrink-0">
-            <Plus className="h-4 w-4 mr-1" /> Adicionar
+            <Plus className="h-4 w-4 mr-1" /> {t('Adicionar')}
           </Button>
         </div>
 
         {types.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
-            Sem documentos configurados. Adicione um acima para aparecer na ficha dos clientes.
+            {t('Sem documentos configurados. Adicione um acima para aparecer na ficha dos clientes.')}
           </p>
         ) : (
           <div className="border rounded-lg divide-y">
@@ -108,7 +110,7 @@ export function ClientDocumentTypesSettings() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 shrink-0"
-                  title="Eliminar"
+                  title={t('Eliminar')}
                   onClick={() => persist(types.filter(t => t.key !== type.key))}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { User, ExternalLink, MessageCircle, Sparkles } from "lucide-react";
+import { ExternalLink, MessageCircle, Sparkles, Paperclip, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 const ottoMascot = "/otto-mascot.svg";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +10,7 @@ import { useTourStore } from "@/stores/useTourStore";
 import { useModalStore, type OttoManagedModal } from "@/stores/useModalStore";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { getTour } from "./tours";
+import { useLanguage } from "@/i18n";
 
 // [tour:id] launches a deterministic guided tour. [modal:name] opens a managed modal.
 function parseTours(content: string) {
@@ -75,11 +78,13 @@ function parseWhatsAppLinks(content: string) {
 }
 
 export function OttoMessageComponent({ message, onButtonClick, onLinkClick, isStreaming }: OttoMessageProps) {
+  const { t } = useLanguage();
   const isUser = message.role === "user";
   const navigate = useNavigate();
   const startTour = useTourStore((s) => s.start);
   const openModal = useModalStore((s) => s.openModal);
   const setOttoOpen = useOttoStore((s) => s.setOpen);
+  const [copied, setCopied] = useState(false);
 
   const parsed = isUser
     ? { cleanContent: message.content, buttons: [], links: [], waLinks: [], tourIds: [], modalIds: [] }
@@ -104,35 +109,47 @@ export function OttoMessageComponent({ message, onButtonClick, onLinkClick, isSt
     openModal(id as Exclude<OttoManagedModal, null>);
   };
 
-  return (
-    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-      {/* Avatar */}
-      <div
-        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center overflow-hidden ${
-          isUser ? "bg-primary text-primary-foreground" : ""
-        }`}
-      >
-        {isUser ? <User className="w-3.5 h-3.5" /> : <img src={ottoMascot} alt="Otto" className="w-full h-full object-cover" />}
-      </div>
-
-      {/* Bubble */}
-      <div className={`max-w-[85%] space-y-2`}>
-        <div
-          className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-            isUser
-              ? "bg-primary text-primary-foreground rounded-tr-md"
-              : "bg-muted text-foreground rounded-tl-md"
-          }`}
-        >
-          {isUser ? (
-            <p>{cleanContent}</p>
-          ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1 [&_ol]:my-1 [&_ul]:my-1">
-              <ReactMarkdown>{cleanContent}</ReactMarkdown>
-            </div>
+  // The person's message is a bubble on the right; Otto's answer reads as
+  // full-width text, easier on long replies than a narrow grey bubble.
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] space-y-1.5">
+          <div className="whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-sm leading-relaxed text-primary-foreground">
+            {cleanContent}
+          </div>
+          {!!message.attachmentPaths?.length && (
+            <p className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              {t("{{n}} anexo(s)", { n: message.attachmentPaths.length })}
+            </p>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(cleanContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error(t("Não foi possível copiar."));
+    }
+  };
+
+  return (
+    <div className="group flex gap-2.5">
+      <img src={ottoMascot} alt="" aria-hidden="true" className="mt-0.5 h-6 w-6 shrink-0 rounded-full object-cover" />
+
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <div className="text-sm leading-relaxed text-foreground">
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ol]:my-1.5 [&_ul]:my-1.5 [&_li]:my-0.5">
+            <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          </div>
           {isStreaming && (
-            <span className="inline-block w-1.5 h-4 bg-foreground/60 animate-pulse ml-0.5 rounded-sm" />
+            <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-foreground/60 align-middle" />
           )}
         </div>
 
@@ -187,7 +204,7 @@ export function OttoMessageComponent({ message, onButtonClick, onLinkClick, isSt
               onClick={() => launchTour(id)}
             >
               <Sparkles className="h-3 w-3 flex-shrink-0" />
-              Mostra-me: {tour.title}
+              {t("Mostra-me: {{title}}", { title: t(tour.title) })}
             </Button>
           );
         })}
@@ -200,7 +217,7 @@ export function OttoMessageComponent({ message, onButtonClick, onLinkClick, isSt
             onClick={() => launchModal(id)}
           >
             <ExternalLink className="h-3 w-3 flex-shrink-0" />
-            {MODAL_LABELS[id] || "Abrir"}
+            {t(MODAL_LABELS[id] || "Abrir")}
           </Button>
         ))}
 
@@ -224,13 +241,24 @@ export function OttoMessageComponent({ message, onButtonClick, onLinkClick, isSt
                 <div className="text-left flex-1 min-w-0">
                   <p className="font-semibold text-sm">{wa.label}</p>
                   <p className="text-[11px] text-white/80">
-                    Toca para abrir o WhatsApp e enviar
+                    {t("Toca para abrir o WhatsApp e enviar")}
                   </p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-white/60 flex-shrink-0" />
               </a>
             ))}
           </div>
+        )}
+
+        {!isStreaming && cleanContent && (
+          <button
+            type="button"
+            onClick={copy}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground opacity-70 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? t("Copiado") : t("Copiar")}
+          </button>
         )}
       </div>
     </div>

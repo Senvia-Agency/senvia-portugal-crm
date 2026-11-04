@@ -6,6 +6,7 @@ import {
   NODE_CATEGORY_STYLES, NODE_DEFINITIONS, TRIGGER_GROUPS, TRIGGER_TYPES, triggerGroupOf,
 } from '@/lib/automation-nodes';
 import type { AutomationTriggerType } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 interface TriggerPickerProps {
   value: AutomationTriggerType;
@@ -27,6 +28,7 @@ export function TriggerPicker({
   gridClassName = 'sm:grid-cols-2 lg:grid-cols-3',
   autoFocus = false,
 }: TriggerPickerProps) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<string | null>(null);
   const term = normalizeString(search.trim());
@@ -38,10 +40,10 @@ export function TriggerPicker({
       const definition = NODE_DEFINITIONS[type];
       // Description too: "primeiro pagamento" finds the referral trigger even
       // when the label says nothing about payments.
-      return normalizeString(definition.label).includes(term)
-        || normalizeString(definition.description).includes(term);
+      return normalizeString(t(definition.label)).includes(term)
+        || normalizeString(t(definition.description)).includes(term);
     }),
-    [term, group],
+    [term, group, t],
   );
 
   const counts = useMemo(() => {
@@ -65,16 +67,16 @@ export function TriggerPicker({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Pesquisar gatilho..."
+            placeholder={t('Pesquisar gatilho...')}
             className="h-9 pl-9 pr-9"
-            aria-label="Pesquisar gatilho"
+            aria-label={t('Pesquisar gatilho')}
             autoFocus={autoFocus}
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
-              aria-label="Limpar pesquisa"
+              aria-label={t('Limpar pesquisa')}
               className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
@@ -84,7 +86,7 @@ export function TriggerPicker({
 
         <div className="flex flex-wrap gap-1.5">
           <GroupChip active={group === null} onClick={() => setGroup(null)}>
-            Todos <span className="tabular-nums opacity-60">{TRIGGER_TYPES.length}</span>
+            {t('Todos')} <span className="tabular-nums opacity-60">{TRIGGER_TYPES.length}</span>
           </GroupChip>
           {TRIGGER_GROUPS.map((item) => (
             <GroupChip
@@ -92,7 +94,7 @@ export function TriggerPicker({
               active={group === item.key}
               onClick={() => setGroup(group === item.key ? null : item.key)}
             >
-              {item.label} <span className="tabular-nums opacity-60">{counts[item.key] ?? 0}</span>
+              {t(item.label)} <span className="tabular-nums opacity-60">{counts[item.key] ?? 0}</span>
             </GroupChip>
           ))}
         </div>
@@ -100,14 +102,14 @@ export function TriggerPicker({
 
       {visible.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          <p>Nenhum gatilho corresponde{group ? ' neste grupo' : ''}.</p>
+          <p>{group ? t('Nenhum gatilho corresponde neste grupo.') : t('Nenhum gatilho corresponde.')}</p>
           {filtering && (
             <button
               type="button"
               onClick={() => { setSearch(''); setGroup(null); }}
               className="mt-2 text-primary underline-offset-4 hover:underline"
             >
-              Limpar filtros
+              {t('Limpar filtros')}
             </button>
           )}
         </div>
@@ -140,9 +142,9 @@ export function TriggerPicker({
                   <Icon className={cn('h-4 w-4', style.icon)} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-semibold text-foreground">{definition.label}</span>
+                  <span className="block text-xs font-semibold text-foreground">{t(definition.label)}</span>
                   <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                    {definition.description}
+                    {t(definition.description)}
                   </span>
                 </span>
               </button>

@@ -1,13 +1,18 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { Lead, LeadTemperature } from "@/types";
 import { LeadCard } from "./LeadCard";
 import { cn } from "@/lib/utils";
 import { usePipelineStages, PipelineStage } from "@/hooks/usePipelineStages";
 import { useLeadProposalValues } from "@/hooks/useLeadProposalValues";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTeamMembers } from "@/hooks/useTeam";
+import { useAuth } from "@/contexts/AuthContext";
+import { useModules } from "@/hooks/useModules";
+import { formatCurrency } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useLanguage } from "@/i18n";
 
 interface LeadEvent {
   id: string;
@@ -33,6 +38,10 @@ interface KanbanColumnProps {
   stages: PipelineStage[];
   leadEvents: Record<string, LeadEvent>;
   proposalValues?: Map<string, number>;
+  /** user_id → name, for the assignee initials on each card. */
+  memberNames: Map<string, string>;
+  /** Money totals per column (off for the energy niche, where cards show kWh). */
+  showTotals: boolean;
   isAdmin: boolean;
   draggedLead: string | null;
   isOver: boolean;
@@ -58,6 +67,8 @@ function KanbanColumn({
   stages,
   leadEvents,
   proposalValues,
+  memberNames,
+  showTotals,
   isAdmin,
   draggedLead,
   isOver,
@@ -72,15 +83,20 @@ function KanbanColumn({
   onDelete,
   onArchive,
 }: KanbanColumnProps) {
+  const { t } = useLanguage();
   const isOrphan = stage === null;
   const dropKey = isOrphan ? "__orphan__" : stage.key;
 
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
+  const total = showTotals
+    ? columnLeads.reduce((sum, lead) => sum + (proposalValues?.get(lead.id) || lead.value || 0), 0)
+    : 0;
+
   const virtualizer = useWindowVirtualizer({
     count: columnLeads.length,
-    estimateSize: () => 240,
+    estimateSize: () => 130,
     overscan: 6,
     scrollMargin,
     getItemKey: (index) => columnLeads[index]?.id ?? index,
@@ -100,45 +116,35 @@ function KanbanColumn({
   return (
     <div
       className={cn(
-        "flex w-80 min-w-[320px] flex-col rounded-xl border-t-4 bg-muted/30",
-        isOrphan && "border-t-orange-500",
-        isOver && "bg-primary/5"
+        "flex w-72 min-w-[288px] flex-col rounded-2xl bg-muted/50 transition-colors",
+        isOver && "bg-primary/5 ring-2 ring-inset ring-primary/30"
       )}
-      style={isOrphan ? undefined : { borderTopColor: stage.color }}
       onDragOver={(e) => onDragOver(e, dropKey)}
       onDragLeave={onDragLeave}
       onDrop={isOrphan ? undefined : (e) => onDrop(e, dropKey)}
     >
-      {/* Column Header */}
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-2">
-          {isOrphan && <AlertCircle className="h-4 w-4 text-orange-500" />}
-          <h3 className="font-semibold text-foreground">
-            {isOrphan ? "Sem Etapa" : stage.name}
-          </h3>
-          <span
-            className="flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-medium"
-            style={
-              isOrphan
-                ? { backgroundColor: "rgb(249 115 22 / 0.15)", color: "rgb(249 115 22)" }
-                : { backgroundColor: `${stage.color}15`, color: stage.color }
-            }
-          >
-            {columnLeads.length}
-          </span>
-        </div>
+      {/* Column header: colour dot, name, count and what the stage is worth. */}
+      <div className="flex items-center gap-2 px-3.5 pb-2 pt-3">
+        {isOrphan
+          ? <AlertCircle className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+          : <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: stage.color }} aria-hidden="true" />}
+        <h3 className="truncate text-sm font-semibold text-foreground">
+          {isOrphan ? t("Sem etapa") : stage.name}
+        </h3>
+        <span className="text-xs font-medium tabular-nums text-muted-foreground">{columnLeads.length}</span>
+        {total > 0 && <span className="ml-auto truncate text-xs tabular-nums text-muted-foreground" title={t("Valor das leads desta etapa")}>{formatCurrency(total)}</span>}
       </div>
 
       {/* Cards Container (virtualized) */}
-      <div className="flex-1 px-3 pb-3">
+      <div className="flex-1 px-2 pb-2">
         {columnLeads.length === 0 ? (
           <div
             className={cn(
-              "flex h-32 items-center justify-center rounded-lg border-2 border-dashed text-sm text-muted-foreground",
+              "flex h-20 items-center justify-center rounded-xl border border-dashed border-border text-xs text-muted-foreground",
               isOver && "border-primary bg-primary/5"
             )}
           >
-            {isOver ? "Largar aqui" : "Sem leads"}
+            {isOver ? t("Largar aqui") : t("Sem leads")}
           </div>
         ) : (
           <div
@@ -164,7 +170,7 @@ function KanbanColumn({
                   }}
                 >
                   <div
-                    className="pb-3"
+                    className="pb-2"
                     draggable={draggable}
                     onDragStart={(e) => onDragStart(e, lead.id)}
                   >
@@ -172,6 +178,7 @@ function KanbanColumn({
                       lead={lead}
                       proposalValue={proposalValues?.get(lead.id)}
                       upcomingEvent={leadEvents[lead.id]}
+                      assigneeName={lead.assigned_to ? memberNames.get(lead.assigned_to) : null}
                       onStatusChange={onStatusChange}
                       onTemperatureChange={onTemperatureChange}
                       onViewDetails={onViewDetails}
@@ -193,9 +200,15 @@ function KanbanColumn({
 }
 
 export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperatureChange, onViewDetails, onDelete, onArchive }: KanbanBoardProps) {
+  const { t } = useLanguage();
   const { data: stages, isLoading: stagesLoading } = usePipelineStages();
   const { data: proposalValues } = useLeadProposalValues();
   const { isAdmin } = usePermissions();
+  const { data: teamMembers = [] } = useTeamMembers();
+  const memberNames = useMemo(() => new Map(teamMembers.map(member => [member.user_id, member.full_name])), [teamMembers]);
+  const { organization } = useAuth();
+  const { modules } = useModules();
+  const showTotals = !(organization?.niche === 'telecom' && modules.energy);
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -267,9 +280,9 @@ export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperat
 
   if (stagesLoading) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-8">
+      <div className="flex gap-3 overflow-x-auto pb-6">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="w-80 min-w-[320px]">
+          <div key={i} className="w-72 min-w-[288px]">
             <Skeleton className="h-12 w-full mb-2" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full mt-2" />
@@ -283,8 +296,8 @@ export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperat
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         <div className="text-center">
-          <p className="text-lg font-medium">Pipeline não configurado</p>
-          <p className="text-sm">Vá às Definições → Pipeline para configurar as etapas.</p>
+          <p className="text-lg font-medium">{t("Pipeline não configurado")}</p>
+          <p className="text-sm">{t("Vá às Definições → Pipeline para configurar as etapas.")}</p>
         </div>
       </div>
     );
@@ -307,7 +320,7 @@ export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperat
       <div
         ref={bottomScrollRef}
         onScroll={handleBottomScroll}
-        className="flex gap-4 overflow-x-auto pb-8"
+        className="flex gap-3 overflow-x-auto pb-6"
       >
         {/* Orphan Leads Column - Only show if there are orphans */}
         {orphanLeads.length > 0 && (
@@ -317,6 +330,8 @@ export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperat
             stages={stages}
             leadEvents={leadEvents}
             proposalValues={proposalValues}
+            memberNames={memberNames}
+            showTotals={showTotals}
             isAdmin={isAdmin}
             draggedLead={draggedLead}
             isOver={dragOverColumn === '__orphan__'}
@@ -342,6 +357,8 @@ export function KanbanBoard({ leads, leadEvents = {}, onStatusChange, onTemperat
             stages={stages}
             leadEvents={leadEvents}
             proposalValues={proposalValues}
+            memberNames={memberNames}
+            showTotals={showTotals}
             isAdmin={isAdmin}
             draggedLead={draggedLead}
             isOver={dragOverColumn === stage.key}

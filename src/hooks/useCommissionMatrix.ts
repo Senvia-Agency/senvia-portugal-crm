@@ -3,6 +3,7 @@ import { useOrganization } from './useOrganization';
 import type { ServicosProductDetail } from '@/types/proposals';
 import type { ModeloServico } from '@/types/proposals';
 import { SERVICOS_PRODUCT_CONFIGS } from '@/types/proposals';
+import { tr } from '@/i18n';
 
 // --- Unified commission types ---
 
@@ -179,12 +180,12 @@ const OPERATION_LABELS: Record<string, string> = {
 };
 
 export function getTierRuleLabel(tier: EnergyVolumeTier, config: EnergyCommissionConfig | null): string {
-  if (!config?.tierRules) return TIER_LABELS[tier];
+  if (!config?.tierRules) return tr(TIER_LABELS[tier]);
   const rule = config.tierRules[tier];
-  if (!rule) return TIER_LABELS[tier];
+  if (!rule) return tr(TIER_LABELS[tier]);
   const op = OPERATION_LABELS[rule.operation] || '?';
-  if (rule.operation === 'none') return `${TIER_LABELS[tier]} | Regra: ${rule.source} (direto)`;
-  return `${TIER_LABELS[tier]} | Regra: ${rule.source} ${op} ${rule.value}`;
+  if (rule.operation === 'none') return `${tr(TIER_LABELS[tier])} | ${tr('Regra: {{source}} (direto)', { source: rule.source })}`;
+  return `${tr(TIER_LABELS[tier])} | ${tr('Regra: {{source}} {{op}} {{value}}', { source: rule.source, op, value: rule.value })}`;
 }
 
 // --- Main hook ---

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { format, differenceInDays, isPast } from 'date-fns';
-import { pt } from 'date-fns/locale';
 import { Router, Plus, Pencil, Trash2, AlertTriangle, Calendar, Zap, RefreshCw, ArrowLeftRight, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,12 +22,14 @@ import { CreateCpeModal } from './CreateCpeModal';
 import { EditCpeModal } from './EditCpeModal';
 import { RenewCpeModal } from './RenewCpeModal';
 import { SwitchComercializadorModal } from './SwitchComercializadorModal';
+import { useLanguage, dateLocale, intlLocale } from "@/i18n";
 
 interface CpeListProps {
   clientId: string;
 }
 
 export function CpeList({ clientId }: CpeListProps) {
+  const { t } = useLanguage();
   const { data: cpes, isLoading } = useCpes(clientId);
   const deleteCpe = useDeleteCpe();
   const { organization } = useAuth();
@@ -41,11 +42,11 @@ export function CpeList({ clientId }: CpeListProps) {
   
   // Telecom niche uses energy-specific labels
   const isTelecom = organization?.niche === 'telecom';
-  const sectionTitle = isTelecom ? 'Pontos de Consumo (CPE/CUI)' : 'Equipamentos (CPE)';
-  const serialLabel = isTelecom ? 'CPE/CUI' : 'S/N';
+  const sectionTitle = isTelecom ? t("Pontos de Consumo (CPE/CUI)") : t("Equipamentos (CPE)");
+  const serialLabel = isTelecom ? t("CPE/CUI") : 'S/N';
   const emptyMessage = isTelecom 
-    ? 'Nenhum CPE/CUI registado para este cliente.' 
-    : 'Nenhum CPE registado para este cliente.';
+    ? t("Nenhum CPE/CUI registado para este cliente.") 
+    : t("Nenhum CPE registado para este cliente.");
   const SectionIcon = isTelecom ? Zap : Router;
 
   const getFidelizacaoStatus = (cpe: Cpe) => {
@@ -55,15 +56,15 @@ export function CpeList({ clientId }: CpeListProps) {
     const daysLeft = differenceInDays(endDate, new Date());
     
     if (isPast(endDate)) {
-      return { label: 'Expirada', variant: 'destructive' as const, className: '' };
+      return { label: t("Expirada"), variant: 'destructive' as const, className: '' };
     }
     if (daysLeft <= 30) {
-      return { label: `${daysLeft}d restantes`, variant: 'secondary' as const, className: 'bg-warning/10 text-warning border-warning/20' };
+      return { label: t("{{n}}d restantes", { n: daysLeft }), variant: 'secondary' as const, className: 'bg-warning/10 text-warning border-warning/20' };
     }
     if (daysLeft <= 90) {
-      return { label: `${Math.ceil(daysLeft / 30)}m restantes`, variant: 'secondary' as const, className: '' };
+      return { label: t("{{n}}m restantes", { n: Math.ceil(daysLeft / 30) }), variant: 'secondary' as const, className: '' };
     }
-    return { label: format(endDate, 'MMM yyyy', { locale: pt }), variant: 'outline' as const, className: '' };
+    return { label: format(endDate, 'MMM yyyy', { locale: dateLocale() }), variant: 'outline' as const, className: '' };
   };
 
   if (isLoading) {
@@ -84,7 +85,7 @@ export function CpeList({ clientId }: CpeListProps) {
         </h3>
         <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
-          Adicionar
+          {t("Adicionar")}
         </Button>
       </div>
 
@@ -107,32 +108,32 @@ export function CpeList({ clientId }: CpeListProps) {
                     <div className="flex-1 min-w-0 space-y-2">
                       {/* Header */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{cpe.equipment_type}</span>
+                        <span className="font-medium">{t(cpe.equipment_type)}</span>
                         {isTelecom && cpe.nivel_tensao ? (
                           <Badge 
                             variant="outline" 
                             className={`${NIVEL_TENSAO_STYLES[cpe.nivel_tensao as NivelTensao]?.bg} ${NIVEL_TENSAO_STYLES[cpe.nivel_tensao as NivelTensao]?.text} ${NIVEL_TENSAO_STYLES[cpe.nivel_tensao as NivelTensao]?.border}`}
                           >
-                            {NIVEL_TENSAO_LABELS[cpe.nivel_tensao as NivelTensao]}
+                            {t(NIVEL_TENSAO_LABELS[cpe.nivel_tensao as NivelTensao])}
                           </Badge>
                         ) : !isTelecom && (
                           <Badge 
                             variant="outline" 
                             className={`${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}
                           >
-                            {CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS]}
+                            {t(CPE_STATUS_LABELS[cpe.status as keyof typeof CPE_STATUS_LABELS])}
                           </Badge>
                         )}
                         {cpe.renewal_status === 'renewed' && (
                           <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
                             <CheckCircle className="h-3 w-3 mr-1" />
-                            Renovado
+                            {t("Renovado")}
                           </Badge>
                         )}
                         {cpe.renewal_status === 'switched' && (
                           <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
                             <ArrowLeftRight className="h-3 w-3 mr-1" />
-                            Comercializador alterado
+                            {t("Comercializador alterado")}
                           </Badge>
                         )}
                       </div>
@@ -167,7 +168,7 @@ export function CpeList({ clientId }: CpeListProps) {
                         {cpe.consumo_anual != null && cpe.consumo_anual > 0 && (
                           <div className="flex items-center gap-2">
                             <Zap className="h-3.5 w-3.5" />
-                            <span>Consumo: {cpe.consumo_anual.toLocaleString('pt-PT')} kWh/ano</span>
+                            <span>{t("Consumo:")} {cpe.consumo_anual.toLocaleString(intlLocale())} {t("kWh/ano")}</span>
                           </div>
                         )}
 
@@ -186,7 +187,7 @@ export function CpeList({ clientId }: CpeListProps) {
                             onClick={() => setRenewCpe(cpe)}
                           >
                             <RefreshCw className="h-3 w-3 mr-1" />
-                            Renovar
+                            {t("Renovar")}
                           </Button>
                           <Button
                             size="sm"
@@ -195,7 +196,7 @@ export function CpeList({ clientId }: CpeListProps) {
                             onClick={() => setSwitchCpe(cpe)}
                           >
                             <ArrowLeftRight className="h-3 w-3 mr-1" />
-                            Alterar Comercializador
+                            {t("Alterar Comercializador")}
                           </Button>
                         </div>
                       )}
@@ -270,13 +271,13 @@ export function CpeList({ clientId }: CpeListProps) {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover CPE?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Remover CPE?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O registo do equipamento será removido permanentemente.
+              {t("Esta ação não pode ser desfeita. O registo do equipamento será removido permanentemente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteId) {
@@ -286,7 +287,7 @@ export function CpeList({ clientId }: CpeListProps) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Remover
+              {t("Remover")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -18,6 +18,7 @@ import type {
   RecurringFiscalDocumentPolicy,
   RecurringFiscalMode,
 } from '@/types/recurring-fiscal';
+import { useLanguage } from "@/i18n";
 
 interface RecurringFiscalSettingsProps {
   value: RecurringFiscalConfig;
@@ -41,6 +42,7 @@ export function RecurringFiscalSettings({
   automaticDisabledReason,
   includesFirstMonth = false,
 }: RecurringFiscalSettingsProps) {
+  const { t } = useLanguage();
   const setMode = (fiscal_mode: RecurringFiscalMode) => onChange({
     ...value,
     fiscal_mode,
@@ -58,10 +60,10 @@ export function RecurringFiscalSettings({
     <div className={cn('space-y-5', compact && 'space-y-4')}>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <Label>Emissão fiscal</Label>
+          <Label>{t("Emissão fiscal")}</Label>
           {value.fiscal_mode === 'automatic' && (
             <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
-              Automática
+              {t("Automática")}
             </Badge>
           )}
         </div>
@@ -81,9 +83,9 @@ export function RecurringFiscalSettings({
           >
             <RadioGroupItem id="fiscal-mode-manual" value="manual" className="mt-0.5" />
             <span>
-              <span className="block text-sm font-medium">Manual</span>
+              <span className="block text-sm font-medium">{t("Manual")}</span>
               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                A equipa decide quando emitir cada documento.
+                {t("A equipa decide quando emitir cada documento.")}
               </span>
             </span>
           </Label>
@@ -97,29 +99,29 @@ export function RecurringFiscalSettings({
           >
             <RadioGroupItem id="fiscal-mode-automatic" value="automatic" className="mt-0.5" disabled={disabled || automaticDisabled} />
             <span>
-              <span className="block text-sm font-medium">Automática</span>
+              <span className="block text-sm font-medium">{t("Automática")}</span>
               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                O ciclo fiscal acompanha a cobrança sem intervenção manual.
+                {t("O ciclo fiscal acompanha a cobrança sem intervenção manual.")}
               </span>
             </span>
           </Label>
         </RadioGroup>
         {automaticDisabled && !disabled && (
           <p className="text-xs text-muted-foreground">
-            {automaticDisabledReason || 'Liga e configura o KeyInvoice para disponibilizar a emissão automática.'}
+            {automaticDisabledReason || t("Liga e configura o KeyInvoice para disponibilizar a emissão automática.")}
           </p>
         )}
         {value.fiscal_mode === 'automatic' && (
           <p className="text-xs text-muted-foreground">
             {includesFirstMonth
-              ? 'Inclui o 1.º mês: o documento desta venda é emitido e enviado logo, como as renovações seguintes.'
-              : 'A emissão automática começa nos próximos ciclos. Os ciclos já existentes exigem tratamento manual, mesmo que estejam pagos.'}
+              ? t("Inclui o 1.º mês: o documento desta venda é emitido e enviado logo, como as renovações seguintes.")
+              : t("A partir de agora, cada renovação é emitida e enviada sozinha.")}
           </p>
         )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="fiscal-document-policy">Política de documentos</Label>
+        <Label htmlFor="fiscal-document-policy">{t("Política de documentos")}</Label>
         <Select
           value={value.fiscal_document_policy}
           onValueChange={(next) => setPolicy(next as RecurringFiscalDocumentPolicy)}
@@ -128,35 +130,34 @@ export function RecurringFiscalSettings({
           <SelectTrigger id="fiscal-document-policy">
             <SelectValue />
           </SelectTrigger>
+          {/* Each option says when each document comes out, so the difference reads in the list itself. */}
           <SelectContent>
-            <SelectItem value="invoice_then_receipt">Fatura e recibo (FT + RC)</SelectItem>
-            <SelectItem value="invoice_receipt_when_paid">Fatura-recibo quando totalmente pago (FR)</SelectItem>
+            <SelectItem value="invoice_then_receipt">
+              <span className="block">{t("Fatura logo, recibo quando pagar")}</span>
+              <span className="block text-xs text-muted-foreground">{t("Fatura ao criar a venda; um recibo por cada pagamento.")}</span>
+            </SelectItem>
+            <SelectItem value="invoice_receipt_when_paid">
+              <span className="block">{t("Só fatura-recibo, quando estiver pago")}</span>
+              <span className="block text-xs text-muted-foreground">{t("Um único documento, quando o valor estiver todo pago.")}</span>
+            </SelectItem>
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto rounded-md border bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
           {value.fiscal_document_policy === 'invoice_then_receipt' ? (
             <>
-              <span>Ciclo criado</span><span aria-hidden>→</span>
-              <span className="inline-flex items-center gap-1 font-medium text-foreground"><ReceiptText className="h-3.5 w-3.5" /> FT</span>
-              <span aria-hidden>→</span><span>Pagamento confirmado</span><span aria-hidden>→</span>
-              <span className="inline-flex items-center gap-1 font-medium text-foreground"><FileCheck2 className="h-3.5 w-3.5" /> RC</span>
+              <span>{t("Venda criada")}</span><span aria-hidden>→</span>
+              <span className="inline-flex items-center gap-1 font-medium text-foreground"><ReceiptText className="h-3.5 w-3.5" />{t("Fatura")}</span>
+              <span aria-hidden>→</span><span>{t("Pagamento recebido")}</span><span aria-hidden>→</span>
+              <span className="inline-flex items-center gap-1 font-medium text-foreground"><FileCheck2 className="h-3.5 w-3.5" />{t("Recibo")}</span>
             </>
           ) : (
             <>
-              <span>Pagamento integral confirmado</span><span aria-hidden>→</span>
-              <span className="inline-flex items-center gap-1 font-medium text-foreground"><FileCheck2 className="h-3.5 w-3.5" /> FR</span>
+              <span>{t("Venda criada")}</span><span aria-hidden>→</span><span>{t("Pagamento recebido")}</span><span aria-hidden>→</span>
+              <span className="inline-flex items-center gap-1 font-medium text-foreground"><FileCheck2 className="h-3.5 w-3.5" />{t("Fatura-recibo")}</span>
             </>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {value.fiscal_document_policy === 'invoice_then_receipt'
-            ? 'Cada pagamento parcial confirmado gera o respetivo RC; pagamentos pendentes nunca geram recibo.'
-            : 'A FR só é emitida quando a soma dos pagamentos confirmados cobre o valor integral do ciclo.'}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Reembolsos e notas de crédito ficam em revisão manual quando não existe um reembolso confirmado e ligado ao documento original.
-        </p>
       </div>
 
       <div className="rounded-lg border p-3.5">
@@ -164,11 +165,11 @@ export function RecurringFiscalSettings({
           <div className="flex min-w-0 gap-2.5">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div>
-              <Label htmlFor="fiscal-auto-email" className="cursor-pointer">Enviar PDF automaticamente</Label>
+              <Label htmlFor="fiscal-auto-email" className="cursor-pointer">{t("Enviar PDF automaticamente")}</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {value.fiscal_mode === 'automatic'
-                  ? 'Dispara depois de o fornecedor confirmar a emissão do documento.'
-                  : 'Disponível quando a emissão fiscal automática estiver ativa.'}
+                  ? t("Envia o documento ao cliente assim que é emitido.")
+                  : t("Liga a emissão automática para usar.")}
               </p>
             </div>
           </div>
@@ -182,55 +183,47 @@ export function RecurringFiscalSettings({
 
         {value.fiscal_auto_email && (
           <div className="mt-4 space-y-4 border-t pt-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Destinatário</Label>
-                <Select
-                  value={value.fiscal_email_config.recipient_mode}
-                  onValueChange={(recipient_mode: 'client' | 'custom') => setEmail({ recipient_mode })}
+            {/* One list: the client's email, or another one typed in. */}
+            <div className="space-y-2">
+              <Label htmlFor="fiscal-recipient">{t("Enviar para")}</Label>
+              <Select
+                value={value.fiscal_email_config.recipient_mode}
+                onValueChange={(recipient_mode: 'client' | 'custom') => setEmail({ recipient_mode })}
+                disabled={disabled}
+              >
+                <SelectTrigger id="fiscal-recipient"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client">{clientEmail ? `${clientEmail} (cliente)` : t("Email do cliente (ainda sem email)")}</SelectItem>
+                  <SelectItem value="custom">{t("Outro email…")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {value.fiscal_email_config.recipient_mode === 'custom' && (
+                <Input
+                  id="fiscal-recipient-email"
+                  type="email"
+                  aria-label={t("Outro email")}
+                  value={value.fiscal_email_config.recipient_email}
+                  onChange={(event) => setEmail({ recipient_email: event.target.value })}
+                  placeholder="faturacao@cliente.pt"
                   disabled={disabled}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="client">Email do cliente</SelectItem>
-                    <SelectItem value="custom">Email específico</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {value.fiscal_email_config.recipient_mode === 'custom' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="fiscal-recipient-email">Email específico</Label>
-                  <Input
-                    id="fiscal-recipient-email"
-                    type="email"
-                    value={value.fiscal_email_config.recipient_email}
-                    onChange={(event) => setEmail({ recipient_email: event.target.value })}
-                    placeholder="faturacao@cliente.pt"
-                    disabled={disabled}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="fiscal-fallback-email">Email alternativo</Label>
-                  <Input
-                    id="fiscal-fallback-email"
-                    type="email"
-                    value={value.fiscal_email_config.fallback_email}
-                    onChange={(event) => setEmail({ fallback_email: event.target.value })}
-                    placeholder="Usado se o cliente não tiver email"
-                    disabled={disabled}
-                  />
-                </div>
+                  autoFocus
+                />
+              )}
+              {value.fiscal_email_config.recipient_mode === 'client' && !clientEmail && (
+                <Input
+                  id="fiscal-fallback-email"
+                  type="email"
+                  aria-label={t("Email a usar enquanto o cliente não tiver email")}
+                  value={value.fiscal_email_config.fallback_email}
+                  onChange={(event) => setEmail({ fallback_email: event.target.value })}
+                  placeholder={t("O cliente não tem email: escreva um aqui")}
+                  disabled={disabled}
+                />
               )}
             </div>
-            {value.fiscal_email_config.recipient_mode === 'client' && (
-              <p className="text-xs text-muted-foreground">
-                Email atual do cliente: {clientEmail || 'não definido — preencha o alternativo'}.
-              </p>
-            )}
 
             <div className="rounded-md bg-muted/40 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-              O assunto e o email HTML são obtidos do template ativo em <strong className="text-foreground">Marketing → Templates</strong>, conforme o tipo de documento emitido. O PDF segue anexado pela Brevo.
+              {t("O email usa o modelo ativo em")} <strong className="text-foreground">{t("Marketing → Templates")}</strong> {t("e leva o documento em PDF.")}
             </div>
           </div>
         )}

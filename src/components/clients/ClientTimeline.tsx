@@ -13,6 +13,7 @@ import { formatCurrency, formatDateTime } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ClientHistoryEvent, HistoryEventType } from '@/hooks/useClientHistory';
+import { useLanguage, tr } from "@/i18n";
 
 interface ClientTimelineProps {
   events: ClientHistoryEvent[];
@@ -93,7 +94,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function getStatusLabel(status: string): string {
-  return STATUS_LABELS[status] || status;
+  return STATUS_LABELS[status] ? tr(STATUS_LABELS[status]) : status;
 }
 
 function getCallIcon(direction?: 'inbound' | 'outbound' | null) {
@@ -111,6 +112,7 @@ function formatDuration(seconds: number): string {
 }
 
 function TimelineItem({ event }: { event: ClientHistoryEvent }) {
+  const { t } = useLanguage();
   const config = EVENT_CONFIG[event.type];
   
   // For calls, use direction-specific icon
@@ -141,7 +143,7 @@ function TimelineItem({ event }: { event: ClientHistoryEvent }) {
             {/* Duration for calls */}
             {event.duration_seconds && event.duration_seconds > 0 && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                Duração: {formatDuration(event.duration_seconds)}
+                {t("Duração:")} {formatDuration(event.duration_seconds)}
               </p>
             )}
           </div>
@@ -159,7 +161,7 @@ function TimelineItem({ event }: { event: ClientHistoryEvent }) {
             {/* Direction badge for communications */}
             {event.direction && (
               <Badge variant="outline" className="text-xs">
-                {event.direction === 'inbound' ? 'Recebida' : 'Enviada'}
+                {event.direction === 'inbound' ? t("Recebida") : t("Enviada")}
               </Badge>
             )}
           </div>
@@ -173,6 +175,7 @@ function TimelineItem({ event }: { event: ClientHistoryEvent }) {
 }
 
 export function ClientTimeline({ events, isLoading }: ClientTimelineProps) {
+  const { t } = useLanguage();
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -193,8 +196,8 @@ export function ClientTimeline({ events, isLoading }: ClientTimelineProps) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-        <p>Sem histórico registado</p>
-        <p className="text-sm mt-1">Propostas, vendas, reuniões e comunicações aparecerão aqui</p>
+        <p>{t("Sem histórico registado")}</p>
+        <p className="text-sm mt-1">{t("Propostas, vendas, reuniões e comunicações aparecerão aqui")}</p>
       </div>
     );
   }

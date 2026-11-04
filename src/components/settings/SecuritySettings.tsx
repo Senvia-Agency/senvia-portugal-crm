@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, ShieldCheck, ShieldOff, Loader2, Key, Eye, EyeOff } from 'lucide-react';
 import { EnrollMFA } from '@/components/auth/EnrollMFA';
+import { useLanguage } from '@/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +43,7 @@ export function SecuritySettings({
   changePasswordIsPending = false,
 }: SecuritySettingsProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [hasMFA, setHasMFA] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDisabling, setIsDisabling] = useState(false);
@@ -76,12 +78,12 @@ export function SecuritySettings({
 
       setHasMFA(false);
       toast({
-        title: '2FA desativado',
-        description: 'A autenticação de dois fatores foi desativada.',
+        title: t('2FA desativado'),
+        description: t('A autenticação de dois fatores foi desativada.'),
       });
     } catch (error: any) {
       toast({
-        title: 'Erro ao desativar',
+        title: t('Erro ao desativar'),
         description: error.message,
         variant: 'destructive',
       });
@@ -119,9 +121,9 @@ export function SecuritySettings({
           <div className="flex items-center gap-3">
             <Shield className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle className="text-lg">Autenticação de Dois Fatores (2FA)</CardTitle>
+              <CardTitle className="text-lg">{t('Autenticação de Dois Fatores (2FA)')}</CardTitle>
               <CardDescription>
-                Proteja a sua conta com um código adicional ao iniciar sessão.
+                {t('Proteja a sua conta com um código adicional ao iniciar sessão.')}
               </CardDescription>
             </div>
           </div>
@@ -129,16 +131,16 @@ export function SecuritySettings({
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Estado:</span>
+              <span className="text-sm font-medium">{t('Estado:')}</span>
               {hasMFA ? (
                 <Badge variant="default" className="gap-1">
                   <ShieldCheck className="h-3 w-3" />
-                  Ativo
+                  {t('Ativo')}
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1">
                   <ShieldOff className="h-3 w-3" />
-                  Desativado
+                  {t('Desativado')}
                 </Badge>
               )}
             </div>
@@ -146,8 +148,8 @@ export function SecuritySettings({
 
           <p className="text-sm text-muted-foreground">
             {hasMFA
-              ? 'A sua conta está protegida com autenticação de dois fatores. Será necessário um código do Microsoft Authenticator, Google Authenticator ou outra app TOTP para iniciar sessão.'
-              : 'Ative a autenticação de dois fatores para adicionar uma camada extra de segurança à sua conta.'}
+              ? t('A sua conta está protegida com autenticação de dois fatores. Será necessário um código do Microsoft Authenticator, Google Authenticator ou outra app TOTP para iniciar sessão.')
+              : t('Ative a autenticação de dois fatores para adicionar uma camada extra de segurança à sua conta.')}
           </p>
 
           {hasMFA ? (
@@ -155,30 +157,30 @@ export function SecuritySettings({
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={isDisabling}>
                   {isDisabling ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A desativar...</>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('A desativar...')}</>
                   ) : (
-                    'Desativar 2FA'
+                    t('Desativar 2FA')
                   )}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Desativar 2FA?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('Desativar 2FA?')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    A sua conta ficará menos segura sem a autenticação de dois fatores. Tem a certeza que deseja desativar?
+                    {t('A sua conta ficará menos segura sem a autenticação de dois fatores. Tem a certeza que deseja desativar?')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleDisableMFA}>
-                    Sim, desativar
+                    {t('Sim, desativar')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           ) : (
             <Button onClick={() => setShowEnroll(true)} size="sm">
-              Ativar 2FA
+              {t('Ativar 2FA')}
             </Button>
           )}
         </CardContent>
@@ -189,23 +191,23 @@ export function SecuritySettings({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
-              Alterar Palavra-passe
+              {t('Alterar Palavra-passe')}
             </CardTitle>
             <CardDescription>
-              Atualize a palavra-passe da sua conta.
+              {t('Atualize a palavra-passe da sua conta.')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="new-password" className="text-sm text-muted-foreground">Nova Palavra-passe</Label>
+                <Label htmlFor="new-password" className="text-sm text-muted-foreground">{t('Nova Palavra-passe')}</Label>
                 <div className="relative">
                   <Input
                     id="new-password"
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={t('Mínimo 6 caracteres')}
                   />
                   <Button
                     type="button"
@@ -219,13 +221,13 @@ export function SecuritySettings({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password" className="text-sm text-muted-foreground">Confirmar Palavra-passe</Label>
+                <Label htmlFor="confirm-password" className="text-sm text-muted-foreground">{t('Confirmar Palavra-passe')}</Label>
                 <Input
                   id="confirm-password"
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repetir palavra-passe"
+                  placeholder={t('Repetir palavra-passe')}
                 />
               </div>
             </div>
@@ -234,7 +236,7 @@ export function SecuritySettings({
               disabled={changePasswordIsPending || !newPassword || !confirmPassword}
             >
               {changePasswordIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Alterar Palavra-passe
+              {t('Alterar Palavra-passe')}
             </Button>
           </CardContent>
         </Card>

@@ -35,6 +35,9 @@ interface OttoStore {
   scope: string | null;
   setScope: (scope: string | null) => void;
   isOpen: boolean;
+  /** A reply finished while the panel was closed and has not been seen yet. */
+  unread: boolean;
+  setUnread: (unread: boolean) => void;
   messages: OttoMessage[];
   isLoading: boolean;
   pendingAttachments: File[];
@@ -66,12 +69,14 @@ export const useOttoStore = create<OttoStore>()(
         actionResult: null,
       }),
       isOpen: false,
+      unread: false,
+      setUnread: (unread) => set({ unread }),
       messages: [],
       isLoading: false,
       pendingAttachments: [],
       pendingAction: null,
       actionResult: null,
-      setOpen: (open) => set({ isOpen: open }),
+      setOpen: (open) => set(open ? { isOpen: true, unread: false } : { isOpen: false }),
       addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
       updateLastMessage: (content) =>
         set((s) => {

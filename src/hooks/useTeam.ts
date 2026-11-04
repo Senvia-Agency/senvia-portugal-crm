@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 
 interface CreateTeamMemberParams {
   email: string;
@@ -113,7 +114,7 @@ export function useCreateInvite() {
   return useMutation({
     mutationFn: async ({ email, role }: { email: string; role: 'admin' | 'viewer' | 'salesperson' }) => {
       if (!organization?.id || !user?.id) {
-        throw new Error('Organização não encontrada');
+        throw new Error(tr('Organização não encontrada'));
       }
 
       const { data, error } = await supabase
@@ -129,7 +130,7 @@ export function useCreateInvite() {
 
       if (error) {
         if (error.code === '23505') {
-          throw new Error('Já existe um convite pendente para este email.');
+          throw new Error(tr('Já existe um convite pendente para este email.'));
         }
         throw error;
       }
@@ -139,13 +140,13 @@ export function useCreateInvite() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] });
       toast({
-        title: 'Convite criado',
-        description: 'O link de convite foi gerado com sucesso.',
+        title: tr('Convite criado'),
+        description: tr('O link de convite foi gerado com sucesso.'),
       });
     },
     onError: (error: Error) => {
       toast({
-        title: 'Erro ao criar convite',
+        title: tr('Erro ao criar convite'),
         description: error.message,
         variant: 'destructive',
       });
@@ -169,14 +170,14 @@ export function useCancelInvite() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] });
       toast({
-        title: 'Convite cancelado',
-        description: 'O convite foi removido com sucesso.',
+        title: tr('Convite cancelado'),
+        description: tr('O convite foi removido com sucesso.'),
       });
     },
     onError: () => {
       toast({
-        title: 'Erro',
-        description: 'Não foi possível cancelar o convite.',
+        title: tr('Erro'),
+        description: tr('Não foi possível cancelar o convite.'),
         variant: 'destructive',
       });
     },
@@ -206,14 +207,14 @@ export function useResendInvite() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] });
       toast({
-        title: 'Convite renovado',
-        description: `O convite para ${data.email} foi renovado por mais 7 dias.`,
+        title: tr('Convite renovado'),
+        description: tr('O convite para {{email}} foi renovado por mais 7 dias.', { email: data.email }),
       });
     },
     onError: () => {
       toast({
-        title: 'Erro',
-        description: 'Não foi possível renovar o convite.',
+        title: tr('Erro'),
+        description: tr('Não foi possível renovar o convite.'),
         variant: 'destructive',
       });
     },
@@ -227,7 +228,7 @@ export function useCreateTeamMember() {
 
   return useMutation({
     mutationFn: async ({ email, password, fullName, role, profileId }: CreateTeamMemberParams) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('create-team-member', {
         body: { 
           organization_id: organization.id,
@@ -240,7 +241,7 @@ export function useCreateTeamMember() {
       });
 
       if (error) {
-        throw new Error(error.message || 'Erro ao criar colaborador');
+        throw new Error(error.message || tr('Erro ao criar colaborador'));
       }
 
       if (data?.error) {
@@ -252,13 +253,13 @@ export function useCreateTeamMember() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       toast({
-        title: 'Acesso criado',
-        description: 'O novo colaborador foi adicionado com sucesso.',
+        title: tr('Acesso criado'),
+        description: tr('O novo colaborador foi adicionado com sucesso.'),
       });
     },
     onError: (error: Error) => {
       toast({
-        title: 'Erro ao criar acesso',
+        title: tr('Erro ao criar acesso'),
         description: error.message,
         variant: 'destructive',
       });

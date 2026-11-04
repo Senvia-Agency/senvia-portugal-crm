@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { CircleSlash, User, RefreshCw } from 'lucide-react';
 import { CollaboratorPicker, type CollaboratorOption } from './CollaboratorPicker';
+import { useLanguage } from '@/i18n';
 
 // One single mental model for "who receives leads/conversations" across forms,
 // webhooks and inboxes. There is NO org-wide fallback: assignment is always
@@ -49,10 +50,11 @@ export function AssignmentSelector({
   noun = 'leads',
   className,
 }: AssignmentSelectorProps) {
+  const { t } = useLanguage();
   const options: { value: AssignmentMode; label: string; description: string; icon: typeof User }[] = [
-    { value: 'none', label: 'Sem atribuição', description: `Os ${noun} ficam por atribuir.`, icon: CircleSlash },
-    { value: 'fixed', label: 'Responsável fixo', description: `Vão sempre para a mesma pessoa.`, icon: User },
-    { value: 'rotate', label: 'Rotação entre colaboradores', description: `Distribuídos em rotação (round-robin).`, icon: RefreshCw },
+    { value: 'none', label: t('Sem atribuição'), description: t('Os {{noun}} ficam por atribuir.', { noun: t(noun) }), icon: CircleSlash },
+    { value: 'fixed', label: t('Responsável fixo'), description: t('Vão sempre para a mesma pessoa.'), icon: User },
+    { value: 'rotate', label: t('Rotação entre colaboradores'), description: t('Distribuídos em rotação (round-robin).'), icon: RefreshCw },
   ];
 
   const selectMode = (next: AssignmentMode) => {
@@ -99,7 +101,7 @@ export function AssignmentSelector({
       {mode !== 'none' && (
         <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {mode === 'rotate' ? 'Quem recebe (2 ou mais)' : 'Quem recebe'}
+            {mode === 'rotate' ? t('Quem recebe (2 ou mais)') : t('Quem recebe')}
           </p>
           <CollaboratorPicker
             members={members}
@@ -108,11 +110,11 @@ export function AssignmentSelector({
             onChange={(next) => onChange({ mode, userIds: next })}
           />
           {mode === 'rotate' && userIds.length < 2 ? (
-            <p className="text-xs text-blue-600 dark:text-blue-400">Seleciona pelo menos 2 para a rotação fazer sentido.</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">{t('Seleciona pelo menos 2 para a rotação fazer sentido.')}</p>
           ) : userIds.length === 0 ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400">Sem ninguém selecionado, fica por atribuir.</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">{t('Sem ninguém selecionado, fica por atribuir.')}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">Quem recebe é notificado por email/push.</p>
+            <p className="text-xs text-muted-foreground">{t('Quem recebe é notificado por email/push.')}</p>
           )}
         </div>
       )}

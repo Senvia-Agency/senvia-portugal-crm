@@ -19,7 +19,8 @@ import { useSaleItems } from "@/hooks/useSaleItems";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency, formatDate, billingPeriodLabel } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { usesFinanceTabs } from "@/lib/finance-tabs";
 import { useState, useMemo, useEffect } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { matchesSearch } from "@/lib/utils";
@@ -34,6 +35,7 @@ import { InvoiceDraftModal, type DraftSaleItem } from "@/components/sales/Invoic
 import { isBillingActive } from "@/components/sales/SaleFiscalInfo";
 import { isSalePaidInFull } from "@/lib/fiscal-eligibility";
 import { toast } from "sonner";
+import { useLanguage } from "@/i18n";
 
 type SortField = 'payment_date' | 'sale_code' | 'client_name' | 'amount' | 'payment_method' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -43,8 +45,23 @@ const SortIcon = ({ field, sortField, sortDirection }: { field: SortField; sortF
   return sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5 ml-1" /> : <ArrowDown className="h-3.5 w-3.5 ml-1" />;
 };
 
+/** Payments now live in the finance page's "A receber" tab; telecom keeps this page for now. */
 export default function FinancePayments() {
+  const { organization } = useAuth();
+  const [searchParams] = useSearchParams();
+  // Telecom has no client receipts to follow, so its finance page has no "A receber".
+  if (organization?.niche === "telecom") return <Navigate to="/financeiro" replace />;
+  if (organization && usesFinanceTabs(organization.niche)) {
+    const status = searchParams.get("status");
+    const view = status === "overdue" ? "overdue" : status === "paid" ? "paid" : status === "pending" ? "open" : null;
+    return <Navigate to={`/financeiro?tab=receber${view ? `&status=${view}` : ""}`} replace />;
+  }
+  return <LegacyFinancePayments />;
+}
+
+function LegacyFinancePayments() {
   const { data: payments, isLoading } = useAllPayments();
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const updatePayment = useUpdateSalePayment();
   const generateReceipt = useGenerateReceipt();
@@ -188,9 +205,9 @@ export default function FinancePayments() {
       Venda: `#${p.sale.code}`,
       Cliente: p.client_name || p.lead_name || '-',
       Valor: p.amount,
-      Método: p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : '-',
+      Método: p.payment_method ? t(PAYMENT_METHOD_LABELS[p.payment_method]) : '-',
       Fatura: p.invoice_reference || '-',
-      Estado: PAYMENT_RECORD_STATUS_LABELS[p.status],
+      Estado: t(PAYMENT_RECORD_STATUS_LABELS[p.status]),
     }));
     exportToExcel(exportData, 'pagamentos');
   };
@@ -289,7 +306,7 @@ export default function FinancePayments() {
       || Number(draftPayment.reversed_amount ?? 0) > 0
       || getDocumentMode(draftPayment) !== draftMode
     ) {
-      toast.error('O estado do pagamento já não permite emitir este documento. Atualiza a página e tenta novamente.');
+      toast.error(t('O estado do pagamento já não permite emitir este documento. Atualiza a página e tenta novamente.'));
       return;
     }
 
@@ -339,21 +356,21 @@ export default function FinancePayments() {
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <CreditCard className="h-5 w-5 shrink-0 text-primary" />
-                Pagamentos
+                {t("Pagamentos")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Histórico de todos os pagamentos
+                {t("Histórico de todos os pagamentos")}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => setShowRevenueModal(true)} className="gap-2">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Adicionar Receita</span>
+              <span className="hidden sm:inline">{t("Adicionar Receita")}</span>
             </Button>
             <Button onClick={handleExport} variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Exportar</span>
+              <span className="hidden sm:inline">{t("Exportar")}</span>
             </Button>
           </div>
         </div>
@@ -365,7 +382,7 @@ export default function FinancePayments() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Pesquisar por cliente, venda ou fatura..."
+                  placeholder={t("Pesquisar por cliente, venda ou fatura...")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -375,29 +392,29 @@ export default function FinancePayments() {
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  placeholder="Período"
+                  placeholder={t("Período")}
                   className="w-full xs:w-auto"
                 />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full xs:w-32">
-                    <SelectValue placeholder="Estado" />
+                    <SelectValue placeholder={t("Estado")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="paid">Pagos</SelectItem>
-                    <SelectItem value="pending">Agendados</SelectItem>
-                    <SelectItem value="overdue">Atrasados</SelectItem>
+                    <SelectItem value="all">{t("Todos")}</SelectItem>
+                    <SelectItem value="paid">{t("Pagos")}</SelectItem>
+                    <SelectItem value="pending">{t("Agendados")}</SelectItem>
+                    <SelectItem value="overdue">{t("Atrasados")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={methodFilter} onValueChange={setMethodFilter}>
                   <SelectTrigger className="w-full xs:w-36">
-                    <SelectValue placeholder="Método" />
+                    <SelectValue placeholder={t("Método")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos métodos</SelectItem>
+                    <SelectItem value="all">{t("Todos métodos")}</SelectItem>
                     {availableMethods.map(method => (
                       <SelectItem key={method} value={method}>
-                        {PAYMENT_METHOD_LABELS[method]}
+                        {t(PAYMENT_METHOD_LABELS[method])}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -405,7 +422,7 @@ export default function FinancePayments() {
                 {hasActiveFilters && (
                   <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
                     <X className="h-4 w-4" />
-                    Limpar
+                    {t("Limpar")}
                   </Button>
                 )}
               </div>
@@ -415,7 +432,7 @@ export default function FinancePayments() {
 
         {hasActiveFilters && !isLoading && (
           <p className="text-sm text-muted-foreground">
-            {filteredPayments.length} pagamento(s) encontrado(s)
+            {t("{{n}} pagamento(s) encontrado(s)", { n: filteredPayments.length })}
           </p>
         )}
 
@@ -431,10 +448,10 @@ export default function FinancePayments() {
             ) : filteredPayments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <CreditCard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground">Nenhum pagamento encontrado</p>
+                <p className="text-muted-foreground">{t("Nenhum pagamento encontrado")}</p>
                 {hasActiveFilters && (
                   <Button variant="link" onClick={clearFilters} className="mt-2">
-                    Limpar filtros
+                    {t("Limpar filtros")}
                   </Button>
                 )}
               </div>
@@ -444,25 +461,25 @@ export default function FinancePayments() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('payment_date')}>
-                        <span className="flex items-center">Data<SortIcon field="payment_date" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center">{t("Data")}<SortIcon field="payment_date" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('sale_code')}>
-                        <span className="flex items-center">Venda<SortIcon field="sale_code" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center">{t("Venda")}<SortIcon field="sale_code" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('client_name')}>
-                        <span className="flex items-center">Cliente<SortIcon field="client_name" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center">{t("Cliente")}<SortIcon field="client_name" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
                       <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
-                        <span className="flex items-center justify-end">Valor<SortIcon field="amount" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center justify-end">{t("Valor")}<SortIcon field="amount" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
                       <TableHead className="hidden sm:table-cell cursor-pointer select-none" onClick={() => handleSort('payment_method')}>
-                        <span className="flex items-center">Método<SortIcon field="payment_method" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center">{t("Método")}<SortIcon field="payment_method" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
-                      <TableHead className="hidden md:table-cell">Fatura</TableHead>
+                      <TableHead className="hidden md:table-cell">{t("Fatura")}</TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
-                        <span className="flex items-center">Estado<SortIcon field="status" sortField={sortField} sortDirection={sortDirection} /></span>
+                        <span className="flex items-center">{t("Estado")}<SortIcon field="status" sortField={sortField} sortDirection={sortDirection} /></span>
                       </TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-right">{t("Ações")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -476,7 +493,7 @@ export default function FinancePayments() {
                               the period the subscription is actually for. */}
                           {billingPeriodLabel(payment.billing_period_start, payment.billing_period_end) && (
                             <div className="text-xs font-normal text-muted-foreground">
-                              Cobre {billingPeriodLabel(payment.billing_period_start, payment.billing_period_end)}
+                              {t("Cobre {{period}}", { period: billingPeriodLabel(payment.billing_period_start, payment.billing_period_end) })}
                             </div>
                           )}
                         </TableCell>
@@ -490,7 +507,7 @@ export default function FinancePayments() {
                           {formatCurrency(payment.amount)}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          {payment.payment_method ? PAYMENT_METHOD_LABELS[payment.payment_method] : '-'}
+                          {payment.payment_method ? t(PAYMENT_METHOD_LABELS[payment.payment_method]) : '-'}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           {payment.invoice_reference || (automaticReceipts?.get(payment.id) ? null : '-')}
@@ -501,7 +518,7 @@ export default function FinancePayments() {
                             variant={payment.status === 'paid' ? 'default' : 'secondary'}
                             className={payment.status === 'paid' ? 'bg-emerald-500' : 'bg-amber-500'}
                           >
-                            {PAYMENT_RECORD_STATUS_LABELS[payment.status]}
+                            {t(PAYMENT_RECORD_STATUS_LABELS[payment.status])}
                           </Badge>
                           <AutomaticReceiptBadge job={automaticReceipts?.get(payment.id)} className="mt-1 flex w-fit md:hidden" />
                         </TableCell>
@@ -515,7 +532,7 @@ export default function FinancePayments() {
                                 onClick={() => openConfirmDialog(payment)}
                               >
                                 <CheckCircle className="h-4 w-4" />
-                                <span className="hidden sm:inline">Marcar Pago</span>
+                                <span className="hidden sm:inline">{t("Marcar Pago")}</span>
                               </Button>
                             )}
                             {canEmitDocument(payment) && (
@@ -529,12 +546,12 @@ export default function FinancePayments() {
                                 {getDocumentMode(payment) === "receipt" ? (
                                   <>
                                     <Receipt className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Emitir Recibo</span>
+                                    <span className="hidden sm:inline">{t("Emitir Recibo")}</span>
                                   </>
                                 ) : (
                                   <>
                                     <FileText className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Emitir FR</span>
+                                    <span className="hidden sm:inline">{t("Emitir FR")}</span>
                                   </>
                                 )}
                               </Button>
@@ -555,29 +572,29 @@ export default function FinancePayments() {
       <Dialog open={!!confirmPayment} onOpenChange={(open) => !open && setConfirmPayment(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Marcar pagamento como pago?</DialogTitle>
+            <DialogTitle>{t("Marcar pagamento como pago?")}</DialogTitle>
             <DialogDescription>
               {confirmPayment && (
                 <span className="flex flex-col gap-2 mt-2">
-                  <span><strong>Cliente:</strong> {confirmPayment.client_name || confirmPayment.lead_name || '-'}</span>
-                  <span><strong>Venda:</strong> #{confirmPayment.sale.code}</span>
-                  <span><strong>Valor:</strong> {formatCurrency(confirmPayment.amount)}</span>
-                  <span><strong>Data agendada:</strong> {formatDate(confirmPayment.payment_date)}</span>
+                  <span><strong>{t("Cliente:")}</strong> {confirmPayment.client_name || confirmPayment.lead_name || '-'}</span>
+                  <span><strong>{t("Venda:")}</strong> #{confirmPayment.sale.code}</span>
+                  <span><strong>{t("Valor:")}</strong> {formatCurrency(confirmPayment.amount)}</span>
+                  <span><strong>{t("Data agendada:")}</strong> {formatDate(confirmPayment.payment_date)}</span>
                 </span>
               )}
             </DialogDescription>
           </DialogHeader>
           {confirmPayment && !confirmPayment.payment_method && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Método de pagamento</label>
+              <label className="text-sm font-medium">{t("Método de pagamento")}</label>
               <Select value={selectedMethod} onValueChange={(v) => setSelectedMethod(v as PaymentMethod)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecionar método..." />
+                  <SelectValue placeholder={t("Selecionar método...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {PAYMENT_METHODS.map(method => (
                     <SelectItem key={method} value={method}>
-                      {PAYMENT_METHOD_LABELS[method]}
+                      {t(PAYMENT_METHOD_LABELS[method])}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -586,15 +603,15 @@ export default function FinancePayments() {
           )}
           {confirmPayment?.payment_method && (
             <div className="text-sm">
-              <strong>Método:</strong> {PAYMENT_METHOD_LABELS[confirmPayment.payment_method]}
+              <strong>{t("Método:")}</strong> {t(PAYMENT_METHOD_LABELS[confirmPayment.payment_method])}
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmPayment(null)} disabled={updatePayment.isPending}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button onClick={handleMarkAsPaid} disabled={updatePayment.isPending}>
-              {updatePayment.isPending ? 'A atualizar...' : 'Confirmar'}
+              {updatePayment.isPending ? t('A atualizar...') : t('Confirmar')}
             </Button>
           </DialogFooter>
         </DialogContent>

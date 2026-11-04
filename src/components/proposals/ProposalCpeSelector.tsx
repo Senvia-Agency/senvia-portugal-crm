@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useCpes } from '@/hooks/useCpes';
 import { ENERGY_COMERCIALIZADORES } from '@/types/cpes';
 import { useCommissionMatrix, getVolumeTier } from '@/hooks/useCommissionMatrix';
+import { useLanguage } from "@/i18n";
 
 export interface ProposalCpeDraft {
   id: string;
@@ -48,6 +49,7 @@ function calculateMargem(consumo: string, duracao: string, dbl: string): string 
 }
 
 export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCpeSelectorProps) {
+  const { t } = useLanguage();
   const { data: clientCpes = [] } = useCpes(clientId);
   const { calculateEnergyCommission, hasEnergyConfig } = useCommissionMatrix();
   
@@ -220,7 +222,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
     <div className="space-y-4">
       <Label className="flex items-center gap-2">
         <Zap className="h-4 w-4" />
-        CPE/CUI (Pontos de Consumo)
+        {t("CPE/CUI (Pontos de Consumo)")}
       </Label>
 
       {/* List of added CPEs with energy data */}
@@ -234,7 +236,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-amber-600" />
-                  <span className="font-medium text-sm">CPE/CUI #{index + 1}</span>
+                  <span className="font-medium text-sm">{t("CPE/CUI #{{n}}", { n: index + 1 })}</span>
                 </div>
                 <Button
                   type="button"
@@ -250,7 +252,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
               {/* CPE basic info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Tipo</Label>
+                  <Label className="text-xs">{t("Tipo")}</Label>
                   <Input
                     value={cpe.equipment_type}
                     className="h-8 text-sm"
@@ -258,7 +260,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Comercializador</Label>
+                  <Label className="text-xs">{t("Comercializador")}</Label>
                   <Input
                     value={cpe.comercializador}
                     onChange={(e) => handleUpdateCpeField(cpe.id, 'comercializador', e.target.value)}
@@ -266,12 +268,12 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">CPE/CUI</Label>
+                  <Label className="text-xs">{t("CPE/CUI")}</Label>
                   <Input
                     value={cpe.serial_number}
                     onChange={(e) => handleUpdateCpeField(cpe.id, 'serial_number', e.target.value)}
                     className="h-8 text-sm"
-                    placeholder="PT0002..."
+                    placeholder={t("PT0002...")}
                   />
                 </div>
               </div>
@@ -281,7 +283,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
               {/* Energy data per CPE */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2 items-end">
                 <div className="space-y-1">
-                  <Label className="text-xs">Consumo Anual (kWh)</Label>
+                  <Label className="text-xs">{t("Consumo Anual (kWh)")}</Label>
                   <Input
                     type="number"
                     step="1"
@@ -293,7 +295,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Início Contrato</Label>
+                  <Label className="text-xs">{t("Início Contrato")}</Label>
                   <Input
                     type="date"
                     value={cpe.contrato_inicio}
@@ -302,7 +304,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Fim Contrato</Label>
+                  <Label className="text-xs">{t("Fim Contrato")}</Label>
                   <Input
                     type="date"
                     value={cpe.contrato_fim}
@@ -311,7 +313,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">DBL (€/MWh)</Label>
+                  <Label className="text-xs">{t("DBL (€/MWh)")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -328,31 +330,31 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
                     <Calculator className="h-3 w-3" />
-                    Duração (anos)
+                    {t("Duração (anos)")}
                   </Label>
                   <Input
                     value={cpe.duracao_contrato}
                     className="h-8 text-sm bg-muted font-medium"
                     disabled
-                    placeholder="Auto"
+                    placeholder={t("Auto")}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
                     <Calculator className="h-3 w-3" />
-                    Margem (€)
+                    {t("Margem (€)")}
                   </Label>
                   <Input
                     value={cpe.margem}
                     className="h-8 text-sm bg-muted font-medium"
                     disabled
-                    placeholder="Auto"
+                    placeholder={t("Auto")}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
-                    Comissão (€)
-                    {hasEnergyConfig && <Badge variant="outline" className="text-[9px] ml-1">Auto</Badge>}
+                    {t("Comissão (€)")}
+                    {hasEnergyConfig && <Badge variant="outline" className="text-[9px] ml-1">{t("Auto")}</Badge>}
                   </Label>
                   <Input
                     type="number"
@@ -370,8 +372,8 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
               {/* Summary */}
               {cpe.margem && parseFloat(cpe.margem) > 0 && (
                 <div className="mt-3 p-2 bg-amber-100 dark:bg-amber-900/30 rounded text-xs text-amber-800 dark:text-amber-200">
-                  Margem calculada: <strong>{formatCurrency(cpe.margem)}</strong>
-                  {cpe.comissao && ` | Comissão: ${formatCurrency(cpe.comissao)}`}
+                  {t("Margem calculada:")} <strong>{formatCurrency(cpe.margem)}</strong>
+                  {cpe.comissao && ` | ${t("Comissão:")} ${formatCurrency(cpe.comissao)}`}
                 </div>
               )}
             </div>
@@ -381,31 +383,31 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
 
       {/* Add CPE from existing client CPEs */}
       <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
-        <Label className="text-sm font-medium">Selecionar CPE/CUI do Cliente</Label>
+        <Label className="text-sm font-medium">{t("Selecionar CPE/CUI do Cliente")}</Label>
         
         {!clientId ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Selecione um cliente para ver os CPEs existentes
+            {t("Selecione um cliente para ver os CPEs existentes")}
           </p>
         ) : clientCpes.length === 0 ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-sm text-muted-foreground">
-              Este cliente não tem CPEs cadastrados.
+              {t("Este cliente não tem CPEs registados.")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Adicione primeiro os pontos de consumo na ficha do cliente.
+              {t("Adicione primeiro os pontos de consumo na ficha do cliente.")}
             </p>
           </div>
         ) : availableExistingCpes.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Todos os CPEs deste cliente já foram adicionados à proposta.
+            {t("Todos os CPEs deste cliente já foram adicionados à proposta.")}
           </p>
         ) : (
           <>
             <div className="space-y-1">
               <Select value={selectedExistingCpe || ''} onValueChange={setSelectedExistingCpe}>
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Selecionar CPE existente..." />
+                  <SelectValue placeholder={t("Selecionar CPE existente...")} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableExistingCpes.map((cpe) => (
@@ -422,22 +424,22 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Novo Comercializador <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">{t("Novo Comercializador")} <span className="text-destructive">*</span></Label>
                     <Select value={updateComercializador} onValueChange={setUpdateComercializador}>
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Manter atual..." />
+                        <SelectValue placeholder={t("Manter atual...")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="keep_current">Manter atual</SelectItem>
+                        <SelectItem value="keep_current">{t("Manter atual")}</SelectItem>
                         {comercializadorOptions.map((c) => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
-                        <SelectItem value="other">Outro...</SelectItem>
+                        <SelectItem value="other">{t("Outro...")}</SelectItem>
                       </SelectContent>
                     </Select>
                     {updateComercializador === 'other' && (
                       <Input
-                        placeholder="Comercializador..."
+                        placeholder={t("Comercializador...")}
                         value={updateCustomComercializador}
                         onChange={(e) => setUpdateCustomComercializador(e.target.value)}
                         className="h-8 mt-1"
@@ -445,7 +447,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Início Contrato <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">{t("Início Contrato")} <span className="text-destructive">*</span></Label>
                     <Input
                       type="date"
                       value={updateContratoInicio}
@@ -454,7 +456,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                     />
                   </div>
                    <div className="space-y-1">
-                    <Label className="text-xs">Fim Contrato <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">{t("Fim Contrato")} <span className="text-destructive">*</span></Label>
                     <Input
                       type="date"
                       value={updateContratoFim}
@@ -469,7 +471,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                 {/* Energy fields */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Consumo Anual (kWh) <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">{t("Consumo Anual (kWh)")} <span className="text-destructive">*</span></Label>
                     <Input
                       type="number"
                       step="1"
@@ -481,7 +483,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">DBL (€/MWh) <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">{t("DBL (€/MWh)")} <span className="text-destructive">*</span></Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -495,33 +497,33 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
                       <Calculator className="h-3 w-3" />
-                      Duração (anos)
+                      {t("Duração (anos)")}
                     </Label>
                     <Input
                       value={updateDuracaoContrato}
                       className="h-8 bg-muted font-medium"
                       disabled
-                      placeholder="Auto"
+                      placeholder={t("Auto")}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
                       <Calculator className="h-3 w-3" />
-                      Margem (€)
+                      {t("Margem (€)")}
                     </Label>
                     <Input
                       value={updateMargem}
                       className="h-8 bg-muted font-medium"
                       disabled
-                      placeholder="Auto"
+                      placeholder={t("Auto")}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
-                    Comissão (€) <span className="text-destructive">*</span>
-                    {hasEnergyConfig && <Badge variant="outline" className="text-[9px] ml-1">Auto</Badge>}
+                    {t("Comissão (€)")} <span className="text-destructive">*</span>
+                    {hasEnergyConfig && <Badge variant="outline" className="text-[9px] ml-1">{t("Auto")}</Badge>}
                   </Label>
                   <Input
                     type="number"
@@ -544,7 +546,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Adicionar à Proposta
+                  {t("Adicionar à Proposta")}
                 </Button>
               </>
             )}

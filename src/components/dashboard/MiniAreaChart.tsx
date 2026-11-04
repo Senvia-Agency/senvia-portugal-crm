@@ -1,4 +1,5 @@
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { useLanguage } from "@/i18n";
 
 interface MiniAreaChartProps {
   data: { value: number }[];
@@ -7,10 +8,11 @@ interface MiniAreaChartProps {
 }
 
 export function MiniAreaChart({ data, color = "hsl(var(--primary))", height = 60 }: MiniAreaChartProps) {
+  const { t } = useLanguage();
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
-        Sem dados
+        {t("Sem dados")}
       </div>
     );
   }

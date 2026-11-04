@@ -4,6 +4,7 @@ import { GripVertical, Edit2, Trash2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PipelineStage } from "@/hooks/usePipelineStages";
+import { useLanguage } from "@/i18n";
 
 interface SortableStageItemProps {
   stage: PipelineStage;
@@ -12,6 +13,7 @@ interface SortableStageItemProps {
 }
 
 export function SortableStageItem({ stage, onEdit, onDelete }: SortableStageItemProps) {
+  const { t } = useLanguage();
   const {
     attributes,
     listeners,
@@ -42,7 +44,7 @@ export function SortableStageItem({ stage, onEdit, onDelete }: SortableStageItem
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-1 -m-1 touch-none"
-        aria-label="Arrastar para reordenar"
+        aria-label={t("Arrastar para reordenar")}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </button>
@@ -63,12 +65,12 @@ export function SortableStageItem({ stage, onEdit, onDelete }: SortableStageItem
       <div className="flex items-center gap-2">
         {stage.is_final_positive && (
           <span className="text-success text-xs flex items-center gap-1">
-            <Check className="h-3 w-3" /> Ganho
+            <Check className="h-3 w-3" /> {t("Ganho")}
           </span>
         )}
         {stage.is_final_negative && (
           <span className="text-muted-foreground text-xs flex items-center gap-1">
-            <X className="h-3 w-3" /> Perdido
+            <X className="h-3 w-3" /> {t("Perdido")}
           </span>
         )}
       </div>

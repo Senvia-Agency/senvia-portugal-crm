@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, useLanguage } from "@/i18n";
 import { MoreHorizontal, Eye, Trash2, Users, Bot } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,13 @@ interface Props {
 
 export function ContactListsTable({ lists, onView, onDelete }: Props) {
   const isMobile = useIsMobile();
+  const { t } = useLanguage();
 
   if (lists.length === 0) {
     return (
       <div className="text-center py-12">
         <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">Nenhuma lista criada</p>
+        <p className="text-sm text-muted-foreground">{t("Nenhuma lista criada")}</p>
       </div>
     );
   }
@@ -33,7 +34,7 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
       {list.is_system && (
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 shrink-0">
           <Bot className="h-3 w-3" />
-          Auto
+          {t("Auto")}
         </Badge>
       )}
     </div>
@@ -50,9 +51,9 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
                   <NameWithBadge list={list} />
                   {list.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{list.description}</p>}
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="secondary">{list.member_count} contacto(s)</Badge>
+                    <Badge variant="secondary">{t("{{n}} contacto(s)", { n: list.member_count })}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(list.created_at), "dd MMM yyyy", { locale: pt })}
+                      {format(new Date(list.created_at), "dd MMM yyyy", { locale: dateLocale() })}
                     </span>
                   </div>
                 </div>
@@ -62,11 +63,11 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(list); }}>
-                      <Eye className="h-4 w-4 mr-2" /> Ver
+                      <Eye className="h-4 w-4 mr-2" /> {t("Ver")}
                     </DropdownMenuItem>
                     {!list.is_system && (
                       <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(list.id); }}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                        <Trash2 className="h-4 w-4 mr-2" /> {t("Eliminar")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -84,10 +85,10 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nome</TableHead>
-            <TableHead>Descrição</TableHead>
-            <TableHead className="text-center">Contactos</TableHead>
-            <TableHead>Criado em</TableHead>
+            <TableHead>{t("Nome")}</TableHead>
+            <TableHead>{t("Descrição")}</TableHead>
+            <TableHead className="text-center">{t("Contactos")}</TableHead>
+            <TableHead>{t("Criado em")}</TableHead>
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
@@ -100,7 +101,7 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
                 <Badge variant="secondary">{list.member_count}</Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {format(new Date(list.created_at), "dd MMM yyyy", { locale: pt })}
+                {format(new Date(list.created_at), "dd MMM yyyy", { locale: dateLocale() })}
               </TableCell>
               <TableCell>
                 <DropdownMenu>
@@ -109,11 +110,11 @@ export function ContactListsTable({ lists, onView, onDelete }: Props) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(list); }}>
-                      <Eye className="h-4 w-4 mr-2" /> Ver detalhes
+                      <Eye className="h-4 w-4 mr-2" /> {t("Ver detalhes")}
                     </DropdownMenuItem>
                     {!list.is_system && (
                       <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(list.id); }}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                        <Trash2 className="h-4 w-4 mr-2" /> {t("Eliminar")}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>

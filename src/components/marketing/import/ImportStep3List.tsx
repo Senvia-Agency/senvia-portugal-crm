@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
+import { dateLocale, useLanguage } from "@/i18n";
 
 interface ListItem {
   id: string;
@@ -31,6 +31,7 @@ export function ImportStep3List({ lists, selectedListId, onSelectList, onCreateL
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [tab, setTab] = useState<string>("select");
+  const { t } = useLanguage();
 
   const filtered = lists.filter(l => l.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -42,20 +43,20 @@ export function ImportStep3List({ lists, selectedListId, onSelectList, onCreateL
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <TabsList className="w-full grid grid-cols-2">
-        <TabsTrigger value="select">Selecionar uma lista</TabsTrigger>
-        <TabsTrigger value="create">Criar uma lista</TabsTrigger>
+        <TabsTrigger value="select">{t("Selecionar uma lista")}</TabsTrigger>
+        <TabsTrigger value="create">{t("Criar uma lista")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="select" className="space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Pesquisar listas..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder={t("Pesquisar listas...")} value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
 
         <ScrollArea className="max-h-[250px]">
           <div className="space-y-1">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Nenhuma lista encontrada</p>
+              <p className="text-sm text-muted-foreground text-center py-6">{t("Nenhuma lista encontrada")}</p>
             ) : (
               filtered.map((list, idx) => (
                 <button
@@ -75,9 +76,9 @@ export function ImportStep3List({ lists, selectedListId, onSelectList, onCreateL
                   </div>
                   <span className="text-xs text-muted-foreground w-6">{idx + 1}</span>
                   <span className="flex-1 font-medium truncate">{list.name}</span>
-                  <span className="text-xs text-muted-foreground">{list.member_count} contactos</span>
+                  <span className="text-xs text-muted-foreground">{t("{{n}} contactos", { n: list.member_count })}</span>
                   <span className="text-xs text-muted-foreground hidden sm:inline">
-                    {format(new Date(list.created_at), "dd MMM yyyy", { locale: pt })}
+                    {format(new Date(list.created_at), "dd MMM yyyy", { locale: dateLocale() })}
                   </span>
                 </button>
               ))
@@ -87,24 +88,24 @@ export function ImportStep3List({ lists, selectedListId, onSelectList, onCreateL
 
         <div className="flex items-center justify-between pt-2 border-t">
           <p className="text-xs text-muted-foreground">
-            {selectedListId ? "1 lista selecionada" : "Nenhuma lista selecionada"}
+            {selectedListId ? t("1 lista selecionada") : t("Nenhuma lista selecionada")}
           </p>
-          <Button size="sm" onClick={onConfirm} disabled={!selectedListId}>Confirmar sua lista</Button>
+          <Button size="sm" onClick={onConfirm} disabled={!selectedListId}>{t("Confirmar lista")}</Button>
         </div>
       </TabsContent>
 
       <TabsContent value="create" className="space-y-4">
         <div className="space-y-2">
-          <Label>Nome da lista *</Label>
-          <Input placeholder="Ex: Importação Fevereiro" value={newName} onChange={e => setNewName(e.target.value)} />
+          <Label>{t("Nome da lista *")}</Label>
+          <Input placeholder={t("Ex: Importação Fevereiro")} value={newName} onChange={e => setNewName(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Descrição (opcional)</Label>
-          <Textarea placeholder="Breve descrição da lista..." value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={2} />
+          <Label>{t("Descrição (opcional)")}</Label>
+          <Textarea placeholder={t("Breve descrição da lista...")} value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={2} />
         </div>
         <div className="flex justify-end">
           <Button onClick={handleCreate} disabled={!newName.trim() || isCreating}>
-            {isCreating ? "A criar..." : "Criar e selecionar"}
+            {isCreating ? t("A criar...") : t("Criar e selecionar")}
           </Button>
         </div>
       </TabsContent>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { UserOrganization } from '@/hooks/useUserOrganizations';
+import { useLanguage } from '@/i18n';
 
 interface OrganizationSelectorProps {
   organizations: UserOrganization[];
@@ -17,6 +18,7 @@ export function OrganizationSelector({
   onSelect, 
   isLoading 
 }: OrganizationSelectorProps) {
+  const { t } = useLanguage();
   const [searchCode, setSearchCode] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -39,18 +41,18 @@ export function OrganizationSelector({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Building2 className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-xl">Selecionar Empresa</CardTitle>
+          <CardTitle className="text-xl">{t("Selecionar Empresa")}</CardTitle>
           <CardDescription>
-            A sua conta tem acesso a múltiplas empresas. Escolha qual pretende aceder.
+            {t("A sua conta tem acesso a múltiplas empresas. Escolha qual pretende aceder.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {organizations.length > 3 && (
             <div className="space-y-2">
-              <Label htmlFor="search">Pesquisar por código ou nome</Label>
+              <Label htmlFor="search">{t("Pesquisar por código ou nome")}</Label>
               <Input
                 id="search"
-                placeholder="ORG-0001 ou nome..."
+                placeholder={t("ORG-0001 ou nome...")}
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
               />
@@ -79,7 +81,7 @@ export function OrganizationSelector({
             
             {filteredOrgs.length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-4">
-                Nenhuma empresa encontrada
+                {t("Nenhuma empresa encontrada")}
               </p>
             )}
           </div>

@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { NO_AUTOMATION_FOLDER, automationFolderIdFromSelection } from '@/lib/automation-folder-selection';
 import type { AutomationFlow, AutomationFolder, AutomationReentryPolicy, QuietHours } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 interface FlowSettingsProps {
   flow: AutomationFlow;
@@ -40,6 +41,7 @@ const REENTRY_LABELS: Record<AutomationReentryPolicy, { label: string; hint: str
 };
 
 export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }: FlowSettingsProps) {
+  const { t } = useLanguage();
   const [quietEnabled, setQuietEnabled] = useState(!!flow.quiet_hours?.start);
   const [start, setStart] = useState(flow.quiet_hours?.start ?? '21:00');
   const [end, setEnd] = useState(flow.quiet_hours?.end ?? '09:00');
@@ -62,10 +64,10 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Folder className="h-4 w-4 text-primary" />
-            Pasta
+            {t('Pasta')}
           </CardTitle>
           <CardDescription>
-            Escolha onde esta automação aparece na lista. A pasta não altera o gatilho nem o que ela envia.
+            {t('Escolha onde esta automação aparece na lista. A pasta não altera o gatilho nem o que ela envia.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,10 +79,10 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Sem pasta" />
+              <SelectValue placeholder={t('Sem pasta')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_AUTOMATION_FOLDER}>Sem pasta</SelectItem>
+              <SelectItem value={NO_AUTOMATION_FOLDER}>{t('Sem pasta')}</SelectItem>
               {folders.map((folder) => (
                 <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>
               ))}
@@ -93,17 +95,16 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4 text-warning" />
-            Horário de silêncio
+            {t('Horário de silêncio')}
           </CardTitle>
           <CardDescription>
-            Mensagens que calhem dentro desta janela não são canceladas — ficam à espera e saem
-            assim que ela termina. Evita enviar às 3 da manhã.
+            {t('Mensagens que calhem dentro desta janela não são canceladas — ficam à espera e saem assim que ela termina. Evita enviar às 3 da manhã.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="quiet-toggle" className="font-normal">
-              Não enviar durante a noite
+              {t('Não enviar durante a noite')}
             </Label>
             <Switch id="quiet-toggle" checked={quietEnabled} onCheckedChange={setQuietEnabled} />
           </div>
@@ -112,7 +113,7 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="quiet-start" className="text-xs text-muted-foreground">
-                  A partir das
+                  {t('A partir das')}
                 </Label>
                 <Input
                   id="quiet-start"
@@ -123,7 +124,7 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="quiet-end" className="text-xs text-muted-foreground">
-                  Até às
+                  {t('Até às')}
                 </Label>
                 <Input
                   id="quiet-end"
@@ -133,7 +134,7 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
                 />
               </div>
               <p className="col-span-2 text-xs text-muted-foreground">
-                Hora de Portugal continental.
+                {t('Hora de Portugal continental.')}
               </p>
             </div>
           )}
@@ -144,11 +145,10 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <RotateCcw className="h-4 w-4 text-primary" />
-            Quem pode voltar a entrar
+            {t('Quem pode voltar a entrar')}
           </CardTitle>
           <CardDescription>
-            O que acontece quando o gatilho dispara outra vez para um contacto que já passou por
-            aqui.
+            {t('O que acontece quando o gatilho dispara outra vez para um contacto que já passou por aqui.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
@@ -159,12 +159,12 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
             <SelectContent>
               {(Object.keys(REENTRY_LABELS) as AutomationReentryPolicy[]).map((key) => (
                 <SelectItem key={key} value={key}>
-                  {REENTRY_LABELS[key].label}
+                  {t(REENTRY_LABELS[key].label)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">{REENTRY_LABELS[reentry].hint}</p>
+          <p className="text-xs text-muted-foreground">{t(REENTRY_LABELS[reentry].hint)}</p>
         </CardContent>
       </Card>
 
@@ -172,12 +172,10 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldAlert className="h-4 w-4 text-destructive" />
-            Limite de passos
+            {t('Limite de passos')}
           </CardTitle>
           <CardDescription>
-            Travão de segurança: se um contacto passar por mais passos do que este número, o
-            percurso é interrompido e marcado com erro. Protege contra fluxos que voltam sobre si
-            próprios em ciclo.
+            {t('Travão de segurança: se um contacto passar por mais passos do que este número, o percurso é interrompido e marcado com erro. Protege contra fluxos que voltam sobre si próprios em ciclo.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,7 +192,7 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving}>
-          Guardar definições
+          {t('Guardar definições')}
         </Button>
       </div>
     </div>

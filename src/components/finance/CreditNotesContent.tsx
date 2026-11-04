@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { openPdfInNewTab } from "@/lib/download";
+import { tr, useLanguage } from "@/i18n";
 
 const getStatusLabel = (status: string | null) => {
   const map: Record<string, string> = {
@@ -21,7 +22,8 @@ const getStatusLabel = (status: string | null) => {
     sent: 'Enviada',
     second_copy: 'Segunda Via',
   };
-  return map[status || ''] || status || '-';
+  const label = map[status || ''];
+  return label ? tr(label) : status || '-';
 };
 
 const getStatusVariant = (status: string | null): "default" | "secondary" | "destructive" | "outline" => {
@@ -35,6 +37,7 @@ const getStatusVariant = (status: string | null): "default" | "secondary" | "des
 
 export function CreditNotesContent() {
   const { data: creditNotes, isLoading } = useCreditNotes();
+  const { t } = useLanguage();
   const { data: orgData } = useOrganization();
   const isInvoicexpressEnabled = (orgData?.integrations_enabled as any)?.invoicexpress === true;
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function CreditNotesContent() {
     try {
       await openPdfInNewTab(pdfPath);
     } catch {
-      toast.error("Erro ao abrir PDF");
+      toast.error(t("Erro ao abrir PDF"));
     } finally {
       setViewingId(null);
     }
@@ -65,9 +68,9 @@ export function CreditNotesContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Notas de Crédito</h2>
+          <h2 className="text-lg font-semibold">{t("Notas de Crédito")}</h2>
           <p className="text-sm text-muted-foreground">
-            Notas de crédito importadas do InvoiceXpress
+            {t("Notas de crédito importadas do InvoiceXpress")}
           </p>
         </div>
         <Button
@@ -81,7 +84,7 @@ export function CreditNotesContent() {
           ) : (
             <RefreshCw className="h-4 w-4 mr-2" />
           )}
-          Sincronizar
+          {t("Sincronizar")}
         </Button>
       </div>
 
@@ -96,9 +99,9 @@ export function CreditNotesContent() {
           ) : !creditNotes?.length ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground">Nenhuma nota de crédito encontrada</p>
+              <p className="text-muted-foreground">{t("Nenhuma nota de crédito encontrada")}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Clique em "Sincronizar" para importar notas de crédito do InvoiceXpress
+                {t("Clique em \"Sincronizar\" para importar notas de crédito do InvoiceXpress")}
               </p>
             </div>
           ) : (
@@ -106,13 +109,13 @@ export function CreditNotesContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Referência</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                    <TableHead className="text-center">Fatura Origem</TableHead>
-                    <TableHead className="text-center">Associada</TableHead>
+                    <TableHead>{t("Referência")}</TableHead>
+                    <TableHead>{t("Data")}</TableHead>
+                    <TableHead>{t("Cliente")}</TableHead>
+                    <TableHead className="text-right">{t("Valor")}</TableHead>
+                    <TableHead className="text-center">{t("Estado")}</TableHead>
+                    <TableHead className="text-center">{t("Fatura Origem")}</TableHead>
+                    <TableHead className="text-center">{t("Associada")}</TableHead>
                     <TableHead className="text-center w-[80px]">PDF</TableHead>
                   </TableRow>
                 </TableHeader>

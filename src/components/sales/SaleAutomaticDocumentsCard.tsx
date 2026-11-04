@@ -12,6 +12,7 @@ import { useUpdateSale } from "@/hooks/useSales";
 import { choiceFromValue, effectiveSaleSetting, valueFromChoice, type SaleFiscalChoice } from "@/lib/fiscal-automation";
 import { cn } from "@/lib/utils";
 import type { Sale } from "@/types/sales";
+import { useLanguage } from "@/i18n";
 
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 
@@ -26,6 +27,7 @@ export function SaleAutomaticDocumentsCard({ sale, disabled = false }: {
   sale: Pick<Sale, "id" | "client_id" | "invoice_reference" | "fiscal_invoice_last_error" | SaleFiscalFields>;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const updateSale = useUpdateSale();
   const client = useQuery({
@@ -44,11 +46,11 @@ export function SaleAutomaticDocumentsCard({ sale, disabled = false }: {
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ error: { message?: string } | null }>)("retry_automatic_sale_invoice", { p_sale_id: sale.id });
-      if (error) throw new Error(error.message || "Não foi possível repetir a emissão");
+      if (error) throw new Error(error.message || t("Não foi possível repetir a emissão"));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      toast.success("Nova tentativa na próxima passagem (até 5 minutos)");
+      toast.success(t("Nova tentativa na próxima passagem (até 5 minutos)"));
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -73,47 +75,47 @@ export function SaleAutomaticDocumentsCard({ sale, disabled = false }: {
       <CardHeader className="pb-2 p-4">
         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
           <FileText className="h-4 w-4" />
-          Documentos automáticos
+          {t("Documentos automáticos")}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Fatura</Label>
+            <Label className="text-xs">{t("Fatura")}</Label>
             {sale.invoice_reference ? (
-              <p className="flex h-10 items-center text-sm">{sale.invoice_reference} emitida</p>
+              <p className="flex h-10 items-center text-sm">{sale.invoice_reference} {t("emitida")}</p>
             ) : (
               <Select value={invoice ? "on" : "off"} disabled={busy}
                 onValueChange={(choice) => save({ fiscal_auto_invoices: choice === "on" })}>
-                <SelectTrigger aria-label="Emitir a Fatura automaticamente"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Emitir a Fatura automaticamente")}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="on">Emitir automaticamente</SelectItem>
-                  <SelectItem value="off">Emitir à mão</SelectItem>
+                  <SelectItem value="on">{t("Emitir automaticamente")}</SelectItem>
+                  <SelectItem value="off">{t("Emitir à mão")}</SelectItem>
                 </SelectContent>
               </Select>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Recibo ao marcar como pago</Label>
+            <Label className="text-xs">{t("Recibo ao marcar como pago")}</Label>
             <Select value={choiceFromValue(sale.fiscal_auto_receipts)} disabled={busy}
               onValueChange={(choice) => save({ fiscal_auto_receipts: valueFromChoice(choice as SaleFiscalChoice) })}>
-              <SelectTrigger aria-label="Emitir recibo ao marcar como pago"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Emitir recibo ao marcar como pago")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="follow">Como no cliente ({onOff(clientReceipts)})</SelectItem>
-                <SelectItem value="on">Ligado nesta venda</SelectItem>
-                <SelectItem value="off">Desligado nesta venda</SelectItem>
+                <SelectItem value="follow">{clientReceipts ? t("Como no cliente (ligado)") : t("Como no cliente (desligado)")}</SelectItem>
+                <SelectItem value="on">{t("Ligado nesta venda")}</SelectItem>
+                <SelectItem value="off">{t("Desligado nesta venda")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Enviar por email</Label>
+            <Label className="text-xs">{t("Enviar por email")}</Label>
             <Select value={choiceFromValue(sale.fiscal_auto_email)} disabled={busy || !(invoice || receipts)}
               onValueChange={(choice) => save({ fiscal_auto_email: valueFromChoice(choice as SaleFiscalChoice) })}>
-              <SelectTrigger aria-label="Enviar os documentos por email"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Enviar os documentos por email")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="follow">Como no cliente ({onOff(clientEmail)})</SelectItem>
-                <SelectItem value="on">Enviar nesta venda</SelectItem>
-                <SelectItem value="off">Não enviar nesta venda</SelectItem>
+                <SelectItem value="follow">{clientEmail ? t("Como no cliente (ligado)") : t("Como no cliente (desligado)")}</SelectItem>
+                <SelectItem value="on">{t("Enviar nesta venda")}</SelectItem>
+                <SelectItem value="off">{t("Não enviar nesta venda")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -121,19 +123,19 @@ export function SaleAutomaticDocumentsCard({ sale, disabled = false }: {
         {sale.fiscal_invoice_last_error && !sale.invoice_reference && (
           <div className="flex flex-wrap items-start gap-2 rounded-md bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 break-words">Fatura automática parada: {sale.fiscal_invoice_last_error}</span>
+            <span className="min-w-0 flex-1 break-words">{t("Fatura automática parada:")} {sale.fiscal_invoice_last_error}</span>
             <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
               onClick={() => retryInvoice.mutate()} disabled={retryInvoice.isPending || disabled}>
               <RotateCcw className={cn("h-3.5 w-3.5", retryInvoice.isPending && "animate-spin")} />
-              Tentar novamente
+              {t("Tentar novamente")}
             </Button>
           </div>
         )}
         {email && (
           <div className="space-y-1.5">
-            <Label htmlFor={`sale-documents-recipient-${sale.id}`} className="text-xs">Enviar para</Label>
+            <Label htmlFor={`sale-documents-recipient-${sale.id}`} className="text-xs">{t("Enviar para")}</Label>
             <Input id={`sale-documents-recipient-${sale.id}`} type="email" value={recipient} disabled={busy}
-              placeholder={client.data?.email || "Email do cliente"}
+              placeholder={client.data?.email || t("Email do cliente")}
               onChange={(event) => setRecipient(event.target.value)}
               onBlur={() => {
                 const next = recipient.trim().toLowerCase();
@@ -141,13 +143,15 @@ export function SaleAutomaticDocumentsCard({ sale, disabled = false }: {
                 if (next && !EMAIL.test(next)) { setRecipient(sale.fiscal_email_recipient ?? ""); return; }
                 save({ fiscal_email_recipient: next || null });
               }} />
-            <p className="text-[11px] text-muted-foreground">Vazio = email do cliente.</p>
+            <p className="text-[11px] text-muted-foreground">{t("Vazio = email do cliente.")}</p>
           </div>
         )}
         <p className="text-xs text-muted-foreground">
           {documents
-            ? `Automático: ${documents}${email ? `, enviados para ${to ?? "o email do cliente"}` : ""}.`
-            : "Os documentos desta venda emitem-se à mão."}
+            ? (email
+              ? t("Automático: {{documents}}, enviados para {{to}}.", { documents: t(documents), to: to ?? t("o email do cliente") })
+              : t("Automático: {{documents}}.", { documents: t(documents) }))
+            : t("Os documentos desta venda emitem-se à mão.")}
         </p>
       </CardContent>
     </Card>

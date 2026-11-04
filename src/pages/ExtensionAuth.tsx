@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/i18n';
 
 // Pairing handshake for the "Senvia OS — WhatsApp" Chrome extension.
 //
@@ -17,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 type State = 'idle' | 'pairing' | 'done' | 'error';
 
 export default function ExtensionAuth() {
+  const { t } = useLanguage();
   const { user, organization } = useAuth();
   const [detected, setDetected] = useState(false);
   const [state, setState] = useState<State>('idle');
@@ -55,7 +57,7 @@ export default function ExtensionAuth() {
     const session = data.session;
     if (sessionError || !session) {
       setState('error');
-      setError('Sessão não encontrada. Volta a entrar na tua conta.');
+      setError('Sessão não encontrada. Volte a entrar na sua conta.');
       return;
     }
     if (!organization?.id) {
@@ -84,7 +86,7 @@ export default function ExtensionAuth() {
     window.setTimeout(() => {
       setState((prev) => {
         if (prev !== 'pairing') return prev;
-        setError('A extensão não respondeu. Confirma que está instalada e ativa, e recarrega esta página.');
+        setError('A extensão não respondeu. Confirme que está instalada e ativa, e recarregue esta página.');
         return 'error';
       });
     }, 3000);
@@ -99,9 +101,9 @@ export default function ExtensionAuth() {
               <Chrome className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
-              <CardTitle>Extensão para o WhatsApp Web</CardTitle>
+              <CardTitle>{t('Extensão para o WhatsApp Web')}</CardTitle>
               <CardDescription>
-                Mostra a ficha do CRM ao lado das conversas em web.whatsapp.com
+                {t('Mostra a ficha do CRM ao lado das conversas em web.whatsapp.com')}
               </CardDescription>
             </div>
           </div>
@@ -109,9 +111,9 @@ export default function ExtensionAuth() {
 
         <CardContent className="space-y-5">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-            <p className="font-medium">Vais ligar esta conta:</p>
+            <p className="font-medium">{t('Vai ligar esta conta:')}</p>
             <p className="mt-1 text-muted-foreground">
-              {user?.email ?? '—'} · {organization?.name ?? 'sem organização'}
+              {user?.email ?? '—'} · {organization?.name ?? t('sem organização')}
             </p>
           </div>
 
@@ -119,9 +121,9 @@ export default function ExtensionAuth() {
             <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-medium">Extensão ligada.</p>
+                <p className="font-medium">{t('Extensão ligada.')}</p>
                 <p className="mt-0.5 opacity-90">
-                  Abre o web.whatsapp.com — o painel Senvia aparece à direita.
+                  {t('Abra o web.whatsapp.com — o painel Senvia aparece à direita.')}
                 </p>
               </div>
             </div>
@@ -130,33 +132,32 @@ export default function ExtensionAuth() {
               <Button onClick={pair} disabled={state === 'pairing' || !organization?.id} className="w-full sm:w-auto">
                 {state === 'pairing' ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> A ligar…
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('A ligar…')}
                   </>
                 ) : (
-                  'Ligar extensão'
+                  t('Ligar extensão')
                 )}
               </Button>
 
               {!detected && state === 'idle' && (
                 <p className="text-xs text-muted-foreground">
-                  Ainda não detetámos a extensão nesta página. Se já a instalaste, recarrega.
+                  {t('Ainda não detetámos a extensão nesta página. Se já a instalou, recarregue.')}
                 </p>
               )}
 
               {state === 'error' && error && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>{error}</p>
+                  <p>{t(error)}</p>
                 </div>
               )}
             </>
           )}
 
           <div className="border-t pt-4 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">O que a extensão vê</p>
+            <p className="font-medium text-foreground">{t('O que a extensão vê')}</p>
             <p className="mt-1">
-              Apenas o número de telefone da conversa aberta, para procurar a ficha correspondente no
-              teu CRM. O conteúdo das mensagens nunca é lido nem enviado.
+              {t('Apenas o número de telefone da conversa aberta, para procurar a ficha correspondente no seu CRM. O conteúdo das mensagens nunca é lido nem enviado.')}
             </p>
           </div>
         </CardContent>

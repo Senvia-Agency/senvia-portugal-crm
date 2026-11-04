@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useModules } from "@/hooks/useModules";
 import { COUNTRIES } from "@/lib/countries";
 import {
@@ -8,31 +8,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { RecordTasks } from "@/components/inbox/RecordTasks";
 import { ContactNotes } from "@/components/contacts/ContactNotes";
 import {
+  ArrowLeft,
   Mail,
   Phone,
   Building2,
   MapPin,
   FileText,
   ShoppingCart,
-  Edit,
-  MessageSquare,
+  Pencil,
+  MessageCircle,
   Plus,
   Calendar as CalendarIcon,
-  Save,
-  X,
   User,
   Router,
   Zap,
-  Euro,
+  Hash,
+  Layers,
+  Globe,
+  Receipt,
   ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { formatDate, formatCurrency, getInboxUrl } from "@/lib/format";
 import { Link } from "react-router-dom";
@@ -44,16 +44,17 @@ import { saleStatusBadge, proposalStatusBadge } from "@/lib/status-badge-maps";
 import { ProposalDetailsModal } from "@/components/proposals/ProposalDetailsModal";
 import { useClientLabels } from "@/hooks/useClientLabels";
 import { useClientHistory } from "@/hooks/useClientHistory";
-import { useUpdateClient } from "@/hooks/useClients";
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useCpes } from "@/hooks/useCpes";
 import { useAuth } from "@/contexts/AuthContext";
 import { ClientTimeline } from "./ClientTimeline";
 import { AddCommunicationModal } from "./AddCommunicationModal";
 import { CpeList } from "./CpeList";
-import type { CrmClient } from "@/types/clients";
-import type { CommunicationType, CommunicationDirection } from "@/types/communications";
+import { CLIENT_STATUS_PILLS } from "./client-display";
+import { initialsOf } from "@/components/leads/lead-display";
+import { CLIENT_SOURCE_LABELS, type CrmClient } from "@/types/clients";
 import { formatOperationalUnits, sumOperationalSaleUnits } from "@/lib/sale-units";
+import { useLanguage } from "@/i18n";
 
 interface ClientDetailsDrawerProps {
   client: CrmClient | null;
@@ -65,21 +66,44 @@ interface ClientDetailsDrawerProps {
   onScheduleMeeting?: (client: CrmClient) => void;
 }
 
-export function ClientDetailsDrawer({ 
-  client, 
-  open, 
-  onOpenChange, 
+const sectionTitle = "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+/** One label/value line of the details column. */
+function DetailRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-2 py-2 text-sm">
+      <span className="flex items-center gap-2 text-muted-foreground"><Icon className="h-4 w-4 shrink-0" />{label}</span>
+      <div className="min-w-0 break-words">{children}</div>
+    </div>
+  );
+}
+
+/** One figure of the strip under the header. */
+function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="min-w-[7rem] flex-1 rounded-xl border border-border/70 bg-card px-3.5 py-2">
+      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className={cn("truncate text-base font-semibold tabular-nums", tone)}>{value}</p>
+    </div>
+  );
+}
+
+/** The client record, in full screen: who, how to reach them, the figures, what happened, and the details. */
+export function ClientDetailsDrawer({
+  client,
+  open,
+  onOpenChange,
   onEdit,
   onNewProposal,
   onNewSale,
   onScheduleMeeting
 }: ClientDetailsDrawerProps) {
+  const { t } = useLanguage();
   const labels = useClientLabels();
-  const { timeline, proposals, sales, events, isLoading: loadingHistory } = useClientHistory(client?.id || null);
-  const updateClient = useUpdateClient();
+  const { timeline, proposals, sales, isLoading: loadingHistory } = useClientHistory(client?.id || null);
   const { data: teamMembers = [] } = useTeamMembers();
   const { organization } = useAuth();
-  
+
   const isTelecom = organization?.niche === 'telecom';
   const { modules } = useModules();
   const showEnergy = isTelecom && modules.energy;
@@ -87,460 +111,249 @@ export function ClientDetailsDrawer({
   const CpeIcon = isTelecom ? Zap : Router;
 
   const [showAddCommunication, setShowAddCommunication] = useState(false);
-  const [defaultCommType, setDefaultCommType] = useState<CommunicationType>('note');
-  const [defaultCommDirection, setDefaultCommDirection] = useState<CommunicationDirection>('outbound');
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
-
-  const getTeamMemberName = (userId: string | null | undefined) => {
-    if (!userId) return null;
-    const member = teamMembers.find(m => m.user_id === userId);
-    return member?.full_name || null;
-  };
-
-  const handleOpenCommunicationModal = (type: CommunicationType = 'note', direction: CommunicationDirection = 'outbound') => {
-    setDefaultCommType(type);
-    setDefaultCommDirection(direction);
-    setShowAddCommunication(true);
-  };
-
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [editedNotes, setEditedNotes] = useState("");
-
-  useEffect(() => {
-    if (client && !isEditingNotes) {
-      setEditedNotes(client.notes || "");
-    }
-  }, [client, isEditingNotes]);
 
   if (!client) return null;
 
-  const handleSaveNotes = () => {
-    if (editedNotes !== (client.notes || "")) {
-      updateClient.mutate({ id: client.id, notes: editedNotes || null });
-    }
-    setIsEditingNotes(false);
-  };
-
-  const handleCancelNotes = () => {
-    setEditedNotes(client.notes || "");
-    setIsEditingNotes(false);
-  };
-
-  const statusStyle = {
-    active: { bg: 'bg-success/10', text: 'text-success', border: 'border-success/20' },
-    inactive: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-muted' },
-    vip: { bg: 'bg-warning/10', text: 'text-warning', border: 'border-warning/20' },
-  }[client.status] || { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-muted' };
-
-  const statusLabel = {
-    active: labels.statusActive,
-    inactive: labels.statusInactive,
-    vip: labels.statusVip,
-  }[client.status] || client.status;
-
-  const sourceLabel = {
-    lead: 'Lead Convertido',
-    referral: 'Indicação',
-    direct: 'Contacto Direto',
-    website: 'Website',
-    other: 'Outro',
-  }[client.source || ''] || client.source;
+  const owner = client.assigned_to ? teamMembers.find(m => m.user_id === client.assigned_to)?.full_name ?? null : null;
+  const title = isTelecom ? (client.company || client.name) : client.name;
+  const subtitle = [
+    isTelecom ? (client.company && client.company !== client.name ? client.name : null) : client.company,
+    client.nif ? `NIF ${client.nif}` : client.company_nif ? `NIF ${client.company_nif}` : null,
+    `${t(labels.since).toLowerCase()} ${formatDate(client.created_at)}`,
+  ].filter(Boolean).join(" · ");
+  const sourceLabel = client.source ? (CLIENT_SOURCE_LABELS[client.source] ? t(CLIENT_SOURCE_LABELS[client.source]) : client.source) : null;
 
   const companyAddress = client.company_address_same_as_client
     ? { line1: client.address_line1, line2: client.address_line2, city: client.city, postalCode: client.postal_code, country: client.country }
     : { line1: client.company_address_line1, line2: client.company_address_line2, city: client.company_city, postalCode: client.company_postal_code, country: client.company_country };
   const hasCompanyAddress = companyAddress.line1 || companyAddress.city || companyAddress.postalCode;
+  const countryName = (code: string | null | undefined) => (code ? COUNTRIES.find(item => item.code === code)?.name || code : null);
+  const billsCompany = client.billing_target === 'company';
 
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
-        {/* Header */}
-        <DialogHeader className="px-4 sm:px-6 py-3 border-b shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Detalhes do {labels.singular} #{client.code}
-          </DialogTitle>
-          <DialogDescription className="sr-only">Detalhes do cliente {client.name}</DialogDescription>
+      <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t("Ficha do {{entity}} {{name}}", { entity: t(labels.singular).toLowerCase(), name: client.name })}</DialogTitle>
+          <DialogDescription>{t("Contactos, números, histórico e detalhes do {{entity}}", { entity: t(labels.singular).toLowerCase() })}</DialogDescription>
         </DialogHeader>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto p-4 sm:p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              {/* Left Column */}
-              <div className="lg:col-span-3 space-y-4">
-                {/* Dados do Cliente */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      Dados do {labels.singular}
-                      {(!client.billing_target || client.billing_target === 'client') && (
-                        <Badge variant="outline" className="text-xs ml-auto border-primary/30 text-primary bg-primary/5">
-                          Faturação
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {client.code && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Código</span>
-                        <span className="font-mono text-primary bg-primary/10 px-2 py-0.5 rounded text-xs font-semibold">#{client.code}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Nome</span>
-                      <span className="font-medium">{client.name}</span>
-                    </div>
-                    {client.nif && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">NIF</span>
-                        <span>{client.nif}</span>
-                      </div>
-                    )}
-                    {client.email && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Email</span>
-                        <a href={`mailto:${client.email}`} className="text-primary hover:underline">{client.email}</a>
-                      </div>
-                    )}
-                    {client.phone && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Telefone</span>
-                        <div className="flex items-center gap-2">
-                          <span>{client.phone}</span>
-                          <Link
-                            to={getInboxUrl(client.phone)}
-                            className="text-success hover:underline text-xs"
-                          >
-                            WhatsApp
-                          </Link>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{labels.statusFieldLabel}</span>
-                      <Badge variant="outline" className={cn('text-xs', statusStyle.bg, statusStyle.text, statusStyle.border)}>
-                        {statusLabel}
-                      </Badge>
-                    </div>
-                    {client.source && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Origem</span>
-                        <Badge variant="secondary" className="text-xs">{sourceLabel}</Badge>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Empresa */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      Empresa
-                      {client.billing_target === 'company' && (
-                        <Badge variant="outline" className="text-xs ml-auto border-primary/30 text-primary bg-primary/5">
-                          Faturação
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {client.company ? (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Nome</span>
-                        <span className="font-medium">{client.company}</span>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Sem empresa associada</p>
-                    )}
-                    {client.company_nif && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Contribuinte</span>
-                        <span>{client.company_nif}</span>
-                      </div>
-                    )}
-                    {hasCompanyAddress && (
-                      <div className="flex items-start gap-3 text-sm pt-1">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          {client.company_address_same_as_client && <p className="text-muted-foreground">Mesma morada do cliente</p>}
-                          {companyAddress.line1 && <p>{companyAddress.line1}</p>}
-                          {companyAddress.line2 && <p>{companyAddress.line2}</p>}
-                          {(companyAddress.postalCode || companyAddress.city) && (
-                            <p>{companyAddress.postalCode && `${companyAddress.postalCode} `}{companyAddress.city}</p>
-                          )}
-                          {companyAddress.country && <p>{COUNTRIES.find((item) => item.code === companyAddress.country)?.name || companyAddress.country}</p>}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* CPEs - Telecom only */}
-                {showEnergy && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <CpeIcon className="h-4 w-4" />
-                        CPE/CUI ({cpes.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CpeList clientId={client.id} />
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Tarefas da conversa (Caixa de Entrada) */}
-                <RecordTasks phone={client.phone} />
-
-                {/* Unified contact notes (shared with the inbox & lead record) */}
-                <ContactNotes phone={client.phone} source="crm" />
-
-                {/* Histórico / Timeline */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Histórico</CardTitle>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleOpenCommunicationModal('note', 'outbound')}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Registar Contacto
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ClientTimeline events={timeline} isLoading={loadingHistory} />
-                  </CardContent>
-                </Card>
+        {/* Header: who it is, how to reach them, and what to do next. */}
+        <header className="shrink-0 border-b bg-background py-3 pl-4 pr-14 sm:pl-6">
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-3 gap-y-3">
+            <Button variant="back" size="icon" onClick={() => onOpenChange(false)} className="h-9 w-9 shrink-0 rounded-full" aria-label={t("Voltar")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary" aria-hidden="true">
+              {initialsOf(title)}
+            </span>
+            <div className="min-w-0 flex-1 basis-48">
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="truncate text-xl font-semibold tracking-tight">{title}</h2>
+                {client.code && <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">#{client.code}</span>}
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", CLIENT_STATUS_PILLS[client.status] ?? CLIENT_STATUS_PILLS.active)}>
+                  {client.status === 'inactive' ? t(labels.statusInactive) : t(labels.statusActive)}
+                </span>
               </div>
+              <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {client.phone && (
+                <>
+                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400">
+                    <Link to={getInboxUrl(client.phone)}><MessageCircle className="h-4 w-4" />{t("WhatsApp")}</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full">
+                    <a href={`tel:${client.phone}`}><Phone className="h-4 w-4" />{t("Ligar")}</a>
+                  </Button>
+                </>
+              )}
+              {client.email && (
+                <Button variant="outline" size="sm" asChild className="h-9 rounded-full">
+                  <a href={`mailto:${client.email}`}><Mail className="h-4 w-4" />{t("Email")}</a>
+                </Button>
+              )}
+              {onNewProposal && (
+                <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => onNewProposal(client)}>
+                  <FileText className="h-4 w-4" />{t("Nova proposta")}
+                </Button>
+              )}
+              {onNewSale && (
+                <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => onNewSale(client)}>
+                  <ShoppingCart className="h-4 w-4" />{t("Nova venda")}
+                </Button>
+              )}
+              {onScheduleMeeting && (
+                <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => onScheduleMeeting(client)}>
+                  <CalendarIcon className="h-4 w-4" />{t("Agendar")}
+                </Button>
+              )}
+              <Button size="sm" className="h-9 rounded-full" onClick={() => onEdit(client)}>
+                <Pencil className="h-4 w-4" />{t("Editar")}
+              </Button>
+            </div>
+          </div>
 
-              {/* Right Column - Sticky */}
-              <div className="lg:col-span-2">
-                <div className="lg:sticky lg:top-0 space-y-4">
-                  {/* Métricas */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Métricas</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                    <div className={cn("grid gap-3", showEnergy ? "grid-cols-2 sm:grid-cols-3" : isTelecom ? "grid-cols-3" : "grid-cols-3")}>
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-primary">{client.total_proposals}</p>
-                          <p className="text-xs text-muted-foreground">Propostas</p>
-                        </div>
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-success">{formatOperationalUnits(client.total_sales)}</p>
-                          <p className="text-xs text-muted-foreground">Vendas</p>
-                        </div>
-                        {isTelecom && (
-                          <div className="text-center p-3 bg-muted/50 rounded-lg">
-                            <p className="text-xl font-bold">{formatCurrency(client.total_comissao || 0)}</p>
-                            <p className="text-xs text-muted-foreground">Comissão</p>
-                          </div>
-                        )}
-                        {isTelecom && (
-                          <div className="text-center p-3 bg-muted/50 rounded-lg">
-                            <p className="text-xl font-bold">{client.total_cartoes || 0}</p>
-                            <p className="text-xs text-muted-foreground">Cartões</p>
-                          </div>
-                        )}
-                        {isTelecom && (
-                          <div className="text-center p-3 bg-muted/50 rounded-lg">
-                            <p className="text-xl font-bold">{formatCurrency(client.total_value)}</p>
-                            <p className="text-xs text-muted-foreground">Valor Total</p>
-                          </div>
-                        )}
-                        {showEnergy && (
-                          <>
-                            <div className="text-center p-3 bg-muted/50 rounded-lg">
-                              <p className="text-xl font-bold">{(client.total_mwh || 0).toFixed(2)}</p>
-                              <p className="text-xs text-muted-foreground">MWh</p>
-                            </div>
-                            <div className="text-center p-3 bg-muted/50 rounded-lg">
-                              <p className="text-xl font-bold">{(client.total_kwp || 0).toFixed(2)}</p>
-                              <p className="text-xs text-muted-foreground">kWp</p>
-                            </div>
-                          </>
-                        )}
-                        {!isTelecom && (
-                          <div className="text-center p-3 bg-muted/50 rounded-lg">
-                            <p className="text-xl font-bold">{formatCurrency(client.total_value)}</p>
-                            <p className="text-xs text-muted-foreground">Valor Total</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+          {/* The client's numbers, always in view. */}
+          <div className="mx-auto mt-3 flex w-full max-w-7xl flex-wrap gap-2">
+            <Figure label={t("Propostas")} value={String(client.total_proposals ?? 0)} />
+            <Figure label={t("Vendas")} value={formatOperationalUnits(client.total_sales)} tone="text-emerald-600 dark:text-emerald-400" />
+            <Figure label={t("Valor total")} value={formatCurrency(client.total_value)} />
+            {isTelecom && <Figure label={t("Comissão")} value={formatCurrency(client.total_comissao || 0)} />}
+            {isTelecom && <Figure label={t("Cartões")} value={String(client.total_cartoes || 0)} />}
+            {showEnergy && <Figure label={t("MWh")} value={(client.total_mwh || 0).toFixed(2)} />}
+            {showEnergy && <Figure label={t("kWp")} value={(client.total_kwp || 0).toFixed(2)} />}
+          </div>
+        </header>
 
-                  {/* Ações Rápidas */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Ações Rápidas</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => onEdit(client)}>
-                        <Edit className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                      <Separator />
-                      {client.phone && (
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="flex-1" asChild>
-                            <a href={`tel:${client.phone}`}>
-                              <Phone className="h-4 w-4 mr-1" />
-                              Ligar
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1 text-success border-success/20 hover:bg-success/10" asChild>
-                            <Link to={getInboxUrl(client.phone)}>
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              WhatsApp
-                            </Link>
-                          </Button>
-                        </div>
-                      )}
-                      {client.email && (
-                        <Button variant="outline" size="sm" className="w-full" asChild>
-                          <a href={`mailto:${client.email}`}>
-                            <Mail className="h-4 w-4 mr-1" />
-                            Email
-                          </a>
-                        </Button>
-                      )}
-                      <Separator />
-                      {onNewProposal && (
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => onNewProposal(client)}>
-                          <FileText className="h-4 w-4 mr-1" />
-                          Nova Proposta
-                        </Button>
-                      )}
-                      {onNewSale && (
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => onNewSale(client)}>
-                          <ShoppingCart className="h-4 w-4 mr-1" />
-                          Nova Venda
-                        </Button>
-                      )}
-                      {onScheduleMeeting && (
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => onScheduleMeeting(client)}>
-                          <CalendarIcon className="h-4 w-4 mr-1" />
-                          Agendar
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-2">
 
-                  {/* Comercial Responsável */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Comercial Responsável</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {getTeamMemberName(client.assigned_to) ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{getTeamMemberName(client.assigned_to)}</span>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sem responsável atribuído</p>
-                      )}
-                    </CardContent>
-                  </Card>
+            {/* Activity on the right: notes shared with the inbox, open tasks and the client's history. */}
+            <div className="min-w-0 space-y-6 lg:col-start-2 lg:row-start-1">
+              <ContactNotes phone={client.phone} source="crm" />
 
-                  {/* Propostas Recentes */}
-                  {proposals.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Propostas Recentes</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {proposals.slice(0, 3).map((proposal) => (
-                          <div 
-                            key={proposal.id} 
-                            className="flex items-center justify-between p-2 border rounded-lg text-sm cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => setSelectedProposal(proposal as unknown as Proposal)}
-                          >
-                            <div>
-                              <p className="font-medium">{proposal.code || `#${proposal.id.slice(0, 8)}`}</p>
-                              <p className="text-xs text-muted-foreground">{formatDate(proposal.created_at || '')}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-right">
-                                <p className="font-semibold text-success">{formatCurrency(proposal.total_value)}</p>
-                                <StatusBadge {...proposalStatusBadge(proposal.status as ProposalStatus)} />
-                              </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
+              <RecordTasks phone={client.phone} />
 
-                  {/* Every sale of this client, active and cancelled alike —
-                      the point is the full history, so it is never truncated. */}
-                  {sales.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center justify-between gap-2">
-                          <span>Vendas</span>
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {formatOperationalUnits(sumOperationalSaleUnits(sales))} no total · todos os estados
-                          </span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2 max-h-[420px] overflow-y-auto">
-                        {sales.map((sale) => (
-                          <div key={sale.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
-                            <div className="min-w-0">
-                              <p className="font-medium truncate">{sale.code || `#${sale.id.slice(0, 8)}`}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDate(sale.created_at || '')}
-                                {isTelecom && !!sale.total_cartoes && ` · ${sale.total_cartoes} cartõe${sale.total_cartoes === 1 ? '' : 's'}`}
-                              </p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="font-semibold text-success">{formatCurrency(sale.total_value)}</p>
-                              {isTelecom && sale.telecom_status ? (
-                                <Badge variant="outline" className={cn('text-[10px]', TELECOM_STATUS_COLORS[sale.telecom_status as TelecomStatus])}>
-                                  {TELECOM_STATUS_LABELS[sale.telecom_status as TelecomStatus]}
-                                </Badge>
-                              ) : (
-                                <StatusBadge {...saleStatusBadge(sale.status as SaleStatus)} />
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Botão Voltar */}
-                  <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
-                    Voltar
+              <div className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className={sectionTitle}>{t("Histórico")}</h3>
+                  <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setShowAddCommunication(true)}>
+                    <Plus className="h-4 w-4" />{t("Registar contacto")}
                   </Button>
                 </div>
+                <ClientTimeline events={timeline} isLoading={loadingHistory} />
               </div>
+
+              {showEnergy && (
+                <div className="space-y-3">
+                  <h3 className={sectionTitle}><CpeIcon className="h-3.5 w-3.5" />{t("CPE/CUI ({{n}})", { n: cpes.length })}</h3>
+                  <div className="rounded-xl border p-3">
+                    <CpeList clientId={client.id} />
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Data on the left: details, company and the client's proposals and sales, each in its card. */}
+            <aside className="order-first min-w-0 lg:col-start-1 lg:row-start-1">
+              <div className="space-y-4 lg:sticky lg:top-0">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <h3 className={cn(sectionTitle, "mb-1")}>{t("Detalhes")}</h3>
+                  <div className="divide-y divide-border/60">
+                    {client.code && <DetailRow icon={Hash} label={t("Código")}><span className="font-mono">#{client.code}</span></DetailRow>}
+                    {client.nif && <DetailRow icon={FileText} label="NIF">{client.nif}</DetailRow>}
+                    <DetailRow icon={Phone} label={t("Telefone")}>
+                      {client.phone
+                        ? <span className="flex flex-wrap items-center gap-x-2">{client.phone}<Link to={getInboxUrl(client.phone)} className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">{t("WhatsApp")}</Link></span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </DetailRow>
+                    <DetailRow icon={Mail} label={t("Email")}>
+                      {client.email ? <a href={`mailto:${client.email}`} className="text-primary hover:underline">{client.email}</a> : <span className="text-muted-foreground">—</span>}
+                    </DetailRow>
+                    <DetailRow icon={Layers} label={t(labels.statusFieldLabel)}>
+                      <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", CLIENT_STATUS_PILLS[client.status] ?? CLIENT_STATUS_PILLS.active)}>
+                        {client.status === 'inactive' ? t(labels.statusInactive) : t(labels.statusActive)}
+                      </span>
+                    </DetailRow>
+                    {sourceLabel && <DetailRow icon={Globe} label={t("Origem")}>{sourceLabel}</DetailRow>}
+                    <DetailRow icon={User} label={t("Responsável")}>{owner ?? <span className="text-muted-foreground">{t("Sem responsável")}</span>}</DetailRow>
+                    <DetailRow icon={Receipt} label={t("Faturação")}>{billsCompany ? t("À empresa") : t("Ao {{entity}}", { entity: t(labels.singular).toLowerCase() })}</DetailRow>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <h3 className={cn(sectionTitle, "mb-1")}><Building2 className="h-3.5 w-3.5" />{t("Empresa")}</h3>
+                  {client.company || client.company_nif || hasCompanyAddress ? (
+                    <div className="divide-y divide-border/60">
+                      {client.company && <DetailRow icon={Building2} label={t("Nome")}>{client.company}</DetailRow>}
+                      {client.company_nif && <DetailRow icon={FileText} label={t("Contribuinte")}>{client.company_nif}</DetailRow>}
+                      {hasCompanyAddress && (
+                        <DetailRow icon={MapPin} label={t("Morada")}>
+                          {client.company_address_same_as_client && <p className="text-xs text-muted-foreground">{t("Mesma morada do {{entity}}", { entity: t(labels.singular).toLowerCase() })}</p>}
+                          {companyAddress.line1 && <p>{companyAddress.line1}</p>}
+                          {companyAddress.line2 && <p>{companyAddress.line2}</p>}
+                          {(companyAddress.postalCode || companyAddress.city) && <p>{companyAddress.postalCode && `${companyAddress.postalCode} `}{companyAddress.city}</p>}
+                          {countryName(companyAddress.country) && <p>{countryName(companyAddress.country)}</p>}
+                        </DetailRow>
+                      )}
+                    </div>
+                  ) : <p className="py-2 text-sm text-muted-foreground">{t("Sem empresa associada")}</p>}
+                </div>
+
+                {proposals.length > 0 && (
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <h3 className={cn(sectionTitle, "mb-2")}>{t("Propostas recentes")}</h3>
+                    <div className="space-y-1.5">
+                      {proposals.slice(0, 3).map((proposal) => (
+                        <button key={proposal.id} type="button"
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+                          onClick={() => setSelectedProposal(proposal as unknown as Proposal)}>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{proposal.code || `#${proposal.id.slice(0, 8)}`}</span>
+                            <span className="block text-xs text-muted-foreground">{formatDate(proposal.created_at || '')}</span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            <span className="text-right">
+                              <span className="block font-semibold tabular-nums">{formatCurrency(proposal.total_value)}</span>
+                              <StatusBadge {...proposalStatusBadge(proposal.status as ProposalStatus)} label={t(proposalStatusBadge(proposal.status as ProposalStatus).label)} />
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Every sale of this client, active and cancelled alike —
+                    the point is the full history, so it is never truncated. */}
+                {sales.length > 0 && (
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <h3 className={cn(sectionTitle, "mb-2 justify-between")}>
+                      <span>{t("Vendas")}</span>
+                      <span className="font-normal normal-case tracking-normal">{t("{{units}} no total · todos os estados", { units: formatOperationalUnits(sumOperationalSaleUnits(sales)) })}</span>
+                    </h3>
+                    <div className="max-h-[420px] space-y-1.5 overflow-y-auto">
+                      {sales.map((sale) => (
+                        <div key={sale.id} className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{sale.code || `#${sale.id.slice(0, 8)}`}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(sale.created_at || '')}
+                              {isTelecom && !!sale.total_cartoes && ` · ${t(sale.total_cartoes === 1 ? "{{n}} cartão" : "{{n}} cartões", { n: sale.total_cartoes })}`}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="font-semibold tabular-nums">{formatCurrency(sale.total_value)}</p>
+                            {isTelecom && sale.telecom_status ? (
+                              <Badge variant="outline" className={cn('text-[10px]', TELECOM_STATUS_COLORS[sale.telecom_status as TelecomStatus])}>
+                                {t(TELECOM_STATUS_LABELS[sale.telecom_status as TelecomStatus])}
+                              </Badge>
+                            ) : (
+                              <StatusBadge {...saleStatusBadge(sale.status as SaleStatus)} label={t(saleStatusBadge(sale.status as SaleStatus).label)} />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
           </div>
         </div>
 
-        {/* Add Communication Modal */}
         <AddCommunicationModal
           open={showAddCommunication}
           onOpenChange={setShowAddCommunication}
           clientId={client.id}
           clientName={client.name}
-          defaultType={defaultCommType}
-          defaultDirection={defaultCommDirection}
+          defaultType="note"
+          defaultDirection="outbound"
         />
-
       </DialogContent>
     </Dialog>
 

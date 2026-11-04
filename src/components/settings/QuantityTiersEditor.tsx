@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { CommissionSplitRow } from './CommissionSplitRow';
+import { intlLocale, useLanguage } from '@/i18n';
 import {  TELECOM_TECHNOLOGIES,  TELECOM_TECHNOLOGY_LABELS,  productNeedsTechnologyChoice,  type CommissionSplit,  type QuantityTier,  type TelecomTechnology,} from '@/types/proposals';
 
 interface Member {
@@ -57,6 +58,7 @@ export function QuantityTiersEditor({
   extraCards = false,
 }: QuantityTiersEditorProps) {
   const byTech = productNeedsTechnologyChoice(technologies);
+  const { t } = useLanguage();
   const addTier = () => {
     const lastMax = tiers.length > 0 ? tiers[tiers.length - 1].max : 0;
     const nextMin = (lastMax ?? 0) + 1;
@@ -100,16 +102,16 @@ export function QuantityTiersEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">Escalões por quantidade ({scopeLabel})</Label>
+        <Label className="text-xs text-muted-foreground">{t('Escalões por quantidade ({{scope}})', { scope: t(scopeLabel) })}</Label>
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addTier}>
           <Plus className="h-3 w-3 mr-1" />
-          Adicionar escalão
+          {t('Adicionar escalão')}
         </Button>
       </div>
 
       {tiers.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Sem escalões configurados. Sem eles, nenhuma comissão é gerada para este produto.
+          {t('Sem escalões configurados. Sem eles, nenhuma comissão é gerada para este produto.')}
         </p>
       ) : (
         <div className="space-y-2">
@@ -132,7 +134,7 @@ export function QuantityTiersEditor({
                       key={field}
                       tone="operator"
                       icon={<Banknote className="h-3 w-3 shrink-0" />}
-                      label={tech ? `Operadora paga · ${TELECOM_TECHNOLOGY_LABELS[tech]} (€)` : "Operadora paga (€)"}
+                      label={tech ? t('Operadora paga · {{tech}} (€)', { tech: t(TELECOM_TECHNOLOGY_LABELS[tech]) }) : t('Operadora paga (€)')}
                     >
                       <Input
                         type="number"
@@ -147,7 +149,7 @@ export function QuantityTiersEditor({
                     </TonedField>
                   );
                 })}
-                <TonedField tone="neutral" label="De (unid.)">
+                <TonedField tone="neutral" label={t('De (unid.)')}>
                   <Input
                     type="number"
                     min="1"
@@ -158,7 +160,7 @@ export function QuantityTiersEditor({
                     className={cn(tonedInputClass, 'w-20')}
                   />
                 </TonedField>
-                <TonedField tone="neutral" label="Até (unid.)">
+                <TonedField tone="neutral" label={t('Até (unid.)')}>
                   <Input
                     type="number"
                     min="1"
@@ -173,7 +175,7 @@ export function QuantityTiersEditor({
                 <TonedField
                   tone="price"
                   icon={<Tag className="h-3 w-3 shrink-0" />}
-                  label="Preço de Venda (€)"
+                  label={t('Preço de Venda (€)')}
                 >
                   <Input
                     type="number"
@@ -188,36 +190,36 @@ export function QuantityTiersEditor({
                 </TonedField>
                 {showCards && (
                   <>
-                    <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label="Cartões incluídos">
+                    <TonedField tone="cards" icon={<CreditCard className="h-3 w-3 shrink-0" />} label={t('Cartões incluídos')}>
                       <Input
                         type="number"
                         min="0"
                         step="1"
-                        placeholder="produto"
+                        placeholder={t('produto')}
                         value={tier.included_cards ?? ''}
                         onChange={(e) => updateTier(tier.id, { included_cards: e.target.value ? parseInt(e.target.value, 10) : undefined })}
                         onBlur={() => onCommit(tiers)}
                         className={cn(tonedInputClass, 'w-20')}
                       />
                     </TonedField>
-                    <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label="Vendedor / cartão extra (€)">
+                    <TonedField tone="commission" icon={<Wallet className="h-3 w-3 shrink-0" />} label={t('Vendedor / cartão extra (€)')}>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="produto"
+                        placeholder={t('produto')}
                         value={tier.extra_card_commission ?? ''}
                         onChange={(e) => updateTier(tier.id, { extra_card_commission: e.target.value ? parseFloat(e.target.value) : undefined })}
                         onBlur={() => onCommit(tiers)}
                         className={cn(tonedInputClass, 'w-24')}
                       />
                     </TonedField>
-                    <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label="Operadora / cartão extra (€)">
+                    <TonedField tone="operator" icon={<Banknote className="h-3 w-3 shrink-0" />} label={t('Operadora / cartão extra (€)')}>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="produto"
+                        placeholder={t('produto')}
                         value={tier.extra_card_operator_pays ?? ''}
                         onChange={(e) => updateTier(tier.id, { extra_card_operator_pays: e.target.value ? parseFloat(e.target.value) : undefined })}
                         onBlur={() => onCommit(tiers)}
@@ -236,7 +238,7 @@ export function QuantityTiersEditor({
                     checked={tier.bonus_enabled ?? ((tier.bonus ?? 0) > 0)}
                     onCheckedChange={(on) => updateTier(tier.id, { bonus_enabled: on }, true)}
                   />
-                  <Label htmlFor={`bonus-${tier.id}`} className="text-[10px] text-muted-foreground">Bónus</Label>
+                  <Label htmlFor={`bonus-${tier.id}`} className="text-[10px] text-muted-foreground">{t('Bónus')}</Label>
                 </div>
                 {(tier.bonus_enabled ?? ((tier.bonus ?? 0) > 0)) && (
                   <BonusField tier={tier} onCommit={() => onCommit(tiers)} updateTier={updateTier} />
@@ -246,7 +248,7 @@ export function QuantityTiersEditor({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                  title="Eliminar escalão"
+                  title={t('Eliminar escalão')}
                   onClick={() => removeTier(tier.id)}
                 >
                   <X className="h-4 w-4" />
@@ -255,30 +257,30 @@ export function QuantityTiersEditor({
 
               <div className="ml-1 pl-3 border-l-2 border-border space-y-1.5">
                 <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                  <Label className="text-[10px] font-medium text-foreground">Comissão</Label>
+                  <Label className="text-[10px] font-medium text-foreground">{t('Comissão')}</Label>
                   <p className="text-xs text-muted-foreground">
                     {tier.max == null
-                      ? `A partir de ${tier.min} unidades`
+                      ? t('A partir de {{n}} unidades', { n: tier.min })
                       : tier.min <= 1
-                        ? `Até ${tier.max} unidades`
-                        : `De ${tier.min} até ${tier.max} unidades`}
-                    {tier.price != null && ` — ${tier.price.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €/unid.`}
+                        ? t('Até {{n}} unidades', { n: tier.max })
+                        : t('De {{min}} até {{max}} unidades', { min: tier.min, max: tier.max })}
+                    {tier.price != null && ` — ${t('{{price}} €/unid.', { price: tier.price.toLocaleString(intlLocale(), { minimumFractionDigits: 2 }) })}`}
                     {tier.operator_pays != null && (
                       <span className="font-medium text-amber-700 dark:text-amber-400">
-                        {` · a operadora paga ${tier.operator_pays.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €/unid.`}
+                        {` · ${t('a operadora paga {{amount}} €/unid.', { amount: tier.operator_pays.toLocaleString(intlLocale(), { minimumFractionDigits: 2 }) })}`}
                       </span>
                     )}
 
                     {!!tier.bonus && (
                       tier.bonus_type === 'pct'
-                        ? ` + bónus único de ${tier.bonus.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% da comissão ao atingir`
-                        : ` + bónus único de ${tier.bonus.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} € ao atingir`
+                        ? ` + ${t('bónus único de {{value}}% da comissão ao atingir', { value: tier.bonus.toLocaleString(intlLocale(), { minimumFractionDigits: 2 }) })}`
+                        : ` + ${t('bónus único de {{value}} € ao atingir', { value: tier.bonus.toLocaleString(intlLocale(), { minimumFractionDigits: 2 }) })}`
                     )}
                   </p>
                 </div>
                 {tier.splits.length === 0 ? (
                   <>
-                    <p className="text-xs text-muted-foreground">Sem comissão — ninguém recebe por este escalão.</p>
+                    <p className="text-xs text-muted-foreground">{t('Sem comissão — ninguém recebe por este escalão.')}</p>
 
                   </>
                 ) : (
@@ -302,7 +304,7 @@ export function QuantityTiersEditor({
                   className="text-[11px] font-medium text-primary hover:underline"
                   onClick={() => addSplit(tier.id)}
                 >
-                  + juntar mais alguém a este escalão
+                  {t('+ juntar mais alguém a este escalão')}
                 </button>
               </div>
             </div>
@@ -324,8 +326,9 @@ function BonusField({
   onCommit: () => void;
 }) {
   const bonusType = tier.bonus_type ?? 'fixed';
+  const { t } = useLanguage();
   return (
-    <TonedField tone="bonus" icon={<Gift className="h-3 w-3 shrink-0" />} label="Bónus Geral">
+    <TonedField tone="bonus" icon={<Gift className="h-3 w-3 shrink-0" />} label={t('Bónus Geral')}>
       <div className="flex items-center gap-1">
         <Input
           type="number"

@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import { isChannelEnabled } from '@/lib/constants';
 
 export type ChannelStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -154,7 +155,7 @@ export function useWhatsappConnect() {
 
   return useMutation({
     mutationFn: async (vars?: { channelId?: string; label?: string }): Promise<WhatsappConnectResponse> => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { organization_id: organization.id, channel_id: vars?.channelId, label: vars?.label },
       });
@@ -208,7 +209,7 @@ export function useLogoutChannel() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (channelId: string) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('whatsapp-disconnect', {
         body: { organization_id: organization.id, channel_id: channelId, logout: true },
       });
@@ -216,11 +217,11 @@ export function useLogoutChannel() {
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
     },
     onSuccess: () => {
-      toast.success('WhatsApp desligado', { description: 'Para voltar a ligar, lê um QR code novo nesta caixa.' });
+      toast.success(tr('WhatsApp desligado'), { description: tr('Para voltar a ligar, lê um QR code novo nesta caixa.') });
       queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
     },
     onError: (e) => {
-      toast.error('Não foi possível desligar', { description: (e as Error).message });
+      toast.error(tr('Não foi possível desligar'), { description: (e as Error).message });
     },
   });
 }
@@ -232,7 +233,7 @@ export function useUpdateChannelAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { channelId: string; label?: string; assigned_user_ids?: string[]; rotate_enabled?: boolean; color?: string | null }) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const patch: Record<string, unknown> = {};
       if (vars.label !== undefined) patch.label = vars.label;
       if (vars.assigned_user_ids !== undefined) patch.assigned_user_ids = vars.assigned_user_ids;
@@ -252,18 +253,18 @@ export function useUpdateChannelAssignment() {
       if (error) throw error;
       if (!data || data.length === 0) {
         throw new Error(
-          'Não foi possível guardar: só os administradores podem alterar as caixas.',
+          tr('Não foi possível guardar: só os administradores podem alterar as caixas.'),
         );
       }
     },
     onError: (e) => {
-      toast.error('Alteração não guardada', { description: (e as Error).message });
+      toast.error(tr('Alteração não guardada'), { description: (e as Error).message });
     },
     onSuccess: () => {
       // Cada campo desta janela guarda-se sozinho, mal se mexe nele. Sem uma
       // confirmação, mexer e não ver nada acontecer é indistinguível de estar
       // partido — e era exatamente essa a queixa.
-      toast.success('Alteração guardada');
+      toast.success(tr('Alteração guardada'));
       queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
       queryClient.invalidateQueries({ queryKey: ['email-channels', organization?.id] });
     },
@@ -281,7 +282,7 @@ export function useUpdateChannelGroups() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { channelId: string; groupsEnabled: boolean }) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('chatwoot-inbox', {
         body: { organization_id: organization.id, action: 'update_groups', channel_id: vars.channelId, groups_enabled: vars.groupsEnabled },
       });
@@ -357,7 +358,7 @@ export function useFinishMetaChoice() {
       { pendingId, phoneNumberId, pageId }:
         { pendingId: string; phoneNumberId?: string; pageId?: string },
     ) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('meta-connect', {
         body: {
           action: 'finish_choice',
@@ -392,7 +393,7 @@ export function useConnectMetaChannel() {
 
   return useMutation({
     mutationFn: async ({ connect, label }: { connect: 'instagram' | 'messenger' | 'whatsapp'; label?: string }) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { data, error } = await supabase.functions.invoke('meta-connect', {
         body: {
@@ -416,10 +417,10 @@ export function useConnectMetaChannel() {
         throw new Error(detail || (error as Error).message);
       }
       const url = (data as { url?: string; error?: string })?.url;
-      if (!url) throw new Error((data as { error?: string })?.error || 'Não foi possível iniciar o login');
+      if (!url) throw new Error((data as { error?: string })?.error || tr('Não foi possível iniciar o login'));
 
       const popup = window.open(url, 'meta-oauth', 'width=600,height=760');
-      if (!popup) throw new Error('O browser bloqueou a janela. Permite popups para este site.');
+      if (!popup) throw new Error(tr('O browser bloqueou a janela. Permite popups para este site.'));
 
       const before = new Date().toISOString();
 
@@ -529,7 +530,7 @@ export function useConnectMetaChannel() {
       // depois de a caixa ficar criada (ou de a escolha ficar à espera), e a
       // mensagem perder-se pelo caminho.
       const criada = await procurarCaixa() ?? await procurarEscolha();
-      if (!criada) throw new Error('Ligação não concluída — o assistente da Meta não chegou ao fim.');
+      if (!criada) throw new Error(tr('Ligação não concluída — o assistente da Meta não chegou ao fim.'));
       return criada;
     },
     onSuccess: () => {
@@ -567,7 +568,7 @@ export function useArchiveChannel() {
 
   return useMutation({
     mutationFn: async (channel: Pick<MessagingChannel, 'id' | 'provider' | 'metadata'>) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { data, error } = isNativeEvolution(channel)
         ? await supabase.functions.invoke('whatsapp-disconnect', {
@@ -587,13 +588,13 @@ export function useArchiveChannel() {
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
     },
     onSuccess: () => {
-      toast.success('Caixa arquivada', {
-        description: 'Deixa de receber e de enviar. As conversas continuam na Caixa de Entrada.',
+      toast.success(tr('Caixa arquivada'), {
+        description: tr('Deixa de receber e de enviar. As conversas continuam na Caixa de Entrada.'),
       });
       queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
     },
     onError: (e) => {
-      toast.error('Não foi possível arquivar', { description: (e as Error).message });
+      toast.error(tr('Não foi possível arquivar'), { description: (e as Error).message });
     },
   });
 }
@@ -635,7 +636,7 @@ export function useDeleteChannel() {
 
   return useMutation({
     mutationFn: async (channel: Pick<MessagingChannel, 'id' | 'provider'>): Promise<number> => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
 
       const { data, error } = channel.provider === 'evolution'
         ? await supabase.functions.invoke('whatsapp-disconnect', {
@@ -650,16 +651,16 @@ export function useDeleteChannel() {
       return res?.conversations_deleted ?? 0;
     },
     onSuccess: (apagadas) => {
-      toast.success('Caixa excluída', {
+      toast.success(tr('Caixa eliminada'), {
         description: apagadas > 0
-          ? `Foram apagadas ${apagadas} conversa${apagadas === 1 ? '' : 's'}.`
-          : 'Não tinha conversas guardadas.',
+          ? tr(apagadas === 1 ? 'Foi apagada {{n}} conversa.' : 'Foram apagadas {{n}} conversas.', { n: apagadas })
+          : tr('Não tinha conversas guardadas.'),
       });
       queryClient.invalidateQueries({ queryKey: ['messaging-channels', organization?.id] });
       queryClient.invalidateQueries({ queryKey: ['meta-unread-totals', organization?.id] });
     },
     onError: (e) => {
-      toast.error('Não foi possível excluir', { description: (e as Error).message });
+      toast.error(tr('Não foi possível eliminar'), { description: (e as Error).message });
     },
   });
 }

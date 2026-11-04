@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ const emptySeries = (): SeriesValues => ({ invoice: '', invoice_receipt: '', rec
 export function KeyInvoiceSeriesSettings() {
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [series, setSeries] = useState<SeriesValues>(emptySeries);
   const [storedConfig, setStoredConfig] = useState<Record<string, Record<string, unknown>>>({});
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export function KeyInvoiceSeriesSettings() {
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
-          toast({ title: 'Não foi possível carregar as séries fiscais', description: error.message, variant: 'destructive' });
+          toast({ title: t('Não foi possível carregar as séries fiscais'), description: error.message, variant: 'destructive' });
         } else {
           const config = (data?.keyinvoice_series_config ?? {}) as Record<string, { series?: string }>;
           setStoredConfig(config);
@@ -71,11 +73,11 @@ export function KeyInvoiceSeriesSettings() {
         p_config: config,
       });
       if (error) throw new Error(error.message);
-      toast({ title: 'Séries fiscais guardadas' });
+      toast({ title: t('Séries fiscais guardadas') });
     } catch (error) {
       toast({
-        title: 'Não foi possível guardar as séries',
-        description: error instanceof Error ? error.message : 'Tenta novamente.',
+        title: t('Não foi possível guardar as séries'),
+        description: error instanceof Error ? error.message : t('Tenta novamente.'),
         variant: 'destructive',
       });
     } finally {
@@ -87,19 +89,18 @@ export function KeyInvoiceSeriesSettings() {
     <div className="space-y-4">
       <div>
         <p className="text-xs text-muted-foreground">
-          A emissão manual usa a série predefinida no KeyInvoice. Na recorrência automática, indica a série de cada documento para evitar duplicações se a ligação falhar durante a emissão.
-          Copia a série configurada no KeyInvoice; o número e o ATCUD continuam a ser atribuídos por ele.
+          {t('A emissão manual usa a série predefinida no KeyInvoice. Na recorrência automática, indica a série de cada documento para evitar duplicações se a ligação falhar durante a emissão. Copia a série configurada no KeyInvoice; o número e o ATCUD continuam a ser atribuídos por ele.')}
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {SERIES_FIELDS.map(({ key, label }) => (
           <div key={key} className="space-y-1.5">
-            <Label htmlFor={`keyinvoice-series-${key}`}>{label}</Label>
+            <Label htmlFor={`keyinvoice-series-${key}`}>{t(label)}</Label>
             <Input
               id={`keyinvoice-series-${key}`}
               value={series[key]}
               onChange={(event) => setSeries((current) => ({ ...current, [key]: event.target.value }))}
-              placeholder="Série no KeyInvoice"
+              placeholder={t('Série no KeyInvoice')}
               maxLength={100}
               disabled={loading || saving}
             />
@@ -107,11 +108,11 @@ export function KeyInvoiceSeriesSettings() {
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Para “Fatura-recibo quando totalmente pago”, preenche FR. Para “Fatura e recibos”, preenche FT e RC.
+        {t('Para “Só fatura-recibo, quando estiver pago”, preenche FR. Para “Fatura logo, recibo quando pagar”, preenche FT e RC.')}
       </p>
       <Button type="button" variant="outline" onClick={save} disabled={loading || saving || !loaded || !organization?.id}>
         {(loading || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar séries
+        {t('Guardar séries')}
       </Button>
     </div>
   );

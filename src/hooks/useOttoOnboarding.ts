@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { isActiveMember, useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useModules, type EnabledModules } from "@/hooks/useModules";
 import { usePersistedState } from "@/hooks/usePersistedState";
@@ -39,7 +39,7 @@ export interface OttoOnboardingStatus {
 }
 
 export function useOttoOnboarding(): OttoOnboardingStatus {
-  const { organization } = useAuth();
+  const { organization, organizations } = useAuth();
   const { isAdmin } = usePermissions();
   const { modules } = useModules();
   const orgId = organization?.id;
@@ -93,7 +93,9 @@ export function useOttoOnboarding(): OttoOnboardingStatus {
   const dismissSetup = () => {
     if (!orgId) return;
     setDismissedMap((m) => ({ ...m, [orgId]: true }));
-    dismissMutation.mutate();
+    // A super admin visiting an organization hides the card for themselves only:
+    // the organization's own admins keep it until they close it.
+    if (isActiveMember(organizations, orgId)) dismissMutation.mutate();
   };
 
   const { data, isLoading } = useQuery({

@@ -5,11 +5,14 @@ import { OttoAvatar } from "./OttoAvatar";
 import { useOttoStore } from "@/stores/useOttoStore";
 import { useOttoChat } from "@/hooks/useOttoChat";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { cn } from "@/lib/utils";
 import {
   useOnboardingPeek,
   type ActivationModuleKey,
 } from "@/hooks/useActivationProgress";
+import { useLanguage } from "@/i18n";
+import { useSenvia2GuideCard } from "./Senvia2Guide";
 
 // Per-module script: the short pitch shown in the bubble + the message sent to
 // Otto when the user accepts help. No sample data: every path creates REAL data.
@@ -60,22 +63,27 @@ const SCRIPTS: Record<ActivationModuleKey, { title: string; body: string; seed: 
 // and shows a soft, non-modal Otto bubble the first time the user lands on it,
 // until they engage, complete it, or dismiss it. Never a blocking modal.
 export function ModuleOnboardingPeek() {
+  const { t } = useLanguage();
   const location = useLocation();
   const isMobile = useIsMobile();
   const ottoOpen = useOttoStore((s) => s.isOpen);
+  const guideCard = useSenvia2GuideCard((s) => s.visible);
   const setOttoOpen = useOttoStore((s) => s.setOpen);
   const { sendMessage } = useOttoChat();
 
   const { moduleKey, shouldShow, dismiss } = useOnboardingPeek(location.pathname);
+  // One switch for every module's bubble: each module has its own, and one at a
+  // time quickly becomes nagging.
+  const [peeksOff, setPeeksOff] = usePersistedState("otto-peeks-off-v1", false);
 
   // Hide while the chat is open (no point peeking over the open assistant).
-  const visible = !!moduleKey && shouldShow && !ottoOpen;
+  const visible = !!moduleKey && shouldShow && !ottoOpen && !peeksOff && !guideCard;
   const script = moduleKey ? SCRIPTS[moduleKey] : null;
 
   const handleAccept = () => {
     if (!script) return;
     setOttoOpen(true);
-    sendMessage(script.seed);
+    sendMessage(t(script.seed));
   };
 
   return (
@@ -94,12 +102,12 @@ export function ModuleOnboardingPeek() {
             isMobile ? "bottom-24 right-3" : "bottom-6 right-6",
           )}
           role="dialog"
-          aria-label="Sugestão do Otto"
+          aria-label={t("Sugestão do Otto")}
         >
           <button
             type="button"
             onClick={dismiss}
-            aria-label="Dispensar"
+            aria-label={t("Dispensar")}
             className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -108,25 +116,32 @@ export function ModuleOnboardingPeek() {
           <div className="flex gap-3">
             <OttoAvatar expression="happy" size="sm" />
             <div className="min-w-0 flex-1 pr-4">
-              <p className="text-sm font-semibold text-foreground">{script.title}</p>
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">{script.body}</p>
+              <p className="text-sm font-semibold text-foreground">{t(script.title)}</p>
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">{t(script.body)}</p>
             </div>
           </div>
 
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
               type="button"
+              onClick={() => setPeeksOff(true)}
+              className="mr-auto text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {t("Não mostrar mais")}
+            </button>
+            <button
+              type="button"
               onClick={dismiss}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
             >
-              Agora não
+              {t("Agora não")}
             </button>
             <button
               type="button"
               onClick={handleAccept}
               className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Sim, ajuda-me
+              {t("Sim, ajuda-me")}
             </button>
           </div>
         </motion.div>

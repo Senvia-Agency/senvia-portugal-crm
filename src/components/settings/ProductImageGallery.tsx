@@ -3,6 +3,7 @@ import { Loader2, Upload, Trash2, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useServiceImages, useUploadServiceImage, useDeleteServiceImage, useSetPrimaryServiceImage } from '@/hooks/useServiceImages';
 import { toast } from '@/hooks/use-toast';
+import { useLanguage } from '@/i18n';
 
 interface ProductImageGalleryProps {
   productId: string;
@@ -16,6 +17,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
   const setPrimary = useSetPrimaryServiceImage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -23,7 +25,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
 
     for (const file of Array.from(files)) {
       if (file.size > 5 * 1024 * 1024) {
-        toast({ title: 'Imagem demasiado grande', description: `${file.name} excede 5MB.`, variant: 'destructive' });
+        toast({ title: t('Imagem demasiado grande'), description: t('{{name}} excede 5MB.', { name: file.name }), variant: 'destructive' });
         continue;
       }
       await uploadImage.mutateAsync({ productId, file });
@@ -35,7 +37,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium">Imagens do produto</h4>
+        <h4 className="text-sm font-medium">{t('Imagens do produto')}</h4>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -43,7 +45,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {uploadImage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-          Adicionar
+          {t('Adicionar')}
         </button>
         <input
           ref={fileInputRef}
@@ -63,7 +65,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
         <div className="rounded-lg border border-dashed py-6 text-center">
           <Upload className="h-6 w-6 mx-auto text-muted-foreground opacity-50" />
           <p className="mt-2 text-xs text-muted-foreground">
-            Sem imagens. Clica em "Adicionar".
+            {t('Sem imagens. Clica em "Adicionar".')}
           </p>
         </div>
       ) : (
@@ -78,7 +80,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
             >
               <img
                 src={img.url}
-                alt={img.alt_text || 'Imagem do produto'}
+                alt={img.alt_text || t('Imagem do produto')}
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -86,7 +88,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
                   type="button"
                   onClick={() => setPrimary.mutate({ imageId: img.id, productId })}
                   disabled={img.is_primary}
-                  title={img.is_primary ? 'Imagem principal' : 'Definir como principal'}
+                  title={img.is_primary ? t('Imagem principal') : t('Definir como principal')}
                   className={cn(
                     'rounded p-1 transition-colors',
                     img.is_primary ? 'text-amber-400' : 'text-white hover:text-amber-400'
@@ -97,7 +99,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
                 <button
                   type="button"
                   onClick={() => setPendingDelete(img.id)}
-                  title="Eliminar"
+                  title={t('Eliminar')}
                   className="rounded p-1 text-white hover:text-destructive"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -105,7 +107,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
               </div>
               {img.is_primary && (
                 <span className="absolute left-1 top-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">
-                  Principal
+                  {t('Principal')}
                 </span>
               )}
             </div>
@@ -123,18 +125,18 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between">
-              <h3 className="text-sm font-semibold">Eliminar imagem?</h3>
+              <h3 className="text-sm font-semibold">{t('Eliminar imagem?')}</h3>
               <button onClick={() => setPendingDelete(null)} className="rounded p-1 hover:bg-accent">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">Esta ação não pode ser revertida.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t('Esta ação não pode ser revertida.')}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => setPendingDelete(null)}
                 className="rounded-md border px-3 py-1 text-xs hover:bg-accent"
               >
-                Cancelar
+                {t('Cancelar')}
               </button>
               <button
                 onClick={() => {
@@ -146,7 +148,7 @@ export function ProductImageGallery({ productId, onClose }: ProductImageGalleryP
                 }}
                 className="rounded-md bg-destructive px-3 py-1 text-xs text-destructive-foreground hover:bg-destructive/90"
               >
-                Eliminar
+                {t('Eliminar')}
               </button>
             </div>
           </div>

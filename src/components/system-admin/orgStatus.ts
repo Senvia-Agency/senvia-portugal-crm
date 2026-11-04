@@ -1,3 +1,4 @@
+import { tr } from "@/i18n";
 // Single source of truth for an organization's commercial status. Used by both
 // the overview buckets and the clients table so the two never disagree.
 //
@@ -80,16 +81,16 @@ export function humanSpan(ms: number): string {
   const days = Math.floor(Math.abs(ms) / 86400000);
   if (days < 1) {
     const hours = Math.floor(Math.abs(ms) / 3600000);
-    return hours < 1 ? "agora" : `${hours}h`;
+    return hours < 1 ? tr("agora") : `${hours}h`;
   }
   if (days < 7) return `${days}d`;
-  if (days < 30) return `${Math.floor(days / 7)} sem`;
+  if (days < 30) return tr("{{n}} sem", { n: Math.floor(days / 7) });
   if (days < 365) {
     const m = Math.floor(days / 30);
-    return `${m} ${m > 1 ? "meses" : "mês"}`;
+    return tr(m > 1 ? "{{n}} meses" : "{{n}} mês", { n: m });
   }
   const y = Math.floor(days / 365);
-  return `${y} ${y > 1 ? "anos" : "ano"}`;
+  return tr(y > 1 ? "{{n}} anos" : "{{n}} ano", { n: y });
 }
 
 export function since(dateStr: string | null, now: Date): string {

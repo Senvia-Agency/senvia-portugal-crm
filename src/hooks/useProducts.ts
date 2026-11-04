@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 import type { Product } from '@/types/proposals';
 import { effectiveProductTaxRate, effectiveTaxExemptionReason, type OrganizationTaxConfig } from '@/lib/product-fiscal';
 
@@ -25,16 +26,16 @@ function validateFiscalFields(
   organizationTaxConfig: OrganizationTaxConfig | null | undefined,
 ) {
   if (data.tax_value != null && (!Number.isFinite(data.tax_value) || data.tax_value < 0 || data.tax_value > 100)) {
-    throw new Error('A taxa de IVA tem de estar entre 0% e 100%.');
+    throw new Error(tr('A taxa de IVA tem de estar entre 0% e 100%.'));
   }
   if (data.retention_rate != null && (!Number.isFinite(data.retention_rate) || data.retention_rate < 0 || data.retention_rate > 100)) {
-    throw new Error('A retenção tem de estar entre 0% e 100%.');
+    throw new Error(tr('A retenção tem de estar entre 0% e 100%.'));
   }
   if (
     effectiveProductTaxRate(data.tax_value, organizationTaxConfig) === 0
     && !effectiveTaxExemptionReason(data.tax_exemption_reason, organizationTaxConfig)
   ) {
-    throw new Error('Seleciona o motivo de isenção para um produto com IVA a 0%.');
+    throw new Error(tr('Seleciona o motivo de isenção para um produto com IVA a 0%.'));
   }
 }
 
@@ -109,10 +110,10 @@ export function useCreateProduct() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({ title: 'Produto criado', description: 'O produto foi adicionado com sucesso.' });
+      toast({ title: tr('Produto criado'), description: tr('O produto foi adicionado com sucesso.') });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro', description: error.message || 'Não foi possível criar o produto.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: error.message || tr('Não foi possível criar o produto.'), variant: 'destructive' });
     },
   });
 }
@@ -202,20 +203,20 @@ export function useUpdateProduct() {
         const failedServices = [
           result.synced === false ? 'InvoiceXpress' : null,
           result.stripeSynced === false ? 'Stripe' : null,
-        ].filter(Boolean).join(' e ');
-        toast({ title: 'Produto atualizado', description: `Guardado localmente, mas falhou a sincronização com ${failedServices}.`, variant: 'destructive' });
+        ].filter(Boolean).join(tr(' e '));
+        toast({ title: tr('Produto atualizado'), description: tr('Guardado localmente, mas falhou a sincronização com {{services}}.', { services: failedServices }), variant: 'destructive' });
       } else if (result?.synced === true || result?.stripeSynced === true) {
         const syncedServices = [
           result.synced === true ? 'InvoiceXpress' : null,
           result.stripeSynced === true ? 'Stripe' : null,
-        ].filter(Boolean).join(' e ');
-        toast({ title: 'Produto atualizado', description: result.warning || `Sincronizado com ${syncedServices}.` });
+        ].filter(Boolean).join(tr(' e '));
+        toast({ title: tr('Produto atualizado'), description: result.warning || tr('Sincronizado com {{services}}.', { services: syncedServices }) });
       } else {
-        toast({ title: 'Produto atualizado', description: 'As alterações foram guardadas.' });
+        toast({ title: tr('Produto atualizado'), description: tr('As alterações foram guardadas.') });
       }
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro', description: error.message || 'Não foi possível atualizar o produto.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: error.message || tr('Não foi possível atualizar o produto.'), variant: 'destructive' });
     },
   });
 }
@@ -235,10 +236,10 @@ export function useDeleteProduct() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({ title: 'Produto eliminado', description: 'O produto foi removido.' });
+      toast({ title: tr('Produto eliminado'), description: tr('O produto foi removido.') });
     },
     onError: () => {
-      toast({ title: 'Erro', description: 'Não foi possível eliminar o produto.', variant: 'destructive' });
+      toast({ title: tr('Erro'), description: tr('Não foi possível eliminar o produto.'), variant: 'destructive' });
     },
   });
 }

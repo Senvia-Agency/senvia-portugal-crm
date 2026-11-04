@@ -45,6 +45,7 @@ import { LeadFieldsSettings, DEFAULT_LEAD_FIELDS_SETTINGS } from "@/types/field-
 import { useModules } from "@/hooks/useModules";
 import type { LeadTemperature, LeadTipologia } from "@/types";
 import { ROLE_LABELS as RoleLabels, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES } from "@/types";
+import { tr, useLanguage } from "@/i18n";
 
 const SOURCES = [
   "Entrada Manual",
@@ -70,7 +71,7 @@ function buildLeadSchema(settings: LeadFieldsSettings | undefined, niche?: strin
   const strField = (key: keyof LeadFieldsSettings, minLen = 1) => {
     const cfg = s[key];
     if (!cfg?.visible || !cfg?.required) return z.string().optional().or(z.literal(""));
-    return z.string().min(minLen, `${cfg.label} é obrigatório`);
+    return z.string().min(minLen, tr("{{field}} é obrigatório", { field: tr(cfg.label) }));
   };
 
   return z.object({
@@ -78,22 +79,22 @@ function buildLeadSchema(settings: LeadFieldsSettings | undefined, niche?: strin
     company_name: strField('company_name', 2),
     name: strField('name', 2),
     email: s.email?.visible && s.email?.required
-      ? z.string().email("Email inválido").max(255, "Email muito longo")
+      ? z.string().email(tr("Email inválido")).max(255, tr("Email muito longo"))
       : z.string().optional().or(z.literal("")),
     phone: s.phone?.visible && s.phone?.required
-      ? z.string().min(9, "Telemóvel inválido").max(20, "Telemóvel muito longo")
+      ? z.string().min(9, tr("Telemóvel inválido")).max(20, tr("Telemóvel muito longo"))
       : z.string().optional().or(z.literal("")),
     source: z.string().optional(),
     temperature: z.enum(["cold", "warm", "hot"]).optional(),
-    value: z.coerce.number().min(0, "Valor inválido").optional().or(z.literal("")),
-    notes: z.string().max(500, "Notas muito longas").optional(),
+    value: z.coerce.number().min(0, tr("Valor inválido")).optional().or(z.literal("")),
+    notes: z.string().max(500, tr("Notas muito longas")).optional(),
     gdpr_consent: z.literal(true, {
-      errorMap: () => ({ message: "Consentimento RGPD é obrigatório" }),
+      errorMap: () => ({ message: tr("Consentimento RGPD é obrigatório") }),
     }),
     automation_enabled: z.boolean().default(true),
     assigned_to: z.string().optional(),
     tipologia: z.enum(["ee", "gas", "servicos", "ee_servicos"]).optional(),
-    consumo_anual: z.coerce.number().min(0, "Consumo inválido").optional().or(z.literal("")),
+    consumo_anual: z.coerce.number().min(0, tr("Consumo inválido")).optional().or(z.literal("")),
   });
 }
 
@@ -109,6 +110,7 @@ interface AddLeadModalProps {
 }
 
 export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: AddLeadModalProps) {
+  const { t, language } = useLanguage();
   const createLead = useCreateLead();
   const addContactNote = useAddContactNote();
   const uploadAttachment = useUploadLeadAttachment();
@@ -118,7 +120,8 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
   const { data: fieldSettings } = useLeadFieldsSettings();
 
   const fs = fieldSettings ?? DEFAULT_LEAD_FIELDS_SETTINGS;
-  const schema = useMemo(() => buildLeadSchema(fieldSettings, organization?.niche), [fieldSettings, organization?.niche]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const schema = useMemo(() => buildLeadSchema(fieldSettings, organization?.niche), [fieldSettings, organization?.niche, language]);
 
   const [matchedClient, setMatchedClient] = useState<{ id: string; name: string; email: string | null; phone: string | null; notes: string | null; company: string | null } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -186,7 +189,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
   // Helper: is field required?
   const isRequired = (key: keyof LeadFieldsSettings) => fs[key]?.visible !== false && fs[key]?.required === true;
   // Helper: get label
-  const getLabel = (key: keyof LeadFieldsSettings, fallback: string) => fs[key]?.label || fallback;
+  const getLabel = (key: keyof LeadFieldsSettings, fallback: string) => t(fs[key]?.label || fallback);
   // Helper: label with optional asterisk
   const labelText = (key: keyof LeadFieldsSettings, fallback: string) => {
     return `${getLabel(key, fallback)}${isRequired(key) ? ' *' : ''}`;
@@ -304,7 +307,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
         {/* Header */}
         <div className="px-4 sm:px-6 pr-14 py-4 border-b border-border/50 shrink-0">
           <DialogHeader className="space-y-0">
-            <DialogTitle className="text-lg font-semibold">Adicionar Lead</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">{t("Adicionar Lead")}</DialogTitle>
           </DialogHeader>
         </div>
 
@@ -320,7 +323,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                     <div className="flex items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-3">
                       <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
                       <span className="text-sm text-destructive flex-1">
-                        Este NIF já pertence ao cliente <strong>{nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}</strong>. Não é possível criar um novo lead.
+                        {t("Este NIF já pertence ao cliente {{client}}. Não é possível criar um novo lead.", { client: `${nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}${nifValidation.existingClientName ?? ''}` })}
                       </span>
                     </div>
                   )}
@@ -330,7 +333,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                     <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3">
                       <User className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                       <span className="text-sm text-amber-800 dark:text-amber-300 flex-1">
-                        Cliente existente: <strong>{matchedClient.name}</strong>
+                        {t("Cliente existente:")} <strong>{matchedClient.name}</strong>
                       </span>
                       <button type="button" onClick={clearMatchedClient} className="text-amber-600 dark:text-amber-400 hover:text-amber-800">
                         <X className="h-4 w-4" />
@@ -341,7 +344,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                   {isSearching && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      A verificar cliente...
+                      {t("A verificar cliente...")}
                     </div>
                   )}
 
@@ -351,7 +354,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                       <CardHeader className="pb-4">
                         <CardTitle className="text-base flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
-                          Empresa
+                          {t("Empresa")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -376,7 +379,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                   <FormMessage />
                                    {nifValidation.isDuplicate && (
                                      <p className="text-xs text-destructive mt-1 font-medium">
-                                       Este NIF pertence ao cliente {nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}{nifValidation.existingClientName}. Não é possível criar leads duplicados.
+                                       {t("Este NIF pertence ao cliente {{client}}. Não é possível criar leads duplicados.", { client: `${nifValidation.existingClientCode ? `${nifValidation.existingClientCode} - ` : ''}${nifValidation.existingClientName ?? ''}` })}
                                      </p>
                                    )}
                                 </FormItem>
@@ -391,7 +394,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                 <FormItem>
                                   <FormLabel>{labelText('company_name', 'Nome da Empresa')}</FormLabel>
                                   <FormControl>
-                                    <Input placeholder="Empresa Exemplo, Lda" disabled={nifValidation.isDuplicate} {...field} />
+                                    <Input placeholder={t("Empresa Exemplo, Lda")} disabled={nifValidation.isDuplicate} {...field} />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -421,7 +424,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                       <CardHeader className="pb-4">
                         <CardTitle className="text-base flex items-center gap-2">
                           <Contact className="h-4 w-4 text-muted-foreground" />
-                          Contacto
+                          {t("Contacto")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -481,7 +484,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                     <CardHeader className="pb-4">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Settings2 className="h-4 w-4 text-muted-foreground" />
-                        Detalhes
+                        {t("Detalhes")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -496,12 +499,12 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Selecionar" />
+                                      <SelectValue placeholder={t("Selecionar")} />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
                                     {SOURCES.map((source) => (
-                                      <SelectItem key={source} value={source}>{source}</SelectItem>
+                                      <SelectItem key={source} value={source}>{t(source)}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -520,13 +523,13 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Selecionar" />
+                                      <SelectValue placeholder={t("Selecionar")} />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="cold">🧊 Frio</SelectItem>
-                                    <SelectItem value="warm">🌤️ Morno</SelectItem>
-                                    <SelectItem value="hot">🔥 Quente</SelectItem>
+                                    <SelectItem value="cold">🧊 {t("Frio")}</SelectItem>
+                                    <SelectItem value="warm">🌤️ {t("Morno")}</SelectItem>
+                                    <SelectItem value="hot">🔥 {t("Quente")}</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -546,7 +549,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecionar tipologia" />
+                                    <SelectValue placeholder={t("Selecionar tipologia")} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -554,7 +557,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                     <SelectItem key={tipo} value={tipo}>
                                       <span className="flex items-center gap-2">
                                         <span>{TIPOLOGIA_STYLES[tipo].emoji}</span>
-                                        {TIPOLOGIA_LABELS[tipo]}
+                                        {t(TIPOLOGIA_LABELS[tipo])}
                                       </span>
                                     </SelectItem>
                                   ))}
@@ -604,21 +607,21 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                             <FormItem>
                               <FormLabel className="flex items-center gap-2">
                                 <UserCircle className="h-4 w-4" />
-                                Atribuir a
+                                {t("Atribuir a")}
                               </FormLabel>
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Não atribuído" />
+                                    <SelectValue placeholder={t("Não atribuído")} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="unassigned">Não atribuído</SelectItem>
+                                  <SelectItem value="unassigned">{t("Não atribuído")}</SelectItem>
                                   {teamMembers
                                     .filter(m => !m.is_banned && (m.role === 'salesperson' || m.role === 'admin' || m.role === 'viewer'))
                                     .map((member) => (
                                       <SelectItem key={member.user_id} value={member.user_id}>
-                                        {member.full_name} ({RoleLabels[member.role] || member.role})
+                                        {member.full_name} ({RoleLabels[member.role] ? t(RoleLabels[member.role]) : member.role})
                                       </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -648,7 +651,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                             <FormItem>
                               <FormControl>
                                 <Textarea
-                                  placeholder="Notas adicionais sobre o lead..."
+                                  placeholder={t("Notas adicionais sobre o lead...")}
                                   className="resize-none"
                                   rows={3}
                                   disabled={nifValidation.isDuplicate}
@@ -665,7 +668,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium flex items-center gap-2">
                                 <Paperclip className="h-4 w-4 text-muted-foreground" />
-                                Anexar Faturas
+                                {t("Anexar Faturas")}
                               </span>
                               <div>
                                 <input
@@ -678,7 +681,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                 />
                                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                                   <Upload className="h-4 w-4" />
-                                  Adicionar
+                                  {t("Adicionar")}
                                 </Button>
                               </div>
                             </div>
@@ -697,7 +700,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                               </div>
                             )}
                             {pendingFiles.length === 0 && (
-                              <p className="text-xs text-muted-foreground">PDF, PNG ou JPG (máx. 10MB)</p>
+                              <p className="text-xs text-muted-foreground">{t("PDF, PNG ou JPG (máx. 10MB)")}</p>
                             )}
                           </div>
                         )}
@@ -714,7 +717,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                       <CardHeader className="pb-4">
                         <CardTitle className="text-base flex items-center gap-2">
                           <Eye className="h-4 w-4 text-muted-foreground" />
-                          Resumo
+                          {t("Resumo")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -724,11 +727,11 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                           {isVisible('name') && <SummaryRow label={getLabel('name', 'Nome')} value={watchedValues.name} />}
                           {isVisible('email') && <SummaryRow label={getLabel('email', 'Email')} value={watchedValues.email} />}
                           {isVisible('phone') && <SummaryRow label={getLabel('phone', 'Telefone')} value={watchedValues.phone} />}
-                          {isVisible('source') && <SummaryRow label={getLabel('source', 'Origem')} value={watchedValues.source} />}
+                          {isVisible('source') && <SummaryRow label={getLabel('source', 'Origem')} value={watchedValues.source ? t(watchedValues.source) : watchedValues.source} />}
                           {isVisible('temperature') && watchedValues.temperature && (
                             <SummaryRow
                               label={getLabel('temperature', 'Temperatura')}
-                              value={`${TEMPERATURE_LABELS[watchedValues.temperature]?.emoji} ${TEMPERATURE_LABELS[watchedValues.temperature]?.label}`}
+                              value={`${TEMPERATURE_LABELS[watchedValues.temperature]?.emoji} ${t(TEMPERATURE_LABELS[watchedValues.temperature]?.label ?? '')}`}
                             />
                           )}
                           {isVisible('value') && !showEnergy && watchedValues.value && (
@@ -737,7 +740,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                           {isVisible('tipologia') && showEnergy && watchedValues.tipologia && (
                             <SummaryRow
                               label={getLabel('tipologia', 'Tipologia')}
-                              value={`${TIPOLOGIA_STYLES[watchedValues.tipologia as LeadTipologia]?.emoji} ${TIPOLOGIA_LABELS[watchedValues.tipologia as LeadTipologia]}`}
+                              value={`${TIPOLOGIA_STYLES[watchedValues.tipologia as LeadTipologia]?.emoji} ${t(TIPOLOGIA_LABELS[watchedValues.tipologia as LeadTipologia] ?? '')}`}
                             />
                           )}
                           {isVisible('consumo_anual') && showEnergy && watchedValues.consumo_anual && (
@@ -760,9 +763,9 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                   <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
-                                  <FormLabel>Consentimento RGPD obtido *</FormLabel>
+                                  <FormLabel>{t("Consentimento RGPD obtido *")}</FormLabel>
                                   <p className="text-xs text-muted-foreground">
-                                    Confirmo que obtive consentimento para guardar estes dados.
+                                    {t("Confirmo que obtive consentimento para guardar estes dados.")}
                                   </p>
                                 </div>
                               </div>
@@ -783,10 +786,10 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                                 <div className="space-y-1 leading-none">
                                   <FormLabel className="flex items-center gap-2">
                                     <Zap className="h-4 w-4 text-primary" />
-                                    Activar automação
+                                    {t("Ativar automação")}
                                   </FormLabel>
                                   <p className="text-xs text-muted-foreground">
-                                    Enviar mensagem automática de WhatsApp e notificar equipa.
+                                    {t("Enviar mensagem automática de WhatsApp e notificar a equipa.")}
                                   </p>
                                 </div>
                               </FormItem>
@@ -804,7 +807,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                         className="flex-1"
                         onClick={() => onOpenChange(false)}
                       >
-                        Cancelar
+                        {t("Cancelar")}
                       </Button>
                       <Button
                         type="button"
@@ -823,8 +826,8 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                             }
                             const firstError = Object.values(errors)[0];
                             toast({
-                              title: 'Campos obrigatórios',
-                              description: (firstError?.message as string) || 'Preencha todos os campos obrigatórios.',
+                              title: t('Campos obrigatórios'),
+                              description: (firstError?.message as string) || t('Preencha todos os campos obrigatórios.'),
                               variant: 'destructive',
                             });
                           })();
@@ -833,10 +836,10 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                         {createLead.isPending ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            A criar...
+                            {t("A criar...")}
                           </>
                         ) : (
-                          "Criar Lead"
+                          t("Criar Lead")
                         )}
                       </Button>
                     </div>

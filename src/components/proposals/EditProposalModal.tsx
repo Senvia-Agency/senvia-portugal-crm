@@ -38,6 +38,7 @@ import {
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { ServicosSection } from '@/components/proposals/ServicosSection';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
+import { useLanguage, intlLocale } from "@/i18n";
 
 interface EditProposalModalProps {
   proposal: Proposal;
@@ -47,6 +48,7 @@ interface EditProposalModalProps {
 }
 
 export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: EditProposalModalProps) {
+  const { t } = useLanguage();
   const { data: clients = [] } = useClients();
   const { data: products = [] } = useActiveProducts();
   const { data: existingCpes = [], isSuccess: cpesLoaded, isFetching: cpesFetching, isError: cpesError } = useProposalCpes(proposal.id);
@@ -488,7 +490,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
           <DialogHeader className="px-6 pr-14 py-4 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              Editar Proposta {proposal.code}
+              {t("Editar Proposta")} {proposal.code}
             </DialogTitle>
           </DialogHeader>
 
@@ -502,12 +504,12 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <User className="h-4 w-4" />
-                        Informação Básica
+                        {t("Informação Básica")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-4">
                       <div className="space-y-2">
-                        <Label>Cliente</Label>
+                        <Label>{t("Cliente")}</Label>
                         <div className="flex gap-2">
                           <SearchableCombobox
                             options={clients.map((c): ComboboxOption => ({
@@ -517,10 +519,10 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             }))}
                             value={selectedClientId}
                             onValueChange={setSelectedClientId}
-                            placeholder="Selecionar cliente..."
-                            searchPlaceholder="Pesquisar cliente..."
-                            emptyLabel="Sem cliente associado"
-                            emptyText="Nenhum cliente encontrado."
+                            placeholder={t("Selecionar cliente...")}
+                            searchPlaceholder={t("Pesquisar cliente...")}
+                            emptyLabel={t("Sem cliente associado")}
+                            emptyText={t("Nenhum cliente encontrado.")}
                             className="flex-1"
                           />
                           <Button
@@ -528,7 +530,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             variant="outline"
                             size="icon"
                             onClick={() => setIsCreateClientOpen(true)}
-                            title="Novo Cliente"
+                            title={t("Novo Cliente")}
                           >
                             <UserPlus className="h-4 w-4" />
                           </Button>
@@ -537,7 +539,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="proposal-date">Data da Proposta</Label>
+                          <Label htmlFor="proposal-date">{t("Data da Proposta")}</Label>
                           <Input
                             id="proposal-date"
                             type="date"
@@ -546,7 +548,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="status">Estado</Label>
+                          <Label htmlFor="status">{t("Estado")}</Label>
                           <Select value={status} onValueChange={(v) => setStatus(v as ProposalStatus)}>
                             <SelectTrigger id="status">
                               <SelectValue />
@@ -554,7 +556,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             <SelectContent>
                               {PROPOSAL_STATUSES.map((s) => (
                                 <SelectItem key={s} value={s}>
-                                  {PROPOSAL_STATUS_LABELS[s]}
+                                  {t(PROPOSAL_STATUS_LABELS[s])}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -568,7 +570,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                   {isTelecom && (
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Tipo de Negociação</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Tipo de Negociação")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-2">
@@ -581,7 +583,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                               className="text-xs"
                               onClick={() => setNegotiationType(type)}
                             >
-                              {NEGOTIATION_TYPE_LABELS[type]}
+                              {t(NEGOTIATION_TYPE_LABELS[type])}
                             </Button>
                           ))}
                         </div>
@@ -593,7 +595,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                   {showEnergy && (
                     <Card>
                       <CardHeader className="pb-2 p-4">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Tipo de Proposta</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{t("Tipo de Proposta")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-2">
@@ -604,7 +606,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             onClick={() => handleProposalTypeChange('energia')}
                           >
                             <Zap className="h-4 w-4" />
-                            Energia
+                            {t("Energia")}
                           </Button>
                           <Button
                             type="button"
@@ -613,7 +615,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                             onClick={() => handleProposalTypeChange('servicos')}
                           >
                             <Wrench className="h-4 w-4" />
-                            Outros Serviços
+                            {t("Outros Serviços")}
                           </Button>
                         </div>
                       </CardContent>
@@ -640,12 +642,12 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                         <div className="space-y-4 p-4 rounded-lg border bg-secondary/30 border-border">
                           <div className="flex items-center gap-2 text-foreground">
                             <Wrench className="h-4 w-4" />
-                            <span className="font-medium text-sm">Outros Serviços</span>
+                            <span className="font-medium text-sm">{t("Outros Serviços")}</span>
                           </div>
 
                           {/* Modelo de Serviço PRIMEIRO */}
                           <div className="space-y-2">
-                            <Label className="text-xs">Modelo de Serviço</Label>
+                            <Label className="text-xs">{t("Modelo de Serviço")}</Label>
                             <div className="grid grid-cols-2 gap-2">
                               <Button
                                 type="button"
@@ -654,7 +656,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                 className="h-9"
                                 onClick={() => setModeloServico('transacional')}
                               >
-                                Transacional
+                                {t("Transacional")}
                               </Button>
                               <Button
                                 type="button"
@@ -663,14 +665,14 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                 className="h-9"
                                 onClick={() => setModeloServico('saas')}
                               >
-                                SAAS
+                                {t("SAAS")}
                               </Button>
                             </div>
                           </div>
 
                           {/* Produtos em linha */}
                           <div className="space-y-3">
-                            <Label className="text-xs">Produtos</Label>
+                            <Label className="text-xs">{t("Produtos")}</Label>
                             {SERVICOS_PRODUCT_CONFIGS.map((config) => {
                               const isActive = servicosProdutos.includes(config.name);
                               const detail = servicosDetails[config.name] || {};
@@ -693,8 +695,8 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                         return (
                                         <div key={field} className="space-y-1 min-w-[100px] flex-1">
                                           <Label className="text-xs text-muted-foreground">
-                                            {FIELD_LABELS[field]} <span className="text-destructive">*</span>
-                                            {isComissaoAuto && <span className="ml-1 text-primary">(auto)</span>}
+                                            {t(FIELD_LABELS[field])} <span className="text-destructive">*</span>
+                                            {isComissaoAuto && <span className="ml-1 text-primary">{t("(auto)")}</span>}
                                           </Label>
                                           <Input
                                             type="number"
@@ -702,12 +704,12 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                             min="0"
                                             value={detail[field] ?? ''}
                                             onChange={(e) => handleUpdateProductDetail(config.name, field, e.target.value ? parseFloat(e.target.value) : undefined)}
-                                            placeholder={field === 'kwp' && config.kwpAuto ? 'Auto' : '0'}
+                                            placeholder={field === 'kwp' && config.kwpAuto ? t("Auto") : '0'}
                                             className={`h-8 ${attempted && (detail[field] === undefined || detail[field] <= 0) ? 'border-destructive' : ''}`}
                                             readOnly={(field === 'kwp' && !!config.kwpAuto && detail.valor !== undefined) || isComissaoAuto}
                                           />
                                           {attempted && (detail[field] === undefined || detail[field] <= 0) && (
-                                            <p className="text-[10px] text-destructive">Obrigatório</p>
+                                            <p className="text-[10px] text-destructive">{t("Obrigatório")}</p>
                                           )}
                                         </div>
                                         );
@@ -722,15 +724,15 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                           {/* kWp Total + Comissão Total */}
                           <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
                             <div className="space-y-1">
-                              <Label className="text-xs text-muted-foreground">kWp Total</Label>
+                              <Label className="text-xs text-muted-foreground">{t("kWp Total")}</Label>
                               <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
-                                {totalKwp ? totalKwp.toLocaleString('pt-PT', { maximumFractionDigits: 2 }) : '—'}
+                                {totalKwp ? totalKwp.toLocaleString(intlLocale(), { maximumFractionDigits: 2 }) : '—'}
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-xs text-muted-foreground">Comissão Total (€)</Label>
+                              <Label className="text-xs text-muted-foreground">{t("Comissão Total (€)")}</Label>
                               <div className="h-8 flex items-center text-sm font-medium px-3 rounded-md bg-muted">
-                                {totalComissao ? totalComissao.toLocaleString('pt-PT', { maximumFractionDigits: 2 }) : '—'}
+                                {totalComissao ? totalComissao.toLocaleString(intlLocale(), { maximumFractionDigits: 2 }) : '—'}
                               </div>
                             </div>
                           </div>
@@ -745,21 +747,21 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <Package className="h-4 w-4" />
-                          Produtos/Serviços
+                          {t("Produtos/Serviços")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
                         {productsFetching && !productsLoaded && (
-                          <p className="text-sm text-muted-foreground">A carregar os produtos da proposta...</p>
+                          <p className="text-sm text-muted-foreground">{t("A carregar os produtos da proposta...")}</p>
                         )}
                         {productsError && (
-                          <p className="text-sm text-destructive">Não foi possível carregar os produtos. Fecha e volta a abrir a proposta antes de guardar.</p>
+                          <p className="text-sm text-destructive">{t("Não foi possível carregar os produtos. Fecha e volta a abrir a proposta antes de guardar.")}</p>
                         )}
                         {products.length > 0 && (
                           <>
                             <Select onValueChange={handleAddProduct}>
                               <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Adicionar produto/serviço..." />
+                                <SelectValue placeholder={t("Adicionar produto/serviço...")} />
                               </SelectTrigger>
                               <SelectContent>
                                 {products.map((product) => (
@@ -795,7 +797,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                       
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <Label className="text-xs text-muted-foreground">Quantidade</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Quantidade")}</Label>
                                           <Input
                                             type="number"
                                             min="0.5"
@@ -806,7 +808,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                           />
                                         </div>
                                         <div>
-                                          <Label className="text-xs text-muted-foreground">Preço Unit.</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Preço Unit.")}</Label>
                                           <Input
                                             type="number"
                                             step="0.01"
@@ -819,7 +821,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                       
                                       <div className="flex items-end gap-2">
                                         <div className="flex-1">
-                                          <Label className="text-xs text-muted-foreground">Desconto</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Desconto")}</Label>
                                           <div className="flex gap-1">
                                             <Button
                                               type="button"
@@ -855,7 +857,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                           </div>
                                         </div>
                                         <div className="text-right min-w-[70px]">
-                                          <Label className="text-xs text-muted-foreground">Subtotal</Label>
+                                          <Label className="text-xs text-muted-foreground">{t("Subtotal")}</Label>
                                           <div className="text-sm font-medium">
                                             {hasDiscount && (
                                               <span className="text-xs text-muted-foreground line-through mr-1">
@@ -877,11 +879,11 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                         )}
                         {legacyWithoutProducts && selectedProducts.length === 0 && (
                           <div className="space-y-2 rounded-lg border border-border p-3">
-                            <Label htmlFor="legacy-proposal-total">Valor da proposta (€)</Label>
+                            <Label htmlFor="legacy-proposal-total">{t("Valor da proposta (€)")}</Label>
                             <Input id="legacy-proposal-total" type="number" min="0.01" step="0.01"
                               value={manualTotal} onChange={(event) => setManualTotal(event.target.value)} />
                             <p className="text-xs text-muted-foreground">
-                              Esta proposta antiga tem um valor guardado, mas não tem linhas de produtos associadas. Podes manter ou editar o valor, ou adicionar produtos acima.
+                              {t("Esta proposta antiga tem um valor guardado, mas não tem linhas de produtos associadas. Podes manter ou editar o valor, ou adicionar produtos acima.")}
                             </p>
                           </div>
                         )}
@@ -902,14 +904,14 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                   {/* Observações */}
                   <Card>
                     <CardHeader className="pb-2 p-4">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">Observações da Negociação</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">{t("Observações da Negociação")}</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <Textarea
                         id="notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Detalhes da negociação, condições especiais, etc..."
+                        placeholder={t("Detalhes da negociação, condições especiais, etc...")}
                         rows={3}
                       />
                     </CardContent>
@@ -924,18 +926,18 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                       <CardHeader className="pb-2 p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                           <FileText className="h-4 w-4" />
-                          Resumo
+                          {t("Resumo")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 space-y-3">
                         {isTelecom && proposalType === 'energia' && proposalCpes.length > 0 && (
                           <>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">CPE/CUI adicionados</span>
+                              <span className="text-muted-foreground">{t("CPE/CUI adicionados")}</span>
                               <span className="font-medium">{proposalCpes.length}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Comissão Total</span>
+                              <span className="text-muted-foreground">{t("Comissão Total")}</span>
                               <span className="font-medium">{formatCurrency(totalComissao)}</span>
                             </div>
                             <Separator />
@@ -945,7 +947,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                         {!isTelecom && selectedProducts.length > 0 && (
                           <>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Produtos</span>
+                              <span className="text-muted-foreground">{t("Produtos")}</span>
                               <span className="font-medium">{selectedProducts.length}</span>
                             </div>
                             <Separator />
@@ -953,11 +955,11 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                         )}
 
                         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
-                          <p className="text-sm text-muted-foreground mb-1">Total da Proposta</p>
+                          <p className="text-sm text-muted-foreground mb-1">{t("Total da Proposta")}</p>
                           <p className="text-2xl font-bold text-primary">{formatCurrency(relatedDataReady ? totalValue : Number(proposal.total_value) || 0)}</p>
                           {isTelecom && proposalType === 'energia' && proposalCpes.length > 0 && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Soma das margens de {proposalCpes.length} CPE(s)
+                              {t("Soma das margens de {{n}} CPE(s)", { n: proposalCpes.length })}
                             </p>
                           )}
                         </div>
@@ -982,10 +984,10 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    A guardar...
+                    {t("A guardar...")}
                   </>
                 ) : (
-                  "Guardar Alterações"
+                  t("Guardar Alterações")
                 )}
               </Button>
               <Button
@@ -994,7 +996,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                 size="lg"
                 onClick={() => onOpenChange(false)}
               >
-                Cancelar
+                {t("Cancelar")}
               </Button>
             </div>
           </div>

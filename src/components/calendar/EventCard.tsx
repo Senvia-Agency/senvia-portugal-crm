@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { EVENT_TYPE_COLORS, EVENT_TYPE_LABELS, type CalendarEvent, type EventType } from '@/types/calendar';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import { Video, Phone, CheckSquare, RefreshCw, Clock, User } from 'lucide-react';
 
 const EVENT_TYPE_ICONS: Record<EventType, React.ElementType> = {
@@ -18,6 +18,7 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, compact = false, onClick }: EventCardProps) {
+  const { t } = useLanguage();
   const Icon = EVENT_TYPE_ICONS[event.event_type];
   const colorClass = EVENT_TYPE_COLORS[event.event_type];
 
@@ -29,16 +30,17 @@ export function EventCard({ event, compact = false, onClick }: EventCardProps) {
   if (compact) {
     return (
       <button
+        data-type={event.event_type}
         onClick={handleClick}
         className={cn(
-          'w-full text-left px-2 py-1 rounded text-xs font-medium',
+          'calendar-chip w-full text-left px-2 py-1 rounded text-xs font-medium',
           colorClass,
           'text-white hover:opacity-90 transition-opacity'
         )}
       >
-        <p className="truncate">{event.lead ? `${event.title} - ${event.lead.name}` : event.title}</p>
-        <p className="truncate text-[10px] text-primary-foreground/80">
-          Comercial: {event.user?.full_name || 'Não identificado'}
+        <p className="calendar-chip-title truncate">{!event.all_day && <span className="calendar-chip-time hidden">{format(new Date(event.start_time), 'HH:mm')} </span>}{event.lead ? `${event.title} - ${event.lead.name}` : event.title}</p>
+        <p className="calendar-chip-meta truncate text-[10px] text-primary-foreground/80">
+          {t('Comercial: {{name}}', { name: event.user?.full_name || t('Não identificado') })}
         </p>
       </button>
     );
@@ -46,13 +48,14 @@ export function EventCard({ event, compact = false, onClick }: EventCardProps) {
 
   return (
     <button
-      onClick={handleClick}
+      data-type={event.event_type}
+        onClick={handleClick}
       className={cn(
-        'w-full text-left p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors',
+        'calendar-event w-full text-left p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors',
         'flex items-start gap-3'
       )}
     >
-      <div className={cn('p-2 rounded-lg text-white', colorClass)}>
+      <div className={cn('calendar-event-icon p-2 rounded-lg text-white', colorClass)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
@@ -60,11 +63,11 @@ export function EventCard({ event, compact = false, onClick }: EventCardProps) {
         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
           <Clock className="h-3 w-3" />
           {event.all_day ? (
-            <span>Dia inteiro</span>
+            <span>{t("Dia inteiro")}</span>
           ) : (
             <span>
-              {format(new Date(event.start_time), 'HH:mm', { locale: pt })}
-              {event.end_time && ` - ${format(new Date(event.end_time), 'HH:mm', { locale: pt })}`}
+              {format(new Date(event.start_time), 'HH:mm', { locale: dateLocale() })}
+              {event.end_time && ` - ${format(new Date(event.end_time), 'HH:mm', { locale: dateLocale() })}`}
             </span>
           )}
         </div>
@@ -76,7 +79,7 @@ export function EventCard({ event, compact = false, onClick }: EventCardProps) {
         )}
         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
           <User className="h-3 w-3" />
-          <span className="truncate">Comercial: {event.user?.full_name || 'Não identificado'}</span>
+          <span className="truncate">{t('Comercial: {{name}}', { name: event.user?.full_name || t('Não identificado') })}</span>
         </div>
       </div>
       <span
@@ -89,7 +92,7 @@ export function EventCard({ event, compact = false, onClick }: EventCardProps) {
           event.status === 'cancelled' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
         )}
       >
-        {EVENT_TYPE_LABELS[event.event_type]}
+        {t(EVENT_TYPE_LABELS[event.event_type])}
       </span>
     </button>
   );

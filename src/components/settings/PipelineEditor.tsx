@@ -48,6 +48,7 @@ import {
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 const NICHE_ICONS: Record<string, React.ReactNode> = {
   Building2: <Building2 className="h-5 w-5" />,
@@ -84,6 +85,7 @@ export function PipelineEditor() {
   const deleteStage = useDeletePipelineStage();
   const reorderStages = useReorderPipelineStages();
   const applyTemplate = useApplyNicheTemplate();
+  const { t } = useLanguage();
 
   // DnD sensors
   const sensors = useSensors(
@@ -331,11 +333,11 @@ export function PipelineEditor() {
       {/* Niche Selector */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Template de Nicho</CardTitle>
+          <CardTitle className="text-base">{t('Template de Nicho')}</CardTitle>
           <CardDescription>
             {previewStages 
-              ? "Clica num template para ver as etapas antes de aplicar"
-              : "Escolhe um template pré-definido ou personaliza as etapas manualmente"
+              ? t("Clica num template para ver as etapas antes de aplicar")
+              : t("Escolhe um template predefinido ou personaliza as etapas manualmente")
             }
           </CardDescription>
         </CardHeader>
@@ -364,9 +366,9 @@ export function PipelineEditor() {
                 )}>
                   {NICHE_ICONS[template.icon]}
                 </div>
-                <span className="text-sm font-medium text-center">{template.name}</span>
+                <span className="text-sm font-medium text-center">{t(template.name)}</span>
                 {currentNiche === template.id && !previewStages && (
-                  <span className="text-xs text-primary">Atual</span>
+                  <span className="text-xs text-primary">{t('Atual')}</span>
                 )}
               </button>
             ))}
@@ -382,16 +384,16 @@ export function PipelineEditor() {
               <Eye className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle className="text-base">
-                  Preview: {NICHE_LABELS[selectedNiche]}
+                  {t('Pré-visualização: {{niche}}', { niche: t(NICHE_LABELS[selectedNiche]) })}
                 </CardTitle>
                 <CardDescription>
-                  Edita as etapas antes de aplicar o template
+                  {t('Edita as etapas antes de aplicar o template')}
                 </CardDescription>
               </div>
             </div>
             <Button onClick={handleAddPreviewStage} size="sm" variant="outline">
               <Plus className="h-4 w-4 mr-1" />
-              Adicionar
+              {t('Adicionar')}
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -425,20 +427,20 @@ export function PipelineEditor() {
             <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 mt-4">
               <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
               <p className="text-sm text-warning">
-                Ao aplicar, os leads existentes serão movidos para a primeira etapa "{previewStages[0]?.name}".
+                {t('Ao aplicar, os leads existentes serão movidos para a primeira etapa "{{name}}".', { name: previewStages[0]?.name })}
               </p>
             </div>
 
             {/* Action buttons */}
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={handleCancelPreview}>
-                Cancelar
+                {t('Cancelar')}
               </Button>
               <Button 
                 onClick={() => setShowApplyConfirm(true)}
                 disabled={previewStages.length === 0 || applyTemplate.isPending}
               >
-                {applyTemplate.isPending ? "A aplicar..." : "Aplicar Template"}
+                {applyTemplate.isPending ? t('A aplicar...') : t('Aplicar Template')}
               </Button>
             </div>
           </CardContent>
@@ -450,14 +452,14 @@ export function PipelineEditor() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>
-              <CardTitle className="text-base">Etapas do Pipeline</CardTitle>
+              <CardTitle className="text-base">{t('Etapas do Pipeline')}</CardTitle>
               <CardDescription>
-                Arrasta para reordenar ou edita cada etapa
+                {t('Arrasta para reordenar ou edita cada etapa')}
               </CardDescription>
             </div>
             <Button data-otto-target="settings-pipeline-add" onClick={handleAddStage} size="sm">
               <Plus className="h-4 w-4 mr-1" />
-              Adicionar
+              {t('Adicionar')}
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -484,7 +486,7 @@ export function PipelineEditor() {
 
             {(!stages || stages.length === 0) && (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhuma etapa configurada. Escolhe um template ou adiciona etapas manualmente.
+                {t('Nenhuma etapa configurada. Escolhe um template ou adiciona etapas manualmente.')}
               </div>
             )}
           </CardContent>
@@ -496,26 +498,26 @@ export function PipelineEditor() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingStage?.id ? "Editar Etapa" : "Nova Etapa"}
+              {editingStage?.id ? t('Editar Etapa') : t('Nova Etapa')}
             </DialogTitle>
             <DialogDescription>
-              Configura os detalhes da etapa do pipeline
+              {t('Configura os detalhes da etapa do pipeline')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">{t('Nome')}</Label>
               <Input
                 id="name"
                 value={editingStage?.name || ""}
                 onChange={(e) => setEditingStage(prev => prev ? { ...prev, name: e.target.value } : null)}
-                placeholder="Ex: Consulta Marcada"
+                placeholder={t('Ex: Consulta Marcada')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="color">Cor</Label>
+              <Label htmlFor="color">{t('Cor')}</Label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -534,8 +536,8 @@ export function PipelineEditor() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Etapa de Sucesso</Label>
-                <p className="text-xs text-muted-foreground">Conta como conversão</p>
+                <Label>{t('Etapa de Sucesso')}</Label>
+                <p className="text-xs text-muted-foreground">{t('Conta como conversão')}</p>
               </div>
               <Switch
                 checked={editingStage?.is_final_positive || false}
@@ -547,8 +549,8 @@ export function PipelineEditor() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Etapa de Perda</Label>
-                <p className="text-xs text-muted-foreground">Marca como perdido</p>
+                <Label>{t('Etapa de Perda')}</Label>
+                <p className="text-xs text-muted-foreground">{t('Marca como perdido')}</p>
               </div>
               <Switch
                 checked={editingStage?.is_final_negative || false}
@@ -561,13 +563,13 @@ export function PipelineEditor() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button 
               onClick={handleSaveStage}
               disabled={!editingStage?.name || createStage.isPending || updateStage.isPending}
             >
-              Guardar
+              {t('Guardar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -577,18 +579,18 @@ export function PipelineEditor() {
       <AlertDialog open={!!stageToDelete} onOpenChange={() => setStageToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar etapa?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar etapa?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser revertida. Leads nesta etapa ficarão sem status.
+              {t('Esta ação não pode ser revertida. Leads nesta etapa ficarão sem status.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteStage}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Eliminar
+              {t('Eliminar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -600,20 +602,19 @@ export function PipelineEditor() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-warning" />
-              Aplicar template?
+              {t('Aplicar template?')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Todas as etapas atuais serão substituídas pelas {previewStages?.length} etapas do preview.
-              Os leads existentes serão movidos para a primeira etapa "{previewStages?.[0]?.name}".
+              {t('Todas as etapas atuais serão substituídas pelas {{n}} etapas da pré-visualização. Os leads existentes serão movidos para a primeira etapa "{{name}}".', { n: previewStages?.length, name: previewStages?.[0]?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleApplyPreview}
               disabled={applyTemplate.isPending}
             >
-              {applyTemplate.isPending ? "A aplicar..." : "Confirmar"}
+              {applyTemplate.isPending ? t('A aplicar...') : t('Confirmar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

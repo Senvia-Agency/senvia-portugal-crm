@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/i18n";
 
 interface UnsubscribeResult {
   success: boolean;
@@ -12,6 +13,7 @@ interface UnsubscribeResult {
 }
 
 export default function Unsubscribe() {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = useMemo(() => searchParams.get("token")?.trim() || "", [searchParams]);
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -53,8 +55,8 @@ export default function Unsubscribe() {
   return (
     <>
       <SEO
-        title="Cancelar subscrição"
-        description="Cancele a subscrição de newsletters do Senvia OS."
+        title={t("Cancelar subscrição")}
+        description={t("Cancele a subscrição de newsletters do Senvia OS.")}
         canonical="/unsubscribe"
         noindex
       />
@@ -68,17 +70,17 @@ export default function Unsubscribe() {
               {status === "error" && <AlertCircle className="h-5 w-5 text-destructive" />}
             </div>
             <CardTitle className="text-2xl text-foreground">
-              {status === "loading" ? "A processar..." : status === "success" ? "Subscrição cancelada" : "Não foi possível concluir"}
+              {status === "loading" ? t("A processar...") : status === "success" ? t("Subscrição cancelada") : t("Não foi possível concluir")}
             </CardTitle>
             <CardDescription className="text-sm text-muted-foreground">
-              {message}
+              {t(message)}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="flex flex-col gap-3">
             {status !== "loading" && (
               <Button asChild className="w-full">
-                <Link to="/privacy">Ver política de privacidade</Link>
+                <Link to="/privacy">{t("Ver política de privacidade")}</Link>
               </Button>
             )}
           </CardContent>

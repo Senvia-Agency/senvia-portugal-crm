@@ -1,12 +1,11 @@
+import { workspaceNavigation, workspaceNavigationGroups } from './workspaceNavigation';
 import { NavLink, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard, Users, Settings, LogOut, Shield, X, Building2,
-  Calendar, FileText, ShoppingBag, Store, UserCheck, Mail, Wallet, Search, MessageSquare, Workflow,
-} from "lucide-react";
+import { LogOut, Shield, X, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { useModules, EnabledModules } from "@/hooks/useModules";
+import { useModules } from "@/hooks/useModules";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useLanguage } from "@/i18n";
 import { useSubscription } from "@/hooks/useSubscription";
 import { APP_VERSION } from "@/lib/constants";
 import type { AppRole } from "@/types";
@@ -14,21 +13,8 @@ import { Button } from "@/components/ui/button";
 import { hasPerfect2GetherAccess } from "@/lib/perfect2gether";
 import { ModuleNavIcon } from './ModuleNavIcon';
 
-// Same set as the desktop sidebar so the mobile menu is never missing pages.
-const allNavItems: { to: string; icon: React.ElementType; label: string; moduleKey?: keyof EnabledModules }[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Painel" },
-  { to: "/leads", icon: Users, label: "Leads" },
-  { to: "/inbox", icon: MessageSquare, label: "Caixa de Entrada", moduleKey: 'inbox' },
-  { to: "/clients", icon: UserCheck, label: "Clientes", moduleKey: 'clients' },
-  { to: "/proposals", icon: FileText, label: "Propostas", moduleKey: 'proposals' },
-  { to: "/sales", icon: ShoppingBag, label: "Vendas", moduleKey: 'sales' },
-  { to: "/financeiro", icon: Wallet, label: "Financeiro", moduleKey: 'finance' },
-  { to: "/calendar", icon: Calendar, label: "Agenda", moduleKey: 'calendar' },
-  { to: "/marketing", icon: Mail, label: "Marketing", moduleKey: 'marketing' },
-  { to: "/automacoes", icon: Workflow, label: "Automações" },
-  { to: "/prospects", icon: Search, label: "Prospects", moduleKey: 'prospects' },
-  { to: "/settings", icon: Settings, label: "Definições" },
-];
+const allNavItems = workspaceNavigation;
+
 
 const getRoleLabel = (roles: AppRole[]): string => {
   if (roles.includes('super_admin')) return 'Super Admin';
@@ -48,7 +34,8 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
   const navigate = useNavigate();
   const { signOut, roles, isSuperAdmin, organization, organizations } = useAuth();
   const { modules } = useModules();
-  const { canViewModule } = usePermissions();
+  const { canViewModule, isAdmin } = usePermissions();
+  const { t } = useLanguage();
   const { isModuleLocked } = useSubscription();
   const hasPerfect2GetherModuleAccess = hasPerfect2GetherAccess({
     organizationId: organization?.id,
@@ -58,6 +45,7 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
 
   // Same visibility rule as the desktop sidebar (module enabled + viewable).
   const navItems = allNavItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
     if (!item.moduleKey) return true;
     if (isModuleLocked(item.moduleKey)) return false;
     if (!modules[item.moduleKey]) return false;
@@ -105,7 +93,9 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
 
         {/* Navigation */}
         <nav className="flex-1 py-6 space-y-2">
-          {navItems.map((item) => (
+          {workspaceNavigationGroups.map(group => <div key={group} className="space-y-1 pb-3">
+            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(group)}</p>
+            {navItems.filter(item => item.group === group).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -118,9 +108,9 @@ export function MobileMenu({ isOpen, onClose, userName = "Utilizador", organizat
               )}
             >
               <ModuleNavIcon icon={item.icon} to={item.to} />
-              {item.label}
+              {t(item.label)}
             </NavLink>
-          ))}
+          ))}</div>)}
           
           {hasPerfect2GetherModuleAccess && (
             <NavLink

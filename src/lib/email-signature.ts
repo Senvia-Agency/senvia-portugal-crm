@@ -18,7 +18,8 @@ interface ResolveEmailSignatureInput {
   readonly profileSignature: string | null | undefined;
 }
 
-export function resolveEmailSignatureHtml({ mode, metadata, profileSignature }: ResolveEmailSignatureInput): string {
+/** The caixa's default signature for this kind of message, else the profile one ('' when none). */
+export function resolveEmailSignatureSource({ mode, metadata, profileSignature }: ResolveEmailSignatureInput): string {
   const signatures = metadata?.signatures ?? [];
   const defaultSignatureId = mode === 'reply' || mode === 'replyAll'
     ? metadata?.signature_default_reply
@@ -26,7 +27,10 @@ export function resolveEmailSignatureHtml({ mode, metadata, profileSignature }: 
   const mailboxSignature = defaultSignatureId
     ? signatures.find((signature) => signature.id === defaultSignatureId)?.html
     : undefined;
-  const signature = mailboxSignature?.trim() || profileSignature?.trim() || '';
+  return mailboxSignature?.trim() || profileSignature?.trim() || '';
+}
 
+export function resolveEmailSignatureHtml(input: ResolveEmailSignatureInput): string {
+  const signature = resolveEmailSignatureSource(input);
   return signature ? `<br><br><div class="senvia-signature">--<br>${signature}</div>` : '';
 }

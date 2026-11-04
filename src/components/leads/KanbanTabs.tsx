@@ -13,6 +13,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useLanguage } from "@/i18n";
 
 interface LeadEvent {
   id: string;
@@ -53,6 +54,7 @@ export function KanbanTabs({
   onDelete,
   onArchive,
 }: KanbanTabsProps) {
+  const { t } = useLanguage();
   const { data: stages = [], isLoading } = usePipelineStages();
   const { isAdmin } = usePermissions();
   const [activeStatus, setActiveStatus] = useState<string>("");
@@ -94,7 +96,7 @@ export function KanbanTabs({
 
   const virtualizer = useWindowVirtualizer({
     count: filteredLeads.length,
-    estimateSize: () => 252,
+    estimateSize: () => 140,
     overscan: 6,
     scrollMargin,
     getItemKey: (index) => filteredLeads[index]?.id ?? index,
@@ -126,8 +128,8 @@ export function KanbanTabs({
   if (stages.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <p className="text-sm">Pipeline não configurado</p>
-        <p className="text-xs mt-1">Configure o pipeline nas Definições</p>
+        <p className="text-sm">{t("Pipeline não configurado")}</p>
+        <p className="text-xs mt-1">{t("Configure o pipeline nas Definições")}</p>
       </div>
     );
   }
@@ -141,7 +143,7 @@ export function KanbanTabs({
             {activeStatus === '__orphan__' ? (
               <>
                 <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-                <span>Sem Etapa</span>
+                <span>{t("Sem Etapa")}</span>
                 <Badge variant="secondary" className="ml-auto bg-muted text-muted-foreground">
                   {orphanLeads.length}
                 </Badge>
@@ -162,7 +164,7 @@ export function KanbanTabs({
                 </Badge>
               </>
             ) : (
-              <SelectValue placeholder="Selecionar etapa" />
+              <SelectValue placeholder={t("Selecionar etapa")} />
             )}
           </div>
         </SelectTrigger>
@@ -193,7 +195,7 @@ export function KanbanTabs({
             <SelectItem value="__orphan__">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-                <span>Sem Etapa</span>
+                <span>{t("Sem Etapa")}</span>
                 <Badge variant="secondary" className="ml-2 bg-muted text-muted-foreground">
                   {orphanLeads.length}
                 </Badge>
@@ -206,7 +208,7 @@ export function KanbanTabs({
       {/* Leads List (virtualized) */}
       {filteredLeads.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          <p className="text-sm">Sem leads nesta fase</p>
+          <p className="text-sm">{t("Sem leads nesta fase")}</p>
         </div>
       ) : (
         <div
@@ -230,7 +232,7 @@ export function KanbanTabs({
                   transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
                 }}
               >
-                <div className="pb-3">
+                <div className="pb-2">
                   <LeadCard
                     lead={lead}
                     upcomingEvent={leadEvents[lead.id]}

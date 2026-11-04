@@ -8,6 +8,7 @@ import { useActiveBankAccounts, useCreateBankTransaction } from '@/hooks/useBank
 import { parseLocalizedNumber } from '@/lib/format';
 import { format } from 'date-fns';
 import { Landmark } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   open: boolean;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function AddRevenueModal({ open, onOpenChange }: Props) {
+  const { t } = useLanguage();
   const { data: accounts } = useActiveBankAccounts();
   const createTransaction = useCreateBankTransaction();
 
@@ -58,9 +60,9 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="fullScreen" className="md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:max-w-lg md:h-auto md:max-h-[90dvh] md:rounded-lg md:border md:p-6">
         <DialogHeader>
-          <DialogTitle>Adicionar Receita</DialogTitle>
+          <DialogTitle>{t("Adicionar Receita")}</DialogTitle>
           <DialogDescription>
-            Registar uma entrada manual (juros, transferências, etc.)
+            {t("Registar uma entrada manual (juros, transferências, etc.)")}
           </DialogDescription>
         </DialogHeader>
 
@@ -68,11 +70,11 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Landmark className="h-4 w-4 text-muted-foreground" />
-              Conta Corrente
+              {t("Conta Corrente")}
             </Label>
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar conta..." />
+                <SelectValue placeholder={t("Selecionar conta...")} />
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((acc) => (
@@ -85,7 +87,7 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Valor (€)</Label>
+            <Label>{t("Valor (€)")}</Label>
             <Input
               type="text"
               inputMode="decimal"
@@ -96,7 +98,7 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Data</Label>
+            <Label>{t("Data")}</Label>
             <Input
               type="date"
               value={date}
@@ -105,10 +107,10 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Descrição</Label>
+            <Label>{t("Descrição")}</Label>
             <Input
               type="text"
-              placeholder="Ex: Juros creditados, Transferência recebida..."
+              placeholder={t("Ex: Juros creditados, Transferência recebida...")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -116,10 +118,10 @@ export function AddRevenueModal({ open, onOpenChange }: Props) {
 
           <div className="flex flex-col gap-2 pt-4">
             <Button type="submit" disabled={!isValid || createTransaction.isPending}>
-              {createTransaction.isPending ? 'A registar...' : 'Registar Receita'}
+              {createTransaction.isPending ? t('A registar...') : t('Registar Receita')}
             </Button>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
           </div>
         </form>

@@ -7,6 +7,7 @@ import { useExpenseCategories, useDeleteExpenseCategory } from '@/hooks/useExpen
 import { CreateExpenseCategoryModal } from './CreateExpenseCategoryModal';
 import { EditExpenseCategoryModal } from './EditExpenseCategoryModal';
 import type { ExpenseCategory } from '@/types/expenses';
+import { useLanguage } from '@/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,7 @@ import {
 export function ExpenseCategoriesTab() {
   const { data: categories, isLoading } = useExpenseCategories();
   const deleteCategory = useDeleteExpenseCategory();
+  const { t } = useLanguage();
 
   const [showCreate, setShowCreate] = useState(false);
   const [editCategory, setEditCategory] = useState<ExpenseCategory | null>(null);
@@ -37,12 +39,12 @@ export function ExpenseCategoriesTab() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Tipos de Despesas</CardTitle>
-          <CardDescription>Categorias para organizar as suas despesas</CardDescription>
+          <CardTitle>{t('Tipos de Despesas')}</CardTitle>
+          <CardDescription>{t('Categorias para organizar as suas despesas')}</CardDescription>
         </div>
         <Button onClick={() => setShowCreate(true)} className="gap-2">
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Adicionar</span>
+          <span className="hidden sm:inline">{t('Adicionar')}</span>
         </Button>
       </CardHeader>
       <CardContent>
@@ -54,8 +56,8 @@ export function ExpenseCategoriesTab() {
           </div>
         ) : !categories || categories.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>Nenhuma categoria criada.</p>
-            <p className="text-sm">Clique em "Adicionar" para criar a primeira.</p>
+            <p>{t('Nenhuma categoria criada.')}</p>
+            <p className="text-sm">{t('Clique em "Adicionar" para criar a primeira.')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -111,15 +113,15 @@ export function ExpenseCategoriesTab() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover categoria?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Remover categoria?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              A categoria será desativada. As despesas existentes mantêm o registo.
+              {t('A categoria será desativada. As despesas existentes mantêm o registo.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Remover
+              {t('Remover')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

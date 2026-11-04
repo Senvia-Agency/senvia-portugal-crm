@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import type { MarketingContact } from '@/types/marketing';
 
 interface ConvertOptions {
@@ -15,7 +16,7 @@ export function useConvertProspectToLead() {
 
   return useMutation({
     mutationFn: async ({ contacts, assignedTo }: ConvertOptions) => {
-      if (!organization?.id) throw new Error('Sem organização');
+      if (!organization?.id) throw new Error(tr('Sem organização'));
 
       // Resolve round-robin if no assignedTo
       let resolvedAssignedTo = assignedTo || null;
@@ -116,10 +117,10 @@ export function useConvertProspectToLead() {
       qc.invalidateQueries({ queryKey: ['marketing-contacts'] });
       qc.invalidateQueries({ queryKey: ['contact-list-members'] });
       const msg = skipped > 0
-        ? `${converted} lead(s) criado(s), ${skipped} já convertido(s)`
-        : `${converted} lead(s) criado(s) com sucesso`;
+        ? tr('{{converted}} lead(s) criada(s), {{skipped}} já convertido(s)', { converted, skipped })
+        : tr('{{converted}} lead(s) criada(s) com sucesso', { converted });
       toast.success(msg);
     },
-    onError: () => toast.error('Erro ao converter contactos em leads'),
+    onError: () => toast.error(tr('Erro ao converter contactos em leads')),
   });
 }

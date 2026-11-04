@@ -51,7 +51,6 @@ import { useModules } from "@/hooks/useModules";
 import { format, addMonths } from "date-fns";
 import { BillingRecipientSelector, ClientFiscalCard, VatBadge, useVatCalculation, isInvoiceXpressActive, getOrgTaxValue } from "./SaleFiscalInfo";
 import type { BillingTarget } from "@/types/clients";
-import { pt } from "date-fns/locale";
 import { 
   Loader2, 
   CalendarIcon, 
@@ -110,6 +109,7 @@ import { PaymentTypeSelector } from "./PaymentTypeSelector";
 import { DraftScheduleModal } from "./DraftScheduleModal";
 
 
+import { useLanguage, dateLocale, intlLocale } from "@/i18n";
 interface SaleItemDraft {
   id: string;
   product_id: string | null;
@@ -156,6 +156,7 @@ export function CreateSaleModal({
   prefillClient,
   onSaleCreated
 }: CreateSaleModalProps) {
+  const { t } = useLanguage();
   // Lead removido - vendas são apenas para clientes
   const { data: proposals } = useProposals();
   const { data: clients } = useClients();
@@ -770,7 +771,7 @@ export function CreateSaleModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isTelecom && servicosProdutos.length > 0 && items.length === 0) {
-      toast.error('Adiciona os produtos da proposta em Produtos / Serviços antes de guardar a venda.');
+      toast.error(t("Adiciona os produtos da proposta em Produtos / Serviços antes de guardar a venda."));
       return;
     }
     
@@ -781,7 +782,7 @@ export function CreateSaleModal({
 
     // Validate plan sale
     if (isPlanSale && !clientOrgId) {
-      toast.error("Selecione a organização cliente para a venda de plano.");
+      toast.error(t("Selecione a organização cliente para a venda de plano."));
       return;
     }
 
@@ -796,13 +797,13 @@ export function CreateSaleModal({
       return productNeedsTechnologyChoice(cat ? productTechnologies(cat) : undefined) && !detail?.tecnologia;
     });
     if (semTecnologia.length > 0) {
-      toast.error(`Escolhe a tecnologia (Fibra ou Satélite) em: ${semTecnologia.join(", ")}.`);
+      toast.error(t("Escolhe a tecnologia (Fibra ou Satélite) em: {{products}}.", { products: semTecnologia.join(", ") }));
       return;
     }
     // Date sanity for energy/telecom contracts.
     for (const cpe of proposalCpes) {
       if (cpe.contrato_inicio && cpe.contrato_fim && cpe.contrato_inicio > cpe.contrato_fim) {
-        toast.error(`CPE ${cpe.serial_number || ""}: o início do contrato é depois do fim.`);
+        toast.error(t("CPE {{serial}}: o início do contrato é depois do fim.", { serial: cpe.serial_number || "" }));
         return;
       }
     }
@@ -810,7 +811,7 @@ export function CreateSaleModal({
       const activationStr = scheduledInstallDate;
       const fims = proposalCpes.map((c) => c.contrato_fim).filter(Boolean) as string[];
       if (fims.length > 0 && activationStr > fims.reduce((a, b) => (a > b ? a : b))) {
-        toast.error("A data de instalação é posterior ao fim do contrato.");
+        toast.error(t("A data de instalação é posterior ao fim do contrato."));
         return;
       }
     }
@@ -822,7 +823,7 @@ export function CreateSaleModal({
         && Math.abs(item.unit_price - product.price) >= 0.005;
     });
     if (recurringPriceMismatch) {
-      toast.error(`O preço recorrente de ${recurringPriceMismatch.name} mudou no catálogo. Remove e adiciona o produto novamente antes de criar a venda.`);
+      toast.error(t("O preço recorrente de {{name}} mudou no catálogo. Remove e adiciona o produto novamente antes de criar a venda.", { name: recurringPriceMismatch.name }));
       return;
     }
 
@@ -832,11 +833,11 @@ export function CreateSaleModal({
       const hasRecurring = hasRecurringItems;
 
       if (hasRecurring && recurringFiscalConfig.fiscal_mode === 'automatic' && !keyInvoiceActive) {
-        toast.error('Liga e configura o KeyInvoice antes de ativar a emissão fiscal automática.');
+        toast.error(t("Liga e configura o KeyInvoice antes de ativar a emissão fiscal automática."));
         return;
       }
       if (hasRecurring && recurringFiscalConfig.fiscal_mode === 'automatic' && hasRecurringRetention) {
-        toast.error('Produtos com retenção ficam em emissão fiscal manual até este cenário estar homologado no KeyInvoice.');
+        toast.error(t("Produtos com retenção ficam em emissão fiscal manual até este cenário estar homologado no KeyInvoice."));
         return;
       }
 
@@ -851,13 +852,13 @@ export function CreateSaleModal({
           ? !emailConfig.recipient_email.trim()
           : !(selectedClient?.email || emailConfig.fallback_email.trim());
         if (recipientMissing) {
-          toast.error('Define um destinatário ou um email alternativo para o envio dos documentos.');
+          toast.error(t("Define um destinatário ou um email alternativo para o envio dos documentos."));
           return;
         }
         const resolvedSenderEmail = emailConfig.sender_email.trim()
           || organization?.brevo_sender_email?.trim();
         if (organization?.tem_brevo_api_key !== true || !resolvedSenderEmail) {
-          toast.error('Liga a Brevo e configura um email de remetente antes de ativar o envio fiscal automático.');
+          toast.error(t("Liga a Brevo e configura um email de remetente antes de ativar o envio fiscal automático."));
           return;
         }
       }
@@ -1006,14 +1007,14 @@ export function CreateSaleModal({
               await includeSaleInRecurringFiscal(recurrenceId);
             } catch (firstMonthError) {
               console.error('Including the first month failed:', firstMonthError);
-              toast.warning('A recorrência ficou automática, mas a Fatura do 1.º mês desta venda tem de ser emitida à mão.');
+              toast.warning(t("A recorrência ficou automática, mas a Fatura do 1.º mês desta venda tem de ser emitida à mão."));
             }
           }
         } catch (fiscalError) {
           console.error('Recurring fiscal configuration failed:', fiscalError);
           if (hasCustomFiscalConfig) {
-            const reason = fiscalError instanceof Error ? fiscalError.message : 'Não foi possível guardar a configuração.';
-            toast.warning(`A venda foi criada em modo fiscal manual. ${reason}`);
+            const reason = fiscalError instanceof Error ? fiscalError.message : t('Não foi possível guardar a configuração.');
+            toast.warning(t("A venda foi criada em modo fiscal manual. {{reason}}", { reason }));
           }
         }
       }
@@ -1037,7 +1038,7 @@ export function CreateSaleModal({
         <DialogHeader className="px-6 pr-14 py-4 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Nova Venda
+            {t("Nova Venda")}
           </DialogTitle>
         </DialogHeader>
 
@@ -1051,7 +1052,7 @@ export function CreateSaleModal({
                   <CardHeader className="pb-2 p-4">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                       <User className="h-4 w-4" />
-                      Informação Básica
+                      {t("Informação Básica")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0 space-y-4">
@@ -1074,7 +1075,7 @@ export function CreateSaleModal({
                             className="rounded border-border"
                           />
                           <CreditCard className="h-4 w-4 text-primary" />
-                          Venda de Plano Senvia
+                          {t("Venda de Plano Senvia")}
                         </label>
                       </div>
                     )}
@@ -1082,11 +1083,11 @@ export function CreateSaleModal({
                     {/* Plan Sale Fields — only org search, value comes from Stripe */}
                     {isPlanSale && (
                       <div className="space-y-2">
-                        <Label>Organização Cliente</Label>
-                        <p className="text-xs text-muted-foreground">O valor da venda será atualizado automaticamente quando o cliente subscrever um plano.</p>
+                        <Label>{t("Organização Cliente")}</Label>
+                        <p className="text-xs text-muted-foreground">{t("O valor da venda será atualizado automaticamente quando o cliente subscrever um plano.")}</p>
                           <div className="relative">
                             <Input
-                              placeholder="Pesquisar organização..."
+                              placeholder={t("Pesquisar organização...")}
                               value={orgSearchTerm}
                               onChange={(e) => setOrgSearchTerm(e.target.value)}
                             />
@@ -1124,20 +1125,20 @@ export function CreateSaleModal({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Cliente</Label>
+                        <Label>{t("Cliente")}</Label>
                         <SearchableCombobox
                           options={clientOptions}
                           value={clientId || null}
                           onValueChange={(v) => handleClientSelect(v || "none")}
-                          placeholder="Selecionar cliente..."
-                          searchPlaceholder="Pesquisar cliente..."
-                          emptyLabel="Sem cliente"
-                          emptyText="Nenhum cliente encontrado."
+                          placeholder={t("Selecionar cliente...")}
+                          searchPlaceholder={t("Pesquisar cliente...")}
+                          emptyLabel={t("Sem cliente")}
+                          emptyText={t("Nenhum cliente encontrado.")}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Proposta</Label>
+                        <Label>{t("Proposta")}</Label>
                         <SearchableCombobox
                           options={filteredProposals.map((proposal): ComboboxOption => ({
                             value: proposal.id,
@@ -1146,10 +1147,10 @@ export function CreateSaleModal({
                           }))}
                           value={proposalId || null}
                           onValueChange={(v) => handleProposalSelect(v || "none")}
-                          placeholder="Selecionar proposta..."
-                          searchPlaceholder="Pesquisar proposta..."
-                          emptyLabel="Venda direta"
-                          emptyText="Nenhuma proposta encontrada."
+                          placeholder={t("Selecionar proposta...")}
+                          searchPlaceholder={t("Pesquisar proposta...")}
+                          emptyLabel={t("Venda direta")}
+                          emptyText={t("Nenhuma proposta encontrada.")}
                         />
                       </div>
                     </div>
@@ -1164,7 +1165,7 @@ export function CreateSaleModal({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Data da Venda</Label>
+                        <Label>{t("Data da Venda")}</Label>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button
@@ -1175,7 +1176,7 @@ export function CreateSaleModal({
                               )}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {saleDate ? format(saleDate, "PPP", { locale: pt }) : "Selecionar data"}
+                              {saleDate ? format(saleDate, "PPP", { locale: dateLocale() }) : t("Selecionar data")}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1183,14 +1184,14 @@ export function CreateSaleModal({
                               mode="single"
                               selected={saleDate}
                               onSelect={(date) => date && setSaleDate(date)}
-                              locale={pt}
+                              locale={dateLocale()}
                             />
                           </PopoverContent>
                         </Popover>
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Estado da Venda</Label>
+                        <Label>{t("Estado da Venda")}</Label>
                         {/* Telecom has its own lifecycle and only that one: picking
                             it writes sales.status behind the scenes (see
                             TELECOM_TO_SALE_STATUS) so invoicing and finance keep
@@ -1204,13 +1205,13 @@ export function CreateSaleModal({
                               if (next) setSaleStatus(TELECOM_TO_SALE_STATUS[next]);
                             }}
                           >
-                            <SelectTrigger><SelectValue placeholder="Sem estado" /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder={t("Sem estado")} /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={NO_TELECOM_STATUS}>Sem estado</SelectItem>
+                              <SelectItem value={NO_TELECOM_STATUS}>{t("Sem estado")}</SelectItem>
                               {TELECOM_STATUSES.map((s) => (
                                 <SelectItem key={s} value={s}>
                                   <span className="flex flex-col items-start">
-                                    <span>{TELECOM_STATUS_LABELS[s]}</span>
+                                    <span>{t(TELECOM_STATUS_LABELS[s])}</span>
                                     {TELECOM_STATUS_HINTS[s] && (
                                       <span className="text-[11px] text-muted-foreground">{TELECOM_STATUS_HINTS[s]}</span>
                                     )}
@@ -1227,7 +1228,7 @@ export function CreateSaleModal({
                           <SelectContent>
                             {SALE_STATUSES.map(s => (
                               <SelectItem key={s} value={s}>
-                                {SALE_STATUS_LABELS[s]}
+                                {t(SALE_STATUS_LABELS[s])}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1248,7 +1249,7 @@ export function CreateSaleModal({
                           {/* Full row: the date plus its "das X às Y" window
                               never fits half the grid. */}
                           <div className="space-y-2 col-span-1 sm:col-span-2">
-                            <Label>Data de Instalação</Label>
+                            <Label>{t("Data de Instalação")}</Label>
                             <Popover open={installDatePopoverOpen} onOpenChange={setInstallDatePopoverOpen}>
                               <PopoverTrigger asChild>
                                 <Button
@@ -1260,8 +1261,8 @@ export function CreateSaleModal({
                                 >
                                   <CalendarIcon className="mr-2 h-4 w-4" />
                                   {scheduledInstallDate
-                                    ? format(new Date(scheduledInstallDate), "PPP", { locale: pt })
-                                    : "Sem data marcada"}
+                                    ? format(new Date(scheduledInstallDate), "PPP", { locale: dateLocale() })
+                                    : t("Sem data marcada")}
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0" align="start">
@@ -1272,7 +1273,7 @@ export function CreateSaleModal({
                                     setScheduledInstallDate(date ? format(date, 'yyyy-MM-dd') : '');
                                     setInstallDatePopoverOpen(false);
                                   }}
-                                  locale={pt}
+                                  locale={dateLocale()}
                                 />
                                 {scheduledInstallDate && (
                                   <div className="border-t p-2">
@@ -1283,7 +1284,7 @@ export function CreateSaleModal({
                                       className="w-full text-xs"
                                       onClick={() => { setScheduledInstallDate(''); setScheduledInstallTime(''); setScheduledInstallEndTime(''); setInstallDatePopoverOpen(false); }}
                                     >
-                                      Limpar data
+                                      {t("Limpar data")}
                                     </Button>
                                   </div>
                                 )}
@@ -1293,14 +1294,14 @@ export function CreateSaleModal({
                                 12h"), so both ends are asked for. */}
                             {scheduledInstallDate && (
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs text-muted-foreground shrink-0">das</span>
+                                <span className="text-xs text-muted-foreground shrink-0">{t("das")}</span>
                                 <Input
                                   type="time"
                                   value={scheduledInstallTime}
                                   onChange={(e) => setScheduledInstallTime(e.target.value)}
                                   className="h-9 w-auto"
                                 />
-                                <span className="text-xs text-muted-foreground shrink-0">às</span>
+                                <span className="text-xs text-muted-foreground shrink-0">{t("às")}</span>
                                 <Input
                                   type="time"
                                   value={scheduledInstallEndTime}
@@ -1309,13 +1310,13 @@ export function CreateSaleModal({
                                 />
                               </div>
                             )}
-                            <p className="text-[11px] text-muted-foreground">A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.</p>
+                            <p className="text-[11px] text-muted-foreground">{t("A comissão conta no mês seguinte à instalação. Sem data, fica sem mês definido.")}</p>
                           </div>
 
                           {/* Every telecom contract carries a loyalty period; its end is
                               what the renewal alerts (push + email to admins) run off. */}
                           <div className="col-span-1 sm:col-span-2 space-y-2">
-                            <Label>Fim da fidelização</Label>
+                            <Label>{t("Fim da fidelização")}</Label>
                             <div className="flex flex-wrap items-center gap-2">
                               <Input
                                 type="date"
@@ -1335,11 +1336,11 @@ export function CreateSaleModal({
                                     setFidelizacaoEnd(format(base, "yyyy-MM-dd"));
                                   }}
                                 >
-                                  +2 anos
+                                  {t("+2 anos")}
                                 </Button>
                               )}
                             </div>
-                            <p className="text-[11px] text-muted-foreground">Data em que termina a fidelização do contrato. Os alertas de renovação partem daqui.</p>
+                            <p className="text-[11px] text-muted-foreground">{t("Data em que termina a fidelização do contrato. Os alertas de renovação partem daqui.")}</p>
                           </div>
 
                           <div className="col-span-1 sm:col-span-2 flex flex-wrap items-center gap-x-8 gap-y-2 pt-1">
@@ -1366,16 +1367,16 @@ export function CreateSaleModal({
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <Zap className="h-4 w-4 text-amber-500" />
-                        Dados Energia (da Proposta)
+                        {t("Dados Energia (da Proposta)")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {negotiationType && (
                           <div className="col-span-1 sm:col-span-2">
-                            <p className="text-xs text-muted-foreground">Tipo de Negociação</p>
+                            <p className="text-xs text-muted-foreground">{t("Tipo de Negociação")}</p>
                             <p className="text-sm font-medium">
-                              {NEGOTIATION_TYPE_LABELS[negotiationType] || negotiationType}
+                              {t(NEGOTIATION_TYPE_LABELS[negotiationType]) || negotiationType}
                             </p>
                           </div>
                         )}
@@ -1384,7 +1385,7 @@ export function CreateSaleModal({
                           <>
                             {servicosProdutos.length > 0 && (
                               <div className="col-span-1 sm:col-span-2">
-                                <p className="text-xs text-muted-foreground">Serviços/Produtos</p>
+                                <p className="text-xs text-muted-foreground">{t("Serviços/Produtos")}</p>
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {servicosProdutos.map((s) => (
                                     <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
@@ -1394,21 +1395,21 @@ export function CreateSaleModal({
                             )}
                             {modeloServico && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Modelo de Serviço</p>
+                                <p className="text-xs text-muted-foreground">{t("Modelo de Serviço")}</p>
                                 <p className="text-sm font-medium">
-                                  {modeloServico === 'transacional' ? 'Transacional' : modeloServico === 'saas' ? 'SAAS' : modeloServico}
+                                  {modeloServico === 'transacional' ? t("Transacional") : modeloServico === 'saas' ? 'SAAS' : modeloServico}
                                 </p>
                               </div>
                             )}
                             {kwp && (
                               <div>
-                                <p className="text-xs text-muted-foreground">kWp</p>
+                                <p className="text-xs text-muted-foreground">{t("kWp")}</p>
                                 <p className="text-sm font-medium">{kwp}</p>
                               </div>
                             )}
                             {comissao && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Comissão</p>
+                                <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                                 <p className="text-sm font-medium text-green-500">
                                   {formatCurrency(parseFloat(comissao))}
                                 </p>
@@ -1420,20 +1421,20 @@ export function CreateSaleModal({
                         {proposalType === 'energia' && proposalCpes.length > 0 && (
                           <>
                             <div>
-                              <p className="text-xs text-muted-foreground">Pontos de Consumo</p>
-                              <p className="text-sm font-medium">{proposalCpes.length} CPE(s)</p>
+                              <p className="text-xs text-muted-foreground">{t("Pontos de Consumo")}</p>
+                              <p className="text-sm font-medium">{proposalCpes.length} {t("CPE(s)")}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Consumo Total</p>
+                              <p className="text-xs text-muted-foreground">{t("Consumo Total")}</p>
                               <p className="text-sm font-medium">
-                                {(proposalCpes.reduce((sum, c) => sum + (c.consumo_anual || 0), 0) / 1000).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} MWh
+                                {(proposalCpes.reduce((sum, c) => sum + (c.consumo_anual || 0), 0) / 1000).toLocaleString(intlLocale(), { minimumFractionDigits: 2 })} {t("MWh")}
                               </p>
                             </div>
                             {(() => {
                               const totalComissao = proposalCpes.reduce((sum, c) => sum + (c.comissao || 0), 0);
                               return totalComissao > 0 ? (
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Comissão Total</p>
+                                  <p className="text-xs text-muted-foreground">{t("Comissão Total")}</p>
                                   <p className="text-sm font-medium text-green-500">
                                     {formatCurrency(totalComissao)}
                                   </p>
@@ -1453,7 +1454,7 @@ export function CreateSaleModal({
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <Router className="h-4 w-4" />
-                        CPE/CUI (Pontos de Consumo)
+                        {t("CPE/CUI (Pontos de Consumo)")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-2">
@@ -1466,52 +1467,52 @@ export function CreateSaleModal({
                             <Badge variant="outline" className="text-xs">{cpe.equipment_type}</Badge>
                             <Badge variant="secondary" className="text-xs">{cpe.comercializador}</Badge>
                             {negotiationType === 'renovacao' ? (
-                              <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">Renovação</Badge>
+                              <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">{t("Renovação")}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">Novo</Badge>
+                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">{t("Novo")}</Badge>
                             )}
                           </div>
                           {cpe.serial_number && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Local de Consumo</p>
+                              <p className="text-xs text-muted-foreground">{t("Local de Consumo")}</p>
                               <p className="text-sm font-mono">{cpe.serial_number}</p>
                             </div>
                           )}
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {cpe.consumo_anual != null && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Consumo Anual</p>
-                                <p className="text-sm font-medium">{cpe.consumo_anual.toLocaleString('pt-PT')} kWh</p>
+                                <p className="text-xs text-muted-foreground">{t("Consumo Anual")}</p>
+                                <p className="text-sm font-medium">{cpe.consumo_anual.toLocaleString(intlLocale())} {t("kWh")}</p>
                               </div>
                             )}
                             {cpe.duracao_contrato != null && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Duração</p>
+                                <p className="text-xs text-muted-foreground">{t("Duração")}</p>
                                 <p className="text-sm font-medium">{cpe.duracao_contrato} {cpe.duracao_contrato === 1 ? 'ano' : 'anos'}</p>
                               </div>
                             )}
                             {cpe.dbl != null && (
                               <div>
-                                <p className="text-xs text-muted-foreground">DBL</p>
-                                <p className="text-sm font-medium">{cpe.dbl.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</p>
+                                <p className="text-xs text-muted-foreground">{t("DBL")}</p>
+                                <p className="text-sm font-medium">{cpe.dbl.toLocaleString(intlLocale(), { minimumFractionDigits: 2 })}</p>
                               </div>
                             )}
                             {cpe.margem != null && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Margem</p>
-                                <p className="text-sm font-medium">{cpe.margem.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €/MWh</p>
+                                <p className="text-xs text-muted-foreground">{t("Margem")}</p>
+                                <p className="text-sm font-medium">{cpe.margem.toLocaleString(intlLocale(), { minimumFractionDigits: 2 })} {t("€/MWh")}</p>
                               </div>
                             )}
                             {cpe.comissao != null && (
                               <div>
-                                <p className="text-xs text-muted-foreground">Comissão</p>
+                                <p className="text-xs text-muted-foreground">{t("Comissão")}</p>
                                 <p className="text-sm font-medium text-green-500">{formatCurrency(cpe.comissao)}</p>
                               </div>
                             )}
                           </div>
                           {(cpe.contrato_inicio || cpe.contrato_fim) && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Contrato</p>
+                              <p className="text-xs text-muted-foreground">{t("Contrato")}</p>
                               <p className="text-sm">
                                 {cpe.contrato_inicio ? format(new Date(cpe.contrato_inicio), "dd/MM/yyyy") : '—'}
                                 {' → '}
@@ -1583,13 +1584,13 @@ export function CreateSaleModal({
                   <CardHeader className="pb-2 p-4">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                       <Package className="h-4 w-4" />
-                      Produtos / Serviços
+                      {t("Produtos / Serviços")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0 space-y-3">
                     <Select onValueChange={handleAddProduct}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Adicionar produto ou serviço..." />
+                        <SelectValue placeholder={t("Adicionar produto ou serviço...")} />
                       </SelectTrigger>
                       <SelectContent>
                         {products?.filter(p => p.is_active).map((product) => (
@@ -1633,7 +1634,7 @@ export function CreateSaleModal({
                                       value={item.unit_price}
                                       onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
                                       disabled={isRecurring}
-                                      title={isRecurring ? 'O preço recorrente vem do produto sincronizado com o Stripe.' : undefined}
+                                      title={isRecurring ? t("O preço recorrente vem do produto sincronizado com o Stripe.") : undefined}
                                       className="w-24 h-7 text-sm"
                                     />
                                     <span className="text-muted-foreground text-sm">€</span>
@@ -1650,11 +1651,11 @@ export function CreateSaleModal({
                               {isRecurring && (
                                 <div className="flex items-center gap-2 pl-2 text-sm border-t border-border/50 pt-2">
                                   <CalendarIcon className="h-4 w-4 text-primary" />
-                                  <span className="text-muted-foreground">Vence em:</span>
+                                  <span className="text-muted-foreground">{t("Vence em:")}</span>
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button type="button" variant="outline" size="sm" className="h-7 text-xs">
-                                        {item.first_due_date ? format(item.first_due_date, "dd/MM/yyyy") : "Selecionar data"}
+                                        {item.first_due_date ? format(item.first_due_date, "dd/MM/yyyy") : t("Selecionar data")}
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
@@ -1662,14 +1663,14 @@ export function CreateSaleModal({
                                         mode="single"
                                         selected={item.first_due_date || undefined}
                                         onSelect={(date) => handleUpdateDueDate(item.id, date)}
-                                        locale={pt}
+                                        locale={dateLocale()}
                                         className="pointer-events-auto"
                                       />
                                     </PopoverContent>
                                   </Popover>
                                   <Badge variant="secondary" className="text-xs">
                                     <Zap className="h-3 w-3 mr-1" />
-                                    Mensal
+                                    {t("Mensal")}
                                   </Badge>
                                 </div>
                               )}
@@ -1679,7 +1680,7 @@ export function CreateSaleModal({
                       </div>
                     ) : (
                       <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border/50 rounded-lg">
-                        Adicione produtos ou serviços à venda
+                        {t("Adicione produtos ou serviços à venda")}
                       </div>
                     )}
                   </CardContent>
@@ -1691,7 +1692,7 @@ export function CreateSaleModal({
                     <CardHeader className="p-4 pb-2">
                       <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <FileText className="h-4 w-4" />
-                        Faturação da recorrência
+                        {t("Faturação da recorrência")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-2">
@@ -1702,14 +1703,14 @@ export function CreateSaleModal({
                         disabled={!canConfigureFiscal}
                         automaticDisabled={!keyInvoiceActive || hasRecurringRetention}
                         automaticDisabledReason={hasRecurringRetention
-                          ? 'Produtos com retenção exigem emissão manual até à homologação deste cenário no KeyInvoice.'
+                          ? t('Produtos com retenção exigem emissão manual até à homologação deste cenário no KeyInvoice.')
                           : undefined}
                         includesFirstMonth
                         compact
                       />
                       {!canConfigureFiscal && (
                         <p className="mt-3 text-xs text-muted-foreground">
-                          Precisas da permissão Financeiro → Faturas → Emitir para configurar a emissão automática.
+                          {t("Precisas da permissão Financeiro → Faturas → Emitir para configurar a emissão automática.")}
                         </p>
                       )}
                     </CardContent>
@@ -1723,7 +1724,7 @@ export function CreateSaleModal({
                       <CardTitle className="text-sm font-medium flex items-center justify-between text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4" />
-                          Pagamentos
+                          {t("Pagamentos")}
                         </div>
                         {grossValue > 0 && (() => {
                           const summary = calculatePaymentSummary(
@@ -1739,7 +1740,7 @@ export function CreateSaleModal({
                             onClick={() => setShowPaymentTypeSelector(true)}
                           >
                             <Plus className="h-4 w-4 mr-1" />
-                            Adicionar
+                            {t("Adicionar")}
                           </Button>
                         )}
                       </CardTitle>
@@ -1755,7 +1756,7 @@ export function CreateSaleModal({
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-sm">{formatCurrency(dp.amount)}</span>
-                                  <StatusBadge {...paymentRecordStatusBadge(dp.status)} />
+                                  <StatusBadge {...paymentRecordStatusBadge(dp.status)} label={t(paymentRecordStatusBadge(dp.status).label)} />
                                 </div>
                                 <span className="text-xs text-muted-foreground">
                                   {dp.payment_date}
@@ -1783,11 +1784,11 @@ export function CreateSaleModal({
                             return (
                               <div className="p-3 rounded-lg bg-muted/30 border border-border/50 space-y-2">
                                 <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">Total pago</span>
+                                  <span className="text-muted-foreground">{t("Total pago")}</span>
                                   <span className="font-medium text-green-500">{formatCurrency(summary.totalPaid)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">Em falta</span>
+                                  <span className="text-muted-foreground">{t("Em falta")}</span>
                                   <span className="font-medium">{formatCurrency(summary.remaining)}</span>
                                 </div>
                                 <Progress value={summary.percentage} className="h-2" />
@@ -1803,11 +1804,11 @@ export function CreateSaleModal({
                           onClick={() => setShowPaymentTypeSelector(true)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
-                          Adicionar Pagamento
+                          {t("Adicionar Pagamento")}
                         </Button>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-2">
-                          Adicione produtos para registar pagamentos
+                          {t("Adicione produtos para registar pagamentos")}
                         </p>
                       )}
                     </CardContent>
@@ -1823,19 +1824,19 @@ export function CreateSaleModal({
                     <CardHeader className="pb-2 p-4">
                       <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                         <FileText className="h-4 w-4" />
-                        Resumo
+                        {t("Resumo")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-3">
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{isTelecom ? 'Comissão' : 'Subtotal'}</span>
+                        <span className="text-muted-foreground">{isTelecom ? t("Comissão") : t("Subtotal")}</span>
                         <span className="font-medium">
                           {formatCurrency(isTelecom ? sellerCommissionTotal : subtotal)}
                         </span>
                       </div>
                       
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-sm text-muted-foreground">Desconto</span>
+                        <span className="text-sm text-muted-foreground">{t("Desconto")}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground">-</span>
                           <Input
@@ -1851,7 +1852,7 @@ export function CreateSaleModal({
                       </div>
                       {hasRecurringItems && discountValue > 0 && (
                         <p className="text-xs text-muted-foreground">
-                          Este desconto fica no registo inicial. A mensalidade recorrente mantém o valor bruto dos produtos sincronizados com o Stripe.
+                          {t("Este desconto fica no registo inicial. A mensalidade recorrente mantém o valor bruto dos produtos sincronizados com o Stripe.")}
                         </p>
                       )}
 
@@ -1859,14 +1860,14 @@ export function CreateSaleModal({
 
                       {ixActive && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">IVA</span>
+                          <span className="text-muted-foreground">{t("IVA")}</span>
                           <span className="font-medium">{formatCurrency(vatCalc.totalVat)}</span>
                         </div>
                       )}
 
                       <div className="flex justify-between">
                         <span className="font-semibold">
-                          {isTelecom ? 'Comissão' : ixActive ? 'Total (s/ IVA)' : 'Total'}
+                          {isTelecom ? t("Comissão") : ixActive ? t("Total (s/ IVA)") : t("Total")}
                         </span>
                         <span className="text-xl font-bold text-primary">
                           {formatCurrency(isTelecom ? sellerCommissionTotal : ixActive ? vatCalc.totalWithoutVat : total)}
@@ -1875,7 +1876,7 @@ export function CreateSaleModal({
 
                       {ixActive && (
                         <div className="flex justify-between text-sm border-t pt-2">
-                          <span className="text-muted-foreground font-medium">Total c/ IVA</span>
+                          <span className="text-muted-foreground font-medium">{t("Total c/ IVA")}</span>
                           <span className="font-semibold">{formatCurrency(vatCalc.totalWithVat)}</span>
                         </div>
                       )}
@@ -1891,15 +1892,15 @@ export function CreateSaleModal({
                         {/* Never required: a sale can be closed before the
                             operator has issued a proposal number. */}
                         {saleOperatorNames.length === 1
-                          ? `Número Proposta ${saleOperatorNames[0]}`
-                          : 'Número de Proposta'}
+                          ? t("Número Proposta {{operator}}", { operator: saleOperatorNames[0] })
+                          : t("Número de Proposta")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <Input
                         placeholder={saleOperatorNames.length === 1
-                          ? `Nº da proposta na ${saleOperatorNames[0]}`
-                          : 'Nº da proposta na operadora'}
+                          ? t("Nº da proposta na {{operator}}", { operator: saleOperatorNames[0] })
+                          : t("Nº da proposta na operadora")}
                         value={edpProposalNumber}
                         onChange={(e) => setEdpProposalNumber(e.target.value)}
                       />
@@ -1909,11 +1910,11 @@ export function CreateSaleModal({
                   {/* Notes */}
                   <Card>
                     <CardHeader className="pb-2 p-4">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">Notas</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">{t("Notas")}</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <Textarea
-                        placeholder="Observações sobre a venda..."
+                        placeholder={t("Observações sobre a venda...")}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         rows={3}
@@ -1941,10 +1942,10 @@ export function CreateSaleModal({
               {createSale.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  A criar...
+                  {t("A criar...")}
                 </>
               ) : (
-                "Criar Venda"
+                t("Criar Venda")
               )}
             </Button>
             <Button
@@ -1953,7 +1954,7 @@ export function CreateSaleModal({
               size="lg"
               onClick={() => onOpenChange(false)}
             >
-              Cancelar
+              {t("Cancelar")}
             </Button>
           </div>
         </div>

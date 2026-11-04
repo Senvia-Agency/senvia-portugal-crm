@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { addMonths, format, startOfMonth } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import { CalendarClock, CheckCircle2, Wrench, XCircle, CalendarOff, Layers, FileSignature, ChevronRight, Building2, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,6 +40,7 @@ interface Metric {
  * same predicate (see lib/telecom-sale-views.ts).
  */
 export function TelecomLifecyclePanel() {
+  const { t } = useLanguage();
   const { data: sales = [], isLoading } = useSales();
   const { from, to } = useDashboardPeriod();
   const { isAdmin } = usePermissions();
@@ -78,14 +79,14 @@ export function TelecomLifecyclePanel() {
     const semData = sumOperationalSaleUnits(inPeriod.filter(isTelecomUndatedInstall));
 
     const metrics: Metric[] = [
-      { key: 'instalados', hint: 'Fechadas', value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },
-      { key: 'ativos', hint: 'Operacionais', value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
-      { key: 'por_instalar', hint: 'Em instalação com data marcada', value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
-      { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: pt }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600', href: linkTo('proximo_mes') },
-      { key: 'anulados', hint: 'Antes da instalação — sem CB', value: count('anulados'), icon: XCircle, tone: 'text-slate-500', href: linkTo('anulados') },
-      { key: 'cancelados', hint: 'Após instalação — geram CB', value: count('cancelados'), icon: XCircle, tone: 'text-red-500', href: linkTo('cancelados') },
-      { key: 'por_assinar', hint: 'Ativos, pendentes e em instalação', value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600', href: linkTo('por_assinar') },
-      { key: 'total', hint: `Ativos + instalados + pendentes + em instalação + anulados + ${format(nextMonthStart, 'MMMM', { locale: pt })}`, value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
+      { key: 'instalados', hint: t('Fechadas'), value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },
+      { key: 'ativos', hint: t('Operacionais'), value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
+      { key: 'por_instalar', hint: t('Em instalação com data marcada'), value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
+      { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: dateLocale() }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600', href: linkTo('proximo_mes') },
+      { key: 'anulados', hint: t('Antes da instalação — sem CB'), value: count('anulados'), icon: XCircle, tone: 'text-slate-500', href: linkTo('anulados') },
+      { key: 'cancelados', hint: t('Após instalação — geram CB'), value: count('cancelados'), icon: XCircle, tone: 'text-red-500', href: linkTo('cancelados') },
+      { key: 'por_assinar', hint: t('Ativos, pendentes e em instalação'), value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600', href: linkTo('por_assinar') },
+      { key: 'total', hint: t('Ativos + instalados + pendentes + em instalação + anulados + {{month}}', { month: format(nextMonthStart, 'MMMM', { locale: dateLocale() }) }), value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
     ];
 
     // Money on the installed sales of the period. sales.comissao is the
@@ -99,7 +100,7 @@ export function TelecomLifecyclePanel() {
     }
 
     return { metrics, undated: semData, operatorGross, orgMargin };
-  }, [sales, from, to]);
+  }, [sales, from, to, t]);
 
   if (isLoading) {
     return (
@@ -115,10 +116,10 @@ export function TelecomLifecyclePanel() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Análise do mês</CardTitle>
+        <CardTitle className="text-base">{t("Análise do mês")}</CardTitle>
         <CardDescription>
-          Estado das vendas de {formatPeriodLabel(from, to)}
-          {undated > 0 && ` · ${formatOperationalUnits(undated)} instalaç${undated === 1 ? 'ão' : 'ões'} sem data marcada`}
+          {t("Estado das vendas de {{period}}", { period: formatPeriodLabel(from, to) })}
+          {undated > 0 && ` · ${t(undated === 1 ? '{{n}} instalação sem data marcada' : '{{n}} instalações sem data marcada', { n: formatOperationalUnits(undated) })}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -134,7 +135,7 @@ export function TelecomLifecyclePanel() {
             >
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Icon className={cn('h-3.5 w-3.5 shrink-0', tone)} />
-                <span className="truncate">{TELECOM_VIEW_LABELS[key]}</span>
+                <span className="truncate">{t(TELECOM_VIEW_LABELS[key])}</span>
                 <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
               <p className="mt-1 text-2xl font-semibold">{formatOperationalUnits(value)}</p>
@@ -150,14 +151,14 @@ export function TelecomLifecyclePanel() {
             <div>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Building2 className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                Valor da Organização
+                {t("Valor da Organização")}
               </p>
               <p className="mt-1 text-xl font-semibold text-amber-600">{formatCurrency(orgMargin)}</p>
             </div>
             <div>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Banknote className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                Operadoras pagam
+                {t("Operadoras pagam")}
               </p>
               <p className="mt-1 text-xl font-semibold">{formatCurrency(operatorGross)}</p>
             </div>
@@ -168,7 +169,9 @@ export function TelecomLifecyclePanel() {
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-400">
             <CalendarOff className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              {formatOperationalUnits(undated)} venda{undated === 1 ? '' : 's'} sem instalação marcada — não entram em “Por instalar” nem na contagem do próximo mês.
+              {t(undated === 1
+                ? '{{n}} venda sem instalação marcada — não entra em “Por instalar” nem na contagem do próximo mês.'
+                : '{{n}} vendas sem instalação marcada — não entram em “Por instalar” nem na contagem do próximo mês.', { n: formatOperationalUnits(undated) })}
             </span>
           </div>
         )}

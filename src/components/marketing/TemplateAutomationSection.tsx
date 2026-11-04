@@ -7,6 +7,7 @@ import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { SALE_STATUS_LABELS, SALE_STATUSES } from '@/types/sales';
 import { PROPOSAL_STATUS_LABELS, type ProposalStatus } from '@/types/proposals';
 import { EMAIL_TEMPLATE_TRIGGER_LABELS } from '@/lib/email-template-triggers';
+import { useLanguage } from '@/i18n';
 
 const PROPOSAL_STATUSES_LIST: ProposalStatus[] = ['draft', 'sent', 'negotiating', 'accepted', 'rejected', 'expired'];
 
@@ -36,6 +37,7 @@ export function TemplateAutomationSection({
   onDelayMinutesChange,
 }: TemplateAutomationSectionProps) {
   const { data: stages } = usePipelineStages();
+  const { t } = useLanguage();
 
   const showStatusConfig = ['lead_status_changed', 'client_status_changed', 'sale_status_changed', 'proposal_status_changed'].includes(triggerType);
   const usesPipelineStages = triggerType === 'lead_status_changed' || triggerType === 'client_status_changed';
@@ -47,9 +49,9 @@ export function TemplateAutomationSection({
       return stages?.map(s => <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>);
     }
     if (triggerType === 'sale_status_changed') {
-      return SALE_STATUSES.map(s => <SelectItem key={s} value={s}>{SALE_STATUS_LABELS[s]}</SelectItem>);
+      return SALE_STATUSES.map(s => <SelectItem key={s} value={s}>{t(SALE_STATUS_LABELS[s])}</SelectItem>);
     }
-    return PROPOSAL_STATUSES_LIST.map(s => <SelectItem key={s} value={s}>{PROPOSAL_STATUS_LABELS[s]}</SelectItem>);
+    return PROPOSAL_STATUSES_LIST.map(s => <SelectItem key={s} value={s}>{t(PROPOSAL_STATUS_LABELS[s])}</SelectItem>);
   };
 
   return (
@@ -57,7 +59,7 @@ export function TemplateAutomationSection({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
-            <Label className="text-base font-medium">{isManualSendTrigger ? 'Uso no envio manual' : 'Automação'}</Label>
+            <Label className="text-base font-medium">{isManualSendTrigger ? t('Uso no envio manual') : t('Automação')}</Label>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
@@ -65,12 +67,12 @@ export function TemplateAutomationSection({
       {enabled && (
         <div className="space-y-4 pt-2">
           <div>
-            <Label className="text-sm">Gatilho</Label>
+            <Label className="text-sm">{t('Gatilho')}</Label>
             <Select value={triggerType} onValueChange={onTriggerTypeChange}>
-              <SelectTrigger><SelectValue placeholder="Selecionar gatilho" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t('Selecionar gatilho')} /></SelectTrigger>
               <SelectContent>
-                {TRIGGER_TYPES.map(t => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                {TRIGGER_TYPES.map(tt => (
+                  <SelectItem key={tt.value} value={tt.value}>{t(tt.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -79,19 +81,19 @@ export function TemplateAutomationSection({
           {showStatusConfig && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-sm">De qual estado?</Label>
+                <Label className="text-sm">{t('De qual estado?')}</Label>
                 <Select value={fromStatus} onValueChange={onFromStatusChange}>
-                  <SelectTrigger><SelectValue placeholder="Qualquer" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('Qualquer')} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Qualquer</SelectItem>
+                    <SelectItem value="any">{t('Qualquer')}</SelectItem>
                     {renderStatusOptions()}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-sm">Para qual estado?</Label>
+                <Label className="text-sm">{t('Para qual estado?')}</Label>
                 <Select value={toStatus} onValueChange={onToStatusChange}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('Selecionar')} /></SelectTrigger>
                   <SelectContent>
                     {renderStatusOptions()}
                   </SelectContent>
@@ -101,12 +103,12 @@ export function TemplateAutomationSection({
           )}
 
           <div>
-            <Label className="text-sm">Atraso antes de enviar</Label>
+            <Label className="text-sm">{t('Atraso antes de enviar')}</Label>
             <Select value={String(delayMinutes)} onValueChange={v => onDelayMinutesChange(Number(v))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {DELAY_OPTIONS.map(d => (
-                  <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                  <SelectItem key={d.value} value={String(d.value)}>{t(d.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -114,8 +116,8 @@ export function TemplateAutomationSection({
 
           <p className="text-xs text-muted-foreground">
             {isManualSendTrigger
-              ? 'Este template fica disponível para o tipo de envio selecionado e não é enviado automaticamente.'
-              : 'O email será enviado automaticamente para o contacto associado ao gatilho, incluindo vendas recorrentes e avisos de renovação.'}
+              ? t('Este template fica disponível para o tipo de envio selecionado e não é enviado automaticamente.')
+              : t('O email será enviado automaticamente para o contacto associado ao gatilho, incluindo vendas recorrentes e avisos de renovação.')}
           </p>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
-import { pt } from "date-fns/locale";
+import { useLanguage, dateLocale, intlLocale } from "@/i18n";
 import { AlertTriangle, ChevronDown, FileSearch, FileUp, RefreshCw, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ function generateMonthOptions() {
     const date = startOfMonth(subMonths(now, i));
     options.push({
       value: format(date, "yyyy-MM-dd"),
-      label: format(date, "MMMM yyyy", { locale: pt })
+      label: format(date, "MMMM yyyy", { locale: dateLocale() })
     });
   }
 
@@ -54,8 +54,9 @@ function CommissionAnalysisTableSkeleton() {
 }
 
 function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[];}) {
+  const { t } = useLanguage();
   if (comparisonData.length === 0) {
-    return <p className="text-xs text-muted-foreground py-2">Sem dados do ficheiro para este comercial.</p>;
+    return <p className="text-xs text-muted-foreground py-2">{t("Sem dados do ficheiro para este comercial.")}</p>;
   }
 
   const discrepancyCell = "bg-destructive/10 text-destructive font-medium";
@@ -65,16 +66,16 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
       <Table>
         <TableHeader>
           <TableRow className="text-xs">
-            <TableHead className="h-8 min-w-[60px]">Fonte</TableHead>
-            <TableHead className="h-8 min-w-[100px] hidden sm:table-cell">Tipo Comissão</TableHead>
-            <TableHead className="h-8 min-w-[140px]">Nome da Empresa</TableHead>
-            <TableHead className="h-8 min-w-[60px] hidden md:table-cell">Tipo</TableHead>
+            <TableHead className="h-8 min-w-[60px]">{t("Fonte")}</TableHead>
+            <TableHead className="h-8 min-w-[100px] hidden sm:table-cell">{t("Tipo Comissão")}</TableHead>
+            <TableHead className="h-8 min-w-[140px]">{t("Nome da Empresa")}</TableHead>
+            <TableHead className="h-8 min-w-[60px] hidden md:table-cell">{t("Tipo")}</TableHead>
             <TableHead className="h-8 min-w-[180px]">CPE</TableHead>
             <TableHead className="h-8 min-w-[60px] hidden sm:table-cell">DBL</TableHead>
-            <TableHead className="h-8 text-right min-w-[100px] hidden lg:table-cell">Consumo anual</TableHead>
-            <TableHead className="h-8 text-right min-w-[80px] hidden lg:table-cell">Duração (anos)</TableHead>
-            <TableHead className="h-8 min-w-[90px] hidden md:table-cell">Data Início</TableHead>
-            <TableHead className="h-8 min-w-[90px] hidden md:table-cell">Data Fim</TableHead>
+            <TableHead className="h-8 text-right min-w-[100px] hidden lg:table-cell">{t("Consumo anual")}</TableHead>
+            <TableHead className="h-8 text-right min-w-[80px] hidden lg:table-cell">{t("Duração (anos)")}</TableHead>
+            <TableHead className="h-8 min-w-[90px] hidden md:table-cell">{t("Data Início")}</TableHead>
+            <TableHead className="h-8 min-w-[90px] hidden md:table-cell">{t("Data Fim")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -85,12 +86,12 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
                 <TableRow key={`merged-${idx}`} className="text-xs border-b">
                   <TableCell className="py-1.5">
                     <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                      Atualizado
+                      {t("Atualizado")}
                     </span>
                   </TableCell>
                   <TableCell className="py-1.5 hidden sm:table-cell">{row.file.tipoComissao || "—"}</TableCell>
                   <TableCell className="py-1.5 truncate max-w-[160px]">{row.systemClientName || row.file.nomeEmpresa || "—"}</TableCell>
-                  <TableCell className="py-1.5 hidden md:table-cell">{row.systemNegotiationType ? NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType] ?? row.systemNegotiationType : row.file.tipo || "—"}</TableCell>
+                  <TableCell className="py-1.5 hidden md:table-cell">{row.systemNegotiationType ? (NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType] ? t(NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType]) : row.systemNegotiationType) : row.file.tipo || "—"}</TableCell>
                   <TableCell className="py-1.5 font-mono">{row.systemCpe || row.file.cpe || "—"}</TableCell>
                   <TableCell className="py-1.5 tabular-nums hidden sm:table-cell">{row.file.dbl || "—"}</TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums hidden lg:table-cell">{row.file.consumoAnual || "—"}</TableCell>
@@ -107,7 +108,7 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
                 <TableRow className="text-xs border-b-0">
                   <TableCell className="py-1.5">
                     <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      Ficheiro
+                      {t("Ficheiro")}
                     </span>
                   </TableCell>
                   <TableCell className="py-1.5 hidden sm:table-cell">{row.file.tipoComissao || "—"}</TableCell>
@@ -130,12 +131,12 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
                 <TableRow className="text-xs bg-muted/50 border-b">
                   <TableCell className="py-1.5">
                     <span className="inline-flex items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
-                      Sistema
+                      {t("Sistema")}
                     </span>
                   </TableCell>
                   <TableCell className="py-1.5 text-muted-foreground hidden sm:table-cell">—</TableCell>
                   <TableCell className="py-1.5 text-muted-foreground truncate max-w-[160px]">{row.systemClientName || "—"}</TableCell>
-                  <TableCell className="py-1.5 text-muted-foreground hidden md:table-cell">{row.systemNegotiationType ? NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType] ?? row.systemNegotiationType : "—"}</TableCell>
+                  <TableCell className="py-1.5 text-muted-foreground hidden md:table-cell">{row.systemNegotiationType ? (NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType] ? t(NEGOTIATION_TYPE_LABELS[row.systemNegotiationType as NegotiationType]) : row.systemNegotiationType) : "—"}</TableCell>
                   <TableCell className="py-1.5 font-mono text-muted-foreground">{row.systemCpe || "—"}</TableCell>
                   <TableCell className={`py-1.5 tabular-nums hidden sm:table-cell ${row.hasDblDiscrepancy ? discrepancyCell : "text-muted-foreground"}`}>
                     {row.systemDbl !== null ? row.systemDbl : "—"}
@@ -159,7 +160,9 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
 }
 
 export function CommissionAnalysisTab() {
-  const monthOptions = useMemo(() => generateMonthOptions(), []);
+  const { t, language } = useLanguage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const monthOptions = useMemo(() => generateMonthOptions(), [language]);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value ?? format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [searchTerm, setSearchTerm] = useState("");
   const [importOpen, setImportOpen] = useState(false);
@@ -237,9 +240,9 @@ export function CommissionAnalysisTab() {
     try {
       await syncMutation.mutateAsync(syncItems);
       await refetch();
-      toast({ title: "Sincronização concluída", description: `${syncItems.length} CPE(s) atualizados com os dados do ficheiro.` });
+      toast({ title: t("Sincronização concluída"), description: t("{{n}} CPE(s) atualizados com os dados do ficheiro.", { n: syncItems.length }) });
     } catch (err: any) {
-      toast({ title: "Erro na sincronização", description: err.message || "Não foi possível atualizar os CPEs.", variant: "destructive" });
+      toast({ title: t("Erro na sincronização"), description: err.message || t("Não foi possível atualizar os CPEs."), variant: "destructive" });
     }
   };
 
@@ -247,9 +250,9 @@ export function CommissionAnalysisTab() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Análise de Comissões</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t("Análise de Comissões")}</h2>
           <p className="text-sm text-muted-foreground">
-            Comparação entre ficheiro importado e dados do sistema, por comercial.
+            {t("Comparação entre ficheiro importado e dados do sistema, por comercial.")}
           </p>
         </div>
 
@@ -257,12 +260,12 @@ export function CommissionAnalysisTab() {
           {syncItems.length > 0 &&
           <Button variant="outline" onClick={() => setSyncConfirmOpen(true)} disabled={syncMutation.isPending} className="w-full sm:w-auto">
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-              Sincronizar ({syncItems.length})
+              {t("Sincronizar ({{n}})", { n: syncItems.length })}
             </Button>
           }
           <Button onClick={() => setImportOpen(true)} className="w-full sm:w-auto">
             <FileUp className="h-4 w-4" />
-            Importar ficheiro
+            {t("Importar ficheiro")}
           </Button>
         </div>
       </div>
@@ -288,7 +291,7 @@ export function CommissionAnalysisTab() {
           <Input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Pesquisar comercial"
+            placeholder={t("Pesquisar comercial")}
             className="pl-9" />
           
         </div>
@@ -298,7 +301,7 @@ export function CommissionAnalysisTab() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
           <FileUp className="h-3.5 w-3.5" />
           <span>
-            Import ativo: <strong className="text-foreground">{data.imports[0]?.file_name}</strong>
+            {t("Importação ativa:")} <strong className="text-foreground">{data.imports[0]?.file_name}</strong>
             {" — "}
             {format(new Date(data.imports[0]?.created_at), "dd/MM/yyyy HH:mm")}
           </span>
@@ -313,14 +316,14 @@ export function CommissionAnalysisTab() {
                 <TrendingDown className="h-5 w-5 text-destructive" />
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Chargebacks (CB)</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("Chargebacks (CB)")}</p>
                 <p className="text-xl font-bold tracking-tight text-foreground tabular-nums">
                   {cbSummary.cbCount} <span className="text-sm font-normal text-muted-foreground">CPE(s)</span>
                 </p>
                 <p className="text-sm font-medium text-destructive tabular-nums">
-                  {cbSummary.cbTotal.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                  {cbSummary.cbTotal.toLocaleString(intlLocale(), { style: "currency", currency: "EUR" })}
                 </p>
-                <p className="text-xs text-muted-foreground">Ref. coluna "Valor a Receber"</p>
+                <p className="text-xs text-muted-foreground">{t("Ref. coluna \"Valor a Receber\"")}</p>
               </div>
             </CardContent>
           </Card>
@@ -330,12 +333,12 @@ export function CommissionAnalysisTab() {
                 <TrendingUp className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Comissões</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("Comissões")}</p>
                 <p className="text-xl font-bold tracking-tight text-foreground tabular-nums">
                   {cbSummary.comCount} <span className="text-sm font-normal text-muted-foreground">CPE(s)</span>
                 </p>
                 <p className="text-sm font-medium text-primary tabular-nums">
-                  {cbSummary.comTotal.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                  {cbSummary.comTotal.toLocaleString(intlLocale(), { style: "currency", currency: "EUR" })}
                 </p>
               </div>
             </CardContent>
@@ -346,11 +349,11 @@ export function CommissionAnalysisTab() {
                 <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Discrepâncias</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("Discrepâncias")}</p>
                 <p className="text-xl font-bold tracking-tight text-foreground tabular-nums">
                   {cbSummary.cbDiscrepancies}
                 </p>
-                <p className="text-xs text-muted-foreground">CPE(s) com diferenças</p>
+                <p className="text-xs text-muted-foreground">{t("CPE(s) com diferenças")}</p>
               </div>
             </CardContent>
           </Card>
@@ -362,7 +365,7 @@ export function CommissionAnalysisTab() {
       filteredCommercials.length > 0 ?
       <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Comerciais</CardTitle>
+            <CardTitle className="text-base">{t("Comerciais")}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Accordion type="multiple">
@@ -374,12 +377,12 @@ export function CommissionAnalysisTab() {
                       <span className="font-medium text-foreground text-left">{commercial.name}</span>
                       {commercial.fileData.length > 0 &&
                   <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                          {commercial.fileData.length} linha(s)
+                          {t("{{n}} linha(s)", { n: commercial.fileData.length })}
                         </span>
                   }
                       {commercial.comparisonData.some((r) => r.hasAnyDiscrepancy) &&
                   <span className="inline-flex items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-                          {commercial.comparisonData.filter((r) => r.hasAnyDiscrepancy).length} discrepância(s)
+                          {t("{{n}} discrepância(s)", { n: commercial.comparisonData.filter((r) => r.hasAnyDiscrepancy).length })}
                         </span>
                   }
                     </div>
@@ -396,9 +399,9 @@ export function CommissionAnalysisTab() {
       <Card>
           <CardContent className="flex flex-col items-center justify-center gap-2 py-14 text-center">
             <FileSearch className="h-10 w-10 text-muted-foreground" />
-            <h3 className="text-lg font-semibold text-foreground">Sem dados para mostrar</h3>
+            <h3 className="text-lg font-semibold text-foreground">{t("Sem dados para mostrar")}</h3>
             <p className="max-w-md text-sm text-muted-foreground">
-              Importe um ficheiro para ver a análise de comissões.
+              {t("Importe um ficheiro para ver a análise de comissões.")}
             </p>
           </CardContent>
         </Card>
@@ -409,14 +412,14 @@ export function CommissionAnalysisTab() {
       <AlertDialog open={syncConfirmOpen} onOpenChange={setSyncConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sincronizar dados do ficheiro</AlertDialogTitle>
+            <AlertDialogTitle>{t("Sincronizar dados do ficheiro")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Isto vai atualizar <strong>{syncItems.length} CPE(s)</strong> no sistema com os valores do ficheiro importado (DBL, Consumo anual e Duração). As comissões serão recalculadas automaticamente.
+              {t("Isto vai atualizar {{cpes}} no sistema com os valores do ficheiro importado (DBL, Consumo anual e Duração). As comissões serão recalculadas automaticamente.", { cpes: "\u0001" }).split("\u0001").flatMap((part, i) => i === 0 ? [part] : [<strong key={i}>{t("{{n}} CPE(s)", { n: syncItems.length })}</strong>, part])}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSync}>Sincronizar</AlertDialogAction>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSync}>{t("Sincronizar")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -424,16 +427,16 @@ export function CommissionAnalysisTab() {
       <Dialog open={detailModal !== null} onOpenChange={(open) => !open && setDetailModal(null)}>
         <DialogContent className="max-w-2xl max-h-[80dvh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>{detailModal === 'cb' ? 'Chargebacks (CB)' : 'Comissões'}</DialogTitle>
+            <DialogTitle>{detailModal === 'cb' ? t('Chargebacks (CB)') : t('Comissões')}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 -mx-6 px-6">
             <Table>
               <TableHeader>
                 <TableRow className="text-xs">
                   <TableHead className="h-8">CPE</TableHead>
-                  <TableHead className="h-8">Nome da Empresa</TableHead>
-                  <TableHead className="h-8">Tipo Comissão</TableHead>
-                  <TableHead className="h-8 text-right">Valor a Receber</TableHead>
+                  <TableHead className="h-8">{t("Nome da Empresa")}</TableHead>
+                  <TableHead className="h-8">{t("Tipo Comissão")}</TableHead>
+                  <TableHead className="h-8 text-right">{t("Valor a Receber")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -447,7 +450,7 @@ export function CommissionAnalysisTab() {
                 )}
                 {(detailModal === 'cb' ? data.summary.cbFileItems : data.summary.comFileItems).length === 0 &&
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">Sem registos</TableCell>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">{t("Sem registos")}</TableCell>
                   </TableRow>
                 }
               </TableBody>

@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Users, Plus, Pencil, Trash2, Crown, Loader2, UserPlus } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 export function TeamsSection() {
   const { data: teams = [], isLoading: loadingTeams } = useTeams();
@@ -21,6 +22,7 @@ export function TeamsSection() {
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
   const setTeamMembers = useSetTeamMembers();
+  const { t } = useLanguage();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -50,7 +52,7 @@ export function TeamsSection() {
     return map;
   }, [orgMembers]);
 
-  const getLeaderName = (leaderId: string) => memberNameMap[leaderId] || 'Desconhecido';
+  const getLeaderName = (leaderId: string) => memberNameMap[leaderId] || t('Desconhecido');
 
   const handleOpenCreate = () => {
     setTeamName('');
@@ -94,7 +96,7 @@ export function TeamsSection() {
   };
 
   const handleDelete = (team: Team) => {
-    if (confirm(`Eliminar a equipa "${team.name}"?`)) {
+    if (confirm(t('Eliminar a equipa "{{name}}"?', { name: team.name }))) {
       deleteTeam.mutate(team.id);
     }
   };
@@ -124,19 +126,19 @@ export function TeamsSection() {
       <>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Nome da Equipa</Label>
+            <Label>{t('Nome da Equipa')}</Label>
             <Input
-              placeholder="Ex: Equipa Norte"
+              placeholder={t('Ex: Equipa Norte')}
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Líder</Label>
+            <Label>{t('Líder')}</Label>
             <Select value={leaderId} onValueChange={setLeaderId}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar líder..." />
+                <SelectValue placeholder={t('Selecionar líder...')} />
               </SelectTrigger>
               <SelectContent>
                 {orgMembers
@@ -158,11 +160,11 @@ export function TeamsSection() {
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
-              Colaboradores ({selectedMemberIds.length})
+              {t('Colaboradores ({{n}})', { n: selectedMemberIds.length })}
             </Label>
             {availableMembers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                {!leaderId ? 'Selecione um líder primeiro.' : 'Todos os colaboradores já estão atribuídos a outras equipas.'}
+                {!leaderId ? t('Selecione um líder primeiro.') : t('Todos os colaboradores já estão atribuídos a outras equipas.')}
               </p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -187,14 +189,14 @@ export function TeamsSection() {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => isEdit ? setIsEditOpen(false) : setIsCreateOpen(false)}>
-            Cancelar
+            {t('Cancelar')}
           </Button>
           <Button
             onClick={isEdit ? handleUpdate : handleCreate}
             disabled={!teamName.trim() || !leaderId || isPending}
           >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEdit ? 'Guardar' : 'Criar Equipa'}
+            {isEdit ? t('Guardar') : t('Criar Equipa')}
           </Button>
         </DialogFooter>
       </>
@@ -221,23 +223,23 @@ export function TeamsSection() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Equipas
+              {t('Equipas')}
             </CardTitle>
             <CardDescription>
-              Crie equipas hierárquicas. O líder vê os dados dos colaboradores da sua equipa.
+              {t('Crie equipas hierárquicas. O líder vê os dados dos colaboradores da sua equipa.')}
             </CardDescription>
           </div>
           <Button onClick={handleOpenCreate} size="sm">
             <Plus className="mr-2 h-4 w-4" />
-            Nova Equipa
+            {t('Nova Equipa')}
           </Button>
         </CardHeader>
         <CardContent>
           {teams.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma equipa criada.</p>
-              <p className="text-sm">Crie equipas para que os líderes vejam os dados dos seus comerciais.</p>
+              <p>{t('Nenhuma equipa criada.')}</p>
+              <p className="text-sm">{t('Crie equipas para que os líderes vejam os dados dos seus comerciais.')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -254,7 +256,7 @@ export function TeamsSection() {
                         {getLeaderName(team.leader_id)}
                       </span>
                       <span>•</span>
-                      <span>{teamMemberCount[team.id] || 0} membros</span>
+                      <span>{t('{{n}} membros', { n: teamMemberCount[team.id] || 0 })}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -281,9 +283,9 @@ export function TeamsSection() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nova Equipa</DialogTitle>
+            <DialogTitle>{t('Nova Equipa')}</DialogTitle>
             <DialogDescription>
-              Crie uma equipa e atribua um líder e membros.
+              {t('Crie uma equipa e atribua um líder e membros.')}
             </DialogDescription>
           </DialogHeader>
           {renderTeamForm(false)}
@@ -294,9 +296,9 @@ export function TeamsSection() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar Equipa</DialogTitle>
+            <DialogTitle>{t('Editar Equipa')}</DialogTitle>
             <DialogDescription>
-              Altere o nome, líder ou membros da equipa.
+              {t('Altere o nome, líder ou membros da equipa.')}
             </DialogDescription>
           </DialogHeader>
           {renderTeamForm(true)}

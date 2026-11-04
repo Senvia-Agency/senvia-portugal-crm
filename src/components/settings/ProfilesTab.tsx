@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { WIDGET_DEFINITIONS, WidgetType, filterWidgetsByModules, getAllAvailableWidgets, isWidgetForNiche, type NicheType } from '@/lib/dashboard-templates';
 import { Shield, Plus, Pencil, Trash2, Loader2, Eye, LayoutDashboard, ArrowLeft } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 const BASE_ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -35,6 +36,7 @@ const BASE_ROLE_LABELS: Record<string, string> = {
 export function ProfilesTab() {
   const { profiles, isLoading, createProfile, updateProfile, deleteProfile } = useOrganizationProfiles();
   const { organization } = useAuth();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<OrganizationProfile | null>(null);
 
@@ -196,12 +198,12 @@ export function ProfilesTab() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
+          <Button variant="back" size="icon" onClick={() => setIsOpen(false)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h2 className="text-lg font-semibold">{editingProfile ? 'Editar Perfil' : 'Criar Perfil'}</h2>
-            <p className="text-sm text-muted-foreground">Configure permissões granulares por módulo e sub-área.</p>
+            <h2 className="text-lg font-semibold">{editingProfile ? t('Editar Perfil') : t('Criar Perfil')}</h2>
+            <p className="text-sm text-muted-foreground">{t('Configure permissões granulares por módulo e sub-área.')}</p>
           </div>
         </div>
 
@@ -210,47 +212,47 @@ export function ProfilesTab() {
           <div className="lg:col-span-3 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Informações Gerais</CardTitle>
+                <CardTitle className="text-base">{t('Informações Gerais')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome do Perfil</Label>
-                  <Input placeholder="Ex: Diretor Comercial" value={name} onChange={e => setName(e.target.value)} />
+                  <Label>{t('Nome do Perfil')}</Label>
+                  <Input placeholder={t('Ex: Diretor Comercial')} value={name} onChange={e => setName(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Role Base</Label>
+                  <Label>{t('Função Base')}</Label>
                   <Select value={baseRole} onValueChange={handleBaseRoleChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="viewer">Visualizador</SelectItem>
-                      <SelectItem value="salesperson">Comercial</SelectItem>
+                      <SelectItem value="admin">{t('Administrador')}</SelectItem>
+                      <SelectItem value="viewer">{t('Visualizador')}</SelectItem>
+                      <SelectItem value="salesperson">{t('Comercial', { context: 'role' })}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Define as políticas de segurança base.</p>
+                  <p className="text-xs text-muted-foreground">{t('Define as políticas de segurança base.')}</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Visibilidade de Dados</Label>
+                  <Label>{t('Visibilidade de Dados')}</Label>
                   <Select value={dataScope} onValueChange={(v) => setDataScope(v as DataScope)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(['own', 'team', 'all'] as DataScope[]).map(scope => (
                         <SelectItem key={scope} value={scope}>
-                          {DATA_SCOPE_LABELS[scope]} — {DATA_SCOPE_DESCRIPTIONS[scope]}
+                          {t(DATA_SCOPE_LABELS[scope])} — {t(DATA_SCOPE_DESCRIPTIONS[scope])}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Define de quem o utilizador pode ver os dados.</p>
+                  <p className="text-xs text-muted-foreground">{t('Define de quem o utilizador pode ver os dados.')}</p>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Permissões por Módulo</CardTitle>
+                <CardTitle className="text-base">{t('Permissões por Módulo')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <Accordion type="multiple" className="border rounded-lg">
@@ -262,28 +264,28 @@ export function ProfilesTab() {
                       <AccordionItem key={moduleKey} value={moduleKey} className="border-b last:border-b-0">
                         <AccordionTrigger className="px-4 py-3 hover:no-underline">
                           <div className="flex items-center gap-3 flex-1">
-                            <span className="font-medium text-sm">{schema.label}</span>
-                            {allEnabled && <Badge variant="secondary" className="text-xs">Tudo</Badge>}
-                            {partial && !allEnabled && <Badge variant="outline" className="text-xs">Parcial</Badge>}
-                            {!allEnabled && !partial && <Badge variant="outline" className="text-xs text-muted-foreground">Desativado</Badge>}
+                            <span className="font-medium text-sm">{t(schema.label)}</span>
+                            {allEnabled && <Badge variant="secondary" className="text-xs">{t('Tudo')}</Badge>}
+                            {partial && !allEnabled && <Badge variant="outline" className="text-xs">{t('Parcial')}</Badge>}
+                            {!allEnabled && !partial && <Badge variant="outline" className="text-xs text-muted-foreground">{t('Desativado')}</Badge>}
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="px-4 pb-4">
                           <div className="flex gap-2 mb-3">
-                            <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={() => setModuleAll(moduleKey, true)}>Tudo</Button>
-                            <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={() => setModuleAll(moduleKey, false)}>Nada</Button>
+                            <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={() => setModuleAll(moduleKey, true)}>{t('Tudo')}</Button>
+                            <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={() => setModuleAll(moduleKey, false)}>{t('Nada')}</Button>
                           </div>
                           <div className="space-y-4">
                             {Object.entries(schema.subareas).map(([subKey, subSchema]) => {
                               const subPerms = permissions[moduleKey]?.subareas?.[subKey] || {};
                               return (
                                 <div key={subKey} className="space-y-2">
-                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{subSchema.label}</p>
+                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t(subSchema.label)}</p>
                                   <div className="flex flex-wrap gap-x-4 gap-y-2">
                                     {subSchema.actions.map(action => (
                                       <label key={action} className="flex items-center gap-1.5 cursor-pointer">
                                         <Checkbox checked={subPerms[action] ?? false} onCheckedChange={() => toggleAction(moduleKey, subKey, action)} />
-                                        <span className="text-sm">{ACTION_LABELS[action] || action}</span>
+                                        <span className="text-sm">{ACTION_LABELS[action] ? t(ACTION_LABELS[action]) : action}</span>
                                       </label>
                                     ))}
                                   </div>
@@ -307,18 +309,18 @@ export function ProfilesTab() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <LayoutDashboard className="h-4 w-4" />
-                    Dashboard Personalizado
+                    {t('Dashboard Personalizado')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Widgets personalizados</Label>
+                    <Label className="text-sm">{t('Widgets personalizados')}</Label>
                     <Switch checked={useCustomDashboard} onCheckedChange={setUseCustomDashboard} />
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {useCustomDashboard
-                      ? 'Selecione os widgets que este perfil verá por defeito no painel.'
-                      : 'A usar o padrão do nicho da organização.'}
+                      ? t('Selecione os widgets que este perfil verá por defeito no painel.')
+                      : t('A usar a predefinição do nicho da organização.')}
                   </p>
                   {useCustomDashboard && (
                     <div className="grid grid-cols-1 gap-2 border rounded-lg p-3">
@@ -346,9 +348,9 @@ export function ProfilesTab() {
               <div className="flex flex-col gap-2">
                 <Button onClick={handleSave} disabled={!name.trim() || createProfile.isPending || updateProfile.isPending} className="w-full">
                   {(createProfile.isPending || updateProfile.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingProfile ? 'Guardar' : 'Criar'}
+                  {editingProfile ? t('Guardar') : t('Criar')}
                 </Button>
-                <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full">Cancelar</Button>
+                <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full">{t('Cancelar')}</Button>
               </div>
             </div>
           </div>
@@ -356,10 +358,10 @@ export function ProfilesTab() {
 
         {/* Mobile fixed bottom bar */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t flex gap-2 lg:hidden z-50">
-          <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1">Cancelar</Button>
+          <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1">{t('Cancelar')}</Button>
           <Button onClick={handleSave} disabled={!name.trim() || createProfile.isPending || updateProfile.isPending} className="flex-1">
             {(createProfile.isPending || updateProfile.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {editingProfile ? 'Guardar' : 'Criar'}
+            {editingProfile ? t('Guardar') : t('Criar')}
           </Button>
         </div>
         <div className="h-20 lg:hidden" />
@@ -375,13 +377,13 @@ export function ProfilesTab() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
-              Perfis de Acesso
+              {t('Perfis de Acesso')}
             </CardTitle>
-            <CardDescription>Defina perfis com permissões granulares por módulo e sub-área.</CardDescription>
+            <CardDescription>{t('Defina perfis com permissões granulares por módulo e sub-área.')}</CardDescription>
           </div>
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Criar Perfil
+            {t('Criar Perfil')}
           </Button>
         </CardHeader>
         <CardContent>
@@ -391,19 +393,19 @@ export function ProfilesTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-medium">{profile.name}</p>
-                    {profile.is_default && <Badge variant="outline" className="text-xs">Padrão</Badge>}
+                    {profile.is_default && <Badge variant="outline" className="text-xs">{t('Predefinido')}</Badge>}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Base: {BASE_ROLE_LABELS[profile.base_role] || profile.base_role}</span>
+                    <span>{t('Base: {{role}}', { role: BASE_ROLE_LABELS[profile.base_role] ? t(BASE_ROLE_LABELS[profile.base_role], { context: 'role' }) : profile.base_role })}</span>
                     <span>·</span>
                     <span className="flex items-center gap-1">
                       <Eye className="h-3 w-3" />
-                      {DATA_SCOPE_LABELS[(profile.data_scope || 'own') as DataScope]}
+                      {t(DATA_SCOPE_LABELS[(profile.data_scope || 'own') as DataScope])}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {getActiveModules(profile.module_permissions).map(label => (
-                      <Badge key={label} variant="secondary" className="text-xs">{label}</Badge>
+                      <Badge key={label} variant="secondary" className="text-xs">{t(label)}</Badge>
                     ))}
                   </div>
                 </div>

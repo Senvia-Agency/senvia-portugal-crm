@@ -16,6 +16,7 @@ import {
 } from "@/hooks/ecommerce";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 interface ProductImagesModalProps {
   product: EcommerceProduct;
@@ -25,6 +26,7 @@ interface ProductImagesModalProps {
 
 export function ProductImagesModal({ product, open, onOpenChange }: ProductImagesModalProps) {
   const { data: images, isLoading } = useProductImages(product.id);
+  const { t } = useLanguage();
   const uploadImage = useUploadProductImage();
   const setPrimary = useSetPrimaryImage();
   const deleteImage = useDeleteProductImage();
@@ -64,7 +66,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Imagens - {product.name}</DialogTitle>
+          <DialogTitle>{t("Imagens - {{name}}", { name: product.name })}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -84,10 +86,10 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
             />
             <Upload className="h-8 w-8 text-muted-foreground" />
             <p className="mt-2 text-sm text-muted-foreground">
-              {uploading ? "A carregar..." : "Clique ou arraste imagens"}
+              {uploading ? t("A carregar...") : t("Clique ou arraste imagens")}
             </p>
             <p className="text-xs text-muted-foreground">
-              PNG, JPG ou WebP até 5MB
+              {t("PNG, JPG ou WebP até 5MB")}
             </p>
           </div>
 
@@ -100,7 +102,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
             </div>
           ) : images?.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-8">
-              Sem imagens. Adicione a primeira imagem acima.
+              {t("Sem imagens. Adicione a primeira imagem acima.")}
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-4">
@@ -125,7 +127,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                         size="icon"
                         variant="secondary"
                         onClick={() => handleSetPrimary(image.id)}
-                        title="Definir como principal"
+                        title={t("Definir como principal")}
                       >
                         <Star className="h-4 w-4" />
                       </Button>
@@ -134,7 +136,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                       size="icon"
                       variant="destructive"
                       onClick={() => handleDelete(image.id, image.url)}
-                      title="Eliminar"
+                      title={t("Eliminar")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -143,7 +145,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                   {/* Primary Badge */}
                   {image.is_primary && (
                     <div className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
-                      Principal
+                      {t("Principal")}
                     </div>
                   )}
                 </div>
@@ -154,7 +156,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
 
         <div className="flex justify-end pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
+            {t("Fechar")}
           </Button>
         </div>
       </DialogContent>

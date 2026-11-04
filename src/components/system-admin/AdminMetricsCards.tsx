@@ -1,5 +1,6 @@
 import { DollarSign, Users, Clock, AlertTriangle, CreditCard } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { useLanguage } from "@/i18n";
 
 interface Organization {
   id: string;
@@ -22,6 +23,7 @@ interface AdminMetricsCardsProps {
 
 export function AdminMetricsCards({ organizations, stripeStats, stripeLoading }: AdminMetricsCardsProps) {
   const now = new Date();
+  const { t } = useLanguage();
 
   const isInTrial = (o: Organization) =>
     !o.billing_exempt && o.trial_ends_at && new Date(o.trial_ends_at) > now;
@@ -44,25 +46,25 @@ export function AdminMetricsCards({ organizations, stripeStats, stripeLoading }:
       <MetricCard
         title="MRR"
         value={stripeLoading ? "..." : `€${mrr}`}
-        subtitle={stripeStats ? "Dados reais Stripe" : "A carregar..."}
+        subtitle={stripeStats ? t("Dados reais Stripe") : t("A carregar...")}
         icon={<DollarSign className="h-5 w-5 text-primary" />}
       />
       <MetricCard
-        title="Clientes Pagantes"
+        title={t("Clientes Pagantes")}
         value={stripeLoading ? "..." : paying}
-        subtitle={stripeStats ? "Subscrição ativa Stripe" : "A carregar..."}
+        subtitle={stripeStats ? t("Subscrição ativa Stripe") : t("A carregar...")}
         icon={<CreditCard className="h-5 w-5 text-primary" />}
       />
       <MetricCard
-        title="Em Trial"
+        title={t("Em Trial")}
         value={inTrial}
-        subtitle="Trial ativo"
+        subtitle={t("Trial ativo")}
         icon={<Clock className="h-5 w-5 text-primary" />}
       />
       <MetricCard
-        title="Trials Expirados"
+        title={t("Trials Expirados")}
         value={expired}
-        subtitle="Sem plano pago"
+        subtitle={t("Sem plano pago")}
         icon={<AlertTriangle className="h-5 w-5 text-primary" />}
       />
     </div>

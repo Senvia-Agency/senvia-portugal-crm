@@ -8,6 +8,7 @@ import {
 } from '@/lib/automation-nodes';
 import { GHOST_BOX_HEIGHT, NODE_BOX_HEIGHT, NODE_BOX_WIDTH } from '@/lib/automation-graph';
 import type { AutomationGraphNode, AutomationNodeStats, AutomationRunStepStatus } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 /**
  * Unknown node types (e.g. written by a newer engine) must still render as a
@@ -79,6 +80,7 @@ export type AutomationFlowNodeType = Node<AutomationNodeData, 'automation'>;
  * badge, and the title + one-line summary underneath.
  */
 export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<AutomationFlowNodeType>) => {
+  const { t } = useLanguage();
   const { graphNode, step, hasIssue, stats, showStats, inExecution, runStatus } = data;
   const runLook = inExecution && runStatus ? RUN_STATUS_LOOK[runStatus] : null;
   // In an execution, a step that did not run fades back, so the path taken reads at a glance.
@@ -106,7 +108,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
     <div
       className={cn('group relative flex cursor-pointer flex-col items-center transition-opacity', notRun && 'opacity-40')}
       style={{ width: NODE_BOX_WIDTH, height: NODE_BOX_HEIGHT }}
-      title={runLook ? `${runLook.label} nesta execução` : notRun ? 'Não correu nesta execução' : undefined}
+      title={runLook ? t('{{status}} nesta execução', { status: t(runLook.label) }) : notRun ? t('Não correu nesta execução') : undefined}
     >
       {/* Triggers have no inbound edge. */}
       {!isTrigger && (
@@ -149,7 +151,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
         {hasIssue && (
           <span
             className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-background bg-warning text-warning-foreground shadow-sm"
-            title="Configuração incompleta"
+            title={t('Configuração incompleta')}
           >
             <AlertTriangle className="h-3 w-3" />
           </span>
@@ -161,7 +163,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
               'absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background shadow-sm',
               runLook.badge,
             )}
-            aria-label={`${runLook.label} nesta execução`}
+            aria-label={t('{{status}} nesta execução', { status: t(runLook.label) })}
           >
             <runLook.icon className="h-3.5 w-3.5" strokeWidth={3} />
           </span>
@@ -172,7 +174,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
 
       <div className="mt-2 w-full px-2 text-center">
         <p className="truncate text-[13px] font-semibold leading-tight text-foreground">
-          {definition?.label ?? humanizeNodeType(graphNode.type)}
+          {definition?.label ? t(definition.label) : humanizeNodeType(graphNode.type)}
         </p>
         <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
           {subtitle}
@@ -215,9 +217,10 @@ AutomationFlowNode.displayName = 'AutomationFlowNode';
  * untouched.
  */
 function NodeStatsBadges({ stats }: { stats: AutomationNodeStats }) {
-  const parts = [`${stats.passed} ${stats.passed === 1 ? 'passou' : 'passaram'}`];
-  if (stats.waiting > 0) parts.push(`${stats.waiting} à espera`);
-  if (stats.failed > 0) parts.push(`${stats.failed} ${stats.failed === 1 ? 'falhou' : 'falharam'}`);
+  const { t } = useLanguage();
+  const parts = [t(stats.passed === 1 ? '{{n}} passou' : '{{n}} passaram', { n: stats.passed })];
+  if (stats.waiting > 0) parts.push(t('{{n}} à espera', { n: stats.waiting }));
+  if (stats.failed > 0) parts.push(t(stats.failed === 1 ? '{{n}} falhou' : '{{n}} falharam', { n: stats.failed }));
   const summary = parts.join(' · ');
 
   return (
@@ -267,7 +270,9 @@ export interface GhostNodeData extends Record<string, unknown> {
 export type GhostFlowNodeType = Node<GhostNodeData, 'ghost'>;
 
 /** The dashed "+" that terminates every open branch. */
-export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
+export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => {
+  const { t } = useLanguage();
+  return (
   <div className="relative flex flex-col items-center">
     <Handle
       type="target"
@@ -290,7 +295,7 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
       // opened. The click bubbles up from the handle below; after a real drag
       // the pointer is released elsewhere and no click fires here.
       onClick={() => data.onAdd(data.sourceId, data.branch)}
-      title="Clica para adicionar um passo aqui, ou arrasta para o mudar de sítio"
+      title={t('Clica para adicionar um passo aqui, ou arrasta para o mudar de sítio')}
       className={cn(
         'nopan relative flex h-11 w-11 cursor-grab items-center justify-center rounded-full border-2 border-dashed border-border bg-card active:cursor-grabbing',
         'text-muted-foreground transition-all hover:border-primary hover:text-primary hover:shadow-card-hover',
@@ -305,6 +310,7 @@ export const GhostFlowNode = memo(({ data }: NodeProps<GhostFlowNodeType>) => (
       */}
     </div>
   </div>
-));
+  );
+});
 
 GhostFlowNode.displayName = 'GhostFlowNode';

@@ -26,11 +26,13 @@ import { useCategories, useUpdateCategory, useDeleteCategory } from "@/hooks/eco
 import { ProductCategory } from "@/types/ecommerce";
 import { CreateCategoryModal } from "./CreateCategoryModal";
 import { EditCategoryModal } from "./EditCategoryModal";
+import { useLanguage } from "@/i18n";
 
 export function CategoriesTable() {
   const { data: categories, isLoading } = useCategories();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
+  const { t } = useLanguage();
   
   const [createOpen, setCreateOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<ProductCategory | null>(null);
@@ -64,24 +66,24 @@ export function CategoriesTable() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {categories?.length || 0} categorias
+          {t((categories?.length || 0) === 1 ? "{{n}} categoria" : "{{n}} categorias", { n: categories?.length || 0 })}
         </p>
         <Button onClick={() => setCreateOpen(true)} size="sm">
           <Plus className="mr-2 h-4 w-4" />
-          Nova Categoria
+          {t("Nova Categoria")}
         </Button>
       </div>
 
       {categories?.length === 0 ? (
         <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed p-8">
           <FolderTree className="h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 font-semibold">Sem categorias</h3>
+          <h3 className="mt-4 font-semibold">{t("Sem categorias")}</h3>
           <p className="text-sm text-muted-foreground">
-            Crie categorias para organizar os seus produtos.
+            {t("Crie categorias para organizar os seus produtos.")}
           </p>
           <Button onClick={() => setCreateOpen(true)} className="mt-4">
             <Plus className="mr-2 h-4 w-4" />
-            Criar Categoria
+            {t("Criar Categoria")}
           </Button>
         </div>
       ) : (
@@ -89,11 +91,11 @@ export function CategoriesTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>{t("Nome")}</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Posição</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("Posição")}</TableHead>
+                <TableHead>{t("Ativo")}</TableHead>
+                <TableHead className="text-right">{t("Ações")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,7 +144,7 @@ export function CategoriesTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setEditCategory(category)}
-                        title="Editar"
+                        title={t("Editar")}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -150,7 +152,7 @@ export function CategoriesTable() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteId(category.id)}
-                        title="Eliminar"
+                        title={t("Eliminar")}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -178,15 +180,15 @@ export function CategoriesTable() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Categoria</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar Categoria")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar esta categoria? Os produtos associados perderão a categoria.
+              {t("Tem a certeza que deseja eliminar esta categoria? Os produtos associados perderão a categoria.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

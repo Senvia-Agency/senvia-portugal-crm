@@ -1,9 +1,11 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRef, useEffect, useState } from 'react';
 import {
   Bold, Italic, Underline, Link as LinkIcon, Image as ImageIcon,
   AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Palette, Columns2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 import { insertEmailPaste, safeEmailLink, sanitizeEmailHtml } from '@/lib/email-html';
 
 // Lightweight WYSIWYG editor (contentEditable + execCommand) used for email
@@ -24,9 +26,11 @@ export function RichTextEditor({
   placeholder?: string;
   minHeight?: number;
 }) {
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const layoutFileRef = useRef<HTMLInputElement>(null);
+  const fontSelection = useRef<Range | null>(null);
   const colorRef = useRef<HTMLInputElement>(null);
   const selectedImg = useRef<HTMLImageElement | null>(null);
   const [imgSelected, setImgSelected] = useState(false);
@@ -87,7 +91,7 @@ export function RichTextEditor({
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
       // Inline images live in the signature HTML — keep them small.
-      alert('Imagem demasiado grande (máx. 2 MB para assinaturas).');
+      alert(t('Imagem demasiado grande (máx. 2 MB para assinaturas).'));
       return;
     }
     const dataUrl = await new Promise<string>((res, rej) => {
@@ -107,7 +111,7 @@ export function RichTextEditor({
   };
 
   const addLink = () => {
-    const url = window.prompt('URL do link:', 'https://');
+    const url = window.prompt(t('URL do link:'), 'https://');
     if (url && safeEmailLink(url)) exec('createLink', url);
   };
 
@@ -124,15 +128,15 @@ export function RichTextEditor({
   // the right cell; no HTML knowledge needed.
   const onPickLayoutImage = async (file: File | null) => {
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert('Imagem demasiado grande (máx. 2 MB).'); return; }
+    if (file.size > 2 * 1024 * 1024) { alert(t('Imagem demasiado grande (máx. 2 MB).')); return; }
     const dataUrl = await fileToDataUrl(file);
     const html =
       `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif">` +
       `<tr>` +
       `<td style="vertical-align:middle;padding-right:16px"><img src="${dataUrl}" style="display:block;width:90px;height:auto" /></td>` +
       `<td style="vertical-align:middle;font-size:13px;color:#1f2937;line-height:1.6">` +
-      `<div style="font-size:16px;font-weight:bold;color:#111827">O teu nome</div>` +
-      `<div style="font-weight:bold;color:#2563eb">Empresa</div>` +
+      `<div style="font-size:16px;font-weight:bold;color:#111827">${t('O teu nome')}</div>` +
+      `<div style="font-weight:bold;color:#2563eb">${t('Empresa')}</div>` +
       `<div>email@empresa.com</div>` +
       `<div>+351 ...</div>` +
       `</td></tr></table><br>`;
@@ -159,23 +163,11 @@ export function RichTextEditor({
     <div className="rounded-md border bg-background">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5">
-        <select
-          title="Tamanho"
-          onMouseDown={(e) => e.stopPropagation()}
-          onChange={(e) => { exec('fontSize', e.target.value); e.target.selectedIndex = 0; }}
-          className="mr-1 h-7 rounded border bg-background px-1 text-xs"
-          defaultValue=""
-        >
-          <option value="" disabled>Tamanho</option>
-          <option value="2">Pequeno</option>
-          <option value="3">Normal</option>
-          <option value="5">Grande</option>
-          <option value="6">Enorme</option>
-        </select>
-        <Btn title="Negrito" onClick={() => exec('bold')}><Bold className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Itálico" onClick={() => exec('italic')}><Italic className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Sublinhado" onClick={() => exec('underline')}><Underline className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Cor do texto" onClick={() => colorRef.current?.click()}><Palette className="h-3.5 w-3.5" /></Btn>
+        <Select value="" onOpenChange={open => { if (open) { const selection = window.getSelection(); fontSelection.current = selection?.rangeCount && ref.current?.contains(selection.anchorNode) ? selection.getRangeAt(0).cloneRange() : null; } }} onValueChange={size => { ref.current?.focus(); if (fontSelection.current) { const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(fontSelection.current); } exec('fontSize', size); }}><SelectTrigger aria-label={t("Tamanho do texto")} className="mr-1 h-7 w-28 px-2 text-xs"><SelectValue placeholder={t("Tamanho")} /></SelectTrigger><SelectContent onCloseAutoFocus={event => { event.preventDefault(); ref.current?.focus(); }}><SelectItem value="2">{t("Pequeno")}</SelectItem><SelectItem value="3">{t("Normal")}</SelectItem><SelectItem value="5">{t("Grande")}</SelectItem><SelectItem value="6">{t("Enorme")}</SelectItem></SelectContent></Select>
+        <Btn title={t("Negrito")} onClick={() => exec('bold')}><Bold className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Itálico")} onClick={() => exec('italic')}><Italic className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Sublinhado")} onClick={() => exec('underline')}><Underline className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Cor do texto")} onClick={() => colorRef.current?.click()}><Palette className="h-3.5 w-3.5" /></Btn>
         <input
           ref={colorRef}
           type="color"
@@ -183,22 +175,22 @@ export function RichTextEditor({
           onChange={(e) => exec('foreColor', e.target.value)}
         />
         <Sep />
-        <Btn title="Link" onClick={addLink}><LinkIcon className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Imagem" onClick={() => fileRef.current?.click()}><ImageIcon className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Imagem + texto ao lado (logo à esquerda)" onClick={() => layoutFileRef.current?.click()}><Columns2 className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Link")} onClick={addLink}><LinkIcon className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Imagem")} onClick={() => fileRef.current?.click()}><ImageIcon className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Imagem + texto ao lado (logo à esquerda)")} onClick={() => layoutFileRef.current?.click()}><Columns2 className="h-3.5 w-3.5" /></Btn>
         <Sep />
-        <Btn title="Alinhar à esquerda" onClick={() => exec('justifyLeft')}><AlignLeft className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Centrar" onClick={() => exec('justifyCenter')}><AlignCenter className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Alinhar à direita" onClick={() => exec('justifyRight')}><AlignRight className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Alinhar à esquerda")} onClick={() => exec('justifyLeft')}><AlignLeft className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Centrar")} onClick={() => exec('justifyCenter')}><AlignCenter className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Alinhar à direita")} onClick={() => exec('justifyRight')}><AlignRight className="h-3.5 w-3.5" /></Btn>
         <Sep />
-        <Btn title="Lista" onClick={() => exec('insertUnorderedList')}><List className="h-3.5 w-3.5" /></Btn>
-        <Btn title="Lista numerada" onClick={() => exec('insertOrderedList')}><ListOrdered className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Lista")} onClick={() => exec('insertUnorderedList')}><List className="h-3.5 w-3.5" /></Btn>
+        <Btn title={t("Lista numerada")} onClick={() => exec('insertOrderedList')}><ListOrdered className="h-3.5 w-3.5" /></Btn>
       </div>
 
       {/* Image size bar — appears when an image is selected (click it). */}
       {imgSelected && (
         <div className="flex flex-wrap items-center gap-1.5 border-b bg-blue-500/5 px-3 py-1.5 text-xs">
-          <span className="mr-1 font-medium text-muted-foreground">Tamanho da imagem:</span>
+          <span className="mr-1 font-medium text-muted-foreground">{t("Tamanho da imagem:")}</span>
           {[
             { label: 'Pequena', w: '120px' },
             { label: 'Média', w: '240px' },
@@ -212,7 +204,7 @@ export function RichTextEditor({
               onClick={() => sizeImage(opt.w)}
               className="rounded border bg-background px-2 py-0.5 hover:bg-accent"
             >
-              {opt.label}
+              {t(opt.label)}
             </button>
           ))}
           <button
@@ -221,7 +213,7 @@ export function RichTextEditor({
             onClick={() => sizeImage(null)}
             className="rounded border bg-background px-2 py-0.5 hover:bg-accent"
           >
-            Original
+            {t("Original")}
           </button>
         </div>
       )}

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRenewCpe } from '@/hooks/useCpes';
+import { useLanguage, intlLocale } from "@/i18n";
 
 interface RenewCpeModalProps {
   cpeId: string;
@@ -20,6 +21,7 @@ interface RenewCpeModalProps {
 }
 
 export function RenewCpeModal({ cpeId, currentEnd, open, onOpenChange }: RenewCpeModalProps) {
+  const { t } = useLanguage();
   const renewCpe = useRenewCpe();
   const [fidelizacaoStart, setFidelizacaoStart] = useState('');
   const [fidelizacaoEnd, setFidelizacaoEnd] = useState('');
@@ -42,24 +44,24 @@ export function RenewCpeModal({ cpeId, currentEnd, open, onOpenChange }: RenewCp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Renovar Fidelização</DialogTitle>
+          <DialogTitle>{t("Renovar Fidelização")}</DialogTitle>
           <DialogDescription>
-            Fim atual: {new Date(currentEnd).toLocaleDateString('pt-PT')}. Defina a nova data.
+            {t("Fim atual: {{date}}. Defina a nova data.", { date: new Date(currentEnd).toLocaleDateString(intlLocale()) })}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Novo Início (opcional)</Label>
+            <Label>{t("Novo Início (opcional)")}</Label>
             <Input type="date" value={fidelizacaoStart} onChange={(e) => setFidelizacaoStart(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Nova Data Fim *</Label>
+            <Label>{t("Nova Data Fim *")}</Label>
             <Input type="date" value={fidelizacaoEnd} onChange={(e) => setFidelizacaoEnd(e.target.value)} min={minDate} required />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
             <Button type="submit" disabled={!fidelizacaoEnd || renewCpe.isPending}>
-              {renewCpe.isPending ? 'A renovar...' : 'Renovar'}
+              {renewCpe.isPending ? t("A renovar...") : t("Renovar")}
             </Button>
           </DialogFooter>
         </form>

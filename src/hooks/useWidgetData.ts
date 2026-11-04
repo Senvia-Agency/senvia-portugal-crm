@@ -8,17 +8,24 @@ import { useClients } from "@/hooks/useClients";
 import { useEcommerceStats } from "@/hooks/ecommerce/useEcommerceStats";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { WidgetType } from "@/lib/dashboard-templates";
-import { startOfDay, startOfWeek, endOfWeek, isToday, isThisWeek, subDays, format } from "date-fns";
+import { startOfDay, startOfMonth, startOfWeek, endOfWeek, isToday, isThisWeek, subDays, format } from "date-fns";
 import { formatOperationalUnits, operationalUnitsForSale, sumOperationalSaleUnits } from "@/lib/sale-units";
+import { formatCurrency } from "@/lib/format";
+import { useCommercialCommissions } from "@/hooks/useCommercialCommissions";
+import { useDashboardPeriod } from "@/stores/useDashboardPeriod";
+import { tr, useLanguage } from "@/i18n";
 
 export interface WidgetData {
   value: string;
   subtitle?: string;
+  /** Change against the 7 days before, in units (not a percentage). */
   trend?: {
     value: number;
     isPositive: boolean;
   };
   chartData?: Array<{ name: string; value: number }>;
+  /** Top lines shown under the number (e.g. leads per origin). */
+  breakdown?: Array<{ name: string; value: number }>;
   progress?: number;
   isLoading: boolean;
 }
@@ -32,6 +39,16 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
   const { data: allClients = [], isLoading: clientsLoading } = useClients();
   const ecommerceStats = useEcommerceStats();
   const { data: stages = [] } = usePipelineStages();
+  // The computed lines are in the chosen language: recompute when it changes.
+  const { language } = useLanguage();
+  // Commissions are counted exactly as in Financeiro → Comissões, for the Painel's period.
+  const { from, to } = useDashboardPeriod();
+  const commissionMonth = useMemo(() => format(startOfMonth(new Date()), 'yyyy-MM-dd'), []);
+  const { data: commissions, isLoading: commissionsLoading } = useCommercialCommissions(
+    widgetType === 'monthly_commissions' ? commissionMonth : '',
+    null,
+    { dateRange: from ? { from, to: to ?? undefined } : undefined },
+  );
 
   const filteredLeadIds = useMemo(() => new Set(leads.map((l) => l.id)), [leads]);
 
@@ -65,8 +82,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         return date >= subDays(today, 14) && date < subDays(today, 7);
       }).length;
       
-      if (prev7Days === 0) return { value: 0, isPositive: true };
-      const change = Math.round(((last7Days - prev7Days) / prev7Days) * 100);
+      const change = last7Days - prev7Days;
       return { value: Math.abs(change), isPositive: change >= 0 };
     };
 
@@ -93,11 +109,21 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
     switch (widgetType) {
       case 'leads_total': {
         const trend = calculateLeadTrend();
+        const thisWeek = leads.filter(l => {
+          const date = new Date(l.created_at || '');
+          return date >= weekStart && date <= weekEnd;
+        }).length;
+        const bySource = leads.reduce((acc, lead) => {
+          const source = lead.source || 'Direto';
+          acc[source] = (acc[source] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
         return {
           value: leads.length.toString(),
-          subtitle: 'leads captados',
+          subtitle: tr('{{n}} esta semana', { n: thisWeek }),
           trend,
           chartData: generateLast7DaysChart(leads),
+          breakdown: Object.entries(bySource).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
           isLoading: leadsLoading,
         };
       }
@@ -110,7 +136,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const trend = calculateLeadTrend();
         return {
           value: thisWeek.toString(),
-          subtitle: 'esta semana',
+          subtitle: tr('esta semana'),
           trend,
           chartData: generateLast7DaysChart(leads),
           isLoading: leadsLoading,
@@ -119,7 +145,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
       case 'leads_by_source': {
         const sourceGroups = leads.reduce((acc, lead) => {
-          const source = lead.source || 'Directo';
+          const source = lead.source || 'Direto';
           acc[source] = (acc[source] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
@@ -131,7 +157,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: Object.keys(sourceGroups).length.toString(),
-          subtitle: 'canais activos',
+          subtitle: tr('canais ativos'),
           chartData,
           isLoading: leadsLoading,
         };
@@ -153,12 +179,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
           return date >= subDays(today, 14) && date < subDays(today, 7);
         }).length;
         
-        const socialTrend = prev7Days === 0 
-          ? { value: 0, isPositive: true }
-          : { 
-              value: Math.abs(Math.round(((last7Days - prev7Days) / prev7Days) * 100)),
-              isPositive: (last7Days - prev7Days) >= 0 
-            };
+        const socialTrend = { value: Math.abs(last7Days - prev7Days), isPositive: last7Days >= prev7Days };
 
         const sourceGroups = socialLeads.reduce((acc, lead) => {
           const source = lead.source || 'Redes Sociais';
@@ -173,7 +194,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: socialLeads.length.toString(),
-          subtitle: 'via redes sociais',
+          subtitle: tr('via redes sociais'),
           trend: socialTrend,
           chartData,
           isLoading: leadsLoading,
@@ -197,15 +218,10 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
           return date >= subDays(today, 14) && date < subDays(today, 7);
         }).length;
         
-        const directTrend = directPrev7Days === 0 
-          ? { value: 0, isPositive: true }
-          : { 
-              value: Math.abs(Math.round(((directLast7Days - directPrev7Days) / directPrev7Days) * 100)),
-              isPositive: (directLast7Days - directPrev7Days) >= 0 
-            };
+        const directTrend = { value: Math.abs(directLast7Days - directPrev7Days), isPositive: directLast7Days >= directPrev7Days };
 
         const sourceGroups = directLeads.reduce((acc, lead) => {
-          const source = lead.source || 'Directo';
+          const source = lead.source || 'Direto';
           acc[source] = (acc[source] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
@@ -217,7 +233,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: directLeads.length.toString(),
-          subtitle: 'canais diretos',
+          subtitle: tr('canais diretos'),
           trend: directTrend,
           chartData,
           isLoading: leadsLoading,
@@ -238,7 +254,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: `${rate}%`,
-          subtitle: `${convertedLeads} de ${leads.length} leads`,
+          subtitle: tr('{{converted}} de {{total}} leads', { converted: convertedLeads, total: leads.length }),
           progress: rate,
           isLoading: leadsLoading,
         };
@@ -247,10 +263,11 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
       case 'sales_delivered': {
         const delivered = sales.filter(s => s.status === 'delivered');
         const totalValue = delivered.reduce((sum, s) => sum + (s.total_value || 0), 0);
+        const underWay = sales.filter(s => s.status === 'in_progress' || s.status === 'fulfilled').length;
 
         return {
-          value: formatOperationalUnits(sumOperationalSaleUnits(delivered)),
-          subtitle: `€${totalValue.toLocaleString('pt-PT')} total`,
+          value: delivered.length.toString(),
+          subtitle: [formatCurrency(totalValue), underWay > 0 ? tr('{{n}} em curso', { n: underWay }) : null].filter(Boolean).join(' · '),
           chartData: generateLast7DaysChart(delivered, operationalUnitsForSale),
           isLoading: salesLoading,
         };
@@ -263,8 +280,8 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const totalValue = active.reduce((sum, s) => sum + (s.total_value || 0), 0);
 
         return {
-          value: formatOperationalUnits(sumOperationalSaleUnits(active)),
-          subtitle: `€${totalValue.toLocaleString('pt-PT')} em pipeline`,
+          value: active.length.toString(),
+          subtitle: tr('{{value}} em curso', { value: formatCurrency(totalValue) }),
           chartData: generateLast7DaysChart(active, operationalUnitsForSale),
           isLoading: salesLoading,
         };
@@ -278,7 +295,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: open.length.toString(),
-          subtitle: `€${totalValue.toLocaleString('pt-PT')} pendente`,
+          subtitle: tr('{{value}} pendente', { value: formatCurrency(totalValue) }),
           isLoading: proposalsLoading,
         };
       }
@@ -289,7 +306,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: accepted.length.toString(),
-          subtitle: `€${totalValue.toLocaleString('pt-PT')} aceite`,
+          subtitle: tr('{{value}} aceite', { value: formatCurrency(totalValue) }),
           isLoading: proposalsLoading,
         };
       }
@@ -300,7 +317,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
 
         return {
           value: todayEvents.length.toString(),
-          subtitle: `${completedToday} concluídas`,
+          subtitle: tr('{{n}} concluídas', { n: completedToday }),
           progress: todayEvents.length > 0 
             ? Math.round((completedToday / todayEvents.length) * 100) 
             : 0,
@@ -313,7 +330,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const activeClients = clients.filter(c => c.status === 'active');
         return {
           value: activeClients.length.toString(),
-          subtitle: 'clientes activos',
+          subtitle: tr('clientes ativos'),
           chartData: generateLast7DaysChart(clients),
           isLoading: clientsLoading,
         };
@@ -324,7 +341,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const completed = sales.filter(s => s.status === 'delivered' || s.status === 'fulfilled');
         return {
           value: formatOperationalUnits(sumOperationalSaleUnits(completed)),
-          subtitle: 'este mês',
+          subtitle: tr('este mês'),
           chartData: generateLast7DaysChart(completed, operationalUnitsForSale),
           isLoading: salesLoading,
         };
@@ -336,7 +353,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         );
         return {
           value: formatOperationalUnits(sumOperationalSaleUnits(active)),
-          subtitle: 'em execução',
+          subtitle: tr('em execução'),
           chartData: generateLast7DaysChart(active, operationalUnitsForSale),
           isLoading: salesLoading,
         };
@@ -348,7 +365,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         );
         return {
           value: formatOperationalUnits(sumOperationalSaleUnits(pending)),
-          subtitle: 'aguardando resposta',
+          subtitle: tr('à espera de resposta'),
           isLoading: proposalsLoading,
         };
       }
@@ -357,7 +374,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const weekEvents = events.filter(e => isThisWeek(new Date(e.start_time), { weekStartsOn: 1 }));
         return {
           value: weekEvents.length.toString(),
-          subtitle: 'agendadas',
+          subtitle: tr('agendadas'),
           chartData: weekEvents.slice(0, 7).map(e => ({
             name: format(new Date(e.start_time), 'EEE'),
             value: 1,
@@ -370,7 +387,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         // Use products or a specific field for listings
         return {
           value: clients.filter(c => c.status === 'active').length.toString(),
-          subtitle: 'disponíveis',
+          subtitle: tr('disponíveis'),
           isLoading: clientsLoading,
         };
       }
@@ -379,7 +396,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const closing = proposals.filter(p => p.status === 'sent');
         return {
           value: closing.length.toString(),
-          subtitle: 'em negociação',
+          subtitle: tr('em negociação'),
           isLoading: proposalsLoading,
         };
       }
@@ -388,38 +405,33 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
         const pending = sales.filter(s => s.status === 'in_progress');
         return {
           value: pending.length.toString(),
-          subtitle: 'aguardando instalação',
+          subtitle: tr('à espera de instalação'),
           isLoading: salesLoading,
         };
       }
 
       case 'monthly_commissions': {
-        const thisMonth = sales.filter(s => {
-          const date = new Date(s.created_at || '');
-          return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-        });
-        const total = thisMonth.reduce((sum, s) => sum + (s.total_value || 0), 0);
-        
+        // It used to add up the month's sale values; now the team's commissions.
+        const toPay = commissions?.totalPending ?? 0;
         return {
-          value: `€${total.toLocaleString('pt-PT')}`,
-          subtitle: 'este mês',
-          chartData: generateLast7DaysChart(thisMonth),
-          isLoading: salesLoading,
+          value: formatCurrency(commissions?.total ?? 0),
+          subtitle: toPay > 0.005 ? tr('{{value}} por pagar', { value: formatCurrency(toPay) }) : tr('tudo pago'),
+          isLoading: commissionsLoading,
         };
       }
 
       case 'orders_today': {
         return {
           value: ecommerceStats.data?.total_orders?.toString() || '0',
-          subtitle: 'encomendas totais',
+          subtitle: tr('encomendas totais'),
           isLoading: ecommerceStats.isLoading,
         };
       }
 
       case 'revenue_today': {
         return {
-          value: `€${(ecommerceStats.data?.total_revenue || 0).toLocaleString('pt-PT')}`,
-          subtitle: 'faturação total',
+          value: formatCurrency(ecommerceStats.data?.total_revenue || 0),
+          subtitle: tr('faturação total'),
           isLoading: ecommerceStats.isLoading,
         };
       }
@@ -427,7 +439,7 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
       case 'low_stock_products': {
         return {
           value: ecommerceStats.data?.low_stock_products?.toString() || '0',
-          subtitle: 'produtos com stock baixo',
+          subtitle: tr('produtos com stock baixo'),
           isLoading: ecommerceStats.isLoading,
         };
       }
@@ -435,9 +447,9 @@ export function useWidgetData(widgetType: WidgetType): WidgetData {
       default:
         return {
           value: '0',
-          subtitle: 'dados indisponíveis',
+          subtitle: tr('dados indisponíveis'),
           isLoading: false,
         };
     }
-  }, [widgetType, leads, sales, proposals, events, clients, ecommerceStats, leadsLoading, salesLoading, proposalsLoading, eventsLoading, clientsLoading, filterKey]);
+  }, [widgetType, leads, sales, proposals, events, clients, ecommerceStats, leadsLoading, salesLoading, proposalsLoading, eventsLoading, clientsLoading, filterKey, commissions, commissionsLoading, language]);
 }

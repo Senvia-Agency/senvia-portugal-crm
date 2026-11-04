@@ -1,11 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSplitsBySale } from '@/hooks/useCommissionSplits';
-import { useTeamMembers } from '@/hooks/useTeam';
+import { useTeamMembers, type TeamMember } from '@/hooks/useTeam';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
+import { tr } from '@/i18n';
 import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod } from '@/lib/telecom-finance';
 import { buildSaleTypeIds, saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
@@ -27,6 +28,8 @@ export interface CommissionItem {
   paid: boolean;
   proportional?: boolean; // true when amount is proportional to partial payment
   expectedMonth?: boolean;
+  /** Telecom: the day the service was installed (the commission falls in the month after). */
+  installDate?: string | null;
   sourceSaleIds?: readonly string[];
   manualChargeback?: boolean;
 }
@@ -40,12 +43,16 @@ export interface CommercialCommission {
   totalPaid: number;
   pendingSaleIds: string[];
   pendingRecordIds: string[];
+  /** Outside telecom, with a finance period: commission still waiting for the client to pay. */
+  toEarn: number;
+  waiting: CommissionItem[];
 }
 
 export interface CommercialCommissionsData {
   commercials: CommercialCommission[];
   total: number;
   totalPending: number;
+  totalToEarn: number;
 }
 
 export interface OrganizationCommissionSale {
@@ -59,395 +66,489 @@ export interface OrganizationCommissionSale {
   amount: number;
 }
 
+interface CommissionContext {
+  organizationId: string | undefined;
+  organizationName: string | undefined;
+  isTelecom: boolean;
+  members: TeamMember[] | undefined;
+  catalog: ReturnType<typeof useServicosProducts>['catalog'];
+  saleTypeIds: ReturnType<typeof buildSaleTypeIds>;
+}
+
+type CommissionFinanceOptions = { dateRange?: DateRange; commissionFilters?: CommissionFilters };
+
+function useCommissionContext(): CommissionContext {
+  const { organization } = useAuth();
+  const { data: members } = useTeamMembers();
+  const { catalog } = useServicosProducts();
+  return {
+    organizationId: organization?.id,
+    organizationName: organization?.name,
+    isTelecom: organization?.niche === 'telecom',
+    members,
+    catalog,
+    saleTypeIds: buildSaleTypeIds(catalog ?? []),
+  };
+}
+
+function commercialCommissionsQuery(ctx: CommissionContext, selectedMonth: string, effectiveUserIds?: string[] | null, financeOptions?: CommissionFinanceOptions) {
+  return {
+    queryKey: ['commercial-commissions', ctx.organizationId, selectedMonth, ctx.members?.length, effectiveUserIds, financeOptions, ctx.catalog, ctx.isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v3'],
+    queryFn: () => fetchCommercialCommissions(ctx, selectedMonth, effectiveUserIds, financeOptions),
+    enabled: !!ctx.organizationId && !!selectedMonth,
+  };
+}
+
 /**
  * Unified per-commercial commissions for a month: direct-sale commissions
  * (sales.comissao) + recurring Stripe commissions (stripe_commission_records),
  * each carrying a paid/pending flag. Commercial resolved as
  * client.assigned_to → lead.assigned_to → sales.created_by.
  */
-export function useCommercialCommissions(selectedMonth: string, effectiveUserIds?: string[] | null, financeOptions?: { dateRange?: DateRange; commissionFilters?: CommissionFilters }) {
-  const { organization } = useAuth();
-  const { data: members } = useTeamMembers();
-  const organizationId = organization?.id;
-  const isTelecom = organization?.niche === 'telecom';
-  const { catalog } = useServicosProducts();
-  const saleTypeIds = buildSaleTypeIds(catalog ?? []);
+export function useCommercialCommissions(selectedMonth: string, effectiveUserIds?: string[] | null, financeOptions?: CommissionFinanceOptions) {
+  const ctx = useCommissionContext();
+  return useQuery<CommercialCommissionsData>(commercialCommissionsQuery(ctx, selectedMonth, effectiveUserIds, financeOptions));
+}
 
-  return useQuery<CommercialCommissionsData>({
-    queryKey: ['commercial-commissions', organizationId, selectedMonth, members?.length, effectiveUserIds, financeOptions, catalog, isTelecom ? TELECOM_EARNED_STATUSES : null, 'payment-month-v3'],
-    queryFn: async () => {
-      const empty: CommercialCommissionsData = { commercials: [], total: 0, totalPending: 0 };
-      if (!organizationId || !selectedMonth) return empty;
-
-      const monthStart = startOfMonth(new Date(selectedMonth));
-      const monthEnd = endOfMonth(monthStart);
-      const monthStartStr = format(monthStart, 'yyyy-MM-dd');
-      const monthEndStr = format(monthEnd, 'yyyy-MM-dd');
-
-      // --- Direct commissions ---
-      // Telecom: delivered/fulfilled sales. Elsewhere the commission follows the
-      // client's payments, whatever the sale status; only cancelled sales drop out.
-      // `as any`: the generated Supabase types in this repo are stale (they
-      // predate telecom_status and half a dozen other live columns), and a
-      // column they don't know poisons the whole query's type — the same trap
-      // that once took the product catalog down.
-      const salesQuery = (supabase as any)
-        .from('sales')
-        .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, scheduled_install_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
-        .eq('organization_id', organizationId);
-      const { data: sales, error: salesErr } = await (isTelecom
-        ? salesQuery.in('status', ['delivered', 'fulfilled'])
-        : salesQuery.neq('status', 'cancelled'));
-      if (salesErr) throw salesErr;
-
-      const commissionSales = (sales || []).filter((s: any) => Number(s.comissao || 0) > 0);
-      const allTelecomSplitsBySale = isTelecom
-        ? await fetchSplitsBySale(commissionSales.map((sale: any) => sale.id as string))
-        : new Map<string, import('@/hooks/useCommissionSplits').SaleCommissionSplit[]>();
-
-      // Dedupe by paid Stripe invoice, not by sale. A recurring record for a
-      // later renewal must not erase an earlier month's direct commission.
-      const recurringSaleIds = commissionSales
-        .filter((s: any) => s.has_recurring)
-        .map((s: any) => s.id) as string[];
-      const existingRecurringIds = new Set<string>();
-      const commissionedInvoiceIds = new Set<string>();
-      if (recurringSaleIds.length > 0) {
-        const { data: recs } = await (supabase as any)
-          .from('stripe_commission_records')
-          .select('sale_id, stripe_invoice_id')
-          .in('sale_id', recurringSaleIds);
-        for (const r of (recs || []) as any[]) {
-          existingRecurringIds.add(r.sale_id);
-          if (r.stripe_invoice_id) commissionedInvoiceIds.add(r.stripe_invoice_id);
-        }
-      }
-
-      const allIds = commissionSales.map((s: any) => s.id);
-      const { data: allPays } = allIds.length
-        ? await supabase.from('sale_payments').select('sale_id, amount, status, payment_date, stripe_invoice_id').in('sale_id', allIds)
-        : { data: [] as any[] };
-
-      // --- Direct commissions: proportional to payments received in the month ---
-      // A sale with 150€ total and 37.50€ commission that's 50€-paid in June
-      // contributes (50/150) × 37.50€ = 12.50€ to June. Subsequent payments in
-      // later months contribute their share to those months. One item per
-      // (sale, month) keeps React keys and selection unique in the UI.
-      const monthKey = format(monthStart, 'yyyy-MM');
-      const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean; received?: number }[] = [];
-      const organizationSaleIds: string[] = [];
-      const organizationCommissionFilters = financeOptions?.commissionFilters
-        ? { ...financeOptions.commissionFilters, userId: null }
-        : undefined;
-      const period = financeOptions ? financeOptions.dateRange : { from: monthStart, to: monthEnd };
-      for (const s of commissionSales) {
-        const tv = Number(s.total_value) || 0;
-        const comissao = Number(s.comissao || 0);
-        if (comissao <= 0) continue;
-
-        // Telecom is paid by the OPERATOR, not by the client: the commission
-        // is earned the moment the line is installed, and there is no client
-        // payment to wait for. Tying it to sale_payments (as every other
-        // vertical does) left installed sales showing 0 € forever.
-        if (isTelecom) {
-          const parts = telecomCommissionPartsInPeriod(s, period, allTelecomSplitsBySale.get(s.id));
-          if (isBdsOrganization(organization?.name)
-            && isTelecomCommissionEarned(s)
-            && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds)
-            && parts.length > 0) {
-            organizationSaleIds.push(s.id);
-          }
-          if (!isTelecomCommissionEarned(s) || !saleMatchesCommissionFilters(s, financeOptions?.commissionFilters, saleTypeIds)) continue;
-          const ref = parts[0]?.date;
-          if (!ref) continue;
-          if (parts.length > 0) {
-            monthItems.push({ sale: s, amount: parts.reduce((sum, part) => sum + part.gross, 0), date: ref, monthKey, proportional: false });
-          }
-          continue;
-        }
-
-        const salePays = (allPays as any[]).filter(
-          (p: any) => p.sale_id === s.id && p.status === 'paid' && p.payment_date,
-        );
-
-        if (salePays.length === 0) {
-          if (s.has_recurring && existingRecurringIds.has(s.id)) continue;
-          // Fallback: payment_status='paid' but no payment rows. Show full
-          // commission in the sale month (preserves legacy behavior for
-          // sales marked paid without recorded payment rows).
-          if (s.payment_status === 'paid') {
-            const saleRef = s.activation_date || s.sale_date;
-            if (saleRef) {
-              const sd = new Date(saleRef);
-              if (sd >= monthStart && sd <= monthEnd) {
-                monthItems.push({ sale: s, amount: comissao, date: saleRef, monthKey, proportional: false });
-              }
-            }
-          }
-          continue;
-        }
-
-        if (tv <= 0) continue;
-        const ratio = comissao / tv;
-
-        // Sum payments received in the current month only — payments in
-        // other months are recognized in their own month view.
-        let paidThisMonth = 0;
-        let lastPayDate: string | null = null;
-        for (const p of salePays) {
-          if (p.stripe_invoice_id && commissionedInvoiceIds.has(p.stripe_invoice_id)) continue;
-          const pd = p.payment_date as string;
-          const payDate = new Date(pd);
-          if (payDate < monthStart || payDate > monthEnd) continue;
-          const amt = Number(p.amount || 0);
-          if (amt <= 0) continue;
-          paidThisMonth += amt;
-          if (!lastPayDate || pd > lastPayDate) lastPayDate = pd;
-        }
-        if (paidThisMonth <= 0) continue;
-
-        monthItems.push({
-          sale: s,
-          amount: paidThisMonth * ratio,
-          date: lastPayDate || s.activation_date || s.sale_date,
-          monthKey,
-          proportional: paidThisMonth < tv,
-          received: paidThisMonth,
-        });
-      }
-
-      const clientIds = [...new Set(monthItems.map((mi) => mi.sale.client_id).filter(Boolean))] as string[];
-      const leadIds = [...new Set(monthItems.map((mi) => mi.sale.lead_id).filter(Boolean))] as string[];
-      const [clientsRes, leadsRes] = await Promise.all([
-        clientIds.length
-          ? supabase.from('crm_clients').select('id, name, company, assigned_to').in('id', clientIds)
-          : Promise.resolve({ data: [] as any[] }),
-        leadIds.length
-          ? supabase.from('leads').select('id, name, assigned_to').in('id', leadIds)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-      const clientMap = new Map<string, any>((clientsRes.data || []).map((c: any) => [c.id, c]));
-      const leadMap = new Map<string, any>((leadsRes.data || []).map((l: any) => [l.id, l]));
-
-      const getCommercial = (s: any): string => {
-        // An explicit assignment wins over everything: a sale typed in by one
-        // person and handed to another belongs to the person it was handed to,
-        // whoever the client happens to be assigned to.
-        if (s.seller_id) return s.seller_id as string;
-        if (s.client_id && clientMap.get(s.client_id)?.assigned_to) return clientMap.get(s.client_id).assigned_to;
-        if (s.lead_id && leadMap.get(s.lead_id)?.assigned_to) return leadMap.get(s.lead_id).assigned_to;
-        return (s.created_by as string) || 'unassigned';
-      };
-      const getClientName = (s: any): string => {
-        if (s.client_id) { const c = clientMap.get(s.client_id); if (c) return c.name || c.company || 'Cliente'; }
-        if (s.lead_id) { const l = leadMap.get(s.lead_id); if (l) return l.name || 'Lead'; }
-        return (s.code as string) || 'Venda';
-      };
-
-      // --- Recurring commissions (Stripe) ---
-      // PENDING = outstanding debt: must show EVERY month until paid, so never
-      // filter it by created_at (a June commission left unpaid still shows in July).
-      // PAID = historical: keep it scoped to the month it landed in.
-      const [pendingRecsRes, paidRecsRes] = await Promise.all([
-        (supabase as any)
-          .from('stripe_commission_records')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .eq('status', 'pending')
-          // Carry forward, not backward: a pending commission shows from its month
-          // onwards (created on/before the period end), never in an earlier month.
-          .lte('created_at', `${monthEndStr}T23:59:59`),
-        (supabase as any)
-          .from('stripe_commission_records')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .eq('status', 'paid')
-          .gte('created_at', `${monthStartStr}T00:00:00`)
-          .lte('created_at', `${monthEndStr}T23:59:59`),
-      ]);
-      if (pendingRecsRes.error) throw pendingRecsRes.error;
-      if (paidRecsRes.error) throw paidRecsRes.error;
-      const recs = [...(pendingRecsRes.data || []), ...(paidRecsRes.data || [])] as any[];
-      const recOrgIds = [...new Set(recs.map(r => r.client_org_id).filter(Boolean))] as string[];
-      const orgsRes = recOrgIds.length
-        ? await supabase.from('organizations').select('id, name').in('id', recOrgIds)
-        : { data: [] as any[] };
-      const orgMap = new Map((orgsRes.data || []).map((o: any) => [o.id, o.name]));
-
-      // Friendly label for recurring records via their linked sale's client
-      // (manual renewals have no tenant org, so the org name would be wrong).
-      const recSaleIds = [...new Set(recs.map(r => r.sale_id).filter(Boolean))] as string[];
-      const recSalesRes = recSaleIds.length
-        ? await supabase.from('sales').select('id, client_id, lead_id, code').in('id', recSaleIds)
-        : { data: [] as any[] };
-      const recSales = (recSalesRes.data as any[]) || [];
-      const recCIds = [...new Set(recSales.map(s => s.client_id).filter(Boolean))] as string[];
-      const recLIds = [...new Set(recSales.map(s => s.lead_id).filter(Boolean))] as string[];
-      const [recCRes, recLRes] = await Promise.all([
-        recCIds.length ? supabase.from('crm_clients').select('id, name, company').in('id', recCIds) : Promise.resolve({ data: [] as any[] }),
-        recLIds.length ? supabase.from('leads').select('id, name').in('id', recLIds) : Promise.resolve({ data: [] as any[] }),
-      ]);
-      const recCMap = new Map((recCRes.data || []).map((c: any) => [c.id, c.name || c.company]));
-      const recLMap = new Map((recLRes.data || []).map((l: any) => [l.id, l.name]));
-      const recSaleLabel = new Map<string, string>(
-        recSales.map((s: any) => [s.id, recCMap.get(s.client_id) || recLMap.get(s.lead_id) || s.code || 'Subscrição']),
-      );
-
-      const memberName = (userId: string) => {
-        if (userId === 'unassigned') return 'Sem Comercial';
-        const m = members?.find((m: any) => m.user_id === userId);
-        return m?.full_name || 'Desconhecido';
-      };
-
-      const byUser = new Map<string, CommercialCommission>();
-      const ensure = (userId: string): CommercialCommission => {
-        let e = byUser.get(userId);
-        if (!e) {
-          e = { userId, name: memberName(userId), items: [], total: 0, totalPending: 0, totalPaid: 0, pendingSaleIds: [], pendingRecordIds: [] };
-          byUser.set(userId, e);
-        }
-        return e;
-      };
-
-      // A sale can pay several people (sale_commission_splits). Where splits
-      // exist the commission is divided by them; sales without splits keep the
-      // single-commercial behaviour resolved by getCommercial().
-      const splitsBySale = isTelecom
-        ? allTelecomSplitsBySale
-        : await fetchSplitsBySale(monthItems.map((mi) => mi.sale.id as string));
-      const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number; paidAt: string | null }>();
-      if (isBdsOrganization(organization?.name) && organizationSaleIds.length > 0) {
-        const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
-          .from('bds_sara_org_commission')
-          .select('sale_id, user_id, amount, paid_at')
-          .eq('organization_id', organizationId)
-          .in('sale_id', organizationSaleIds);
-        if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
-          throw organizationSharesError;
-        }
-        for (const share of organizationShares || []) {
-          const sale = commissionSales.find((entry: any) => entry.id === share.sale_id);
-          const splits = allTelecomSplitsBySale.get(share.sale_id);
-          const allParts = sale ? telecomCommissionParts(sale, splits) : [];
-          const allOrg = allParts.reduce((sum, part) => sum + part.org, 0);
-          const periodOrg = sale ? telecomCommissionPartsInPeriod(sale, period, splits)
-            .reduce((sum, part) => sum + part.org, 0) : 0;
-          bdsOrgCommissionBySale.set(share.sale_id, {
-            userId: share.user_id,
-            amount: allOrg > 0 ? Math.round(Number(share.amount || 0) * periodOrg / allOrg * 100) / 100 : Number(share.amount || 0),
-            paidAt: share.paid_at,
-          });
-        }
-      }
-
-      for (const mi of monthItems) {
-        const s = mi.sale;
-        const paid = !!s.commission_paid_at;
-        const splits = splitsBySale.get(s.id);
-
-        // mi.amount can already be a fraction of the commission (proportional to
-        // the payments received this month), so each share keeps that fraction.
-        const saleCommission = Number(s.comissao || 0);
-        const factor = isTelecom ? 1 : saleCommission > 0 ? mi.amount / saleCommission : 0;
-        const periodParts = isTelecom ? telecomCommissionPartsInPeriod(s, period, splits) : [];
-        const includedProducts = new Set(periodParts.map(part => part.product));
-        const eligibleSplits = isTelecom && periodParts.some(part => part.product !== null)
-          ? splits?.filter(split => includedProducts.has(split.product_name))
-          : splits;
-
-        const shares = eligibleSplits && eligibleSplits.length > 0
-          ? eligibleSplits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
-          : [{ userId: getCommercial(s), amount: isTelecom
-            ? periodParts.reduce((sum, part) => sum + part.seller, 0) : mi.amount }];
-        for (const share of shares) {
-          if (!share.userId) continue;
-          const e = ensure(share.userId);
-          e.items.push({
-            kind: 'direct',
-            id: s.id,
-            label: getClientName(s),
-            date: mi.date,
-            amount: share.amount,
-            saleValue: Number(s.total_value || 0),
-            received: mi.received ?? null,
-            paid,
-            proportional: mi.proportional,
-            expectedMonth: isTelecom,
-          });
-          e.total += share.amount;
-          if (paid) e.totalPaid += share.amount;
-          else { e.totalPending += share.amount; e.pendingSaleIds.push(s.id); }
-        }
-      }
-      const organizationItems = aggregateBdsOrganizationCommissionItems(
-        Array.from(bdsOrgCommissionBySale, ([saleId, share]) => ({
-          sale_id: saleId,
-          user_id: share.userId,
-          amount: share.amount,
-          paid_at: share.paidAt,
-        })),
-        monthKey,
-        financeOptions?.commissionFilters?.userId ?? null,
-      );
-      for (const item of organizationItems) {
-        const e = ensure(item.userId);
-        e.items.push(item);
-        e.total += item.amount;
-        if (item.paid) e.totalPaid += item.amount;
-        else e.totalPending += item.amount;
-      }
-      for (const r of recs) {
-        const e = ensure((r.user_id as string) || 'unassigned');
-        const amount = Number(r.commission_amount || 0);
-        const paid = r.status === 'paid';
-        e.items.push({ kind: 'recurring', id: r.id, label: recSaleLabel.get(r.sale_id) || orgMap.get(r.client_org_id) || 'Subscrição', date: r.created_at, amount, saleValue: Number(r.amount || 0), paid });
-        e.total += amount;
-        if (paid) e.totalPaid += amount; else { e.totalPending += amount; e.pendingRecordIds.push(r.id); }
-      }
-
-      if (isTelecom) {
-        const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
-          (supabase as any).from('sale_chargebacks')
-            .select('id, user_id, amount, application_month, applied_at, sale:sales(telecom_status)')
-            .eq('organization_id', organizationId).eq('status', 'reconciled'),
-          isBdsOrganization(organization?.name)
-            ? bdsFinanceSupabase.from('bds_manual_chargebacks')
-              .select('id, user_id, amount, application_month, applied_at')
-              .eq('organization_id', organizationId).eq('status', 'reconciled')
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-        if (saleChargebacksResult.error) throw saleChargebacksResult.error;
-        if (manualChargebacksResult.error) throw manualChargebacksResult.error;
-        const addChargeback = (row: { id: string; user_id: string; amount: number; application_month: string | null; applied_at: string | null }, manual: boolean) => {
-          if (!applicationMonthInRange(row.application_month, period)) return;
-          if (financeOptions?.commissionFilters?.userId && row.user_id !== financeOptions.commissionFilters.userId) return;
-          const e = ensure(row.user_id);
-          const amount = -Number(row.amount || 0);
-          const paid = !!row.applied_at;
-          e.items.push({ kind: 'chargeback', id: row.id, label: 'Chargeback', date: row.application_month, amount, saleValue: null, paid, manualChargeback: manual });
-          e.total += amount;
-          if (paid) e.totalPaid += amount;
-          else e.totalPending += amount;
-        };
-        for (const row of saleChargebacksResult.data || []) {
-          if (isSaleChargebackApplicable(row)) addChargeback(row, false);
-        }
-        for (const row of manualChargebacksResult.data || []) addChargeback(row, true);
-      }
-
-      let commercials = Array.from(byUser.values());
-      if (effectiveUserIds && effectiveUserIds.length > 0) {
-        commercials = commercials.filter(c => effectiveUserIds.includes(c.userId));
-      }
-      commercials.forEach(c => c.items.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
-      commercials.sort((a, b) => b.totalPending - a.totalPending || b.total - a.total);
-
-      const total = commercials.reduce((s, c) => s + c.total, 0);
-      const totalPending = commercials.reduce((s, c) => s + c.totalPending, 0);
-      return { commercials, total, totalPending };
-    },
-    enabled: !!organizationId && !!selectedMonth,
+/**
+ * The same monthly commissions for several months at once (one query per
+ * month, shared with the Comissões screen's cache), for views over a period
+ * such as the Painel's team table.
+ */
+export function useCommercialCommissionsByMonth(months: readonly string[]) {
+  const ctx = useCommissionContext();
+  return useQueries({
+    queries: months.map((month) => commercialCommissionsQuery(ctx, month)),
   });
+}
+
+async function fetchCommercialCommissions(
+  ctx: CommissionContext,
+  selectedMonth: string,
+  effectiveUserIds?: string[] | null,
+  financeOptions?: CommissionFinanceOptions,
+): Promise<CommercialCommissionsData> {
+  const { organizationId, organizationName, isTelecom, members, saleTypeIds } = ctx;
+  const empty: CommercialCommissionsData = { commercials: [], total: 0, totalPending: 0, totalToEarn: 0 };
+  if (!organizationId || !selectedMonth) return empty;
+
+  const monthStart = startOfMonth(new Date(selectedMonth));
+  const monthEnd = endOfMonth(monthStart);
+  // Outside telecom a finance view brings its own period (none = all history),
+  // so every finance figure counts commissions the same way; otherwise the month.
+  const ownPeriod = !isTelecom && !!financeOptions;
+  const ownRange = financeOptions?.dateRange;
+  const rangeFrom = ownPeriod ? (ownRange?.from ? startOfDay(ownRange.from) : null) : monthStart;
+  const rangeTo = ownPeriod ? (ownRange?.from ? endOfDay(ownRange.to ?? ownRange.from) : null) : monthEnd;
+  const inRange = (d: Date) => (!rangeFrom || d >= rangeFrom) && (!rangeTo || d <= rangeTo);
+
+  // --- Direct commissions ---
+  // Telecom: delivered/fulfilled sales. Elsewhere the commission follows the
+  // client's payments, whatever the sale status; only cancelled sales drop out.
+  // `as any`: the generated Supabase types in this repo are stale (they
+  // predate telecom_status and half a dozen other live columns), and a
+  // column they don't know poisons the whole query's type — the same trap
+  // that once took the product catalog down.
+  const salesQuery = (supabase as any)
+    .from('sales')
+    .select('id, code, comissao, org_commission, total_value, client_id, lead_id, created_by, seller_id, sale_date, activation_date, scheduled_install_date, commission_paid_at, payment_status, has_recurring, telecom_status, servicos_produtos, servicos_details, commission_payment_month_offset, commission_expected_date')
+    .eq('organization_id', organizationId);
+  const { data: sales, error: salesErr } = await (isTelecom
+    ? salesQuery.in('status', ['delivered', 'fulfilled'])
+    : salesQuery.neq('status', 'cancelled'));
+  if (salesErr) throw salesErr;
+
+  const commissionSales = (sales || []).filter((s: any) => Number(s.comissao || 0) > 0);
+  const allTelecomSplitsBySale = isTelecom
+    ? await fetchSplitsBySale(commissionSales.map((sale: any) => sale.id as string))
+    : new Map<string, import('@/hooks/useCommissionSplits').SaleCommissionSplit[]>();
+
+  // Dedupe by paid Stripe invoice, not by sale. A recurring record for a
+  // later renewal must not erase an earlier month's direct commission.
+  const recurringSaleIds = commissionSales
+    .filter((s: any) => s.has_recurring)
+    .map((s: any) => s.id) as string[];
+  const existingRecurringIds = new Set<string>();
+  const commissionedInvoiceIds = new Set<string>();
+  if (recurringSaleIds.length > 0) {
+    const { data: recs } = await (supabase as any)
+      .from('stripe_commission_records')
+      .select('sale_id, stripe_invoice_id')
+      .in('sale_id', recurringSaleIds);
+    for (const r of (recs || []) as any[]) {
+      existingRecurringIds.add(r.sale_id);
+      if (r.stripe_invoice_id) commissionedInvoiceIds.add(r.stripe_invoice_id);
+    }
+  }
+
+  const allIds = commissionSales.map((s: any) => s.id);
+  const { data: allPays } = allIds.length
+    ? await supabase.from('sale_payments').select('sale_id, amount, status, payment_date, stripe_invoice_id').in('sale_id', allIds)
+    : { data: [] as any[] };
+
+  // --- Direct commissions: proportional to payments received in the month ---
+  // A sale with 150€ total and 37.50€ commission that's 50€-paid in June
+  // contributes (50/150) × 37.50€ = 12.50€ to June. Subsequent payments in
+  // later months contribute their share to those months. One item per
+  // (sale, month) keeps React keys and selection unique in the UI.
+  const monthKey = format(monthStart, 'yyyy-MM');
+  const monthItems: { sale: any; amount: number; date: string; monthKey: string; proportional: boolean; received?: number }[] = [];
+  const organizationSaleIds: string[] = [];
+  const organizationCommissionFilters = financeOptions?.commissionFilters
+    ? { ...financeOptions.commissionFilters, userId: null }
+    : undefined;
+  const period = financeOptions ? financeOptions.dateRange : { from: monthStart, to: monthEnd };
+  for (const s of commissionSales) {
+    const tv = Number(s.total_value) || 0;
+    const comissao = Number(s.comissao || 0);
+    if (comissao <= 0) continue;
+
+    // Telecom is paid by the OPERATOR, not by the client: the commission
+    // is earned the moment the line is installed, and there is no client
+    // payment to wait for. Tying it to sale_payments (as every other
+    // vertical does) left installed sales showing 0 € forever.
+    if (isTelecom) {
+      const parts = telecomCommissionPartsInPeriod(s, period, allTelecomSplitsBySale.get(s.id));
+      if (isBdsOrganization(organizationName)
+        && isTelecomCommissionEarned(s)
+        && saleMatchesCommissionFilters(s, organizationCommissionFilters, saleTypeIds)
+        && parts.length > 0) {
+        organizationSaleIds.push(s.id);
+      }
+      if (!isTelecomCommissionEarned(s) || !saleMatchesCommissionFilters(s, financeOptions?.commissionFilters, saleTypeIds)) continue;
+      const ref = parts[0]?.date;
+      if (!ref) continue;
+      if (parts.length > 0) {
+        monthItems.push({ sale: s, amount: parts.reduce((sum, part) => sum + part.gross, 0), date: ref, monthKey, proportional: false });
+      }
+      continue;
+    }
+
+    const salePays = (allPays as any[]).filter(
+      (p: any) => p.sale_id === s.id && p.status === 'paid' && p.payment_date,
+    );
+
+    if (salePays.length === 0) {
+      if (s.has_recurring && existingRecurringIds.has(s.id)) continue;
+      // Fallback: payment_status='paid' but no payment rows. Show full
+      // commission in the sale month (preserves legacy behavior for
+      // sales marked paid without recorded payment rows).
+      if (s.payment_status === 'paid') {
+        const saleRef = s.activation_date || s.sale_date;
+        if (saleRef) {
+          if (inRange(parseISO(saleRef))) {
+            monthItems.push({ sale: s, amount: comissao, date: saleRef, monthKey, proportional: false });
+          }
+        }
+      }
+      continue;
+    }
+
+    if (tv <= 0) continue;
+    const ratio = comissao / tv;
+
+    // Sum payments received in the current month only — payments in
+    // other months are recognized in their own month view.
+    let paidThisMonth = 0;
+    let lastPayDate: string | null = null;
+    for (const p of salePays) {
+      if (p.stripe_invoice_id && commissionedInvoiceIds.has(p.stripe_invoice_id)) continue;
+      const pd = p.payment_date as string;
+      if (!inRange(parseISO(pd))) continue;
+      const amt = Number(p.amount || 0);
+      if (amt <= 0) continue;
+      paidThisMonth += amt;
+      if (!lastPayDate || pd > lastPayDate) lastPayDate = pd;
+    }
+    if (paidThisMonth <= 0) continue;
+
+    monthItems.push({
+      sale: s,
+      amount: paidThisMonth * ratio,
+      date: lastPayDate || s.activation_date || s.sale_date,
+      monthKey,
+      proportional: paidThisMonth < tv,
+      received: paidThisMonth,
+    });
+  }
+
+  // What the commercials will earn once their clients pay the rest: the part of
+  // each sale's commission not yet covered by the client's payments, whenever made.
+  const waitingItems: { sale: any; amount: number; received: number }[] = [];
+  if (ownPeriod) {
+    for (const s of commissionSales) {
+      if (s.has_recurring && existingRecurringIds.has(s.id)) continue;
+      const saleRef = s.activation_date || s.sale_date;
+      if (rangeTo && saleRef && parseISO(saleRef) > rangeTo) continue;
+      const tv = Number(s.total_value) || 0;
+      const received = (allPays as any[])
+        .filter((p: any) => p.sale_id === s.id && p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+      const fraction = s.payment_status === 'paid' ? 1 : tv > 0 ? Math.min(1, received / tv) : 0;
+      const amount = Number(s.comissao || 0) * (1 - fraction);
+      if (amount > 0.005) waitingItems.push({ sale: s, amount, received });
+    }
+  }
+
+  const listedSales = [...monthItems, ...waitingItems].map((mi) => mi.sale);
+  const clientIds = [...new Set(listedSales.map((sale) => sale.client_id).filter(Boolean))] as string[];
+  const leadIds = [...new Set(listedSales.map((sale) => sale.lead_id).filter(Boolean))] as string[];
+  const [clientsRes, leadsRes] = await Promise.all([
+    clientIds.length
+      ? supabase.from('crm_clients').select('id, name, company, assigned_to').in('id', clientIds)
+      : Promise.resolve({ data: [] as any[] }),
+    leadIds.length
+      ? supabase.from('leads').select('id, name, assigned_to').in('id', leadIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const clientMap = new Map<string, any>((clientsRes.data || []).map((c: any) => [c.id, c]));
+  const leadMap = new Map<string, any>((leadsRes.data || []).map((l: any) => [l.id, l]));
+
+  const getCommercial = (s: any): string => {
+    // An explicit assignment wins over everything: a sale typed in by one
+    // person and handed to another belongs to the person it was handed to,
+    // whoever the client happens to be assigned to.
+    if (s.seller_id) return s.seller_id as string;
+    if (s.client_id && clientMap.get(s.client_id)?.assigned_to) return clientMap.get(s.client_id).assigned_to;
+    if (s.lead_id && leadMap.get(s.lead_id)?.assigned_to) return leadMap.get(s.lead_id).assigned_to;
+    return (s.created_by as string) || 'unassigned';
+  };
+  const getClientName = (s: any): string => {
+    if (s.client_id) { const c = clientMap.get(s.client_id); if (c) return c.name || c.company || 'Cliente'; }
+    if (s.lead_id) { const l = leadMap.get(s.lead_id); if (l) return l.name || 'Lead'; }
+    return (s.code as string) || 'Venda';
+  };
+
+  // --- Recurring commissions (Stripe) ---
+  // PENDING = outstanding debt: must show EVERY month until paid, so never
+  // filter it by created_at (a June commission left unpaid still shows in July).
+  // PAID = historical: keep it scoped to the month it landed in.
+  const [pendingRecsRes, paidRecsRes] = await Promise.all([
+    (supabase as any)
+      .from('stripe_commission_records')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('status', 'pending')
+      // Carry forward, not backward: a pending commission shows from its month
+      // onwards (created on/before the period end), never in an earlier month.
+      .lte('created_at', rangeTo ? rangeTo.toISOString() : '9999-12-31'),
+    (supabase as any)
+      .from('stripe_commission_records')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('status', 'paid')
+      .gte('created_at', rangeFrom ? rangeFrom.toISOString() : '1900-01-01')
+      .lte('created_at', rangeTo ? rangeTo.toISOString() : '9999-12-31'),
+  ]);
+  if (pendingRecsRes.error) throw pendingRecsRes.error;
+  if (paidRecsRes.error) throw paidRecsRes.error;
+  const recs = [...(pendingRecsRes.data || []), ...(paidRecsRes.data || [])] as any[];
+  const recOrgIds = [...new Set(recs.map(r => r.client_org_id).filter(Boolean))] as string[];
+  const orgsRes = recOrgIds.length
+    ? await supabase.from('organizations').select('id, name').in('id', recOrgIds)
+    : { data: [] as any[] };
+  const orgMap = new Map((orgsRes.data || []).map((o: any) => [o.id, o.name]));
+
+  // Friendly label for recurring records via their linked sale's client
+  // (manual renewals have no tenant org, so the org name would be wrong).
+  const recSaleIds = [...new Set(recs.map(r => r.sale_id).filter(Boolean))] as string[];
+  const recSalesRes = recSaleIds.length
+    ? await supabase.from('sales').select('id, client_id, lead_id, code').in('id', recSaleIds)
+    : { data: [] as any[] };
+  const recSales = (recSalesRes.data as any[]) || [];
+  const recCIds = [...new Set(recSales.map(s => s.client_id).filter(Boolean))] as string[];
+  const recLIds = [...new Set(recSales.map(s => s.lead_id).filter(Boolean))] as string[];
+  const [recCRes, recLRes] = await Promise.all([
+    recCIds.length ? supabase.from('crm_clients').select('id, name, company').in('id', recCIds) : Promise.resolve({ data: [] as any[] }),
+    recLIds.length ? supabase.from('leads').select('id, name').in('id', recLIds) : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const recCMap = new Map((recCRes.data || []).map((c: any) => [c.id, c.name || c.company]));
+  const recLMap = new Map((recLRes.data || []).map((l: any) => [l.id, l.name]));
+  const recSaleLabel = new Map<string, string>(
+    recSales.map((s: any) => [s.id, recCMap.get(s.client_id) || recLMap.get(s.lead_id) || s.code || tr('Subscrição')]),
+  );
+
+  const memberName = (userId: string) => {
+    if (userId === 'unassigned') return tr('Sem Comercial');
+    const m = members?.find((m: any) => m.user_id === userId);
+    return m?.full_name || tr('Desconhecido');
+  };
+
+  const byUser = new Map<string, CommercialCommission>();
+  const ensure = (userId: string): CommercialCommission => {
+    let e = byUser.get(userId);
+    if (!e) {
+      e = { userId, name: memberName(userId), items: [], total: 0, totalPending: 0, totalPaid: 0, pendingSaleIds: [], pendingRecordIds: [], toEarn: 0, waiting: [] };
+      byUser.set(userId, e);
+    }
+    return e;
+  };
+
+  // A sale can pay several people (sale_commission_splits). Where splits
+  // exist the commission is divided by them; sales without splits keep the
+  // single-commercial behaviour resolved by getCommercial().
+  const splitsBySale = isTelecom
+    ? allTelecomSplitsBySale
+    : await fetchSplitsBySale([...new Set(listedSales.map((sale) => sale.id as string))]);
+  const bdsOrgCommissionBySale = new Map<string, { userId: string; amount: number; paidAt: string | null }>();
+  if (isBdsOrganization(organizationName) && organizationSaleIds.length > 0) {
+    const { data: organizationShares, error: organizationSharesError } = await bdsFinanceSupabase
+      .from('bds_sara_org_commission')
+      .select('sale_id, user_id, amount, paid_at')
+      .eq('organization_id', organizationId)
+      .in('sale_id', organizationSaleIds);
+    if (organizationSharesError && !['42P01', 'PGRST205'].includes(organizationSharesError.code)) {
+      throw organizationSharesError;
+    }
+    for (const share of organizationShares || []) {
+      const sale = commissionSales.find((entry: any) => entry.id === share.sale_id);
+      const splits = allTelecomSplitsBySale.get(share.sale_id);
+      const allParts = sale ? telecomCommissionParts(sale, splits) : [];
+      const allOrg = allParts.reduce((sum, part) => sum + part.org, 0);
+      const periodOrg = sale ? telecomCommissionPartsInPeriod(sale, period, splits)
+        .reduce((sum, part) => sum + part.org, 0) : 0;
+      bdsOrgCommissionBySale.set(share.sale_id, {
+        userId: share.user_id,
+        amount: allOrg > 0 ? Math.round(Number(share.amount || 0) * periodOrg / allOrg * 100) / 100 : Number(share.amount || 0),
+        paidAt: share.paid_at,
+      });
+    }
+  }
+
+  for (const mi of monthItems) {
+    const s = mi.sale;
+    const paid = !!s.commission_paid_at;
+    const splits = splitsBySale.get(s.id);
+
+    // mi.amount can already be a fraction of the commission (proportional to
+    // the payments received this month), so each share keeps that fraction.
+    const saleCommission = Number(s.comissao || 0);
+    const factor = isTelecom ? 1 : saleCommission > 0 ? mi.amount / saleCommission : 0;
+    const periodParts = isTelecom ? telecomCommissionPartsInPeriod(s, period, splits) : [];
+    const includedProducts = new Set(periodParts.map(part => part.product));
+    const eligibleSplits = isTelecom && periodParts.some(part => part.product !== null)
+      ? splits?.filter(split => includedProducts.has(split.product_name))
+      : splits;
+
+    const shares = eligibleSplits && eligibleSplits.length > 0
+      ? eligibleSplits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
+      : [{ userId: getCommercial(s), amount: isTelecom
+        ? periodParts.reduce((sum, part) => sum + part.seller, 0) : mi.amount }];
+    for (const share of shares) {
+      if (!share.userId) continue;
+      const e = ensure(share.userId);
+      e.items.push({
+        kind: 'direct',
+        id: s.id,
+        label: getClientName(s),
+        date: mi.date,
+        amount: share.amount,
+        saleValue: Number(s.total_value || 0),
+        received: mi.received ?? null,
+        paid,
+        proportional: mi.proportional,
+        expectedMonth: isTelecom,
+        installDate: isTelecom ? s.scheduled_install_date ?? null : null,
+      });
+      e.total += share.amount;
+      if (paid) e.totalPaid += share.amount;
+      else { e.totalPending += share.amount; e.pendingSaleIds.push(s.id); }
+    }
+  }
+  for (const wi of waitingItems) {
+    const s = wi.sale;
+    const saleCommission = Number(s.comissao || 0);
+    const factor = saleCommission > 0 ? wi.amount / saleCommission : 0;
+    const splits = splitsBySale.get(s.id);
+    const shares = splits && splits.length > 0
+      ? splits.map((sp) => ({ userId: sp.user_id, amount: sp.amount * factor }))
+      : [{ userId: getCommercial(s), amount: wi.amount }];
+    for (const share of shares) {
+      if (!share.userId) continue;
+      const e = ensure(share.userId);
+      e.waiting.push({
+        kind: 'direct',
+        id: s.id,
+        label: getClientName(s),
+        date: s.activation_date || s.sale_date,
+        amount: share.amount,
+        saleValue: Number(s.total_value || 0),
+        received: wi.received,
+        paid: false,
+      });
+      e.toEarn += share.amount;
+    }
+  }
+  const organizationItems = aggregateBdsOrganizationCommissionItems(
+    Array.from(bdsOrgCommissionBySale, ([saleId, share]) => ({
+      sale_id: saleId,
+      user_id: share.userId,
+      amount: share.amount,
+      paid_at: share.paidAt,
+    })),
+    monthKey,
+    financeOptions?.commissionFilters?.userId ?? null,
+  );
+  for (const item of organizationItems) {
+    const e = ensure(item.userId);
+    e.items.push(item);
+    e.total += item.amount;
+    if (item.paid) e.totalPaid += item.amount;
+    else e.totalPending += item.amount;
+  }
+  for (const r of recs) {
+    const e = ensure((r.user_id as string) || 'unassigned');
+    const amount = Number(r.commission_amount || 0);
+    const paid = r.status === 'paid';
+    e.items.push({ kind: 'recurring', id: r.id, label: recSaleLabel.get(r.sale_id) || orgMap.get(r.client_org_id) || tr('Subscrição'), date: r.created_at, amount, saleValue: Number(r.amount || 0), paid });
+    e.total += amount;
+    if (paid) e.totalPaid += amount; else { e.totalPending += amount; e.pendingRecordIds.push(r.id); }
+  }
+
+  if (isTelecom) {
+    const [saleChargebacksResult, manualChargebacksResult] = await Promise.all([
+      (supabase as any).from('sale_chargebacks')
+        .select('id, user_id, amount, application_month, applied_at, sale:sales(telecom_status)')
+        .eq('organization_id', organizationId).eq('status', 'reconciled'),
+      isBdsOrganization(organizationName)
+        ? bdsFinanceSupabase.from('bds_manual_chargebacks')
+          .select('id, user_id, amount, application_month, applied_at')
+          .eq('organization_id', organizationId).eq('status', 'reconciled')
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (saleChargebacksResult.error) throw saleChargebacksResult.error;
+    if (manualChargebacksResult.error) throw manualChargebacksResult.error;
+    const addChargeback = (row: { id: string; user_id: string; amount: number; application_month: string | null; applied_at: string | null }, manual: boolean) => {
+      if (!applicationMonthInRange(row.application_month, period)) return;
+      if (financeOptions?.commissionFilters?.userId && row.user_id !== financeOptions.commissionFilters.userId) return;
+      const e = ensure(row.user_id);
+      const amount = -Number(row.amount || 0);
+      const paid = !!row.applied_at;
+      e.items.push({ kind: 'chargeback', id: row.id, label: tr('Chargeback'), date: row.application_month, amount, saleValue: null, paid, manualChargeback: manual });
+      e.total += amount;
+      if (paid) e.totalPaid += amount;
+      else e.totalPending += amount;
+    };
+    for (const row of saleChargebacksResult.data || []) {
+      if (isSaleChargebackApplicable(row)) addChargeback(row, false);
+    }
+    for (const row of manualChargebacksResult.data || []) addChargeback(row, true);
+  }
+
+  let commercials = Array.from(byUser.values());
+  if (effectiveUserIds && effectiveUserIds.length > 0) {
+    commercials = commercials.filter(c => effectiveUserIds.includes(c.userId));
+  }
+  commercials.forEach(c => {
+    c.items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    c.waiting.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  });
+  commercials.sort((a, b) => b.totalPending - a.totalPending || b.total - a.total);
+
+  const total = commercials.reduce((s, c) => s + c.total, 0);
+  const totalPending = commercials.reduce((s, c) => s + c.totalPending, 0);
+  const totalToEarn = commercials.reduce((s, c) => s + c.toEarn, 0);
+  return { commercials, total, totalPending, totalToEarn };
 }
 
 /**
@@ -813,9 +914,9 @@ export function usePayCommercialCommissions() {
         queryClient.invalidateQueries({ queryKey: ['my-commissions'] }),
         queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] }),
       ]);
-      toast.success('Comissões marcadas como pagas e registadas como despesa!');
+      toast.success(tr('Comissões marcadas como pagas e registadas como despesa!'));
     },
-    onError: () => toast.error('Erro ao pagar comissões'),
+    onError: () => toast.error(tr('Erro ao pagar comissões')),
   });
 }
 
@@ -853,8 +954,8 @@ export function useMarkCommissionPaid() {
       await queryClient.invalidateQueries({ queryKey: ['commercial-commissions'] });
       await queryClient.invalidateQueries({ queryKey: ['team-commission-total'] });
       await queryClient.invalidateQueries({ queryKey: ['sale-chargebacks'] });
-      toast.success('Comissão marcada como paga.');
+      toast.success(tr('Comissão marcada como paga.'));
     },
-    onError: () => toast.error('Erro ao marcar comissão'),
+    onError: () => toast.error(tr('Erro ao marcar comissão')),
   });
 }

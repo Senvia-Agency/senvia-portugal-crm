@@ -8,7 +8,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedLayoutRoute } from "@/components/auth/ProtectedLayoutRoute";
 import { SuperAdminRoute } from "@/components/auth/SuperAdminRoute";
-const PWAInstallButton = lazy(() => import("@/components/pwa/PWAInstallButton").then(m => ({ default: m.PWAInstallButton })));
 const PWAUpdateBanner = lazy(() => import("@/components/pwa/PWAUpdateBanner").then(m => ({ default: m.PWAUpdateBanner })));
 const PushReactivationPrompt = lazy(() => import("@/components/pwa/PushReactivationPrompt").then(m => ({ default: m.PushReactivationPrompt })));
 
@@ -16,6 +15,12 @@ const PushReactivationPrompt = lazy(() => import("@/components/pwa/PushReactivat
 import Login from "./pages/Login";
 
 // Lazy: All other pages
+const WorkplaceFeed = lazy(() => import("./pages/WorkplaceFeed"));
+const WorkplaceTasks = lazy(() => import("./pages/WorkplaceTasks"));
+const TimeClock = lazy(() => import("./pages/TimeClock"));
+const Referrals = lazy(() => import("./pages/Referrals"));
+const WorkplaceMessages = lazy(() => import("./pages/WorkplaceMessages"));
+const WebMail = lazy(() => import("./pages/WebMail"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Novidades = lazy(() => import("./pages/Novidades"));
 const NovidadeDetail = lazy(() => import("./pages/NovidadeDetail"));
@@ -69,6 +74,7 @@ const SystemAdminUsers = lazy(() => import("./pages/system-admin/Users"));
 const SystemAdminAnnouncements = lazy(() => import("./pages/system-admin/Announcements"));
 const SystemAdminTrialActivation = lazy(() => import("./pages/system-admin/TrialActivation"));
 const SystemAdminTrialWhatsApp = lazy(() => import("./pages/system-admin/TrialWhatsApp"));
+const SystemAdminVideoReviews = lazy(() => import("./pages/system-admin/VideoReviews"));
 const FinanceInternalRequests = lazy(() => import("./pages/finance/InternalRequests"));
 
 const queryClient = new QueryClient({
@@ -96,7 +102,6 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
         <Sonner />
         <Router>
           <AuthProvider>
-            <Suspense fallback={null}><PWAInstallButton /></Suspense>
             <Suspense fallback={null}><PWAUpdateBanner /></Suspense>
             <Suspense fallback={null}><PushReactivationPrompt /></Suspense>
             <Suspense fallback={<div className="flex items-center justify-center h-dvh bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
@@ -129,7 +134,13 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
 
                 {/* Protected Routes (Persistent Layout) */}
                 <Route element={<ProtectedLayoutRoute />}>
+                  <Route path="/feed" element={<WorkplaceFeed />} />
+                  <Route path="/tasks" element={<WorkplaceTasks />} />
+                  <Route path="/mensagens" element={<WorkplaceMessages />} />
+                  <Route path="/webmail" element={<WebMail />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/ponto" element={<TimeClock />} />
+                  <Route path="/indicacoes" element={<Referrals />} />
                   <Route path="/novidades" element={<Novidades />} />
                   <Route path="/novidades/:id" element={<NovidadeDetail />} />
                   <Route path="/leads" element={<Leads />} />
@@ -167,32 +178,39 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
 
                 </Route>
 
-                {/* Super Admin Routes */}
-                <Route path="/system-admin" element={
-                  <SuperAdminRoute>
-                    <SystemAdminDashboard />
-                  </SuperAdminRoute>
-                } />
-                <Route path="/system-admin/users" element={
-                  <SuperAdminRoute>
-                    <SystemAdminUsers />
-                  </SuperAdminRoute>
-                } />
-                <Route path="/system-admin/announcements" element={
-                  <SuperAdminRoute>
-                    <SystemAdminAnnouncements />
-                  </SuperAdminRoute>
-                } />
-                <Route path="/system-admin/activation" element={
-                  <SuperAdminRoute>
-                    <SystemAdminTrialActivation />
-                  </SuperAdminRoute>
-                } />
-                <Route path="/system-admin/trial-whatsapp" element={
-                  <SuperAdminRoute>
-                    <SystemAdminTrialWhatsApp />
-                  </SuperAdminRoute>
-                } />
+                {/* Super Admin Routes: inside the app layout, so the sidebar is the way back. */}
+                <Route element={<ProtectedLayoutRoute />}>
+                  <Route path="/system-admin" element={
+                    <SuperAdminRoute>
+                      <SystemAdminDashboard />
+                    </SuperAdminRoute>
+                  } />
+                  <Route path="/system-admin/users" element={
+                    <SuperAdminRoute>
+                      <SystemAdminUsers />
+                    </SuperAdminRoute>
+                  } />
+                  <Route path="/system-admin/announcements" element={
+                    <SuperAdminRoute>
+                      <SystemAdminAnnouncements />
+                    </SuperAdminRoute>
+                  } />
+                  <Route path="/system-admin/activation" element={
+                    <SuperAdminRoute>
+                      <SystemAdminTrialActivation />
+                    </SuperAdminRoute>
+                  } />
+                  <Route path="/system-admin/reviews" element={
+                    <SuperAdminRoute>
+                      <SystemAdminVideoReviews />
+                    </SuperAdminRoute>
+                  } />
+                  <Route path="/system-admin/trial-whatsapp" element={
+                    <SuperAdminRoute>
+                      <SystemAdminTrialWhatsApp />
+                    </SuperAdminRoute>
+                  } />
+                </Route>
 
                 {/* Finance sub-routes */}
                 <Route element={<ProtectedLayoutRoute />}>

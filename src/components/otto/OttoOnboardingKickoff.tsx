@@ -3,6 +3,7 @@ import { OttoAvatar } from "./OttoAvatar";
 import { SetupTaskIcon } from "./SetupTaskIcon";
 import { useRunSetupTask } from "./useRunSetupTask";
 import { useOttoOnboarding } from "@/hooks/useOttoOnboarding";
+import { useLanguage } from "@/i18n";
 
 // The proactive "let's set up your CRM" menu Otto shows in the chat on first
 // access. Lists the pending setup tasks for the org's active modules; each button
@@ -10,6 +11,7 @@ import { useOttoOnboarding } from "@/hooks/useOttoOnboarding";
 export function OttoOnboardingKickoff() {
   const { showBadge, pending } = useOttoOnboarding();
   const run = useRunSetupTask();
+  const { t } = useLanguage();
 
   if (!showBadge) return null;
 
@@ -18,9 +20,9 @@ export function OttoOnboardingKickoff() {
       <div className="flex gap-2.5">
         <OttoAvatar expression="happy" size="md" />
         <div className="rounded-2xl rounded-tl-md bg-muted px-3.5 py-2.5 text-sm">
-          <p className="font-medium">Boas-vindas ao Senvia OS! 👋</p>
+          <p className="font-medium">{t("Boas-vindas ao Senvia OS! 👋")}</p>
           <p className="mt-1 text-muted-foreground">
-            Vamos pôr os teus módulos a postos, é rápido. Por onde queres começar?
+            {t("Vamos pôr os teus módulos a postos, é rápido. Por onde queres começar?")}
           </p>
         </div>
       </div>
@@ -35,10 +37,10 @@ export function OttoOnboardingKickoff() {
             onClick={() => run(task)}
           >
             <SetupTaskIcon icon={task.icon} className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-            {task.label}
+            {t(task.label)}
           </Button>
         ))}
-        <p className="mt-1 text-[11px] text-muted-foreground">Ou escreve-me o que precisares.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t("Ou escreve-me o que precisares.")}</p>
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ import {
 import { useSwitchComercializador } from '@/hooks/useCpes';
 import { COMERCIALIZADORES, ENERGY_COMERCIALIZADORES } from '@/types/cpes';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from "@/i18n";
 
 interface SwitchComercializadorModalProps {
   cpeId: string;
@@ -29,6 +30,7 @@ interface SwitchComercializadorModalProps {
 }
 
 export function SwitchComercializadorModal({ cpeId, currentComercializador, open, onOpenChange }: SwitchComercializadorModalProps) {
+  const { t } = useLanguage();
   const switchCom = useSwitchComercializador();
   const { organization } = useAuth();
   const isTelecom = organization?.niche === 'telecom';
@@ -59,17 +61,17 @@ export function SwitchComercializadorModal({ cpeId, currentComercializador, open
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Alterar Comercializador</DialogTitle>
+          <DialogTitle>{t("Alterar Comercializador")}</DialogTitle>
           <DialogDescription>
-            Atual: {currentComercializador}. A nova data de fim de fidelização é obrigatória.
+            {t("Atual: {{name}}. A nova data de fim de fidelização é obrigatória.", { name: currentComercializador })}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Novo Comercializador *</Label>
+            <Label>{t("Novo Comercializador *")}</Label>
             <Select value={comercializador} onValueChange={setComercializador}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue placeholder={t("Selecione")} />
               </SelectTrigger>
               <SelectContent>
                 {comercializadorOptions.map((c) => (
@@ -78,21 +80,21 @@ export function SwitchComercializadorModal({ cpeId, currentComercializador, open
               </SelectContent>
             </Select>
             {comercializador === 'Outro' && (
-              <Input placeholder="Nome do comercializador" value={customComercializador} onChange={(e) => setCustomComercializador(e.target.value)} />
+              <Input placeholder={t("Nome do comercializador")} value={customComercializador} onChange={(e) => setCustomComercializador(e.target.value)} />
             )}
           </div>
           <div className="space-y-2">
-            <Label>Novo Início (opcional)</Label>
+            <Label>{t("Novo Início (opcional)")}</Label>
             <Input type="date" value={fidelizacaoStart} onChange={(e) => setFidelizacaoStart(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Nova Data Fim Fidelização *</Label>
+            <Label>{t("Nova Data Fim Fidelização *")}</Label>
             <Input type="date" value={fidelizacaoEnd} onChange={(e) => setFidelizacaoEnd(e.target.value)} min={minDate} required />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
             <Button type="submit" disabled={!finalComercializador || !fidelizacaoEnd || switchCom.isPending}>
-              {switchCom.isPending ? 'A guardar...' : 'Confirmar'}
+              {switchCom.isPending ? t("A guardar...") : t("Confirmar")}
             </Button>
           </DialogFooter>
         </form>

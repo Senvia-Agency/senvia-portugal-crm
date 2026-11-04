@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { cn } from '@/lib/utils';
 import { useFlowVariables } from '@/components/automations/FlowIoContext';
+import { useLanguage } from '@/i18n';
 
 /**
  * Contact variables the engine resolves when rendering message templates
@@ -37,6 +38,7 @@ interface VariableChipsProps {
 export function VariableChips({ targetRef, value, onChange, className }: VariableChipsProps) {
   // Inside a step's details view the flow says which variables exist (the
   // trigger's record, the last reply…); elsewhere, the contact basics.
+  const { t } = useLanguage();
   const flowFields = useFlowVariables();
   const variables = flowFields
     ? flowFields.map((field) => ({ token: `{{${field.key}}}`, label: field.label }))
@@ -63,7 +65,7 @@ export function VariableChips({ targetRef, value, onChange, className }: Variabl
 
   return (
     <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
-      <span className="text-[11px] text-muted-foreground">Inserir variável:</span>
+      <span className="text-[11px] text-muted-foreground">{t('Inserir variável:')}</span>
       {variables.map((variable) => (
         <button
           key={variable.token}
@@ -75,7 +77,7 @@ export function VariableChips({ targetRef, value, onChange, className }: Variabl
             'text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary',
           )}
         >
-          {variable.label}
+          {t(variable.label)}
         </button>
       ))}
     </div>

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 interface MetricCardProps {
   title: string;
@@ -14,6 +15,7 @@ interface MetricCardProps {
 }
 
 export function MetricCard({ title, value, subtitle, icon, trend, className }: MetricCardProps) {
+  const { t } = useLanguage();
   return (
     <div className={cn(
       "rounded-xl border bg-card p-6 shadow-card transition-all duration-200 hover:shadow-card-hover",
@@ -36,7 +38,7 @@ export function MetricCard({ title, value, subtitle, icon, trend, className }: M
               )}>
                 {trend.isPositive ? "+" : ""}{trend.value}%
               </span>
-              <span className="text-xs text-muted-foreground">vs. mês anterior</span>
+              <span className="text-xs text-muted-foreground">{t("vs. mês anterior")}</span>
             </div>
           )}
         </div>

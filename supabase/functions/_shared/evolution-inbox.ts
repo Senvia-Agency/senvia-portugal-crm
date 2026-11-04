@@ -27,6 +27,9 @@ export const SIGNALLING_TYPES = new Set([
   'senderKeyDistributionMessage',
   'keepInChatMessage',
   'pinInChatMessage',
+  // Several photos sent at once: this only announces how many are coming. Each
+  // photo arrives as its own message (inside associatedChildMessage).
+  'albumMessage',
 ]);
 
 /** Events the inbox needs. `SEND_MESSAGE` covers replies typed in Chatwoot. */
@@ -161,11 +164,30 @@ export function unwrapMessage(message: AnyMsg): AnyMsg {
       ?? m.documentWithCaptionMessage?.message
       ?? m.editedMessage?.message
       // Sent from the owner's other device: the real message is inside.
-      ?? m.deviceSentMessage?.message;
+      ?? m.deviceSentMessage?.message
+      // One photo or video of an album (several sent at once).
+      ?? m.associatedChildMessage?.message;
     if (!inner) break;
     m = inner;
   }
   return m;
+}
+
+/**
+ * MessageAssociation.AssociationType of a second copy of what the person already
+ * sees: HD_VIDEO_DUAL_UPLOAD (5), HD_IMAGE_DUAL_UPLOAD (10), MOTION_PHOTO (12,
+ * the moving part of a photo) and HEVC_VIDEO_DUAL_UPLOAD (19). WhatsApp shows
+ * one item; stored, each was a second bubble ("[associatedChild]") under it.
+ * Baileys may hand the enum over as its number or its name.
+ */
+const COMPANION_ASSOCIATIONS = new Set<unknown>([
+  5, 10, 12, 19, 'HD_VIDEO_DUAL_UPLOAD', 'HD_IMAGE_DUAL_UPLOAD', 'MOTION_PHOTO', 'HEVC_VIDEO_DUAL_UPLOAD',
+]);
+
+export function isCompanionMedia(message: AnyMsg): boolean {
+  const association = message?.associatedChildMessage?.message?.messageContextInfo?.messageAssociation
+    ?? message?.messageContextInfo?.messageAssociation;
+  return COMPANION_ASSOCIATIONS.has(association?.associationType);
 }
 
 export interface ParsedContent {
@@ -182,6 +204,7 @@ export interface ParsedContent {
  * Evolution needs to hand the bytes over later (see meta-media).
  */
 export function parseContent(messageId: string, message: AnyMsg): ParsedContent {
+  if (isCompanionMedia(message)) return { texto: '', anexos: [], replyTo: null };
   const m = unwrapMessage(message);
   const anexos: Array<Record<string, unknown>> = [];
   let texto = '';

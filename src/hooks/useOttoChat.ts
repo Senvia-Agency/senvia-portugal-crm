@@ -10,6 +10,17 @@ import { useOttoStore, type OttoActionResult } from "@/stores/useOttoStore";
 
 export type { OttoMessage } from "@/stores/useOttoStore";
 
+// What Otto is doing belongs to the app, not to the component that asked:
+// closing Otto's panel (or any caller unmounting) must not cut the reply off.
+// Every useOttoChat shares this; only a change of account or organization
+// (the scope) bumps the generation and aborts it.
+const shared = {
+  lifecycle: { current: 0 },
+  stream: { current: null as AbortController | null },
+  action: { current: null as AbortController | null },
+  scope: undefined as string | null | undefined,
+};
+
 export function useOttoChat() {
   const {
     scope,
@@ -32,30 +43,27 @@ export function useOttoChat() {
   const activeScope = session?.user.id && organization?.id
     ? `${session.user.id}:${organization.id}`
     : null;
-  const lifecycleRef = useRef(0);
-  const streamAbortRef = useRef<AbortController | null>(null);
-  const actionAbortRef = useRef<AbortController | null>(null);
+  const lifecycleRef = shared.lifecycle;
+  const streamAbortRef = shared.stream;
+  const actionAbortRef = shared.action;
   const actionDecisionRef = useRef<OttoActionDecision | null>(null);
   const [actionDecision, setActionDecision] = useState<OttoActionDecision | null>(null);
 
   useEffect(() => {
-    lifecycleRef.current += 1;
-    streamAbortRef.current?.abort();
-    actionAbortRef.current?.abort();
-    streamAbortRef.current = null;
-    actionAbortRef.current = null;
+    // Only a change of account or organization ends what Otto is doing. A
+    // component that unmounts (the panel closing) leaves the reply running.
+    if (shared.scope !== activeScope) {
+      shared.scope = activeScope;
+      lifecycleRef.current += 1;
+      streamAbortRef.current?.abort();
+      actionAbortRef.current?.abort();
+      streamAbortRef.current = null;
+      actionAbortRef.current = null;
+    }
     actionDecisionRef.current = null;
     setActionDecision(null);
     setScope(activeScope);
-    return () => {
-      lifecycleRef.current += 1;
-      if (streamAbortRef.current && useOttoStore.getState().scope === activeScope) {
-        setLoading(false);
-      }
-      streamAbortRef.current?.abort();
-      actionAbortRef.current?.abort();
-    };
-  }, [activeScope, setScope, setLoading]);
+  }, [activeScope, setScope, lifecycleRef, streamAbortRef, actionAbortRef]);
 
   const uploadAttachments = useCallback(async (files: readonly File[]): Promise<string[]> => {
     if (!organization?.id || files.length === 0) return [];

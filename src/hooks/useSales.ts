@@ -27,6 +27,7 @@ import type {
   TelecomStatus,
 } from "@/types/sales";
 import type { Tables } from "@/integrations/supabase/types";
+import { tr } from "@/i18n";
 
 export function useSales() {
   const { organization } = useAuth();
@@ -398,11 +399,11 @@ export function useCreateSale() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["recurring-sales"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
-      toast.success("Venda criada com sucesso!");
+      toast.success(tr("Venda criada com sucesso!"));
       void invalidateSaleFinance(queryClient);
     },
     onError: () => {
-      toast.error("Erro ao criar venda");
+      toast.error(tr("Erro ao criar venda"));
     },
   });
 }
@@ -423,11 +424,11 @@ export function useUpdateSaleStatus() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
-      toast.success("Estado atualizado!");
+      toast.success(tr("Estado atualizado!"));
       void invalidateSaleFinance(queryClient);
     },
     onError: () => {
-      toast.error("Erro ao atualizar estado");
+      toast.error(tr("Erro ao atualizar estado"));
     },
   });
 }
@@ -507,7 +508,7 @@ export function useUpdateSale() {
       void invalidateSaleFinance(queryClient);
     },
     onError: () => {
-      toast.error("Erro ao atualizar venda");
+      toast.error(tr("Erro ao atualizar venda"));
     },
   });
 }
@@ -524,11 +525,11 @@ export function useDeleteSale() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
-      toast.success("Venda eliminada!");
+      toast.success(tr("Venda eliminada!"));
       void invalidateSaleFinance(queryClient);
     },
     onError: () => {
-      toast.error("Erro ao eliminar venda");
+      toast.error(tr("Erro ao eliminar venda"));
     },
   });
 }

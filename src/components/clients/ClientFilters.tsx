@@ -1,153 +1,54 @@
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Globe, Layers, Zap } from "lucide-react";
+import { TeamMemberFilter } from "@/components/dashboard/TeamMemberFilter";
+import { FilterRow, MultiFilterPill } from "@/components/shared/FilterPills";
+import { filterChipClass, toggled } from "@/components/shared/filter-pills";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { X } from "lucide-react";
 import { useClientLabels } from "@/hooks/useClientLabels";
-import type { ClientStatus, ClientSource } from "@/types/clients";
-import type { DateRange } from "react-day-picker";
-import type { ReactNode } from "react";
-
-export interface ClientFiltersState {
-  status: ClientStatus | 'all';
-  source: ClientSource | 'all';
-  dateFrom: Date | undefined;
-  dateTo: Date | undefined;
-  proposalType: 'all' | 'energia' | 'servicos';
-}
+import { useTeamFilter } from "@/hooks/useTeamFilter";
+import { cn } from "@/lib/utils";
+import { CLIENT_SOURCE_LABELS, type ClientStatus } from "@/types/clients";
+import type { ClientFiltersState, ProposalTypeFilter } from "./client-filters";
+import { useLanguage } from "@/i18n";
 
 interface ClientFiltersProps {
   filters: ClientFiltersState;
   onFiltersChange: (filters: ClientFiltersState) => void;
-  onClearFilters: () => void;
+  search: string;
+  onSearch: (value: string) => void;
+  /** The sources these clients have, most used first. */
+  sourceCounts: readonly { value: string; count: number }[];
+  /** Telecom with the energy module: filter by the kind of proposal. */
   isTelecom?: boolean;
-  search?: ReactNode;
+  hasActive: boolean;
+  onClear: () => void;
 }
 
-export const defaultFilters: ClientFiltersState = {
-  status: 'all',
-  source: 'all',
-  dateFrom: undefined,
-  dateTo: undefined,
-  proposalType: 'all',
-};
-
-export function ClientFilters({ filters, onFiltersChange, onClearFilters, isTelecom, search }: ClientFiltersProps) {
+/** The search and filter pills of the clients page (same row as the leads). */
+export function ClientFilters({ filters, onFiltersChange, search, onSearch, sourceCounts, isTelecom, hasActive, onClear }: ClientFiltersProps) {
+  const { t } = useLanguage();
   const labels = useClientLabels();
-
-  const hasActiveFilters = 
-    filters.status !== 'all' || 
-    filters.source !== 'all' || 
-    filters.dateFrom !== undefined || 
-    filters.dateTo !== undefined ||
-    filters.proposalType !== 'all';
-
-  const statusOptions: { value: ClientStatus | 'all'; label: string }[] = [
-    { value: 'all', label: 'Todos' },
-    { value: 'active', label: labels.active },
-    { value: 'vip', label: labels.vip },
-    { value: 'inactive', label: labels.inactive },
-  ];
-
-  const sourceOptions: { value: ClientSource | 'all'; label: string }[] = [
-    { value: 'all', label: 'Todas' },
-    { value: 'lead', label: 'Lead Convertido' },
-    { value: 'referral', label: 'Indicação' },
-    { value: 'direct', label: 'Contacto Direto' },
-    { value: 'website', label: 'Website' },
-    { value: 'other', label: 'Outro' },
-  ];
-
-  const dateRange: DateRange | undefined = (filters.dateFrom || filters.dateTo)
-    ? { from: filters.dateFrom, to: filters.dateTo }
-    : undefined;
-
-  const handleDateChange = (range: DateRange | undefined) => {
-    onFiltersChange({ ...filters, dateFrom: range?.from, dateTo: range?.to });
-  };
-
-  return (
-    <div className={`grid grid-cols-1 gap-2 sm:grid-cols-2 ${isTelecom
-      ? 'lg:grid-cols-[minmax(220px,1.8fr)_130px_150px_160px_minmax(190px,1.2fr)_auto]'
-      : 'lg:grid-cols-[minmax(260px,2fr)_130px_150px_minmax(190px,1.2fr)_auto]'} items-center`}>
-      {search}
-      
-      {/* Status Filter */}
-      <Select
-        value={filters.status}
-        onValueChange={(value) => onFiltersChange({ ...filters, status: value as ClientStatus | 'all' })}
-      >
-        <SelectTrigger className="w-full h-9">
-          <SelectValue placeholder="Status" />
-        </SelectTrigger>
-        <SelectContent>
-          {statusOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Source Filter */}
-      <Select
-        value={filters.source}
-        onValueChange={(value) => onFiltersChange({ ...filters, source: value as ClientSource | 'all' })}
-      >
-        <SelectTrigger className="w-full h-9">
-          <SelectValue placeholder="Origem" />
-        </SelectTrigger>
-        <SelectContent>
-          {sourceOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Proposal Type Filter (Telecom only) */}
-      {isTelecom && (
-        <Select
-          value={filters.proposalType}
-          onValueChange={(value) => onFiltersChange({ ...filters, proposalType: value as 'all' | 'energia' | 'servicos' })}
-        >
-          <SelectTrigger className="w-full h-9">
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            <SelectItem value="energia">Energia</SelectItem>
-            <SelectItem value="servicos">Outros Serviços</SelectItem>
-          </SelectContent>
-        </Select>
-      )}
-
-      {/* Date Range Filter */}
-      <DateRangePicker
-        value={dateRange}
-        onChange={handleDateChange}
-        placeholder="Período"
-        className="h-9 w-full"
-      />
-
-      {/* Clear Filters */}
-      {hasActiveFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClearFilters}
-          className="h-9 text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-4 w-4 mr-1" />
-          Limpar
-        </Button>
-      )}
-    </div>
-  );
+  const { selectedMemberId } = useTeamFilter();
+  const set = (patch: Partial<ClientFiltersState>) => onFiltersChange({ ...filters, ...patch });
+  return <FilterRow search={search} onSearch={onSearch} placeholder={t("Pesquisar nome, email, telefone, empresa ou NIF")}
+    hasActive={hasActive} onClear={onClear}>
+    <DateRangePicker
+      value={filters.dateFrom || filters.dateTo ? { from: filters.dateFrom, to: filters.dateTo } : undefined}
+      onChange={range => set({ dateFrom: range?.from, dateTo: range?.to })}
+      placeholder={t("Todo o histórico")}
+      className={cn(filterChipClass(!!filters.dateFrom), "w-auto justify-start [&_svg]:mr-0")}
+    />
+    <TeamMemberFilter className={cn(filterChipClass(!!selectedMemberId), "w-auto gap-1 [&>svg:first-child]:mr-0")} />
+    <MultiFilterPill icon={Layers} empty={t(labels.statusFieldLabel)} plural={t("estados")} width="w-48"
+      options={[{ value: "active", label: t(labels.statusActive) }, { value: "inactive", label: t(labels.statusInactive) }]}
+      picked={filters.statuses} onToggle={value => set({ statuses: toggled(filters.statuses, value as ClientStatus) })}
+      onClear={() => set({ statuses: [] })} clearLabel={t("Todos os estados")} />
+    {sourceCounts.length > 0 && <MultiFilterPill icon={Globe} empty={t("Origem")} plural={t("origens")} width="w-56"
+      options={sourceCounts.map(source => ({ value: source.value, label: CLIENT_SOURCE_LABELS[source.value] ? t(CLIENT_SOURCE_LABELS[source.value]) : source.value, count: source.count }))}
+      picked={filters.sources} onToggle={value => set({ sources: toggled(filters.sources, value) })}
+      onClear={() => set({ sources: [] })} clearLabel={t("Todas as origens")} />}
+    {isTelecom && <MultiFilterPill icon={Zap} empty={t("Tipo")} plural={t("tipos")} width="w-48"
+      options={[{ value: "energia", label: t("Energia") }, { value: "servicos", label: t("Outros serviços") }]}
+      picked={filters.proposalTypes} onToggle={value => set({ proposalTypes: toggled(filters.proposalTypes, value as ProposalTypeFilter) })}
+      onClear={() => set({ proposalTypes: [] })} clearLabel={t("Todos os tipos")} />}
+  </FilterRow>;
 }

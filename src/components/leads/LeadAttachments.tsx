@@ -3,6 +3,7 @@ import { FileText, Upload, Trash2, Download, Loader2, Paperclip } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { useLeadAttachments, useUploadLeadAttachment, useDeleteLeadAttachment, getAttachmentSignedUrl, LeadAttachment } from '@/hooks/useLeadAttachments';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 interface LeadAttachmentsProps {
   leadId: string;
@@ -20,6 +21,7 @@ const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg';
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export function LeadAttachments({ leadId, readOnly = false }: LeadAttachmentsProps) {
+  const { t } = useLanguage();
   const { data: attachments = [], isLoading } = useLeadAttachments(leadId);
   const upload = useUploadLeadAttachment();
   const remove = useDeleteLeadAttachment();
@@ -50,7 +52,7 @@ export function LeadAttachments({ leadId, readOnly = false }: LeadAttachmentsPro
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
         <Loader2 className="h-4 w-4 animate-spin" />
-        A carregar...
+        {t("A carregar...")}
       </div>
     );
   }
@@ -60,7 +62,7 @@ export function LeadAttachments({ leadId, readOnly = false }: LeadAttachmentsPro
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold flex items-center gap-2">
           <Paperclip className="h-4 w-4 text-muted-foreground" />
-          Faturas Anexadas
+          {t("Faturas Anexadas")}
           {attachments.length > 0 && (
             <span className="text-xs text-muted-foreground">({attachments.length})</span>
           )}
@@ -86,14 +88,14 @@ export function LeadAttachments({ leadId, readOnly = false }: LeadAttachmentsPro
               ) : (
                 <Upload className="h-4 w-4" />
               )}
-              Anexar
+              {t("Anexar")}
             </Button>
           </>
         )}
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-2">Nenhuma fatura anexada.</p>
+        <p className="text-sm text-muted-foreground py-2">{t("Nenhuma fatura anexada.")}</p>
       ) : (
         <div className="space-y-2">
           {attachments.map((att) => (

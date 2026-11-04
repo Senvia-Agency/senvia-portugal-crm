@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, RefreshCw, Smartphone, AlertCircle, Clock } from "lucide-react";
 import { useWhatsappConnect, useWhatsappStatus } from "@/hooks/useMessagingChannels";
+import { useLanguage } from "@/i18n";
 
 interface ConnectWhatsAppModalProps {
   open: boolean;
@@ -25,6 +26,7 @@ interface ConnectWhatsAppModalProps {
  */
 export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: ConnectWhatsAppModalProps) {
   const { mutateAsync: connect, isPending } = useWhatsappConnect();
+  const { t } = useLanguage();
   const [qr, setQr] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: C
       setQr(data.qr ?? null);
       setPairingCode(data.pairing_code ?? null);
     } catch (e) {
-      setErrorMsg((e as Error).message || "Não foi possível gerar o QR code.");
+      setErrorMsg((e as Error).message || t("Não foi possível gerar o QR code."));
     } finally {
       inFlightRef.current = false;
     }
@@ -112,11 +114,10 @@ export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: C
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-green-600" />
-            Ligar WhatsApp
+            {t('Ligar WhatsApp')}
           </DialogTitle>
           <DialogDescription>
-            Liga o teu número por QR code. As conversas passam a aparecer na Caixa de Entrada, e o
-            número continua a funcionar no telemóvel.
+            {t('Liga o teu número por QR code. As conversas passam a aparecer na Caixa de Entrada, e o número continua a funcionar no telemóvel.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -125,12 +126,12 @@ export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: C
             <div className="flex flex-col items-center text-center gap-3">
               <CheckCircle2 className="h-14 w-14 text-green-600" />
               <div>
-                <p className="font-semibold">WhatsApp ligado</p>
+                <p className="font-semibold">{t('WhatsApp ligado')}</p>
                 {status?.phone_number && (
                   <p className="text-sm text-muted-foreground">+{status.phone_number}</p>
                 )}
               </div>
-              <Button onClick={() => onOpenChange(false)} className="mt-2">Concluir</Button>
+              <Button onClick={() => onOpenChange(false)} className="mt-2">{t('Concluir')}</Button>
             </div>
           ) : errorMsg ? (
             <div className="flex flex-col items-center text-center gap-3">
@@ -138,46 +139,46 @@ export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: C
               <p className="text-sm text-destructive max-w-xs">{errorMsg}</p>
               <Button variant="outline" onClick={refreshQr} disabled={isPending}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Tentar novamente
+                {t('Tentar novamente')}
               </Button>
             </div>
           ) : isPending && !displayQr ? (
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="h-10 w-10 animate-spin" />
-              <p className="text-sm">A gerar o QR code...</p>
+              <p className="text-sm">{t('A gerar o QR code...')}</p>
             </div>
           ) : displayQr ? (
             <div className="flex flex-col items-center gap-4">
               <div className={`rounded-lg border bg-white p-3 transition-opacity ${qrExpiry === 0 ? "opacity-30" : ""}`}>
-                <img src={displayQr} alt="QR code do WhatsApp" className="h-56 w-56" />
+                <img src={displayQr} alt={t('QR code do WhatsApp')} className="h-56 w-56" />
               </div>
               {qrExpiry > 0 ? (
                 <>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Abre o <strong>WhatsApp</strong> no telemóvel</li>
-                    <li>Vai a <strong>Definições → Dispositivos ligados</strong></li>
-                    <li>Toca em <strong>Ligar um dispositivo</strong> e aponta para o código</li>
+                    <li>{t('Abre o WhatsApp no telemóvel')}</li>
+                    <li>{t('Vai a Definições → Dispositivos ligados')}</li>
+                    <li>{t('Toca em Ligar um dispositivo e aponta para o código')}</li>
                   </ol>
                   {pairingCode && (
                     <p className="text-xs text-muted-foreground">
-                      Ou usa o código: <span className="font-mono font-semibold">{pairingCode}</span>
+                      {t('Ou usa o código:')} <span className="font-mono font-semibold">{pairingCode}</span>
                     </p>
                   )}
                   <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> O QR code expira em {qrExpiry}s
+                    <Clock className="h-3 w-3" /> {t('O QR code expira em {{s}}s', { s: qrExpiry })}
                   </p>
                 </>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  A atualizar o QR code...
+                  {t('A atualizar o QR code...')}
                 </div>
               )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="h-10 w-10 animate-spin" />
-              <p className="text-sm">A preparar a ligação...</p>
+              <p className="text-sm">{t('A preparar a ligação...')}</p>
             </div>
           )}
         </div>
@@ -186,8 +187,7 @@ export function ConnectWhatsAppModal({ open, onOpenChange, channelId, label }: C
             antes de ligar o número da empresa, não depois de o perder. */}
         {!connected && (
           <p className="border-t pt-3 text-[11px] text-muted-foreground">
-            Esta ligação usa o WhatsApp Web, não a API oficial da Meta. Envios em massa ou para
-            quem não te conhece podem levar o WhatsApp a bloquear o número.
+            {t('Esta ligação usa o WhatsApp Web, não a API oficial da Meta. Envios em massa ou para quem não te conhece podem levar o WhatsApp a bloquear o número.')}
           </p>
         )}
       </DialogContent>

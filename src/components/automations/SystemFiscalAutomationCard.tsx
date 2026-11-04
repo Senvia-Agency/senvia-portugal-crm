@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { configureSaleRecurrenceFiscal } from '@/hooks/useSaleRecurrence';
+import { tr, useLanguage } from '@/i18n';
 import {
   normalizeRecurringFiscalEmailConfig,
   type RecurringFiscalDocumentPolicy,
@@ -63,6 +64,7 @@ const RECURRENCE_FIELDS: string =
  * hand are left out and counted.
  */
 export function SystemFiscalAutomationCard() {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
@@ -115,14 +117,14 @@ export function SystemFiscalAutomationCard() {
     }
 
     const missing: Array<{ label: string; to: string }> = [];
-    if (!keyInvoiceReady) missing.push({ label: 'Faturação KeyInvoice', to: SETTINGS_INTEGRATIONS });
-    if (!brevoReady) missing.push({ label: 'Brevo e remetente', to: SETTINGS_INTEGRATIONS });
+    if (!keyInvoiceReady) missing.push({ label: tr('Faturação KeyInvoice'), to: SETTINGS_INTEGRATIONS });
+    if (!brevoReady) missing.push({ label: tr('Brevo e remetente'), to: SETTINGS_INTEGRATIONS });
     for (const [trigger, label] of needed) {
-      if (!templates.has(trigger)) missing.push({ label: `Modelo de email: ${label}`, to: TEMPLATES_PAGE });
+      if (!templates.has(trigger)) missing.push({ label: tr('Modelo de email: {{name}}', { name: tr(label) }), to: TEMPLATES_PAGE });
     }
 
     return { eligible, handIssued, on, missing, ready: missing.length === 0 };
-  }, [data, organization]);
+  }, [data, organization, t]);
 
   const allOn = view.eligible.length > 0 && view.on === view.eligible.length;
   const canToggle = view.ready && view.eligible.length > 0 && canConfigureFiscal && !pending && !isLoading;
@@ -138,10 +140,10 @@ export function SystemFiscalAutomationCard() {
     // every server-side rule (KeyInvoice series, permissions, MFA) applies
     // exactly as it does when the switch is flipped on the sale itself.
     for (const r of targets) {
-      const label = r.sale?.code ? `Venda ${r.sale.code}` : 'Uma venda';
+      const label = r.sale?.code ? t('Venda {{code}}', { code: r.sale.code }) : t('Uma venda');
       const email = normalizeRecurringFiscalEmailConfig(r.fiscal_email_config);
       if (next && email.recipient_mode === 'client' && !r.sale?.client?.email?.trim() && !email.fallback_email.trim()) {
-        skipped.push(`${label}: o cliente não tem email`);
+        skipped.push(t('{{label}}: o cliente não tem email', { label }));
         continue;
       }
       try {
@@ -161,37 +163,36 @@ export function SystemFiscalAutomationCard() {
     await queryClient.invalidateQueries({ queryKey: ['system-fiscal-automation'] });
     queryClient.invalidateQueries({ queryKey: ['sale-recurrence'] });
 
-    const noun = (n: number) => (n === 1 ? 'venda' : 'vendas');
     if (changed) {
       toast.success(next
-        ? `Envio automático ligado em ${changed} ${noun(changed)}.`
-        : `Envio automático desligado em ${changed} ${noun(changed)}.`);
+        ? t(changed === 1 ? 'Envio automático ligado em {{n}} venda.' : 'Envio automático ligado em {{n}} vendas.', { n: changed })
+        : t(changed === 1 ? 'Envio automático desligado em {{n}} venda.' : 'Envio automático desligado em {{n}} vendas.', { n: changed }));
     }
     if (skipped.length) {
-      toast.warning(`${skipped.length} ${noun(skipped.length)} ficaram de fora`, { description: skipped.join(' · ') });
+      toast.warning(t(skipped.length === 1 ? '{{n}} venda ficou de fora' : '{{n}} vendas ficaram de fora', { n: skipped.length }), { description: skipped.join(' · ') });
     }
   };
 
   const status = (() => {
-    if (isLoading) return 'A verificar a configuração…';
-    if (!view.ready) return 'Falta configurar o que está abaixo para poder ligar.';
+    if (isLoading) return t('A verificar a configuração…');
+    if (!view.ready) return t('Falta configurar o que está abaixo para poder ligar.');
     if (!view.eligible.length) {
-      return 'Nenhuma venda recorrente emite a fatura sozinha. Ligue a emissão automática numa venda para usar o envio.';
+      return t('Nenhuma venda recorrente emite a fatura sozinha. Ligue a emissão automática numa venda para usar o envio.');
     }
-    if (allOn) return `Ligado em ${view.eligible.length} ${view.eligible.length === 1 ? 'venda' : 'vendas'} com emissão automática.`;
-    if (view.on > 0) return `Ligado em ${view.on} de ${view.eligible.length} vendas com emissão automática. Ligue para cobrir as restantes.`;
-    return `Pronto a ligar em ${view.eligible.length} ${view.eligible.length === 1 ? 'venda' : 'vendas'} com emissão automática.`;
+    if (allOn) return t(view.eligible.length === 1 ? 'Ligado em {{n}} venda com emissão automática.' : 'Ligado em {{n}} vendas com emissão automática.', { n: view.eligible.length });
+    if (view.on > 0) return t('Ligado em {{on}} de {{total}} vendas com emissão automática. Ligue para cobrir as restantes.', { on: view.on, total: view.eligible.length });
+    return t(view.eligible.length === 1 ? 'Pronto a ligar em {{n}} venda com emissão automática.' : 'Pronto a ligar em {{n}} vendas com emissão automática.', { n: view.eligible.length });
   })();
 
   return (
     <section className="space-y-2" aria-labelledby="system-automations-title">
       <div className="flex items-center gap-2">
         <h2 id="system-automations-title" className="text-sm font-medium text-muted-foreground">
-          Automações do sistema
+          {t('Automações do sistema')}
         </h2>
         <Badge variant="outline" className="gap-1 text-[10px]">
           <LockKeyhole className="h-3 w-3" />
-          Protegida
+          {t('Protegida')}
         </Badge>
       </div>
 
@@ -203,14 +204,13 @@ export function SystemFiscalAutomationCard() {
 
           <div className="min-w-0 flex-1">
             <label htmlFor="fiscal-auto-email" className="block text-sm font-semibold">
-              Documento fiscal emitido → Enviar PDF ao cliente
+              {t('Documento fiscal emitido → Enviar PDF ao cliente')}
             </label>
             <p className="mt-1 text-xs text-muted-foreground">{status}</p>
             {view.ready && view.handIssued > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">
-                {view.handIssued} {view.handIssued === 1 ? 'venda emite' : 'vendas emitem'} a fatura à mão e{' '}
-                {view.handIssued === 1 ? 'fica' : 'ficam'} de fora.{' '}
-                <Link to="/sales" className="text-primary underline-offset-4 hover:underline">Ver vendas</Link>
+                {t(view.handIssued === 1 ? '{{n}} venda emite a fatura à mão e fica de fora.' : '{{n}} vendas emitem a fatura à mão e ficam de fora.', { n: view.handIssued })}{' '}
+                <Link to="/sales" className="text-primary underline-offset-4 hover:underline">{t('Ver vendas')}</Link>
               </p>
             )}
 
@@ -231,7 +231,7 @@ export function SystemFiscalAutomationCard() {
             )}
 
             {!canConfigureFiscal && (
-              <p className="mt-1 text-xs text-muted-foreground">Requer permissão para emitir faturas.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('Requer permissão para emitir faturas.')}</p>
             )}
           </div>
 

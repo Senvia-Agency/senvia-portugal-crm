@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense, ExpenseCategory } from '@/types/expenses';
 import type { RecurrenceSchedule } from '@/lib/expense-recurrence';
+import { tr } from '@/i18n';
 
 interface ExpenseWithCategory extends Expense {
   expense_categories: ExpenseCategory | null;
@@ -98,13 +99,13 @@ export function useCreateExpense() {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenses-stats'] });
       queryClient.invalidateQueries({ queryKey: ['finance-stats'] });
-      toast({ title: 'Despesa registada com sucesso!' });
+      toast({ title: tr('Despesa registada com sucesso!') });
     },
     onError: (error) => {
       console.error('Error creating expense:', error);
       toast({
-        title: 'Erro ao registar despesa',
-        description: 'Não foi possível registar a despesa.',
+        title: tr('Erro ao registar despesa'),
+        description: tr('Não foi possível registar a despesa.'),
         variant: 'destructive',
       });
     },
@@ -139,12 +140,12 @@ export function useUpdateExpense() {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenses-stats'] });
       queryClient.invalidateQueries({ queryKey: ['finance-stats'] });
-      toast({ title: 'Despesa atualizada!' });
+      toast({ title: tr('Despesa atualizada!') });
     },
     onError: (error) => {
       console.error('Error updating expense:', error);
       toast({
-        title: 'Erro ao atualizar despesa',
+        title: tr('Erro ao atualizar despesa'),
         variant: 'destructive',
       });
     },
@@ -165,12 +166,12 @@ export function useDeleteExpense() {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenses-stats'] });
       queryClient.invalidateQueries({ queryKey: ['finance-stats'] });
-      toast({ title: 'Despesa removida!' });
+      toast({ title: tr('Despesa removida!') });
     },
     onError: (error) => {
       console.error('Error deleting expense:', error);
       toast({
-        title: 'Erro ao remover despesa',
+        title: tr('Erro ao remover despesa'),
         variant: 'destructive',
       });
     },

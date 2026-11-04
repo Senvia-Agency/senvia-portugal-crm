@@ -9,6 +9,7 @@ import { useMonthlyObjectives, ObjectiveTotals, MonthlyObjective } from "@/hooks
 import { useTeamMembers } from "@/hooks/useTeam";
 import { useAuth } from "@/contexts/AuthContext";
 import { useModules } from "@/hooks/useModules";
+import { useLanguage } from "@/i18n";
 
 interface EditObjectiveModalProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface EditObjectiveModalProps {
 }
 
 export function EditObjectiveModal({ open, onOpenChange, objectives, preselectedUserId }: EditObjectiveModalProps) {
+  const { t } = useLanguage();
   const { saveObjective } = useMonthlyObjectives();
   const { data: members = [] } = useTeamMembers();
   const { organization } = useAuth();
@@ -68,15 +70,15 @@ export function EditObjectiveModal({ open, onOpenChange, objectives, preselected
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md w-full p-0 gap-0">
         <DialogHeader className="p-4 md:p-6 pb-2">
-          <DialogTitle>Definir Objetivo Mensal</DialogTitle>
+          <DialogTitle>{t("Definir Objetivo Mensal")}</DialogTitle>
         </DialogHeader>
 
         <div className="px-4 md:px-6 pb-4 space-y-4">
           <div>
-            <Label className="text-xs">Colaborador</Label>
+            <Label className="text-xs">{t("Colaborador")}</Label>
             <Select value={selectedUserId} onValueChange={handleUserChange}>
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Selecionar colaborador" />
+                <SelectValue placeholder={t("Selecionar colaborador")} />
               </SelectTrigger>
               <SelectContent>
                 {members.map((m) => (
@@ -86,32 +88,32 @@ export function EditObjectiveModal({ open, onOpenChange, objectives, preselected
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Nº de NIFs</Label>
-            <Input type="number" value={totals.total_nifs || ""} onChange={(e) => setTotals({ ...totals, total_nifs: Number(e.target.value) || 0 })} placeholder="Ex: 5" className="h-9 text-sm" />
+            <Label className="text-xs">{t("Nº de NIFs")}</Label>
+            <Input type="number" value={totals.total_nifs || ""} onChange={(e) => setTotals({ ...totals, total_nifs: Number(e.target.value) || 0 })} placeholder={t("Ex: {{value}}", { value: "5" })} className="h-9 text-sm" />
           </div>
           {showEnergy && (
             <>
               <div>
-                <Label className="text-xs">Total Energia (MWh)</Label>
-                <Input type="number" step="0.01" value={totals.total_energia_mwh || ""} onChange={(e) => setTotals({ ...totals, total_energia_mwh: Number(e.target.value) || 0 })} placeholder="Ex: 12.5" className="h-9 text-sm" />
+                <Label className="text-xs">{t("Total Energia (MWh)")}</Label>
+                <Input type="number" step="0.01" value={totals.total_energia_mwh || ""} onChange={(e) => setTotals({ ...totals, total_energia_mwh: Number(e.target.value) || 0 })} placeholder={t("Ex: {{value}}", { value: "12.5" })} className="h-9 text-sm" />
               </div>
               <div>
-                <Label className="text-xs">Total Solar (kWp)</Label>
-                <Input type="number" step="0.01" value={totals.total_solar_kwp || ""} onChange={(e) => setTotals({ ...totals, total_solar_kwp: Number(e.target.value) || 0 })} placeholder="Ex: 8.0" className="h-9 text-sm" />
+                <Label className="text-xs">{t("Total Solar (kWp)")}</Label>
+                <Input type="number" step="0.01" value={totals.total_solar_kwp || ""} onChange={(e) => setTotals({ ...totals, total_solar_kwp: Number(e.target.value) || 0 })} placeholder={t("Ex: {{value}}", { value: "8.0" })} className="h-9 text-sm" />
               </div>
             </>
           )}
           <div>
-            <Label className="text-xs">Total Comissão (€)</Label>
-            <Input type="number" step="0.01" value={totals.total_comissao || ""} onChange={(e) => setTotals({ ...totals, total_comissao: Number(e.target.value) || 0 })} placeholder="Ex: 1200" className="h-9 text-sm" />
+            <Label className="text-xs">{t("Total Comissão (€)")}</Label>
+            <Input type="number" step="0.01" value={totals.total_comissao || ""} onChange={(e) => setTotals({ ...totals, total_comissao: Number(e.target.value) || 0 })} placeholder={t("Ex: {{value}}", { value: "1200" })} className="h-9 text-sm" />
           </div>
         </div>
 
         <DialogFooter className="p-4 md:p-6 pt-2 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
           <Button onClick={handleSave} disabled={saveObjective.isPending || !selectedUserId}>
             {saveObjective.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Guardar
+            {t("Guardar")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,7 +8,7 @@ import { Zap, AlertTriangle, Clock, ChevronRight, Loader2, XCircle, RefreshCw, A
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import { RenewCpeModal } from '@/components/clients/RenewCpeModal';
 import { SwitchComercializadorModal } from '@/components/clients/SwitchComercializadorModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ function AlertCard({ cpe, variant, onRenew, onSwitch }: {
   onRenew: (cpe: CpeWithClient) => void;
   onSwitch: (cpe: CpeWithClient) => void;
 }) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const bgClass = variant === 'expired' ? 'bg-destructive/5 border-destructive/20' 
     : variant === 'urgent' ? 'bg-destructive/5 border-destructive/20' 
@@ -35,20 +36,20 @@ function AlertCard({ cpe, variant, onRenew, onSwitch }: {
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
         </div>
         <div className="text-xs text-muted-foreground mt-0.5">
-          {cpe.equipment_type} | {cpe.comercializador} | {format(new Date(cpe.fidelizacao_end), 'dd/MM/yyyy', { locale: pt })}
+          {cpe.equipment_type} | {cpe.comercializador} | {format(new Date(cpe.fidelizacao_end), 'dd/MM/yyyy', { locale: dateLocale() })}
           {cpe.days_until_expiry <= 0 && (
             <span className="text-destructive font-medium ml-1">
-              (expirado há {Math.abs(cpe.days_until_expiry)} dias)
+              {t("(expirado há {{n}} dias)", { n: Math.abs(cpe.days_until_expiry) })}
             </span>
           )}
         </div>
       </button>
       <div className="flex gap-1.5 mt-2">
         <Button size="sm" variant="outline" className="h-6 text-xs px-2 gap-1" onClick={() => onRenew(cpe)}>
-          <RefreshCw className="h-3 w-3" /> Renovar
+          <RefreshCw className="h-3 w-3" /> {t("Renovar")}
         </Button>
         <Button size="sm" variant="outline" className="h-6 text-xs px-2 gap-1" onClick={() => onSwitch(cpe)}>
-          <ArrowRightLeft className="h-3 w-3" /> Alterar
+          <ArrowRightLeft className="h-3 w-3" /> {t("Alterar")}
         </Button>
       </div>
     </div>
@@ -56,6 +57,7 @@ function AlertCard({ cpe, variant, onRenew, onSwitch }: {
 }
 
 export function FidelizationAlertsWidget() {
+  const { t } = useLanguage();
   const { data, isLoading } = useFidelizationAlerts();
   const { organization } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
@@ -63,7 +65,7 @@ export function FidelizationAlertsWidget() {
   const [switchCpe, setSwitchCpe] = useState<CpeWithClient | null>(null);
 
   const isTelecom = organization?.niche === 'telecom';
-  const title = isTelecom ? 'CPE/CUI a Expirar' : 'Fidelizações a Expirar';
+  const title = isTelecom ? t('CPE/CUI a Expirar') : t('Fidelizações a Expirar');
 
   if (isLoading) {
     return (
@@ -97,7 +99,7 @@ export function FidelizationAlertsWidget() {
           </CardTitle>
         </CardHeader>
         <CardContent className="py-6 text-center">
-          <p className="text-sm text-muted-foreground">Sem alertas pendentes</p>
+          <p className="text-sm text-muted-foreground">{t("Sem alertas pendentes")}</p>
         </CardContent>
       </Card>
     );
@@ -121,11 +123,11 @@ export function FidelizationAlertsWidget() {
         <CardContent className="pt-0 space-y-1.5">
           {previewItems.map((cpe) => (
             <div key={cpe.id} className="text-sm text-muted-foreground truncate">
-              {cpe.client_name} — {format(new Date(cpe.fidelizacao_end), 'dd/MM/yyyy', { locale: pt })}
+              {cpe.client_name} — {format(new Date(cpe.fidelizacao_end), 'dd/MM/yyyy', { locale: dateLocale() })}
             </div>
           ))}
           {remaining > 0 && (
-            <p className="text-xs text-primary font-medium">+ {remaining} mais...</p>
+            <p className="text-xs text-primary font-medium">{t("+ {{n}} mais...", { n: remaining })}</p>
           )}
         </CardContent>
       </Card>
@@ -138,7 +140,7 @@ export function FidelizationAlertsWidget() {
                 <Zap className="h-5 w-5 text-primary" />
                 {title}
               </DialogTitle>
-              <DialogDescription className="sr-only">Lista de alertas de fidelização a expirar</DialogDescription>
+              <DialogDescription className="sr-only">{t("Lista de alertas de fidelização a expirar")}</DialogDescription>
               <Badge variant="secondary">{totalAlerts}</Badge>
             </div>
           </DialogHeader>
@@ -148,7 +150,7 @@ export function FidelizationAlertsWidget() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-destructive">
                     <XCircle className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Expirados</span>
+                    <span className="text-xs font-medium">{t("Expirados")}</span>
                     <Badge variant="destructive" className="text-xs ml-auto">{expired.length}</Badge>
                   </div>
                   <div className="space-y-2">
@@ -163,7 +165,7 @@ export function FidelizationAlertsWidget() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Urgente (7 dias)</span>
+                    <span className="text-xs font-medium">{t("Urgente (7 dias)")}</span>
                     <Badge variant="destructive" className="text-xs ml-auto">{urgent.length}</Badge>
                   </div>
                   <div className="space-y-2">
@@ -178,7 +180,7 @@ export function FidelizationAlertsWidget() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-warning">
                     <Clock className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Próximos 30 dias</span>
+                    <span className="text-xs font-medium">{t("Próximos 30 dias")}</span>
                     <Badge variant="outline" className="text-xs ml-auto border-warning/50 text-warning">{upcoming.length}</Badge>
                   </div>
                   <div className="space-y-2">

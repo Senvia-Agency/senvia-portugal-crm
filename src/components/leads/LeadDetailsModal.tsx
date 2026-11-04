@@ -40,7 +40,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Select,
@@ -52,7 +51,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   MessageCircle, 
   Phone, 
@@ -76,7 +75,11 @@ import {
   Instagram,
   Twitter,
   Youtube,
-  Globe
+  Globe,
+  CalendarPlus,
+  Lock,
+  MoreHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -84,7 +87,9 @@ import { toast } from "@/hooks/use-toast";
 import { SendLeadEmailModal } from "./SendLeadEmailModal";
 import { isPlaceholderEmail, displayEmail } from "@/lib/leadUtils";
 import { RecordTasks } from "@/components/inbox/RecordTasks";
-import { ContactNotes } from "@/components/contacts/ContactNotes";
+import { LeadActivity } from "./LeadActivity";
+import { initialsOf, TEMPERATURE_PILLS } from "./lead-display";
+import { useLanguage } from "@/i18n";
 
 const TECHNICAL_TRACKING_KEYS = ['fbclid', 'gclid', 'fbc', 'fbp'] as const;
 const HIDDEN_CUSTOM_DATA_KEYS = ['metadata', 'prospect_id', 'source_file_name', 'prospect_source', 'cpe'] as const;
@@ -110,6 +115,8 @@ interface LeadDetailsModalProps {
   onDelete?: (leadId: string) => void;
   onUpdate?: (leadId: string, updates: Partial<Lead>) => void;
   inboxContact?: { name: string; phone: string | null };
+  /** Opens the new-event form for this lead ("Agendar"). */
+  onSchedule?: (lead: Lead) => void;
 }
 
 const statusStyles: Record<LeadStatus, string> = {
@@ -157,6 +164,7 @@ async function writeToClipboard(value: string): Promise<boolean> {
  * takes the whole value instead.
  */
 function CopyFieldButton({ value, label }: { value: string; label: string }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -171,13 +179,13 @@ function CopyFieldButton({ value, label }: { value: string; label: string }) {
     e.stopPropagation();
     const ok = await writeToClipboard(value);
     if (!ok) {
-      toast({ title: "Erro ao copiar", description: `Não foi possível copiar o ${label.toLowerCase()}.` });
+      toast({ title: t("Erro ao copiar"), description: t("Não foi possível copiar o {{field}}.", { field: t(label).toLowerCase() }) });
       return;
     }
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1500);
-    toast({ title: "Copiado", description: `${label} copiado para a área de transferência.` });
+    toast({ title: t("Copiado"), description: t("{{field}} copiado para a área de transferência.", { field: t(label) }) });
   };
 
   return (
@@ -189,8 +197,8 @@ function CopyFieldButton({ value, label }: { value: string; label: string }) {
       className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
       onMouseDown={(e) => e.preventDefault()}
       onClick={handleCopy}
-      aria-label={`Copiar ${label.toLowerCase()}`}
-      title={`Copiar ${label.toLowerCase()}`}
+      aria-label={t("Copiar {{field}}", { field: t(label).toLowerCase() })}
+      title={t("Copiar {{field}}", { field: t(label).toLowerCase() })}
     >
       {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
     </Button>
@@ -205,8 +213,10 @@ export function LeadDetailsModal({
   onDelete,
   onUpdate,
   inboxContact,
+  onSchedule,
 }: LeadDetailsModalProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const { canDeleteLeads, canManageTeam, isAdmin } = usePermissions();
@@ -258,7 +268,7 @@ export function LeadDetailsModal({
       gclid: 'Google Click ID',
       fbc: 'Facebook Cookie',
       fbp: 'Facebook Browser ID',
-      ref: 'Referência',
+      ref: t('Referência'),
     };
     
     Object.entries(lead.custom_data).forEach(([key, value]) => {
@@ -286,7 +296,7 @@ export function LeadDetailsModal({
       
       let displayValue = String(value);
       if (typeof value === 'boolean') {
-        displayValue = value ? 'Sim' : 'Não';
+        displayValue = value ? t('Sim') : t('Não');
       } else if (Array.isArray(value)) {
         displayValue = value.join(', ');
       }
@@ -295,14 +305,14 @@ export function LeadDetailsModal({
     });
     
     return entries;
-  }, [lead?.custom_data, customFields]);
+  }, [lead?.custom_data, customFields, t]);
 
   const copyTrackingValue = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      toast({ title: 'Copiado', description: 'Código copiado para a área de transferência.' });
+      toast({ title: t('Copiado'), description: t('Código copiado para a área de transferência.') });
     } catch {
-      toast({ title: 'Erro ao copiar', description: 'Não foi possível copiar o código.' });
+      toast({ title: t('Erro ao copiar'), description: t('Não foi possível copiar o código.') });
     }
   };
 
@@ -408,597 +418,414 @@ export function LeadDetailsModal({
     onOpenChange(false);
   };
 
+  const stageList = stages && stages.length > 0
+    ? stages
+    : Object.entries(STATUS_LABELS).map(([key, name]) => ({ key, name: t(name), color: "#64748b" }));
+  const currentStageIndex = stageList.findIndex((stage) => stage.key === lead.status);
+  const subtitle = [
+    lead.company_name && lead.company_name !== lead.name ? lead.company_name : null,
+    lead.company_nif ? t("NIF {{nif}}", { nif: lead.company_nif }) : null,
+    lead.source || null,
+    t("criada {{date}}", { date: formatDate(lead.created_at) }),
+  ].filter(Boolean).join(" · ");
+  const emailBlocked = !lead.email || isPlaceholderEmail(lead.email);
+  const editableInput = "h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 text-sm shadow-none transition-colors hover:border-border focus-visible:ring-1 focus-visible:ring-primary";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="fullScreen" className="flex flex-col p-0 gap-0">
-        {/* Fixed Header */}
-        <div className="border-b bg-background px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="shrink-0">
+      <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t("Ficha da lead {{name}}", { name: lead.name })}</DialogTitle>
+          <DialogDescription>{t("Contactos, fase, atividade e detalhes da lead")}</DialogDescription>
+        </DialogHeader>
+
+        {/* Header: who it is, how to reach them, and where they are in the pipeline. */}
+        <header className="shrink-0 border-b bg-background px-4 pb-3 pt-3 sm:px-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-3">
+            <Button variant="back" size="icon" onClick={() => onOpenChange(false)} className="h-9 w-9 shrink-0 rounded-full" aria-label={t("Voltar")}>
               <ArrowLeft className="h-4 w-4" />
-              Voltar
             </Button>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary" aria-hidden="true">
+              {initialsOf(editName || lead.name)}
+            </span>
+            <div className="min-w-0 flex-1 basis-48">
+              <div className="flex items-center gap-1">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onFocus={() => setIsEditingName(true)}
+                  onBlur={() => {
+                    if (editName.trim() && editName !== lead.name) {
+                      handleFieldSave("name", editName.trim());
+                    } else if (!editName.trim()) {
+                      setEditName(lead.name);
+                    }
+                    setTimeout(() => setIsEditingName(false), 600);
+                  }}
+                  aria-label={t("Nome da lead")}
+                  className="h-9 min-w-0 flex-1 border-transparent bg-transparent px-1.5 py-0 text-xl font-semibold tracking-tight shadow-none hover:border-border focus-visible:ring-1 focus-visible:ring-primary md:text-xl"
+                  placeholder={t("Nome do lead")}
+                />
+                {editName.trim() && <CopyFieldButton value={editName.trim()} label="Nome" />}
+              </div>
+              <p className="truncate px-1.5 text-xs text-muted-foreground">{subtitle}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400"
+                onClick={() => navigate(getInboxUrl(lead.phone))}>
+                <MessageCircle className="h-4 w-4" />WhatsApp
+              </Button>
+              <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => window.location.href = `tel:${lead.phone}`}>
+                <Phone className="h-4 w-4" />{t("Ligar")}
+              </Button>
+              <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead}>
+                <Button variant="outline" size="sm" className="h-9 rounded-full" disabled={emailBlocked} onClick={() => setShowEmailModal(true)}>
+                  <Mail className="h-4 w-4" />{t("Email")}
+                </Button>
+              </EmailTemplateGate>
+              {onSchedule && (
+                <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => onSchedule(lead)}>
+                  <CalendarPlus className="h-4 w-4" />{t("Agendar")}
+                </Button>
+              )}
+              {canDeleteLeads && onDelete && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label={t("Mais ações da lead")}><MoreHorizontal className="h-4 w-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setShowDeleteConfirm(true)}>
+                      <Trash2 className="mr-2 h-4 w-4" />{t("Eliminar lead (RGPD)")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
-          <DialogHeader className="sr-only">
-            <DialogTitle>Detalhes do Lead</DialogTitle>
-            <DialogDescription>Detalhes do lead</DialogDescription>
-          </DialogHeader>
-        </div>
+          <div className="mx-auto mt-3 w-full max-w-6xl">
+            <div className="flex gap-1 overflow-x-auto" role="group" aria-label={t("Fase da lead")}>
+              {stageList.map((stage, index) => {
+                const isCurrent = index === currentStageIndex;
+                const done = currentStageIndex >= 0 && index < currentStageIndex;
+                return (
+                  <button key={stage.key} type="button" disabled={isLeadLocked || isCurrent}
+                    aria-current={isCurrent ? "step" : undefined}
+                    title={isCurrent ? t("Fase atual") : t("Mover para {{stage}}", { stage: stage.name })}
+                    onClick={() => onStatusChange(lead.id, stage.key as LeadStatus)}
+                    className={cn("min-w-[5.5rem] flex-1 truncate rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-default",
+                      !isCurrent && !done && "bg-muted text-muted-foreground enabled:hover:bg-muted/70 enabled:hover:text-foreground",
+                      isCurrent && "text-white")}
+                    style={isCurrent ? { backgroundColor: stage.color } : done ? { backgroundColor: `${stage.color}22`, color: stage.color } : undefined}>
+                    {stage.name}
+                  </button>
+                );
+              })}
+            </div>
+            {isLeadLocked && (
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground"><Lock className="h-3 w-3" />{t("Apenas administradores podem mudar a fase de leads finalizadas.")}</p>
+            )}
+          </div>
+        </header>
 
         {inboxContact && (
           <div className="shrink-0 flex items-center gap-3 border-b bg-green-500/5 px-4 sm:px-6 py-2.5">
             <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0">WhatsApp</span>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
-              <button type="button" title="Clica para copiar o nome"
+              <button type="button" title={t("Clica para copiar o nome")}
                 onClick={() => navigator.clipboard.writeText(inboxContact.name)}
                 className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
                 <span className="truncate max-w-[200px]">{inboxContact.name}</span>
-                <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0 text-muted-foreground"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                <Copy className="h-3 w-3 shrink-0 text-muted-foreground" />
               </button>
               {inboxContact.phone && (
-                <button type="button" title="Clica para copiar o telefone"
+                <button type="button" title={t("Clica para copiar o telefone")}
                   onClick={() => navigator.clipboard.writeText(`+${inboxContact.phone}`)}
                   className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
                   <span>+{inboxContact.phone}</span>
-                  <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0 text-muted-foreground"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                  <Copy className="h-3 w-3 shrink-0 text-muted-foreground" />
                 </button>
               )}
             </div>
-            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">clica para copiar</span>
+            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{t("clica para copiar")}</span>
           </div>
         )}
 
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto w-full px-4 py-6 sm:px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              
-              {/* Left Column - Editable Data (3/5) */}
-              <div className="lg:col-span-3 space-y-6">
-                
-                {/* Status / Temperature / Tipologia Card */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">Estado & Classificação</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Status */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Estado</span>
-                      <Select
-                        value={lead.status}
-                        onValueChange={(value) => onStatusChange(lead.id, value as LeadStatus)}
-                        disabled={isLeadLocked}
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(stages && stages.length > 0 ? stages : Object.entries(STATUS_LABELS).map(([key, name]) => ({ key, name }))).map((stage) => (
-                            <SelectItem key={stage.key} value={stage.key}>
-                              {stage.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {isLeadLocked && (
-                        <p className="text-xs text-muted-foreground mt-1">🔒 Apenas administradores podem alterar o estado de leads finalizadas</p>
-                      )}
-                    </div>
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
 
-                    {/* Temperature */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Temperatura</span>
-                      <Select
-                        value={lead.temperature || 'cold'}
-                        onValueChange={(value) => onUpdate?.(lead.id, { temperature: value as LeadTemperature })}
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(TEMPERATURE_LABELS) as LeadTemperature[]).map((temp) => (
-                            <SelectItem key={temp} value={temp}>
-                              <div className="flex items-center gap-2">
-                                <Thermometer className={cn("h-4 w-4", TEMPERATURE_STYLES[temp].color)} />
-                                <span>{TEMPERATURE_STYLES[temp].emoji}</span>
-                                {TEMPERATURE_LABELS[temp]}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Tipologia - Only for Telecom */}
-                    {showEnergy && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Tipologia</span>
-                        <Select
-                          value={lead.tipologia || ''}
-                          onValueChange={(value) => onUpdate?.(lead.id, { tipologia: value as LeadTipologia })}
-                        >
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Selecionar tipologia" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(Object.keys(TIPOLOGIA_LABELS) as LeadTipologia[]).map((tipo) => (
-                              <SelectItem key={tipo} value={tipo}>
-                                <div className="flex items-center gap-2">
-                                  <span className={TIPOLOGIA_STYLES[tipo].color}>{TIPOLOGIA_STYLES[tipo].emoji}</span>
-                                  {TIPOLOGIA_LABELS[tipo]}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Assignment Card */}
-                {canManageTeam && teamMembers && teamMembers.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <UserCircle className="h-4 w-4" />
-                        Atribuição
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Select
-                        value={lead.assigned_to || 'unassigned'}
-                        onValueChange={(value) => onUpdate?.(lead.id, { assigned_to: value === 'unassigned' ? null : value })}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Não atribuído" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">
-                            <span className="text-muted-foreground">Não atribuído</span>
-                          </SelectItem>
-                          {teamMembers
-                            .filter(m => !m.is_banned && (m.role === 'salesperson' || m.role === 'admin' || m.role === 'viewer'))
-                            .map((member) => (
-                              <SelectItem key={member.user_id} value={member.user_id}>
-                                {member.full_name} ({ROLE_LABELS[member.role] || member.role}){member.is_paused ? ' · Pausado' : ''}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Value / Consumo Card */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      {showEnergy ? <Zap className="h-4 w-4" /> : <Euro className="h-4 w-4" />}
-                      {showEnergy ? 'Consumo Anual/kWp (kWh)' : 'Valor do Negócio'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {showEnergy ? (
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={editConsumo}
-                          onChange={handleConsumoChange}
-                          onFocus={() => setIsEditingConsumo(true)}
-                          onBlur={handleConsumoBlur}
-                          className="pr-12"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">kWh</span>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={editValue}
-                          onChange={handleValueChange}
-                          onFocus={() => setIsEditingValue(true)}
-                          onBlur={handleValueBlur}
-                          className="pl-8"
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* CPE/CUI Card - P2G only */}
-                {isP2G && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Zap className="h-4 w-4" />
-                        CPE / CUI
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Input
-                        type="text"
-                        placeholder="PT00..."
-                        value={editCpe}
-                        onChange={(e) => setEditCpe(e.target.value)}
-                        onFocus={() => setIsEditingCpe(true)}
-                        onBlur={() => {
-                          const currentCpe = (lead.custom_data as Record<string, unknown>)?.cpe as string || "";
-                          if (editCpe !== currentCpe) {
-                            onUpdate?.(lead.id, {
-                              custom_data: { ...(lead.custom_data as Record<string, unknown> || {}), cpe: editCpe || null },
-                            } as Partial<Lead>);
-                          }
-                          setTimeout(() => setIsEditingCpe(false), 600);
-                        }}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Unified contact notes (shared with the inbox & client record) */}
-                <ContactNotes phone={lead.phone} source="crm" />
-
-                {/* Lead's own notes — e.g. the address + operator captured by the
-                    inbound webhook/form. Shown whenever present (or being edited)
-                    so those answers stay visible, as they were before. */}
-                {(lead.notes || isEditingNotes) && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Notas
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Textarea
-                        ref={notesRef}
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        onFocus={() => setIsEditingNotes(true)}
-                        onBlur={() => { setIsEditingNotes(false); handleNotesBlur(); }}
-                        placeholder="Notas do lead..."
-                        rows={3}
-                        className="min-h-[96px] max-h-[60dvh] resize-none overflow-y-auto text-sm leading-relaxed"
-                      />
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Tarefas da conversa (Caixa de Entrada) */}
-                <RecordTasks phone={lead.phone} />
-
-                {/* Attachments Card - Telecom only */}
-                {isTelecom && lead.id && (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <LeadAttachments leadId={lead.id} />
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Form Responses Card */}
-                {formResponses.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <ClipboardList className="h-4 w-4" />
-                        Respostas do Formulário
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {formResponses.map((entry, index) => (
-                        <div key={index} className="rounded-lg bg-muted/50 p-3">
-                          <p className="text-xs text-muted-foreground mb-1">{entry.label}</p>
-                          <p className="text-sm text-foreground">{entry.value}</p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* UTM Data Card */}
-                {utmData.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Target className="h-4 w-4" />
-                        Dados de Campanha
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {utmData.map((entry, index) => {
-                          const isTechnicalTracking = TECHNICAL_TRACKING_KEYS.includes(entry.key as typeof TECHNICAL_TRACKING_KEYS[number]);
-                          const displayValue = isTechnicalTracking ? shortenTrackingValue(entry.value) : entry.value;
-
-                          return (
-                            <div key={index} className="min-w-0 rounded-lg bg-muted/50 p-2">
-                              <p className="text-xs text-muted-foreground">{entry.label}</p>
-                              <div className="mt-1 flex items-start gap-2 min-w-0">
-                                <p
-                                  className="min-w-0 flex-1 overflow-hidden text-sm text-foreground break-words"
-                                  title={entry.value}
-                                >
-                                  {displayValue}
-                                </p>
-                                {isTechnicalTracking && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    className="shrink-0"
-                                    onClick={() => copyTrackingValue(entry.value)}
-                                    aria-label={`Copiar ${entry.label}`}
-                                    title={`Copiar ${entry.label}`}
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+            {/* Activity: notes, meetings and what came with the lead. */}
+            <div className="min-w-0 space-y-8">
+              <div className="space-y-3">
+                <h2 className={sectionTitle}>{t("Atividade")}</h2>
+                <LeadActivity lead={lead} />
               </div>
 
-              {/* Right Column - Summary & Actions (2/5, sticky) */}
-              <div className="lg:col-span-2">
-                <div className="lg:sticky lg:top-0 space-y-6">
-                  
-                  {/* Contact Info Card */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold">Informações de Contacto</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {/* Nome editável */}
-                      <div className="flex items-center gap-3 text-sm">
-                        <UserCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onFocus={() => setIsEditingName(true)}
-                          onBlur={() => {
-                            if (editName.trim() && editName !== lead.name) {
-                              handleFieldSave("name", editName.trim());
-                            } else if (!editName.trim()) {
-                              setEditName(lead.name);
-                            }
-                            setTimeout(() => setIsEditingName(false), 600);
-                          }}
-                          className="h-8 min-w-0 flex-1 text-sm font-semibold border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
-                          placeholder="Nome do lead"
-                        />
-                        {editName.trim() && <CopyFieldButton value={editName.trim()} label="Nome" />}
-                      </div>
+              <RecordTasks phone={lead.phone} />
 
-                      {/* NIF Empresa */}
-                      {lead.company_nif && (
-                        <div className="flex items-center gap-3 text-sm">
-                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-foreground">
-                            NIF: <strong>{lead.company_nif}</strong>
-                            {lead.company_name && <> — {lead.company_name}</>}
-                          </span>
+              {/* Lead's own notes — e.g. the address + operator captured by the
+                  inbound webhook/form. Shown whenever present (or being edited). */}
+              {(lead.notes || isEditingNotes) && (
+                <div className="space-y-2">
+                  <h2 className={sectionTitle}><FileText className="h-3.5 w-3.5" />{t("Notas da lead")}</h2>
+                  <Textarea
+                    ref={notesRef}
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    onFocus={() => setIsEditingNotes(true)}
+                    onBlur={() => { setIsEditingNotes(false); handleNotesBlur(); }}
+                    placeholder={t("Notas do lead...")}
+                    rows={3}
+                    className="min-h-[96px] max-h-[60dvh] resize-none overflow-y-auto rounded-xl text-sm leading-relaxed"
+                  />
+                </div>
+              )}
+
+              {formResponses.length > 0 && (
+                <div className="space-y-2">
+                  <h2 className={sectionTitle}><ClipboardList className="h-3.5 w-3.5" />{t("Respostas do formulário")}</h2>
+                  <dl className="divide-y rounded-xl border">
+                    {formResponses.map((entry, index) => (
+                      <div key={index} className="grid gap-1 px-3 py-2.5 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-3">
+                        <dt className="text-xs text-muted-foreground">{entry.label}</dt>
+                        <dd className="break-words text-sm">{entry.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
+              {utmData.length > 0 && (
+                <div className="space-y-2">
+                  <h2 className={sectionTitle}><Target className="h-3.5 w-3.5" />{t("Dados de campanha")}</h2>
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                    {utmData.map((entry, index) => {
+                      const isTechnicalTracking = TECHNICAL_TRACKING_KEYS.includes(entry.key as typeof TECHNICAL_TRACKING_KEYS[number]);
+                      const displayValue = isTechnicalTracking ? shortenTrackingValue(entry.value) : entry.value;
+                      return (
+                        <div key={index} className="min-w-0">
+                          <dt className="text-xs text-muted-foreground">{entry.label}</dt>
+                          <dd className="mt-0.5 flex min-w-0 items-start gap-1">
+                            <span className="min-w-0 flex-1 break-words text-sm" title={entry.value}>{displayValue}</span>
+                            {isTechnicalTracking && (
+                              <Button type="button" variant="ghost" size="icon-sm" className="shrink-0" onClick={() => copyTrackingValue(entry.value)}
+                                aria-label={t("Copiar {{field}}", { field: entry.label })} title={t("Copiar {{field}}", { field: entry.label })}>
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </dd>
                         </div>
-                      )}
-                      
-                      <div className="flex items-center gap-3 text-sm">
-                        <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      );
+                    })}
+                  </dl>
+                </div>
+              )}
+
+              {isTelecom && lead.id && (
+                <div className="rounded-xl border p-4">
+                  <LeadAttachments leadId={lead.id} />
+                </div>
+              )}
+            </div>
+
+            {/* Details: everything about the lead you can read or change at a glance. */}
+            <aside className="min-w-0">
+              <div className="space-y-6 lg:sticky lg:top-0">
+                <div>
+                  <h2 className={cn(sectionTitle, "mb-1")}>{t("Detalhes")}</h2>
+                  <div className="divide-y divide-border/60">
+                    <DetailRow icon={Phone} label="Telefone">
+                      <div className="flex items-center">
                         <Input
                           type="tel"
                           value={editPhone}
                           onChange={(e) => setEditPhone(e.target.value)}
                           onFocus={() => setIsEditingPhone(true)}
                           onBlur={() => {
-                            if (editPhone !== lead.phone) {
-                              handleFieldSave("phone", editPhone);
-                            }
+                            if (editPhone !== lead.phone) handleFieldSave("phone", editPhone);
                             setTimeout(() => setIsEditingPhone(false), 600);
                           }}
-                          className="h-8 min-w-0 flex-1 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
-                          placeholder="Telefone"
+                          className={editableInput}
+                          placeholder={t("Telefone")}
                         />
                         {editPhone.trim() && <CopyFieldButton value={editPhone.trim()} label="Telefone" />}
                       </div>
-                      
-                      <div className="flex items-center gap-3 text-sm">
-                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    </DetailRow>
+                    <DetailRow icon={Mail} label="Email">
+                      <div className="flex items-center">
                         <Input
                           type="email"
                           value={editEmail}
                           onChange={(e) => setEditEmail(e.target.value)}
                           onFocus={() => setIsEditingEmail(true)}
                           onBlur={() => {
-                            if (editEmail !== lead.email) {
-                              handleFieldSave("email", editEmail);
-                            }
+                            if (editEmail !== lead.email) handleFieldSave("email", editEmail);
                             setTimeout(() => setIsEditingEmail(false), 600);
                           }}
-                          className="h-8 min-w-0 flex-1 text-sm border-transparent bg-transparent px-2 focus-visible:ring-1 focus-visible:ring-primary hover:border-muted-foreground/30 transition-colors"
-                          placeholder="Email"
+                          className={editableInput}
+                          placeholder={t("Email")}
                         />
-                        {editEmail.trim() && !isPlaceholderEmail(editEmail) && (
-                          <CopyFieldButton value={editEmail.trim()} label="Email" />
-                        )}
+                        {editEmail.trim() && !isPlaceholderEmail(editEmail) && <CopyFieldButton value={editEmail.trim()} label="Email" />}
                       </div>
-
-                      <div className="flex items-center gap-3 text-sm">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>Criada: {formatDateTime(lead.created_at)}</span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-sm">
-                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                        <span>Origem: {lead.source || 'Não identificada'}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Google Maps & Social Media - Prospect data */}
-                  {prospectMetadata && (prospectMetadata.googleMapsUrl || socialMediaIcons.some(s => prospectMetadata[s.key as keyof typeof prospectMetadata])) && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          Dados do Prospect
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {prospectMetadata.googleMapsUrl && (
-                          <a
-                            href={prospectMetadata.googleMapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-sm text-primary hover:underline"
-                          >
-                            <MapPin className="h-4 w-4" />
-                            Ver no Google Maps
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                        {prospectMetadata.address && (
-                          <p className="text-sm text-muted-foreground">{prospectMetadata.address}</p>
-                        )}
-                        {prospectMetadata.rating && (
-                          <p className="text-sm text-muted-foreground">⭐ {prospectMetadata.rating} estrelas</p>
-                        )}
-                        {prospectMetadata.website && (
-                          <a
-                            href={prospectMetadata.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-sm text-primary hover:underline"
-                          >
-                            <Globe className="h-4 w-4" />
-                            Website
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                        {socialMediaIcons.some(s => prospectMetadata[s.key as keyof typeof prospectMetadata]) && (
-                          <div className="flex items-center gap-2 pt-1">
-                            {socialMediaIcons.map(({ key, icon: Icon, label }) => {
-                              const url = prospectMetadata[key as keyof typeof prospectMetadata] as string | null;
-                              if (!url) return null;
-                              return (
-                                <a
-                                  key={key}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title={label}
-                                  className="text-muted-foreground transition-colors hover:text-primary"
-                                >
-                                  <Icon className="h-5 w-5" />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* GDPR */}
-                  <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3">
-                    <Shield className={lead.gdpr_consent ? "h-5 w-5 text-success" : "h-5 w-5 text-destructive"} />
-                    <span className="text-sm">
-                      {lead.gdpr_consent ? "Consentimento RGPD obtido" : "Sem consentimento RGPD"}
-                    </span>
+                    </DetailRow>
+                    <DetailRow icon={Thermometer} label="Temperatura">
+                      <Select value={lead.temperature || 'cold'} onValueChange={(value) => onUpdate?.(lead.id, { temperature: value as LeadTemperature })}>
+                        <SelectTrigger className="h-8 border-transparent px-2 shadow-none hover:border-border"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(TEMPERATURE_LABELS) as LeadTemperature[]).map((temp) => (
+                            <SelectItem key={temp} value={temp}>
+                              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TEMPERATURE_PILLS[temp])}>{t(TEMPERATURE_LABELS[temp])}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </DetailRow>
+                    {showEnergy && (
+                      <DetailRow icon={Zap} label="Tipologia">
+                        <Select value={lead.tipologia || ''} onValueChange={(value) => onUpdate?.(lead.id, { tipologia: value as LeadTipologia })}>
+                          <SelectTrigger className="h-8 border-transparent px-2 shadow-none hover:border-border"><SelectValue placeholder={t("Escolher")} /></SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(TIPOLOGIA_LABELS) as LeadTipologia[]).map((tipo) => (
+                              <SelectItem key={tipo} value={tipo}>
+                                <span className={TIPOLOGIA_STYLES[tipo].color}>{TIPOLOGIA_STYLES[tipo].emoji}</span> {t(TIPOLOGIA_LABELS[tipo])}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </DetailRow>
+                    )}
+                    {canManageTeam && teamMembers && teamMembers.length > 0 && (
+                      <DetailRow icon={UserCircle} label="Responsável">
+                        <Select value={lead.assigned_to || 'unassigned'} onValueChange={(value) => onUpdate?.(lead.id, { assigned_to: value === 'unassigned' ? null : value })}>
+                          <SelectTrigger className="h-8 border-transparent px-2 shadow-none hover:border-border"><SelectValue placeholder={t("Não atribuído")} /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned"><span className="text-muted-foreground">{t("Não atribuído")}</span></SelectItem>
+                            {teamMembers
+                              .filter(m => !m.is_banned && (m.role === 'salesperson' || m.role === 'admin' || m.role === 'viewer'))
+                              .map((member) => (
+                                <SelectItem key={member.user_id} value={member.user_id}>
+                                  {member.full_name} ({ROLE_LABELS[member.role] ? t(ROLE_LABELS[member.role]) : member.role}){member.is_paused ? ` · ${t('Pausado')}` : ''}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </DetailRow>
+                    )}
+                    {showEnergy ? (
+                      <DetailRow icon={Zap} label="Consumo anual">
+                        <div className="relative">
+                          <Input type="text" inputMode="numeric" placeholder="0" value={editConsumo} onChange={handleConsumoChange}
+                            onFocus={() => setIsEditingConsumo(true)} onBlur={handleConsumoBlur} className={cn(editableInput, "pr-12")} />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">kWh</span>
+                        </div>
+                      </DetailRow>
+                    ) : (
+                      <DetailRow icon={Euro} label="Valor">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                          <Input type="text" inputMode="numeric" placeholder="0" value={editValue} onChange={handleValueChange}
+                            onFocus={() => setIsEditingValue(true)} onBlur={handleValueBlur} className={cn(editableInput, "pl-6")} />
+                        </div>
+                      </DetailRow>
+                    )}
+                    {isP2G && (
+                      <DetailRow icon={Zap} label="CPE / CUI">
+                        <Input
+                          type="text"
+                          placeholder="PT00..."
+                          value={editCpe}
+                          onChange={(e) => setEditCpe(e.target.value)}
+                          onFocus={() => setIsEditingCpe(true)}
+                          onBlur={() => {
+                            const currentCpe = (lead.custom_data as Record<string, unknown>)?.cpe as string || "";
+                            if (editCpe !== currentCpe) {
+                              onUpdate?.(lead.id, {
+                                custom_data: { ...(lead.custom_data as Record<string, unknown> || {}), cpe: editCpe || null },
+                              } as Partial<Lead>);
+                            }
+                            setTimeout(() => setIsEditingCpe(false), 600);
+                          }}
+                          className={editableInput}
+                        />
+                      </DetailRow>
+                    )}
+                    <DetailRow icon={ExternalLink} label="Origem"><span className="px-2">{lead.source || t('Não identificada')}</span></DetailRow>
+                    <DetailRow icon={Calendar} label="Criada"><span className="px-2">{formatDateTime(lead.created_at)}</span></DetailRow>
+                    <DetailRow icon={Shield} label="RGPD">
+                      <span className={cn("px-2", lead.gdpr_consent ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                        {lead.gdpr_consent ? t("Consentimento obtido") : t("Sem consentimento")}
+                      </span>
+                    </DetailRow>
                   </div>
-
-                  {/* Quick Actions */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold">Ações Rápidas</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <Button
-                        variant="whatsapp"
-                        className="w-full"
-                        onClick={() => navigate(getInboxUrl(lead.phone))}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Enviar WhatsApp
-                      </Button>
-                      <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.lead}>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          disabled={!lead.email || isPlaceholderEmail(lead.email)}
-                          onClick={() => setShowEmailModal(true)}
-                        >
-                          <Mail className="h-4 w-4" />
-                          Enviar Email
-                        </Button>
-                      </EmailTemplateGate>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => window.location.href = `tel:${lead.phone}`}
-                      >
-                        <Phone className="h-4 w-4" />
-                        Ligar
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  {lead && (
-                    <SendLeadEmailModal
-                      lead={lead}
-                      open={showEmailModal}
-                      onOpenChange={setShowEmailModal}
-                    />
-                  )}
-
-                  {/* Back Button */}
-                  <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
-                    <ArrowLeft className="h-4 w-4" />
-                    Voltar
-                  </Button>
-
-                  {/* Delete Action */}
-                  {canDeleteLeads && (
-                    <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="w-full">
-                          <Trash2 className="h-4 w-4" />
-                          Eliminar Lead (RGPD)
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar eliminação</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Está prestes a eliminar permanentemente esta lead e todos os dados associados, 
-                            em conformidade com o Direito ao Esquecimento do RGPD. Esta ação não pode ser revertida.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Eliminar permanentemente
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
                 </div>
+
+                {/* Google Maps & social media - prospect data */}
+                {prospectMetadata && (prospectMetadata.googleMapsUrl || prospectMetadata.website || socialMediaIcons.some(s => prospectMetadata[s.key as keyof typeof prospectMetadata])) && (
+                  <div className="space-y-2">
+                    <h2 className={sectionTitle}><MapPin className="h-3.5 w-3.5" />{t("Dados do prospect")}</h2>
+                    {prospectMetadata.address && <p className="text-sm text-muted-foreground">{prospectMetadata.address}</p>}
+                    {prospectMetadata.rating && <p className="text-sm text-muted-foreground">⭐ {t("{{n}} estrelas", { n: prospectMetadata.rating })}</p>}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {prospectMetadata.googleMapsUrl && (
+                        <a href={prospectMetadata.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
+                          <MapPin className="h-4 w-4" />Google Maps
+                        </a>
+                      )}
+                      {prospectMetadata.website && (
+                        <a href={prospectMetadata.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
+                          <Globe className="h-4 w-4" />{t("Website")}
+                        </a>
+                      )}
+                      {socialMediaIcons.map(({ key, icon: Icon, label }) => {
+                        const url = prospectMetadata[key as keyof typeof prospectMetadata] as string | null;
+                        if (!url) return null;
+                        return (
+                          <a key={key} href={url} target="_blank" rel="noopener noreferrer" title={label} className="text-muted-foreground transition-colors hover:text-primary">
+                            <Icon className="h-5 w-5" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </aside>
           </div>
         </div>
+
+        <SendLeadEmailModal lead={lead} open={showEmailModal} onOpenChange={setShowEmailModal} />
+
+        {canDeleteLeads && onDelete && (
+          <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("Confirmar eliminação")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("Está prestes a eliminar permanentemente esta lead e todos os dados associados, em conformidade com o Direito ao Esquecimento do RGPD. Esta ação não pode ser revertida.")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {t("Eliminar permanentemente")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+const sectionTitle = "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+/** One label/value line of the details column. */
+function DetailRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
+  const { t } = useLanguage();
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-2 py-1.5 text-sm">
+      <span className="flex items-center gap-2 text-muted-foreground"><Icon className="h-4 w-4 shrink-0" />{t(label)}</span>
+      <div className="min-w-0">{children}</div>
+    </div>
   );
 }

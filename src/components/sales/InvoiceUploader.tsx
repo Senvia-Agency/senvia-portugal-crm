@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n";
 
 interface InvoiceUploaderProps {
   value: string | null;
@@ -21,18 +22,19 @@ export function InvoiceUploader({
   organizationId,
   disabled = false,
 }: InvoiceUploaderProps) {
+  const { t } = useLanguage();
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error("Tipo de ficheiro não suportado. Use PDF, PNG ou JPG.");
+      toast.error(t("Tipo de ficheiro não suportado. Use PDF, PNG ou JPG."));
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("Ficheiro demasiado grande. Máximo 10MB.");
+      toast.error(t("Ficheiro demasiado grande. Máximo 10MB."));
       return;
     }
 
@@ -50,16 +52,16 @@ export function InvoiceUploader({
 
       if (uploadError) {
         console.error("Upload error:", uploadError);
-        toast.error("Erro ao carregar ficheiro");
+        toast.error(t("Erro ao carregar ficheiro"));
         return;
       }
 
       // Store just the path (not full URL since bucket is private)
       onChange(path);
-      toast.success("Ficheiro anexado com sucesso");
+      toast.success(t("Ficheiro anexado com sucesso"));
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Erro ao carregar ficheiro");
+      toast.error(t("Erro ao carregar ficheiro"));
     } finally {
       setIsUploading(false);
     }
@@ -95,10 +97,10 @@ export function InvoiceUploader({
     try {
       await supabase.storage.from('invoices').remove([value]);
       onChange(null);
-      toast.success("Ficheiro removido");
+      toast.success(t("Ficheiro removido"));
     } catch (error) {
       console.error("Remove error:", error);
-      toast.error("Erro ao remover ficheiro");
+      toast.error(t("Erro ao remover ficheiro"));
     }
   };
 
@@ -153,17 +155,17 @@ export function InvoiceUploader({
         {isUploading ? (
           <>
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">A carregar...</span>
+            <span className="text-sm text-muted-foreground">{t("A carregar...")}</span>
           </>
         ) : (
           <>
             <Upload className="h-6 w-6 text-muted-foreground" />
             <div>
               <span className="text-sm text-muted-foreground">
-                Arraste ou clique para anexar
+                {t("Arraste ou clique para anexar")}
               </span>
               <p className="text-xs text-muted-foreground/70 mt-1">
-                PDF, PNG, JPG • Máx. 10MB
+                {t("PDF, PNG, JPG • Máx. 10MB")}
               </p>
             </div>
           </>

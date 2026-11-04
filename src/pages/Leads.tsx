@@ -6,7 +6,9 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 import { ResponsiveKanban } from "@/components/leads/ResponsiveKanban";
 import { LeadsTableView } from "@/components/leads/LeadsTableView";
-import { LeadsToolbar } from '@/components/leads/LeadsToolbar';
+import { LeadsToolbar, type LeadsView } from '@/components/leads/LeadsToolbar';
+import { LeadsFilterBar } from '@/components/leads/LeadsFilterBar';
+import { toggled } from '@/components/shared/filter-pills';
 import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
 import { ImportLeadsDialog } from "@/components/leads/ImportLeadsDialog";
@@ -19,8 +21,6 @@ import { CreateClientModal } from "@/components/clients/CreateClientModal";
 import { CreateSaleModal } from "@/components/sales/CreateSaleModal";
 import { LostLeadDialog } from "@/components/leads/LostLeadDialog";
 
-import { TeamMemberFilter } from "@/components/dashboard/TeamMemberFilter";
-import { SlidersHorizontal } from "lucide-react";
 import { BulkActionsBar } from "@/components/shared/BulkActionsBar";
 import { AssignTeamMemberModal } from "@/components/shared/AssignTeamMemberModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,28 +35,24 @@ import { useLeads, useUpdateLeadStatus, useDeleteLead, useUpdateLead, useArchive
 import { ArchiveByStageDialog } from "@/components/leads/ArchiveByStageDialog";
 import { useClients, useConvertLeadToClient } from "@/hooks/useClients";
 import { useLeadsRealtime, useProposalsRealtime } from "@/hooks/useRealtimeSubscription";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Users, Loader2, X, Plus, LayoutGrid, Zap, BarChart3, Upload } from "lucide-react";
+import { Search, Users, Loader2, Plus, Upload } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { format, endOfDay, startOfDay } from "date-fns";
 import { matchesSearch } from "@/lib/utils";
 import { mapLeadsForExport, exportToCsv, exportToExcel } from "@/lib/export";
+import type { ExportKind } from "@/components/shared/ExportMenu";
 import { toast } from "sonner";
 import type { Lead, LeadTemperature, LeadTipologia } from "@/types";
-import { TIPOLOGIA_LABELS } from "@/types";
 import { LeadsReportPanel } from "@/components/leads/LeadsReportPanel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useModules } from "@/hooks/useModules";
+import { useLanguage } from "@/i18n";
 
 export default function Leads() {
   // Subscribe to realtime updates
   useLeadsRealtime();
   useProposalsRealtime();
+  const { t } = useLanguage();
   const { user, profile, organization } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: leads = [], isLoading } = useLeads();
@@ -135,8 +131,9 @@ export default function Leads() {
   const { modules } = useModules();
   const showEnergy = isTelecom && modules.energy;
   const [tipologiaFilter, setTipologiaFilter] = usePersistedState<'all' | LeadTipologia>('leads-tipologia-v1', 'all');
-  // The filter block opens under the pinned title row on demand; remembered.
-  const [leadsFiltersOpen, setLeadsFiltersOpen] = usePersistedState<boolean>('leads-filters-open-v1', false);
+  // Several temperatures and sources can be ticked at once, as with the stages.
+  const [temperatureFilter, setTemperatureFilter] = usePersistedState<LeadTemperature[]>('leads-temperature-v2', []);
+  const [sourceFilter, setSourceFilter] = usePersistedState<string[]>('leads-source-v2', []);
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>(() => {
     const saved = localStorage.getItem('leads-view-mode');
     return (saved === 'table' || saved === 'kanban') ? saved : 'kanban';
@@ -182,12 +179,29 @@ export default function Leads() {
     setSearchQuery("");
     setStatusFilter([]);
     setDateRange({ from: undefined, to: undefined });
+    setTemperatureFilter([]);
+    setSourceFilter([]);
+    setTipologiaFilter('all');
   };
 
   // Clear selection when filters change or when switching active/archived view
   useEffect(() => {
     setSelectedIds([]);
-  }, [searchQuery, statusFilter, dateRange, showArchived]);
+  }, [searchQuery, statusFilter, dateRange, temperatureFilter, sourceFilter, showArchived]);
+
+  const view: LeadsView = activeTab === 'report' ? 'report' : effectiveViewMode;
+  const changeView = (next: LeadsView) => {
+    if (next === 'report') { setActiveTab('report'); return; }
+    setActiveTab('pipeline');
+    setViewMode(next);
+  };
+
+  // The "Origem" filter offers the sources these leads actually have, most used first.
+  const sourceOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const lead of baseLeads) if (lead.source) counts.set(lead.source, (counts.get(lead.source) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt')).map(([value, count]) => ({ value, count }));
+  }, [baseLeads]);
 
   // Count of ACTIVE leads per stage (for the "Archive by stage" dialog)
   const activeCountsByStage = useMemo(() => {
@@ -196,7 +210,8 @@ export default function Leads() {
     return m;
   }, [leads]);
 
-  const hasActiveFilters = searchQuery || statusFilter.length > 0 || dateRange.from || dateRange.to;
+  const hasActiveFilters = !!searchQuery || statusFilter.length > 0 || !!dateRange.from || !!dateRange.to
+    || temperatureFilter.length > 0 || sourceFilter.length > 0 || (showEnergy && tipologiaFilter !== 'all');
 
   const filteredLeads = useMemo(() => {
     const fromDate = dateRange.from ? startOfDay(dateRange.from) : null;
@@ -217,10 +232,12 @@ export default function Leads() {
         (!toDate || (leadDate && leadDate <= toDate));
 
       const matchesTipologia = tipologiaFilter === 'all' || lead.tipologia === tipologiaFilter;
+      const matchesTemperature = temperatureFilter.length === 0 || temperatureFilter.includes(lead.temperature || 'cold');
+      const matchesSource = sourceFilter.length === 0 || (!!lead.source && sourceFilter.includes(lead.source));
 
-      return matchesSearchTerm && matchesStatus && matchesDate && matchesTipologia;
+      return matchesSearchTerm && matchesStatus && matchesDate && matchesTipologia && matchesTemperature && matchesSource;
     });
-  }, [baseLeads, searchQuery, statusFilter, dateRange, tipologiaFilter]);
+  }, [baseLeads, searchQuery, statusFilter, dateRange, tipologiaFilter, temperatureFilter, sourceFilter]);
 
   // Check if a stage is of a special type (scheduled or proposal-like)
   const isScheduledStage = (stageKey: string) => {
@@ -262,7 +279,7 @@ export default function Leads() {
     // Block status change on final leads for non-admins
     if (lead && isFinalStatus(lead.status || '')) {
       if (!isAdmin) {
-        toast.error('Apenas administradores podem alterar o estado de leads finalizadas.');
+        toast.error(t('Apenas administradores podem alterar o estado de leads finalizadas.'));
         return;
       }
     }
@@ -356,7 +373,7 @@ export default function Leads() {
           // Already a client → mark won immediately + open proposal modal
           updateStatus.mutate({ leadId, status: newStatus });
           setPendingWonData(null);
-          toast.success('Lead ganha! Cliente já existente — criar proposta.');
+          toast.success(t('Lead ganha! Cliente já existente — criar proposta.'));
           setPrefillProposalClientId(existingClient.id);
           setNewlyCreatedClientId(existingClient.id);
           setIsCreateProposalModalOpen(true);
@@ -376,7 +393,7 @@ export default function Leads() {
             onSuccess: (newClient) => {
               updateStatus.mutate({ leadId, status: newStatus });
               setPendingWonData(null);
-              toast.success('Lead ganha! Novo cliente criado.');
+              toast.success(t('Lead ganha! Novo cliente criado.'));
               if (newClient?.id) {
                 navigate('/clients', { state: { openClientId: newClient.id } });
               }
@@ -388,7 +405,7 @@ export default function Leads() {
 
       // Default flow for all other orgs
       if (existingClient) {
-        toast.success('Lead ganha! Cliente já existente.');
+        toast.success(t('Lead ganha! Cliente já existente.'));
         setPrefillSaleClientId(existingClient.id);
         setPrefillSaleClient({
           id: existingClient.id,
@@ -415,7 +432,7 @@ export default function Leads() {
           notes: lead.notes || undefined,
         }, {
           onSuccess: (newClient) => {
-            toast.success('Lead ganha! Novo cliente criado.');
+            toast.success(t('Lead ganha! Novo cliente criado.'));
             if (newClient?.id) {
               setPrefillSaleClientId(newClient.id);
               setPrefillSaleClient({
@@ -517,10 +534,10 @@ export default function Leads() {
         .single()
         .then(({ error }) => {
           if (error) {
-            toast.error('Erro ao criar agendamento de recontacto');
+            toast.error(t('Erro ao criar agendamento de recontacto'));
             console.error('Error creating follow-up event:', error);
           } else {
-            toast.success('Recontacto agendado com sucesso');
+            toast.success(t('Recontacto agendado com sucesso'));
             queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
             queryClient.invalidateQueries({ queryKey: ['lead-events'] });
           }
@@ -591,26 +608,33 @@ export default function Leads() {
     const selectedLeads = filteredLeads.filter(l => selectedIds.includes(l.id));
     const data = mapLeadsForExport(selectedLeads);
     exportToCsv(data, `leads_${format(new Date(), 'yyyy-MM-dd')}`);
-    toast.success(`${selectedLeads.length} leads exportados para CSV`);
+    toast.success(t("{{n}} leads exportados para CSV", { n: selectedLeads.length }));
   };
 
   const handleExportExcel = () => {
     const selectedLeads = filteredLeads.filter(l => selectedIds.includes(l.id));
     const data = mapLeadsForExport(selectedLeads);
     exportToExcel(data, `leads_${format(new Date(), 'yyyy-MM-dd')}`);
-    toast.success(`${selectedLeads.length} leads exportados para Excel`);
+    toast.success(t("{{n}} leads exportados para Excel", { n: selectedLeads.length }));
+  };
+
+  const handleExportList = (kind: ExportKind) => {
+    const data = mapLeadsForExport(filteredLeads);
+    const name = `leads_${format(new Date(), 'yyyy-MM-dd')}`;
+    if (kind === 'excel') exportToExcel(data, name); else exportToCsv(data, name);
+    toast.success(t("{{n}} leads exportados", { n: data.length }));
   };
 
   const handleBulkDelete = async () => {
     const ids = [...selectedIds];
     const { error } = await supabase.from("leads").delete().in("id", ids);
     if (error) {
-      toast.error("Erro ao apagar leads: " + error.message);
+      toast.error(t("Erro ao apagar leads: {{error}}", { error: error.message }));
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["leads"] });
     queryClient.invalidateQueries({ queryKey: ["leads-archived"] });
-    toast.success(`${ids.length} leads apagados`);
+    toast.success(t("{{n}} leads apagados", { n: ids.length }));
     setSelectedIds([]);
   };
 
@@ -633,197 +657,91 @@ export default function Leads() {
     setIsArchiveByStageOpen(false);
   };
 
-  // Helper to get badge style from stage color
-  const getBadgeStyle = (hexColor: string, isActive: boolean) => {
-    if (isActive) {
-      return {
-        backgroundColor: hexColor,
-        color: '#fff',
-        borderColor: hexColor,
-      };
-    }
-    return {
-      backgroundColor: 'transparent',
-      color: hexColor,
-      borderColor: `${hexColor}50`,
-    };
-  };
-
-  const leadFilterControls = (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Período</span>
-        <DateRangePicker
-          value={dateRange.from ? { from: dateRange.from, to: dateRange.to } : undefined}
-          onChange={(range) => setDateRange({ from: range?.from, to: range?.to })}
-          placeholder="Todo o histórico"
-          className="w-full"
-        />
-      </div>
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">Vendedor</span>
-        <TeamMemberFilter className="w-full" />
-      </div>
-      <div className="space-y-1">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">Estado</span>
-        <div className="flex flex-wrap gap-1.5">
-          {stages.map((stage) => (
-            <Badge
-              key={stage.id}
-              variant="outline"
-              className="cursor-pointer transition-colors hover:opacity-80 text-xs"
-              style={getBadgeStyle(stage.color, statusFilter.includes(stage.key))}
-              onClick={() => toggleStatus(stage.key)}
-            >
-              {stage.name}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      {showEnergy && (
-        <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Tipologia</span>
-          <Select value={tipologiaFilter} onValueChange={(v) => setTipologiaFilter(v as 'all' | LeadTipologia)}>
-            <SelectTrigger className="h-9 w-full">
-              <Zap className="h-3.5 w-3.5 mr-1" />
-              <SelectValue placeholder="Todas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {(Object.entries(TIPOLOGIA_LABELS) as [LeadTipologia, string][]).map(([key, label]) => (
-                <SelectItem key={key} value={key}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-0 text-muted-foreground hover:text-foreground">
-          <X className="mr-1 h-3.5 w-3.5" />Limpar filtros
-        </Button>
-      )}
-    </div>
-  );
-
   return (
     <div className="leads-page">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'pipeline' | 'report')} className="leads-content space-y-4">
-        <div className="space-y-4 border-b border-border/70 bg-background pb-4">
-          <header className="leads-header flex flex-col gap-4">
-            <div className="leads-heading min-w-0">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">Leads</h1>
-                <Badge variant="secondary" className="text-xs font-medium">
-                  {hasActiveFilters ? `${filteredLeads.length} / ${baseLeads.length}` : baseLeads.length}
-                </Badge>
-                {showArchived && <Badge variant="outline" className="border-amber-500/40 text-xs font-medium text-amber-600">Arquivadas</Badge>}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">Gira os contactos e acompanha o progresso do seu pipeline.</p>
-            </div>
-            {activeTab === 'pipeline' && (
-              <LeadsToolbar viewMode={viewMode} onViewChange={setViewMode}
-                onAdd={() => setIsAddModalOpen(true)} onImport={() => setIsImportModalOpen(true)} onHistory={() => setIsImportsHistoryOpen(true)}
-                onArchiveByStage={() => setIsArchiveByStageOpen(true)} onArchiveSelected={handleBulkArchive}
-                selectedCount={selectedIds.length} archived={showArchived} onToggleArchived={() => setShowArchived(v => !v)} />
-            )}
-          </header>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <TabsList className="h-10 w-full justify-start sm:w-auto">
-              <TabsTrigger value="pipeline" className="gap-1"><LayoutGrid className="h-3.5 w-3.5" />Pipeline</TabsTrigger>
-              <TabsTrigger value="report" className="gap-1"><BarChart3 className="h-3.5 w-3.5" />Relatório</TabsTrigger>
-            </TabsList>
-          </div>
-        </div>
-
-        {activeTab === 'pipeline' && (
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pesquisar por nome, email ou telefone..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-10 border-primary/35 bg-primary/[0.04] pl-10 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25" />
-          </div>
-        )}
-
-        <TabsContent value="pipeline" className="mt-0">
-          <div className="leads-layout grid min-w-0 items-start gap-4">
-            <div className="space-y-3">
-              <aside className="leads-sidebar-filters rounded-xl border border-border/70 bg-card p-3">
-                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros</h2>
-                {leadFilterControls}
-              </aside>
-              <div className="leads-inline-filters">
-                <Accordion type="single" collapsible value={leadsFiltersOpen ? 'lead-filters' : ''} onValueChange={(value) => setLeadsFiltersOpen(!!value)} className="rounded-xl border border-border/70 bg-card px-3">
-                  <AccordionItem value="lead-filters" className="border-0">
-                    <AccordionTrigger className="py-3 text-sm font-semibold hover:no-underline"><span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-primary" />Filtros{hasActiveFilters ? ' •' : ''}</span></AccordionTrigger>
-                    <AccordionContent className="pb-3">{leadFilterControls}</AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </div>
-            </div>
-            <div className="min-w-0">
-        {/* Bulk Actions Bar */}
-        {effectiveViewMode === 'table' && (
-          <BulkActionsBar
-            selectedCount={selectedIds.length}
-            onAssignTeamMember={() => setShowAssignModal(true)}
-            onExportCsv={handleExportCsv}
-            onExportExcel={handleExportExcel}
-            onDelete={handleBulkDelete}
-            onRestore={showArchived ? handleBulkRestore : undefined}
-            onClearSelection={() => setSelectedIds([])}
-            entityLabel="leads selecionados"
-          />
-        )}
-
-        <div className="rounded-xl border bg-card p-3 lg:p-4">
-          {(showArchived ? archivedLoading : isLoading) ? (
-            <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : filteredLeads.length === 0 && searchQuery ? (
-            <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
-              <Search className="h-12 w-12 mb-4 opacity-50" />
-              <p className="text-lg font-medium">Nenhum resultado encontrado</p>
-            </div>
-          ) : filteredLeads.length === 0 ? (
-            showArchived ? (
-              <EmptyState icon={Users} title="Sem leads arquivadas" />
-            ) : (
-              <EmptyState
-                icon={Users}
-                title="Ainda não tens leads"
-                description="Importa os teus contactos ou cria a primeira lead. O Otto pode ajudar-te a começar."
-              >
-                <Button onClick={() => setIsAddModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar primeira lead
-                </Button>
-                <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar
-                </Button>
-              </EmptyState>
-            )
-          ) : effectiveViewMode === 'kanban' ? (
-            <ResponsiveKanban leads={filteredLeads} onStatusChange={handleStatusChange} onTemperatureChange={handleTemperatureChange} onViewDetails={handleViewDetails} onDelete={handleDelete} onArchive={handleArchiveOne} />
-          ) : (
-            <LeadsTableView 
-              leads={filteredLeads} 
-              onStatusChange={handleStatusChange} 
-              onTemperatureChange={handleTemperatureChange} 
-              onViewDetails={handleViewDetails} 
-              onDelete={handleDelete}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
+      <div className="leads-content space-y-4">
+        <div className="space-y-3">
+          <LeadsToolbar view={view} onViewChange={changeView}
+            exportCount={filteredLeads.length} onExport={handleExportList}
+            count={hasActiveFilters ? t("{{n}} de {{total}}", { n: filteredLeads.length, total: baseLeads.length }) : String(baseLeads.length)}
+            onAdd={() => setIsAddModalOpen(true)} onImport={() => setIsImportModalOpen(true)} onHistory={() => setIsImportsHistoryOpen(true)}
+            onArchiveByStage={() => setIsArchiveByStageOpen(true)} onArchiveSelected={handleBulkArchive}
+            selectedCount={selectedIds.length} archived={showArchived} onToggleArchived={() => setShowArchived(v => !v)} />
+          {view !== 'report' && (
+            <LeadsFilterBar
+              search={searchQuery} onSearch={setSearchQuery}
+              dateRange={dateRange} onDateRange={setDateRange}
+              temperatures={{ picked: temperatureFilter, onToggle: value => setTemperatureFilter(prev => toggled(prev, value)), onClear: () => setTemperatureFilter([]) }}
+              sources={{ picked: sourceFilter, options: sourceOptions, onToggle: value => setSourceFilter(prev => toggled(prev, value)), onClear: () => setSourceFilter([]) }}
+              statuses={{ picked: statusFilter, stages, onToggle: toggleStatus, onClear: () => setStatusFilter([]) }}
+              tipologia={showEnergy ? { value: tipologiaFilter, onChange: setTipologiaFilter } : undefined}
+              hasActive={hasActiveFilters} onClear={clearFilters}
             />
           )}
         </div>
-            </div>
-          </div>
-        </TabsContent>
 
-        <TabsContent value="report" className="mt-0">
+        {view === 'report' ? (
           <LeadsReportPanel />
-        </TabsContent>
+        ) : (
+          <div className="min-w-0 space-y-3">
+            {effectiveViewMode === 'table' && (
+              <BulkActionsBar
+                selectedCount={selectedIds.length}
+                onAssignTeamMember={() => setShowAssignModal(true)}
+                onExportCsv={handleExportCsv}
+                onExportExcel={handleExportExcel}
+                onArchive={showArchived ? undefined : handleBulkArchive}
+                onDelete={handleBulkDelete}
+                onRestore={showArchived ? handleBulkRestore : undefined}
+                onClearSelection={() => setSelectedIds([])}
+                entityLabel={t("leads selecionados")}
+              />
+            )}
+            {(showArchived ? archivedLoading : isLoading) ? (
+              <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : filteredLeads.length === 0 && hasActiveFilters ? (
+              <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+                <Search className="h-10 w-10 opacity-50" />
+                <p className="text-base font-medium">{t("Nenhuma lead corresponde aos filtros")}</p>
+                <Button variant="outline" size="sm" className="rounded-full" onClick={clearFilters}>{t("Limpar filtros")}</Button>
+              </div>
+            ) : filteredLeads.length === 0 ? (
+              showArchived ? (
+                <EmptyState icon={Users} title={t("Sem leads arquivadas")} />
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  title={t("Ainda não tens leads")}
+                  description={t("Importa os teus contactos ou cria a primeira lead. O Otto pode ajudar-te a começar.")}
+                >
+                  <Button onClick={() => setIsAddModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {t("Criar primeira lead")}
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {t("Importar")}
+                  </Button>
+                </EmptyState>
+              )
+            ) : effectiveViewMode === 'kanban' ? (
+              <ResponsiveKanban leads={filteredLeads} onStatusChange={handleStatusChange} onTemperatureChange={handleTemperatureChange} onViewDetails={handleViewDetails} onDelete={handleDelete} onArchive={handleArchiveOne} />
+            ) : (
+              <LeadsTableView
+                leads={filteredLeads}
+                onStatusChange={handleStatusChange}
+                onTemperatureChange={handleTemperatureChange}
+                onViewDetails={handleViewDetails}
+                onDelete={handleDelete}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+              />
+            )}
+          </div>
+        )}
 
-        <LeadDetailsModal lead={selectedLead} open={isModalOpen} onOpenChange={setIsModalOpen} onStatusChange={handleStatusChange} onDelete={handleDelete} onUpdate={handleUpdate} />
+        <LeadDetailsModal lead={selectedLead} open={isModalOpen} onOpenChange={setIsModalOpen} onStatusChange={handleStatusChange} onDelete={handleDelete} onUpdate={handleUpdate}
+          onSchedule={(lead) => { setPendingLead(lead); setPendingScheduleStatus(null); setSelectedEvent(null); setIsCreateEventModalOpen(true); }} />
         <AddLeadModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
         <ImportLeadsDialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen} />
         <ImportsHistoryDialog open={isImportsHistoryOpen} onOpenChange={setIsImportsHistoryOpen} />
@@ -947,7 +865,7 @@ export default function Leads() {
             }
           }}
         />
-      </Tabs>
+      </div>
     </div>
   );
 }

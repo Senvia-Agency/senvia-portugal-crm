@@ -1,30 +1,32 @@
-import { matchesSearch } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Search, FileText, X, Loader2, ArrowUpDown, ArrowUp, ArrowDown, FileDown, Plus, RefreshCw } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { SaleInvoicePicker } from "@/components/finance/SaleInvoicePicker";
-import { CreditNoteInvoicePicker } from "@/components/finance/CreditNoteInvoicePicker";
-import { isInvoiceXpressActive } from "@/components/sales/SaleFiscalInfo";
-import { useInvoices, useSyncInvoices } from "@/hooks/useInvoices";
-import { useCreditNotes, useSyncCreditNotes } from "@/hooks/useCreditNotes";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useMemo, useEffect, useRef } from "react";
-import { exportToExcel } from "@/lib/export";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { DateRange } from "react-day-picker";
-import { startOfDay, endOfDay, parseISO } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { endOfDay, format, parseISO, startOfDay } from "date-fns";
+import type { DateRange } from "react-day-picker";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, FileDown, FileText, Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
-import { openPdfInNewTab } from "@/lib/download";
+
+import { CreditNoteInvoicePicker } from "@/components/finance/CreditNoteInvoicePicker";
+import { SaleInvoicePicker } from "@/components/finance/SaleInvoicePicker";
 import { InvoiceDetailsModal } from "@/components/sales/InvoiceDetailsModal";
+import { isInvoiceXpressActive } from "@/components/sales/SaleFiscalInfo";
+import { ExportMenu, type ExportKind } from "@/components/shared/ExportMenu";
+import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCreditNotes, useSyncCreditNotes } from "@/hooks/useCreditNotes";
+import { useInvoices, useSyncInvoices } from "@/hooks/useInvoices";
 import { useOrganization } from "@/hooks/useOrganization";
+import { openPdfInNewTab } from "@/lib/download";
+import { exportToCsv, exportToExcel } from "@/lib/export";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceRelatedReferences } from "@/lib/invoice-display";
+import { cn, matchesSearch } from "@/lib/utils";
+import { tr, useLanguage } from "@/i18n";
+
+type DocumentType = "invoice" | "invoice_receipt" | "receipt" | "credit_note";
 
 interface UnifiedDocument {
   id: string;
@@ -42,46 +44,109 @@ interface UnifiedDocument {
   invoice_id: string | null;
   provider: string;
   related_doc_reference: string | null;
+  email_status: string | null;
 }
 
-type SortField = 'recent' | 'reference' | 'document_type' | 'date' | 'client_name' | 'status' | 'total';
-type SortDirection = 'asc' | 'desc';
+type SortField = "recent" | "reference" | "date" | "client_name" | "total";
+type SortDirection = "asc" | "desc";
+type TypeFilter = "all" | "invoice" | "invoice_receipt" | "receipt" | "credit_note";
 
-const SortIcon = ({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) => {
-  if (field !== sortField) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
-  return sortDirection === 'asc'
-    ? <ArrowUp className="h-3 w-3 ml-1" />
-    : <ArrowDown className="h-3 w-3 ml-1" />;
+const TYPE_FILTERS: readonly { key: TypeFilter; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "invoice", label: "Faturas" },
+  { key: "invoice_receipt", label: "Faturas-recibo" },
+  { key: "receipt", label: "Recibos" },
+  { key: "credit_note", label: "Notas de crédito" },
+];
+
+const TYPE_PILLS: Record<string, string> = {
+  invoice: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  invoice_receipt: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  simplified_invoice: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  receipt: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  credit_note: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
 
-export function InvoicesContent() {
+// The email of each document, as the fiscal worker and Brevo report it.
+const EMAIL_STATES: Record<string, { label: string; tone: string }> = {
+  pending: { label: "A enviar", tone: "text-amber-700 dark:text-amber-300" },
+  processing: { label: "A enviar", tone: "text-amber-700 dark:text-amber-300" },
+  retry: { label: "A tentar de novo", tone: "text-amber-700 dark:text-amber-300" },
+  sent: { label: "Enviado", tone: "text-emerald-700 dark:text-emerald-300" },
+  delivered: { label: "Entregue", tone: "text-emerald-700 dark:text-emerald-300" },
+  bounced: { label: "Devolvido", tone: "text-destructive" },
+  blocked: { label: "Bloqueado", tone: "text-destructive" },
+  failed: { label: "Falhou", tone: "text-destructive" },
+  suppressed: { label: "Não enviado", tone: "text-destructive" },
+};
+
+const docTypeLabel = (type: string, provider?: string) => {
+  switch (type) {
+    case "invoice": return tr("Fatura");
+    case "invoice_receipt": return tr("Fatura-recibo");
+    case "receipt": return provider === "vendus" ? tr("Recibo (RG)") : tr("Recibo");
+    case "simplified_invoice": return tr("Fatura simplificada");
+    case "credit_note": return tr("Nota de crédito");
+    default: return type;
+  }
+};
+
+const providerLabel = (provider: string) => (provider === "vendus" ? "Vendus" : provider === "keyinvoice" ? "KeyInvoice" : "InvoiceXpress");
+
+const statusLabel = (status: string | null, provider?: string) => {
+  if ((status === "canceled" || status === "cancelled") && provider === "keyinvoice") return tr("Com nota de crédito");
+  if (status === "final" && provider === "keyinvoice") return tr("Emitida");
+  const map: Record<string, string> = {
+    settled: "Liquidada", final: "Finalizada", queued: "Em fila", draft: "Rascunho", canceled: "Anulada", cancelled: "Anulada", sent: "Enviada", second_copy: "Segunda via",
+  };
+  const label = map[status || ""];
+  return label ? tr(label) : status || "—";
+};
+
+const statusTone = (status: string | null) =>
+  status === "settled" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+    : status === "canceled" || status === "cancelled" ? "bg-destructive/10 text-destructive"
+      : status === "draft" ? "bg-muted text-muted-foreground"
+        : "bg-blue-500/10 text-blue-700 dark:text-blue-300";
+
+const SortIcon = ({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) => {
+  if (field !== sortField) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40" />;
+  return sortDirection === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />;
+};
+
+interface InvoicesContentProps {
+  /** Inside the finance page: search and period come from its filter line. */
+  readonly search?: string;
+  readonly dateRange?: DateRange;
+}
+
+/** Every fiscal document of the organization: invoices, invoice-receipts, receipts and credit notes. */
+export function InvoicesContent({ search: outerSearch, dateRange: outerRange }: InvoicesContentProps = {}) {
+  const embedded = outerSearch !== undefined;
+  const { t } = useLanguage();
   const { data: invoicesData, isLoading: loadingInvoices } = useInvoices();
   const { data: creditNotesData, isLoading: loadingCreditNotes } = useCreditNotes();
   const { organization } = useAuth();
   const { data: orgData } = useOrganization();
   const billingOrganization = organization ?? orgData;
   const isBillingEnabled = isInvoiceXpressActive(billingOrganization);
-  const isInvoiceXpressProvider = billingOrganization?.billing_provider === 'invoicexpress';
-  const isVendusActive = organization?.billing_provider === 'vendus'
+  const isInvoiceXpressProvider = billingOrganization?.billing_provider === "invoicexpress";
+  const isVendusActive = organization?.billing_provider === "vendus"
     && (organization.integrations_enabled as Record<string, boolean> | null)?.vendus === true
     && organization.tem_vendus_api_key === true;
   const syncInvoices = useSyncInvoices();
   const syncCreditNotes = useSyncCreditNotes();
   const hasSynced = useRef(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [pickerMode, setPickerMode] = useState<'invoice' | 'credit-note' | null>(null);
+  const [ownSearch, setOwnSearch] = useState("");
+  const [ownRange, setOwnRange] = useState<DateRange | undefined>(undefined);
+  const search = embedded ? outerSearch : ownSearch;
+  const dateRange = embedded ? outerRange : ownRange;
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [pickerMode, setPickerMode] = useState<"invoice" | "credit-note" | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>('recent');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [selectedInvoice, setSelectedInvoice] = useState<{
-    invoicexpress_id: number | null;
-    invoice_id: string | null;
-    provider: string;
-    document_type: "invoice" | "invoice_receipt" | "receipt" | "credit_note";
-    sale_id?: string;
-    payment_id?: string;
-  } | null>(null);
+  const [sortField, setSortField] = useState<SortField>("recent");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [selected, setSelected] = useState<UnifiedDocument | null>(null);
 
   const isLoading = loadingInvoices || loadingCreditNotes;
 
@@ -93,24 +158,15 @@ export function InvoicesContent() {
       syncInvoices.mutate(undefined, { onError: () => {} });
       syncCreditNotes.mutate(undefined, { onError: () => {} });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInvoiceXpressProvider]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection(field === 'date' ? 'desc' : 'asc');
-    }
-  };
-
-  // Combine invoices + credit notes into unified list
   const allDocuments = useMemo((): UnifiedDocument[] => {
     const relatedReferences = invoiceRelatedReferences(invoicesData || []);
-    const invoices: UnifiedDocument[] = (invoicesData || []).map(inv => ({
+    const invoices: UnifiedDocument[] = (invoicesData || []).map((inv) => ({
       id: inv.id,
       reference: inv.reference,
-      document_type: inv.document_type || 'invoice',
+      document_type: inv.document_type || "invoice",
       date: inv.date,
       created_at: inv.created_at,
       client_name: inv.client_name,
@@ -123,12 +179,12 @@ export function InvoicesContent() {
       invoice_id: inv.id,
       provider: inv.provider,
       related_doc_reference: relatedReferences.get(inv.id) || null,
+      email_status: inv.email_status,
     }));
-
-    const creditNotes: UnifiedDocument[] = (creditNotesData || []).map(cn => ({
+    const creditNotes: UnifiedDocument[] = (creditNotesData || []).map((cn) => ({
       id: cn.id,
       reference: cn.reference,
-      document_type: 'credit_note',
+      document_type: "credit_note",
       date: cn.date,
       created_at: cn.created_at,
       client_name: cn.client_name,
@@ -139,374 +195,221 @@ export function InvoicesContent() {
       pdf_path: cn.pdf_path,
       invoicexpress_id: cn.invoicexpress_id,
       invoice_id: null,
-      provider: 'invoicexpress',
+      provider: "invoicexpress",
       related_doc_reference: cn.related_invoice_reference || null,
+      email_status: null,
     }));
-
     return [...invoices, ...creditNotes];
   }, [invoicesData, creditNotesData]);
 
-  const filteredDocuments = useMemo(() => {
-    return allDocuments.filter(doc => {
-      if (dateRange?.from) {
-        if (!doc.date) return false;
-        const docDate = parseISO(doc.date);
-        if (docDate < startOfDay(dateRange.from)) return false;
-        if (dateRange.to && docDate > endOfDay(dateRange.to)) return false;
-      }
-      if (searchTerm) {
-        return matchesSearch(searchTerm, doc.reference, doc.client_name);
-      }
-      return true;
-    });
-  }, [allDocuments, searchTerm, dateRange]);
+  const inRangeAndSearch = useMemo(() => allDocuments.filter((doc) => {
+    if (dateRange?.from) {
+      if (!doc.date) return false;
+      const day = parseISO(doc.date);
+      if (day < startOfDay(dateRange.from)) return false;
+      if (dateRange.to && day > endOfDay(dateRange.to)) return false;
+    }
+    return !search.trim() || matchesSearch(search, doc.reference, doc.client_name);
+  }), [allDocuments, search, dateRange]);
 
-  const sortedDocuments = useMemo(() => {
-    return [...filteredDocuments].sort((a, b) => {
-      const dir = sortDirection === 'asc' ? 1 : -1;
+  const typeOf = (doc: UnifiedDocument): TypeFilter =>
+    doc.document_type === "simplified_invoice" ? "invoice_receipt" : (doc.document_type as TypeFilter);
+  const counts = useMemo(() => {
+    const result: Record<TypeFilter, number> = { all: inRangeAndSearch.length, invoice: 0, invoice_receipt: 0, receipt: 0, credit_note: 0 };
+    for (const doc of inRangeAndSearch) if (typeOf(doc) in result) result[typeOf(doc)] += 1;
+    return result;
+  }, [inRangeAndSearch]);
+
+  const rows = useMemo(() => {
+    const shown = typeFilter === "all" ? inRangeAndSearch : inRangeAndSearch.filter((doc) => typeOf(doc) === typeFilter);
+    const dir = sortDirection === "asc" ? 1 : -1;
+    return [...shown].sort((a, b) => {
       switch (sortField) {
-        case 'recent':
-          return dir * a.created_at.localeCompare(b.created_at);
-        case 'reference':
-          return dir * (a.reference || '').localeCompare(b.reference || '');
-        case 'document_type':
-          return dir * (a.document_type || '').localeCompare(b.document_type || '');
-        case 'date':
-          if (!a.date && !b.date) return 0;
-          if (!a.date) return 1;
-          if (!b.date) return -1;
+        case "reference": return dir * (a.reference || "").localeCompare(b.reference || "");
+        case "date":
+          if (!a.date || !b.date) return a.date ? -1 : b.date ? 1 : 0;
           return dir * a.date.localeCompare(b.date);
-        case 'client_name':
-          return dir * (a.client_name || '').localeCompare(b.client_name || '');
-        case 'status':
-          return dir * (a.status || '').localeCompare(b.status || '');
-        case 'total':
-          return dir * (a.total - b.total);
-        default:
-          return 0;
+        case "client_name": return dir * (a.client_name || "").localeCompare(b.client_name || "");
+        case "total": return dir * (a.total - b.total);
+        default: return dir * a.created_at.localeCompare(b.created_at);
       }
     });
-  }, [filteredDocuments, sortField, sortDirection]);
+  }, [inRangeAndSearch, typeFilter, sortField, sortDirection]);
 
-  const hasActiveFilters = searchTerm || dateRange?.from;
+  const total = rows.reduce((sum, doc) => sum + (doc.document_type === "credit_note" ? -1 : 1) * Number(doc.total || 0), 0);
 
-  const clearFilters = () => {
-    setSearchTerm("");
-    setDateRange(undefined);
+  const handleSort = (field: SortField) => {
+    if (sortField === field) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDirection(field === "date" ? "desc" : "asc"); }
   };
 
-  const getDocTypeLabel = (type: string, provider?: string) => {
-    switch (type) {
-      case 'invoice': return 'Fatura';
-      case 'invoice_receipt': return 'Fatura-Recibo';
-      case 'receipt': return provider === 'vendus' ? 'Recibo (RG)' : 'Recibo';
-      case 'simplified_invoice': return 'Fatura Simplificada';
-      case 'credit_note': return 'Nota de Crédito';
-      default: return type;
-    }
-  };
-
-  const getProviderLabel = (provider: string) => {
-    switch (provider) {
-      case 'vendus': return 'Vendus';
-      case 'keyinvoice': return 'KeyInvoice';
-      default: return 'InvoiceXpress';
-    }
-  };
-
-  const getStatusLabel = (status: string | null, provider?: string) => {
-    if ((status === 'canceled' || status === 'cancelled') && provider === 'keyinvoice') return 'Com nota de crédito';
-    if (status === 'final' && provider === 'keyinvoice') return 'Emitida';
-    const map: Record<string, string> = {
-      settled: 'Liquidada',
-      final: 'Finalizada',
-      draft: 'Rascunho',
-      canceled: 'Anulada',
-      sent: 'Enviada',
-      second_copy: 'Segunda Via',
-    };
-    return map[status || ''] || status || '-';
-  };
-
-  const getStatusVariant = (status: string | null): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status) {
-      case 'settled': return 'default';
-      case 'canceled': return 'destructive';
-      case 'draft': return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const handleExport = () => {
-    const exportData = sortedDocuments.map(doc => ({
-      Referência: doc.reference || '-',
-      Tipo: getDocTypeLabel(doc.document_type, doc.provider),
-      Origem: getProviderLabel(doc.provider),
-      Data: doc.date ? formatDate(doc.date) : '-',
-      Cliente: doc.client_name || '-',
-      Estado: getStatusLabel(doc.status, doc.provider),
-      Valor: doc.total,
+  const handleExport = (kind: ExportKind) => {
+    const data = rows.map((doc) => ({
+      Referência: doc.reference || "",
+      Tipo: docTypeLabel(doc.document_type, doc.provider),
+      Origem: providerLabel(doc.provider),
+      Data: doc.date ? formatDate(doc.date) : "",
+      Cliente: doc.client_name || "",
+      Estado: statusLabel(doc.status, doc.provider),
+      Email: doc.email_status ? EMAIL_STATES[doc.email_status]?.label ?? "" : "",
+      Valor: Number(doc.total),
     }));
-    exportToExcel(exportData, 'documentos-fiscais');
+    const name = `documentos-fiscais_${format(new Date(), "yyyy-MM-dd")}`;
+    if (kind === "excel") exportToExcel(data, name); else exportToCsv(data, name);
   };
 
   const handleViewPdf = async (id: string, pdfPath: string | null) => {
     if (!pdfPath) return;
     setViewingId(id);
-    try {
-      await openPdfInNewTab(pdfPath);
-    } catch {
-      toast.error("Erro ao abrir PDF");
-    } finally {
-      setViewingId(null);
-    }
+    try { await openPdfInNewTab(pdfPath); } catch { toast.error(t("Erro ao abrir o PDF")); } finally { setViewingId(null); }
   };
 
+  const sortableHead = (field: SortField, label: string, className?: string) => (
+    <TableHead className={cn("cursor-pointer select-none", className)} onClick={() => handleSort(field)}>
+      <span className={cn("flex items-center", className?.includes("text-right") && "justify-end")}>{label}<SortIcon field={field} sortField={sortField} sortDirection={sortDirection} /></span>
+    </TableHead>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Faturas</h2>
-          <p className="text-sm text-muted-foreground">
-            Documentos fiscais da organização
-          </p>
+    <div className="space-y-3">
+      {!embedded && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
+            <Input type="search" placeholder={t("Pesquisar por referência ou cliente")} value={ownSearch} onChange={(event) => setOwnSearch(event.target.value)}
+              className="h-9 rounded-full pl-10 text-[13px]" />
+          </div>
+          <DateRangePicker value={ownRange} onChange={setOwnRange} placeholder={t("Todo o histórico")} className="h-9 w-auto rounded-full" />
         </div>
-        <div className="flex gap-2">
+      )}
+
+      {/* Which documents, how much they add up to, and what can be done here. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label={t("Tipo de documento")} className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-card p-1 shadow-sm">
+          {TYPE_FILTERS.map(({ key, label }) => (
+            <button key={key} type="button" aria-pressed={typeFilter === key} onClick={() => setTypeFilter(key)}
+              className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
+                typeFilter === key ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/30" : "text-foreground/75 hover:bg-muted")}>
+              {t(label)}<span className="rounded-full bg-muted px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">{counts[key]}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {t(rows.length === 1 ? "{{n}} documento" : "{{n}} documentos", { n: rows.length })} · <strong className="tabular-nums text-foreground">{formatCurrency(total)}</strong>
+        </p>
+        <div className="ml-auto flex items-center gap-2">
           {isVendusActive && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              disabled={syncInvoices.isPending}
+            <Button variant="outline" className="h-9 rounded-full px-3" disabled={syncInvoices.isPending}
               onClick={() => syncInvoices.mutate(undefined, {
                 onSuccess: (result) => toast.success(result.failed
-                  ? `${result.total} documento(s) sincronizado(s); ${result.failed} requer(em) revisão`
-                  : `${result.total} documento(s) Vendus sincronizado(s)`),
-              })}
-            >
-              <RefreshCw className={`h-4 w-4 ${syncInvoices.isPending ? 'animate-spin' : ''}`} />
-              <span>Sincronizar Vendus</span>
+                  ? t("{{total}} documento(s) sincronizado(s); {{failed}} requer(em) revisão", { total: result.total, failed: result.failed })
+                  : t("{{total}} documento(s) Vendus sincronizado(s)", { total: result.total })),
+              })}>
+              <RefreshCw className={cn("h-4 w-4", syncInvoices.isPending && "animate-spin")} /><span className="hidden sm:inline">{t("Sincronizar Vendus")}</span>
             </Button>
           )}
+          <ExportMenu count={rows.length} noun={t("documentos")} onExport={handleExport} />
           {(isBillingEnabled || isVendusActive) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Criar</span>
-                </Button>
+                <Button className="h-9 rounded-full px-3"><Plus className="h-4 w-4" />{t("Emitir")}<ChevronDown className="h-3.5 w-3.5 opacity-70" /></Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setPickerMode('invoice')}>Nova Fatura</DropdownMenuItem>
-                {!isVendusActive && <DropdownMenuItem onClick={() => setPickerMode('credit-note')}>Nota de Crédito</DropdownMenuItem>}
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={() => setPickerMode("invoice")}><FileText className="mr-2 h-4 w-4" />{t("Fatura de uma venda")}</DropdownMenuItem>
+                {!isVendusActive && <DropdownMenuItem onSelect={() => setPickerMode("credit-note")}><FileText className="mr-2 h-4 w-4" />{t("Nota de crédito")}</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button onClick={handleExport} variant="outline" size="sm" className="gap-2">
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exportar</span>
-          </Button>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar por referência ou cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Button
-                variant={sortField === 'recent' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => { setSortField('recent'); setSortDirection('desc'); }}
-              >
-                Mais recentes
-              </Button>
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                placeholder="Período"
-                className="w-full xs:w-auto"
-              />
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
-                  <X className="h-4 w-4" />
-                  Limpar
-                </Button>
-              )}
-            </div>
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        {isLoading ? (
+          <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-10 w-full" />)}</div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-14 text-center text-sm text-muted-foreground">
+            <FileText className="h-10 w-10 text-muted-foreground/40" />{t("Nenhum documento encontrado.")}
           </div>
-        </CardContent>
-      </Card>
-
-      {hasActiveFilters && !isLoading && (
-        <p className="text-sm text-muted-foreground">
-          {sortedDocuments.length} documento(s) encontrado(s)
-        </p>
-      )}
-
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="space-y-3 p-6">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : sortedDocuments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground">Nenhum documento encontrado</p>
-              {hasActiveFilters && (
-                <Button variant="link" onClick={clearFilters} className="mt-2">Limpar filtros</Button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('reference')}>
-                      <span className="flex items-center">Referência <SortIcon field="reference" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('document_type')}>
-                      <span className="flex items-center">Tipo <SortIcon field="document_type" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
-                      <span className="flex items-center">Data <SortIcon field="date" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort('client_name')}>
-                      <span className="flex items-center">Cliente <SortIcon field="client_name" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead className="text-center cursor-pointer select-none" onClick={() => handleSort('status')}>
-                      <span className="flex items-center justify-center">Estado <SortIcon field="status" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead className="text-center">Doc. Relacionado</TableHead>
-                    <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('total')}>
-                      <span className="flex items-center justify-end">Valor <SortIcon field="total" sortField={sortField} sortDirection={sortDirection} /></span>
-                    </TableHead>
-                    <TableHead className="text-center w-[60px]">PDF</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedDocuments.map((doc) => (
-                    <TableRow
-                      key={doc.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedInvoice({
-                        invoicexpress_id: doc.invoicexpress_id,
-                        invoice_id: doc.invoice_id,
-                        provider: doc.provider,
-                        document_type: (doc.document_type || 'invoice') as any,
-                        sale_id: doc.sale_id || undefined,
-                        payment_id: doc.payment_id || undefined,
-                      })}
-                    >
-                      <TableCell className="font-medium">
-                        {doc.reference || '-'}
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  {sortableHead("reference", t("Documento"))}
+                  {sortableHead("date", t("Data"))}
+                  {sortableHead("client_name", t("Cliente"))}
+                  <TableHead>{t("Estado")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("Email")}</TableHead>
+                  {sortableHead("total", t("Valor"), "text-right")}
+                  <TableHead className="w-12"><span className="sr-only">PDF</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((doc) => {
+                  const email = doc.email_status ? EMAIL_STATES[doc.email_status] : undefined;
+                  return (
+                    <TableRow key={doc.id} className="cursor-pointer" onClick={() => setSelected(doc)}>
+                      <TableCell>
+                        <p className="font-medium">{doc.reference || "—"}</p>
+                        <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <span className={cn("rounded-full px-1.5 py-px font-medium", TYPE_PILLS[doc.document_type] ?? "bg-muted")}>{docTypeLabel(doc.document_type, doc.provider)}</span>
+                          {providerLabel(doc.provider)}
+                          {doc.related_doc_reference && <span>· {t("liga a {{ref}}", { ref: doc.related_doc_reference })}</span>}
+                        </p>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums">{doc.date ? formatDate(doc.date) : "—"}</TableCell>
+                      <TableCell className="max-w-[14rem] truncate">{doc.client_name || "—"}</TableCell>
+                      <TableCell>
+                        <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", statusTone(doc.status))}>{statusLabel(doc.status, doc.provider)}</span>
+                      </TableCell>
+                      <TableCell className={cn("hidden whitespace-nowrap text-xs lg:table-cell", email?.tone ?? "text-muted-foreground")}>{email?.label ? t(email.label) : "—"}</TableCell>
+                      <TableCell className={cn("whitespace-nowrap text-right font-semibold tabular-nums", doc.document_type === "credit_note" && "text-rose-600 dark:text-rose-400")}>
+                        {doc.document_type === "credit_note" ? "−" : ""}{formatCurrency(doc.total)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 whitespace-nowrap">
-                          {getDocTypeLabel(doc.document_type, doc.provider)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {getProviderLabel(doc.provider)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {doc.date ? formatDate(doc.date) : '-'}
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate">
-                        {doc.client_name || '-'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={getStatusVariant(doc.status)} className="text-xs">
-                          {getStatusLabel(doc.status, doc.provider)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {doc.related_doc_reference ? (
-                          <Badge variant="outline" className="text-xs">
-                            {doc.related_doc_reference}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold whitespace-nowrap">
-                        {formatCurrency(doc.total)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {doc.pdf_path ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => { e.stopPropagation(); handleViewPdf(doc.id, doc.pdf_path); }}
-                            disabled={viewingId === doc.id}
-                          >
-                            {viewingId === doc.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <FileDown className="h-4 w-4" />
-                            )}
+                        {doc.pdf_path && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title={t("Ver PDF")} aria-label={t("Ver PDF de {{ref}}", { ref: doc.reference ?? t("documento") })}
+                            onClick={(event) => { event.stopPropagation(); void handleViewPdf(doc.id, doc.pdf_path); }} disabled={viewingId === doc.id}>
+                            {viewingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                           </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
-      {selectedInvoice && organization && (
+      {selected && organization && (
         <InvoiceDetailsModal
-          open={!!selectedInvoice}
-          onOpenChange={(open) => !open && setSelectedInvoice(null)}
-          documentId={selectedInvoice.invoicexpress_id}
-          invoiceId={selectedInvoice.invoice_id}
-          provider={selectedInvoice.provider}
-          documentType={selectedInvoice.document_type}
+          open={!!selected}
+          onOpenChange={(open) => !open && setSelected(null)}
+          documentId={selected.invoicexpress_id}
+          invoiceId={selected.invoice_id}
+          provider={selected.provider}
+          documentType={(selected.document_type === "simplified_invoice" ? "invoice_receipt" : selected.document_type) as DocumentType}
           organizationId={organization.id}
-          saleId={selectedInvoice.sale_id}
-          paymentId={selectedInvoice.payment_id}
+          saleId={selected.sale_id || undefined}
+          paymentId={selected.payment_id || undefined}
           initialDetails={{
-            sequence_number: selectedInvoice.reference || '',
-            status: selectedInvoice.status || 'final',
-            date: selectedInvoice.date || '',
-            sum: Number(selectedInvoice.total || 0),
-            before_taxes: Number(selectedInvoice.total || 0),
-            total: Number(selectedInvoice.total || 0),
-            client: selectedInvoice.client_name ? {
-              id: 0,
-              name: selectedInvoice.client_name,
-              fiscal_id: '',
-              country: 'PT',
-              address: null,
-              postal_code: null,
-              city: null,
-              email: null,
-              phone: null,
+            sequence_number: selected.reference || "",
+            status: selected.status || "final",
+            date: selected.date || "",
+            sum: Number(selected.total || 0),
+            before_taxes: Number(selected.total || 0),
+            total: Number(selected.total || 0),
+            client: selected.client_name ? {
+              id: 0, name: selected.client_name, fiscal_id: "", country: "PT", address: null, postal_code: null, city: null, email: null, phone: null,
             } : null,
           }}
         />
       )}
 
-      <SaleInvoicePicker open={pickerMode === 'invoice'} onOpenChange={(o) => !o && setPickerMode(null)} />
-      <CreditNoteInvoicePicker open={pickerMode === 'credit-note'} onOpenChange={(o) => !o && setPickerMode(null)} />
+      <SaleInvoicePicker open={pickerMode === "invoice"} onOpenChange={(open) => !open && setPickerMode(null)} />
+      <CreditNoteInvoicePicker open={pickerMode === "credit-note"} onOpenChange={(open) => !open && setPickerMode(null)} />
     </div>
   );
 }

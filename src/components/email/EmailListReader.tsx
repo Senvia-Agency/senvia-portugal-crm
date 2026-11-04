@@ -22,178 +22,14 @@ import {
 } from '@/hooks/useEmail';
 import { useEmailChannels } from '@/hooks/useEmailChannels';
 import { useEmailActions } from '@/hooks/useEmailActions';
-import { useEmailImageSenders } from '@/hooks/useEmailImageSenders';
 import { useAuth } from '@/contexts/AuthContext';
 import { readEmailRecoveries, type EmailRecovery } from '@/lib/inbox-drafts';
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
+import { EmailWorkflowActions } from './EmailWorkflowActions';
+import { EmailBody } from './EmailBody';
 import { EmailComposer, type ComposeMode } from './EmailComposer';
 import { initials, fmtListDate, fmtFullDate, fmtSize, addrText, folderLabel, ROLE_META } from './emailShared';
-
-// 1x1 transparent GIF — placeholder src for images we haven't loaded (yet, or
-// ever, if the user never unblocks remote images).
-const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-
-// Matches an <img ...> tag's src attribute value (double or single quoted).
-const IMG_SRC_RE = /(<img\b[^>]*?\ssrc=)(["'])(.*?)\2/gi;
-// Standalone (non-global) check for "does this body have at least one remote
-// <img>" — used only to decide whether to show the unblock banner at all.
-function hasRemoteImage(html: string): boolean {
-  // Não chega procurar `<img src>`: com a política de segurança a bloquear tudo
-  // o que vem de fora, um email que só rastreie por CSS (`background:url(...)`)
-  // também fica bloqueado — e sem isto não aparecia o botão para o desbloquear.
-  return /<img\b[^>]*\ssrc=["']https?:\/\//i.test(html)
-    || /url\(\s*["']?https?:\/\//i.test(html)
-    || /\bsrcset=["'][^"']*https?:\/\//i.test(html)
-    || /\bbackground=["']https?:\/\//i.test(html)
-    || /<video\b[^>]*\sposter=["']https?:\/\//i.test(html);
-}
-
-// HTML body in a sandboxed, auto-sized iframe (consistent fonts). Blocks remote
-// images by default (Gmail/Outlook-style anti-tracking-pixel behaviour — a
-// sender can otherwise tell you opened the email the instant it loads) and
-// resolves `cid:` embedded images (logos, signatures) from the message's own
-// inline attachments, which the browser can never fetch directly.
-function EmailBody({
-  html, text, inlineAttachments, resolveAttachment, sender,
-}: {
-  html: string | null;
-  text: string | null;
-  inlineAttachments: EmailAttachment[];
-  resolveAttachment: (id: string) => Promise<{ data_b64: string; content_type: string | null } | null>;
-  /** From address — senders the user trusts get their images shown straight away. */
-  sender?: string | null;
-}) {
-  const ref = useRef<HTMLIFrameElement>(null);
-  // Blocked by default per message view (EmailListReader remounts this with a
-  // `key` per message id, so a freshly opened email always starts blocked),
-  // unless the user chose "Mostrar sempre" for this sender before.
-  const remetentes = useEmailImageSenders();
-  const [showOnce, setShowOnce] = useState(false);
-  const trusted = remetentes.trusts(sender);
-  const imagesBlocked = !(showOnce || trusted);
-  const [cidUrls, setCidUrls] = useState<Record<string, string>>({});
-  const hadRemoteImages = useMemo(() => (html ? hasRemoteImage(html) : false), [html]);
-
-  // Resolve every cid: reference actually used in this body, once, from the
-  // message's own inline attachments (never a network fetch to a 3rd party).
-  useEffect(() => {
-    if (!html || inlineAttachments.length === 0) return;
-    const referenced = new Set<string>();
-    for (const m of html.matchAll(/cid:([^"'\s)]+)/gi)) referenced.add(m[1].toLowerCase());
-    if (referenced.size === 0) return;
-    let cancelled = false;
-    (async () => {
-      for (const att of inlineAttachments) {
-        const cid = (att.content_id || '').replace(/^<|>$/g, '').toLowerCase();
-        if (!cid || !referenced.has(cid) || cidUrls[cid]) continue;
-        const resolved = await resolveAttachment(att.id);
-        if (cancelled || !resolved) continue;
-        const url = `data:${resolved.content_type || 'application/octet-stream'};base64,${resolved.data_b64}`;
-        setCidUrls((prev) => ({ ...prev, [cid]: url }));
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, inlineAttachments]);
-
-  const srcDoc = useMemo(() => {
-    const font = "-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-    let body: string;
-    if (html) {
-      body = html.replace(IMG_SRC_RE, (full, prefix, quote, src) => {
-        const cidMatch = /^cid:(.+)$/i.exec(src);
-        if (cidMatch) {
-          const url = cidUrls[cidMatch[1].toLowerCase()];
-          return `${prefix}${quote}${url || BLANK_PIXEL}${quote}`;
-        }
-        if (/^https?:\/\//i.test(src) && imagesBlocked) {
-          return `${prefix}${quote}${BLANK_PIXEL}${quote} data-original-src=${quote}${src}${quote}`;
-        }
-        return full;
-      });
-    } else {
-      body = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    }
-    // A política de segurança é o que fecha mesmo o rastreio.
-    //
-    // A reescrita acima só toca em `<img src>`. Um email pode ir buscar ao
-    // servidor do remetente por CSS (`background:url(...)`), por `srcset`, por
-    // `background=`, por `<video poster>` — e 188 dos 368 emails desta caixa
-    // têm blocos `<style>`. O aviso dizia "imagens bloqueadas" e o pixel de
-    // rastreio passava à mesma.
-    //
-    // Aqui é o browser que recusa TODAS as ligações para fora, sejam quais
-    // forem. Ao carregar em "Mostrar imagens" abre-se só o necessário.
-    const csp = imagesBlocked
-      ? "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:"
-      : "default-src 'none'; img-src data: https:; style-src 'unsafe-inline' https:; font-src data: https:";
-
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <meta http-equiv="Content-Security-Policy" content="${csp}">
-      <base target="_blank"><style>
-      *{box-sizing:border-box}
-      body{margin:0;padding:0;font-family:${font};font-size:14px;line-height:1.6;color:#1a1a1a;word-break:break-word;overflow-wrap:break-word;${html ? '' : 'white-space:pre-wrap'}}
-      a{color:#2563eb}img{max-width:100%;height:auto}
-      blockquote{margin:0 0 0 12px;padding-left:12px;border-left:3px solid #e5e7eb;color:#6b7280}
-    </style></head><body>${body}</body></html>`;
-  }, [html, text, cidUrls, imagesBlocked]);
-
-  return (
-    <div>
-      {hadRemoteImages && imagesBlocked && (
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-          <span>Imagens externas bloqueadas (proteção contra rastreio).</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowOnce(true)}
-              className="shrink-0 rounded-md bg-amber-200/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200"
-            >
-              Mostrar imagens
-            </button>
-            {sender && (
-              <button
-                type="button"
-                onClick={() => remetentes.trust(sender)}
-                title={`As imagens dos emails de ${sender} passam a abrir sozinhas`}
-                className="shrink-0 rounded-md border border-amber-300/70 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-500/30 dark:text-amber-200 dark:hover:bg-amber-500/10"
-              >
-                Mostrar sempre de {sender}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {hadRemoteImages && trusted && sender && (
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          As imagens de {sender} abrem sempre.{' '}
-          <button
-            type="button"
-            onClick={() => { remetentes.untrust(sender); setShowOnce(false); }}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Deixar de mostrar
-          </button>
-        </p>
-      )}
-      <iframe
-        ref={ref}
-        srcDoc={srcDoc}
-        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        title="Email"
-        className="w-full border-0"
-        style={{ height: 200 }}
-        onLoad={() => {
-          try {
-            const doc = ref.current?.contentDocument;
-            const h = doc?.documentElement?.scrollHeight ?? 0;
-            if (h && ref.current) ref.current.style.height = `${h + 12}px`;
-          } catch { /* ignore */ }
-        }}
-      />
-    </div>
-  );
-}
+import { useLanguage } from '@/i18n';
 
 // Trigger a browser download from base64 content.
 function triggerB64Download(target: { readonly filename: string; readonly document: Document }, contentType: string | null, b64: string) {
@@ -211,7 +47,8 @@ const attachDb = supabase as unknown as { from: (t: string) => any };
 
 // Draft list row (shown when the Rascunhos folder is active).
 function DraftRow({ draft, active, onClick }: { draft: EmailDraft; active: boolean; onClick: () => void }) {
-  const to = (draft.to_addresses || []).map((a) => a.name || a.address).join(', ') || '(sem destinatário)';
+  const { t } = useLanguage();
+  const to = (draft.to_addresses || []).map((a) => a.name || a.address).join(', ') || t('(sem destinatário)');
   const snippet = (draft.body_html || '').replace(/<[^>]+>/g, '').slice(0, 120);
   return (
     <button
@@ -223,11 +60,11 @@ function DraftRow({ draft, active, onClick }: { draft: EmailDraft; active: boole
     >
       <div className="flex items-center gap-2">
         <FileEdit className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">Para: {to}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{t('Para:')} {to}</span>
         <span className="shrink-0 text-[11px] text-muted-foreground">{fmtListDate(draft.updated_at)}</span>
       </div>
-      <span className="truncate text-sm font-semibold text-foreground">{draft.subject || '(sem assunto)'}</span>
-      <span className="truncate text-xs text-muted-foreground">{snippet || '(sem conteúdo)'}</span>
+      <span className="truncate text-sm font-semibold text-foreground">{draft.subject || t('(sem assunto)')}</span>
+      <span className="truncate text-xs text-muted-foreground">{snippet || t('(sem conteúdo)')}</span>
     </button>
   );
 }
@@ -256,6 +93,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
   const [messageId, setMessageId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const isMobile = useIsMobile();
+  const { t } = useLanguage();
 
   // Resizable list column ─────────────────────────────────────────────────────
   const [listWidth, setListWidth] = useState<number>(() => {
@@ -372,10 +210,10 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
     if (!message || message.body_fetched || requestedBodyRef.current === message.id) return;
     requestedBodyRef.current = message.id;
     void actions.fetchBody(message.id).catch((error: unknown) => {
-      setBodyRequestError(error instanceof Error ? error.message : 'Não foi possível pedir o conteúdo.');
+      setBodyRequestError(error instanceof Error ? error.message : t('Não foi possível pedir o conteúdo.'));
       toast({
-        title: 'Falha ao carregar o email',
-        description: error instanceof Error ? error.message : 'Tenta novamente.',
+        title: t('Falha ao carregar o email'),
+        description: error instanceof Error ? error.message : t('Tenta novamente.'),
         variant: 'destructive',
       });
     });
@@ -397,8 +235,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const reportMailboxActionError = (error: unknown) => {
     toast({
-      title: 'Ação de email não concluída',
-      description: error instanceof Error ? error.message : 'Tenta novamente.',
+      title: t('Ação de email não concluída'),
+      description: error instanceof Error ? error.message : t('Tenta novamente.'),
       variant: 'destructive',
     });
   };
@@ -408,7 +246,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
     clearSelection();
     const results = await Promise.allSettled(ids.map((id) => fn(id)));
     const failed = results.filter((r) => r.status === 'rejected').length;
-    if (failed > 0) toast({ title: `${failed} de ${ids.length} operações falharam (${label})`, variant: 'destructive' });
+    if (failed > 0) toast({ title: t('{{failed}} de {{total}} operações falharam ({{label}})', { failed, total: ids.length, label: t(label) }), variant: 'destructive' });
   };
   const batchArchive = () => { runBatch(actions.archive, 'arquivar'); };
   const batchTrash = () => {
@@ -563,10 +401,10 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
     setDlId(a.id);
     try {
       const resolved = await resolveAttachment(a.id);
-      if (!resolved) throw new Error('Tempo esgotado a obter o anexo');
-      triggerB64Download({ filename: a.filename || 'anexo', document: browserWindow.document }, resolved.content_type || a.content_type, resolved.data_b64);
+      if (!resolved) throw new Error(t('Tempo esgotado a obter o anexo'));
+      triggerB64Download({ filename: a.filename || t('anexo'), document: browserWindow.document }, resolved.content_type || a.content_type, resolved.data_b64);
     } catch (e) {
-      toast({ title: 'Falha ao descarregar', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: t('Falha ao descarregar'), description: (e as Error).message, variant: 'destructive' });
     } finally {
       setDlId(null);
     }
@@ -580,7 +418,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
       <section
         data-inbox-email-reader
         className={cn(
-          'relative w-full flex-col border-r lg:shrink-0',
+          'inbox-email-list relative w-full flex-col border-r lg:shrink-0',
           compact ? (messageId ? 'hidden' : 'flex') : messageId ? 'hidden lg:flex' : 'flex',
         )}
         style={isMobile || compact ? undefined : { width: listWidth }}
@@ -598,31 +436,31 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 type="button"
                 onClick={clearSelection}
                 className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                title="Cancelar seleção"
+                title={t("Cancelar seleção")}
               >
                 <X className="h-4 w-4" />
               </button>
               <span className="text-sm text-muted-foreground">
-                {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
+                {t(selectedIds.size === 1 ? '{{n}} selecionado' : '{{n}} selecionados', { n: selectedIds.size })}
               </span>
               <div className="flex-1" />
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => batchSetRead(true)}>
-                Lido
+                {t('Lido')}
               </Button>
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => batchSetRead(false)}>
-                Não lido
+                {t('Não lido')}
               </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7" title="Arquivar" onClick={batchArchive}>
+              <Button size="icon" variant="ghost" className="h-7 w-7" title={t("Arquivar")} onClick={batchArchive}>
                 <Archive className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7" title="Spam" onClick={batchSpam}>
+              <Button size="icon" variant="ghost" className="h-7 w-7" title={t("Spam")} onClick={batchSpam}>
                 <ShieldAlert className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                title={isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
+                title={isTrashFolder ? t('Eliminar permanentemente') : t('Apagar')}
                 onClick={() => isTrashFolder ? requestPermanentDelete([...selectedIds]) : batchTrash()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -634,20 +472,20 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 {/* Mobile: reopen the caixa rail (the conversation list with its rail
                     button is hidden in email mode, so without this you can't get back). */}
                 {onOpenRail && (
-                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0 lg:hidden" title="Caixas" onClick={onOpenRail}>
+                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0 lg:hidden" title={t("Caixas")} onClick={onOpenRail}>
                     <Mailbox className="h-4 w-4" />
                   </Button>
                 )}
                 <Button size="sm" onClick={() => addCompose('new')}>
-                  <PenSquare className="mr-1.5 h-4 w-4" /> Novo email
+                  <PenSquare className="mr-1.5 h-4 w-4" /> {t('Novo email')}
                 </Button>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {isDraftsFolder
-                  ? `${drafts.length} ${drafts.length === 1 ? 'rascunho' : 'rascunhos'}`
+                  ? t(drafts.length === 1 ? '{{n}} rascunho' : '{{n}} rascunhos', { n: drafts.length })
                   : searching
-                    ? `${messages.length} resultado(s)`
-                    : `${messages.length} ${messages.length === 1 ? 'email' : 'emails'}`}
+                    ? t('{{n}} resultado(s)', { n: messages.length })
+                    : t(messages.length === 1 ? '{{n}} email' : '{{n}} emails', { n: messages.length })}
               </span>
             </div>
           )}
@@ -662,48 +500,49 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
               <button
                 type="button"
                 onClick={() => dispensarFalhas(falhasVisiveis.map((f) => f.id))}
-                title="Dispensar"
+                title={t("Dispensar")}
                 className="absolute right-1.5 top-1.5 rounded p-1 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
               <p className="font-medium text-destructive">
                 {falhasVisiveis.length === 1
-                  ? '1 ação de email não foi concluída'
-                  : `${falhasVisiveis.length} ações de email não foram concluídas`}
+                  ? t('1 ação de email não foi concluída')
+                  : t('{{n}} ações de email não foram concluídas', { n: falhasVisiveis.length })}
               </p>
               <ul className="mt-1 space-y-0.5 text-muted-foreground">
                 {falhasVisiveis.slice(0, 3).map((f) => (
                   <li key={f.id} className="truncate">
-                    {COMMAND_LABELS[f.type] ?? f.type}
+                    {COMMAND_LABELS[f.type] ? t(COMMAND_LABELS[f.type]) : f.type}
                     {f.error ? ` — ${emailCommandErrorMessage(f.error)}` : ''}
                   </li>
                 ))}
               </ul>
               <p className="mt-1 text-muted-foreground">
-                Estas ações falharam. As restantes podem ter sido concluídas; verifica o estado antes de repetir.
+                {t('Estas ações falharam. As restantes podem ter sido concluídas; verifica o estado antes de repetir.')}
               </p>
             </div>
           )}
           {!!activity?.pending && (
             <div role="status" className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-              <span>{activity.pending} {activity.pending === 1 ? 'ação de email em curso' : 'ações de email em curso'} nesta caixa.
-                {activity.sends > 0 ? ' Há envios a aguardar confirmação.' : ' A lista é atualizada à medida que terminam.'}</span>
+              <span>{t(activity.pending === 1 ? '{{n}} ação de email em curso nesta caixa.' : '{{n}} ações de email em curso nesta caixa.', { n: activity.pending })}
+                {activity.sends > 0 ? ' ' + t('Há envios a aguardar confirmação.') : ' ' + t('A lista é atualizada à medida que terminam.')}</span>
             </div>
           )}
           {!isDraftsFolder && (
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="inbox-email-search relative">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Procurar emails..."
+                aria-label={t("Procurar emails")}
+                placeholder={t("Procurar emails...")}
                 autoComplete="new-password"
-                className="h-8 pl-8 pr-8 text-sm"
+                className="h-11 rounded-2xl border-primary/30 bg-primary/5 pl-10 pr-10 text-sm placeholder:text-muted-foreground focus-visible:ring-primary/25"
               />
               {search && (
-                <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button type="button" aria-label={t("Limpar pesquisa de emails")} onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -721,7 +560,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                     unreadOnly ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground hover:bg-accent',
                   )}
                 >
-                  Não lidos{folderUnread > 0 ? ` (${folderUnread})` : ''}
+                  {t('Não lidos')}{folderUnread > 0 ? ` (${folderUnread})` : ''}
                 </button>
                 <button
                   type="button"
@@ -731,7 +570,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                     starredOnly ? 'border-amber-400 bg-amber-400/10 text-amber-600' : 'border-input text-muted-foreground hover:bg-accent',
                   )}
                 >
-                  Com estrela
+                  {t('Com estrela')}
                 </button>
               </div>
               {folderUnread > 0 && (
@@ -740,7 +579,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                   onClick={markAllRead}
                   className="flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  <CheckCheck className="h-3.5 w-3.5" /> Marcar todas como lidas
+                  <CheckCheck className="h-3.5 w-3.5" /> {t('Marcar todas como lidas')}
                 </button>
               )}
             </div>
@@ -754,7 +593,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 className="flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                {selectedIds.size === messages.length ? 'Desselecionar todos' : `Selecionar todos (${messages.length})`}
+                {selectedIds.size === messages.length ? t('Desselecionar todos') : t('Selecionar todos ({{n}})', { n: messages.length })}
               </button>
             </div>
           )}
@@ -775,7 +614,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           ) : isDraftsFolder ? (
             drafts.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-                <FileEdit className="h-8 w-8 opacity-30" /><span className="text-sm">Sem rascunhos</span>
+                <FileEdit className="h-8 w-8 opacity-30" /><span className="text-sm">{t('Sem rascunhos')}</span>
               </div>
             ) : (
               drafts.map((d) => (
@@ -785,19 +624,19 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
           ) : messages.length === 0 ? (
             syncingUnread ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin opacity-50" /><span className="text-sm">A procurar não lidos...</span>
+                <Loader2 className="h-6 w-6 animate-spin opacity-50" /><span className="text-sm">{t('A procurar não lidos...')}</span>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
                 <InboxIcon className="h-8 w-8 opacity-30" />
-                <span className="text-sm">{unreadOnly ? 'Sem emails não lidos' : 'Pasta vazia'}</span>
+                <span className="text-sm">{unreadOnly ? t('Sem emails não lidos') : t('Pasta vazia')}</span>
               </div>
             )
           ) : (
             messages.map((m) => {
               const active = m.id === messageId;
               const selected = selectedIds.has(m.id);
-              const who = m.from_name || m.from_address || '(desconhecido)';
+              const who = m.from_name || m.from_address || t('(desconhecido)');
               return (
                 <div
                   key={m.id}
@@ -806,7 +645,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                   onClick={() => setMessageId(m.id)}
                   onKeyDown={(e) => e.key === 'Enter' && setMessageId(m.id)}
                   className={cn(
-                    'group flex w-full cursor-pointer items-start border-b text-left transition-colors',
+                    'inbox-email-row group flex w-full cursor-pointer items-start border-b text-left transition-colors',
                     active ? 'bg-accent' : 'hover:bg-accent/50',
                     !m.seen && !active && 'bg-primary/[0.03]',
                     selected && 'bg-primary/10',
@@ -843,7 +682,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                         type="button"
                         onClick={(e) => { e.stopPropagation(); actions.setFlag(m.id, !m.flagged); }}
                         className={cn('shrink-0 transition-opacity', m.flagged ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}
-                        title={m.flagged ? 'Remover estrela' : 'Marcar com estrela'}
+                        title={m.flagged ? t('Remover estrela') : t('Marcar com estrela')}
                       >
                         <Star className={cn('h-3.5 w-3.5', m.flagged ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground hover:text-amber-500')} />
                       </button>
@@ -851,7 +690,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                     </div>
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className={cn('min-w-0 truncate text-sm', !m.seen ? 'font-semibold text-foreground' : 'text-foreground/80')}>
-                        {m.subject || '(sem assunto)'}
+                        {m.subject || t('(sem assunto)')}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -865,7 +704,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       type="button"
                       onClick={(e) => { e.stopPropagation(); actions.setRead(m.id, !m.seen); }}
                       className="text-muted-foreground hover:text-foreground"
-                      title={m.seen ? 'Marcar como não lida' : 'Marcar como lida'}
+                      title={m.seen ? t('Marcar como não lida') : t('Marcar como lida')}
                     >
                       <MailOpen className="h-3.5 w-3.5" />
                     </button>
@@ -873,7 +712,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       type="button"
                       onClick={(e) => { e.stopPropagation(); actions.archive(m.id); }}
                       className="text-muted-foreground hover:text-foreground"
-                      title="Arquivar"
+                      title={t("Arquivar")}
                     >
                       <Archive className="h-3.5 w-3.5" />
                     </button>
@@ -885,7 +724,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                         else runMailboxAction(actions.trash(m.id));
                       }}
                       className="text-muted-foreground hover:text-destructive"
-                      title={isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
+                      title={isTrashFolder ? t('Eliminar permanentemente') : t('Apagar')}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -904,8 +743,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
               >
                 {loadingOlder
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> A carregar mais antigos...</>
-                  : 'Carregar mais antigos'}
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('A carregar mais antigos...')}</>
+                  : t('Carregar mais antigos')}
               </button>
             </div>
           )}
@@ -913,48 +752,51 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
       </section>
 
       {/* Reader — full-width on mobile (shown when a message is open), side column on md+ */}
-      <section data-inbox-email-reader className={cn('min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : compact ? 'hidden' : 'hidden lg:flex')}>
+      <section data-inbox-email-reader className={cn('inbox-email-reading min-w-0 flex-1 flex-col bg-muted/10', messageId ? 'flex' : compact ? 'hidden' : 'hidden lg:flex')}>
         {isDraftsFolder ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <FileEdit className="h-10 w-10 opacity-20" />
-            <p className="text-sm">Clica num rascunho para continuar a escrever</p>
+            <p className="text-sm">{t('Clica num rascunho para continuar a escrever')}</p>
           </div>
         ) : !opened ? (
           messageId && loadingMessage ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin opacity-50" />
-              <span className="text-sm">A abrir email...</span>
+              <span className="text-sm">{t('A abrir email...')}</span>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <div className="inbox-email-empty flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
                 <Mail className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <p className="text-base font-semibold text-foreground">Os teus emails</p>
-                <p className="mt-1 max-w-xs text-sm text-muted-foreground">Escolhe um email à esquerda para o ler aqui.</p>
-                <p className="mt-2 hidden text-xs text-muted-foreground/60 lg:block">j/k navegar · e arquivar · # apagar · r responder</p>
+                <p className="text-base font-semibold text-foreground">{t('Os teus emails')}</p>
+                <p className="mt-1 max-w-xs text-sm text-muted-foreground">{t('Escolhe um email à esquerda para o ler aqui.')}</p>
+                <p className="mt-2 hidden text-xs text-muted-foreground/60 lg:block">{t('j/k navegar · e arquivar · # apagar · r responder')}</p>
               </div>
             </div>
           )
         ) : (
           <>
-            <div className="flex items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
+            <div className="inbox-email-actions flex flex-wrap items-center gap-1 border-b bg-background px-2 pt-5 pb-2 sm:px-3">
               <Button size="sm" variant="outline" className={compact ? "px-2" : "px-2 lg:hidden"} onClick={() => setMessageId(null)}>
-                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+                <ArrowLeft className="mr-1 h-4 w-4" /> {t('Voltar')}
               </Button>
-              <Button size="sm" onClick={() => addCompose('reply', opened.message)}>
-                <Reply className="mr-1.5 h-4 w-4" /> Responder
+              <Button size="sm" variant="ghost" onClick={() => addCompose('reply', opened.message)}>
+                <Reply className="mr-1.5 h-4 w-4" /> {t('Responder')}
               </Button>
-              <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => addCompose('forward', opened.message, null, opened.attachments)}>
-                <Forward className="mr-1.5 h-4 w-4" /> Reencaminhar
+              <Button size="sm" variant="ghost" onClick={() => addCompose('forward', opened.message, null, opened.attachments)}>
+                <Forward className="mr-1.5 h-4 w-4" /> {t('Reencaminhar')}
               </Button>
+              <Button size="sm" variant="ghost" onClick={() => addCompose('replyAll', opened.message)}><ReplyAll className="mr-1.5 h-4 w-4" />{t('Responder a todos')}</Button>
+              <EmailWorkflowActions key={opened.message.id} message={opened.message} />
+              <Button size="sm" variant="ghost" onClick={() => act(() => actions.setRead(opened.message.id, false))}><MailOpen className="mr-1.5 h-4 w-4" />{t('Marcar como não lido')}</Button>
               <div className="flex-1" />
               {/* Star: common toggle, kept one tap away */}
               <Button
                 size="icon"
                 variant="ghost"
-                title={opened.message.flagged ? 'Remover estrela' : 'Marcar com estrela'}
+                title={opened.message.flagged ? t('Remover estrela') : t('Marcar com estrela')}
                 onClick={() => actions.setFlag(opened.message.id, !opened.message.flagged)}
               >
                 <Star className={cn('h-4 w-4', opened.message.flagged && 'fill-amber-400 text-amber-400')} />
@@ -962,13 +804,10 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
               {/* Everything else, LABELLED, in one menu (no more guessing icons). */}
               <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
                 <PopoverTrigger asChild>
-                  <Button size="icon" variant="ghost" title="Mais ações"><MoreVertical className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" title={t("Mais ações")}><MoreVertical className="h-4 w-4" /></Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-56 p-1">
                   {([
-                    { icon: ReplyAll, label: 'Responder a todos', run: () => addCompose('replyAll', opened.message) },
-                    { icon: Forward, label: 'Reencaminhar', run: () => addCompose('forward', opened.message, null, opened.attachments), mobileOnly: true },
-                    { icon: MailOpen, label: 'Marcar como não lida', run: () => act(() => actions.setRead(opened.message.id, false)) },
                     { icon: Archive, label: 'Arquivar', run: () => act(() => actions.archive(opened.message.id)) },
                     { icon: ShieldAlert, label: 'Marcar como spam', run: () => act(() => actions.spam(opened.message.id)) },
                   ]).map((it) => (
@@ -977,11 +816,10 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       onClick={() => { it.run(); setActionsOpen(false); }}
                       className={cn(
                         'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-accent',
-                        it.mobileOnly && 'sm:hidden',
                       )}
                     >
                       <it.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      {it.label}
+                      {t(it.label)}
                     </button>
                   ))}
                   <button
@@ -992,12 +830,12 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                     }}
                     className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="h-4 w-4 shrink-0" /> {isTrashFolder ? 'Eliminar permanentemente' : 'Apagar'}
+                    <Trash2 className="h-4 w-4 shrink-0" /> {isTrashFolder ? t('Eliminar permanentemente') : t('Apagar')}
                   </button>
                   {folders.length > 1 && (
                     <>
                       <div className="my-1 border-t" />
-                      <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Mover para</p>
+                      <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('Mover para')}</p>
                       {folders.filter((f) => f.id !== folderId).map((f) => {
                         const { Icon } = ROLE_META[f.role];
                         return (
@@ -1017,8 +855,8 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
               </Popover>
             </div>
         <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl p-6">
-              <h1 className="mb-4 text-xl font-semibold leading-snug">{opened.message.subject || '(sem assunto)'}</h1>
+            <div className="inbox-email-document mx-auto max-w-3xl p-6">
+              <h1 className="mb-4 text-xl font-semibold leading-snug">{opened.message.subject || t('(sem assunto)')}</h1>
               <div className="mb-4 flex items-start gap-3 border-b pb-4">
                 <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold', avatarColor(opened.message.from_name || opened.message.from_address || '?'))}>
                   {initials(opened.message.from_name || opened.message.from_address || '?')}
@@ -1032,7 +870,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                     <div className="truncate text-xs text-muted-foreground">{opened.message.from_address}</div>
                   )}
                   <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                    Para: {addrText(opened.message.to_addresses) || '—'}
+                    {t('Para:')} {addrText(opened.message.to_addresses) || '—'}
                     {opened.message.cc_addresses?.length > 0 && <>  ·  Cc: {addrText(opened.message.cc_addresses)}</>}
                   </div>
                 </div>
@@ -1046,7 +884,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       type="button"
                       onClick={() => downloadAttachment(a)}
                       disabled={dlId === a.id}
-                      title="Descarregar"
+                      title={t("Descarregar")}
                       className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-60"
                     >
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -1058,7 +896,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                 </div>
               )}
 
-              <div className="rounded-lg border bg-white p-4 dark:bg-card">
+              <div className="inbox-email-body rounded-lg border bg-white p-4 dark:bg-card">
                 {opened.message.body_fetched
                   ? (
                     <EmailBody
@@ -1067,12 +905,11 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       text={opened.message.text_body}
                       inlineAttachments={opened.attachments.filter((a) => a.inline)}
                       resolveAttachment={resolveAttachment}
-                      sender={opened.message.from_address}
                     />
                   )
                   : failedBodyCommand || bodyRequestError
-                    ? <div role="alert" className="py-6 text-sm text-destructive">Não foi possível carregar o conteúdo. {emailCommandErrorMessage(failedBodyCommand?.error) || bodyRequestError}</div>
-                    : <div className="flex items-center gap-2 py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">A carregar conteúdo...</span></div>}
+                    ? <div role="alert" className="py-6 text-sm text-destructive">{t('Não foi possível carregar o conteúdo.')} {emailCommandErrorMessage(failedBodyCommand?.error) || bodyRequestError}</div>
+                    : <div className="flex items-center gap-2 py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">{t('A carregar conteúdo...')}</span></div>}
               </div>
             </div>
           </div>
@@ -1100,17 +937,17 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
       <AlertDialog open={permanentDeleteIds !== null} onOpenChange={(open) => !open && setPermanentDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar permanentemente?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar permanentemente?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {permanentDeleteIds?.length === 1
-                ? 'Este email será eliminado definitivamente da caixa de correio.'
-                : `Estes ${permanentDeleteIds?.length ?? 0} emails serão eliminados definitivamente da caixa de correio.`}
+                ? t('Este email será eliminado definitivamente da caixa de correio.')
+                : t('Estes {{n}} emails serão eliminados definitivamente da caixa de correio.', { n: permanentDeleteIds?.length ?? 0 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmPermanentDelete}>
-              Eliminar definitivamente
+              {t('Eliminar definitivamente')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

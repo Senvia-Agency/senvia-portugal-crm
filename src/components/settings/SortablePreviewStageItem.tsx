@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { PipelineStageTemplate } from "@/lib/pipeline-templates";
+import { useLanguage } from "@/i18n";
 
 export interface PreviewStage extends PipelineStageTemplate {
   tempId: string;
@@ -30,6 +31,7 @@ export function SortablePreviewStageItem({
   onFieldChange,
   onRemove,
 }: SortablePreviewStageItemProps) {
+  const { t } = useLanguage();
   const {
     attributes,
     listeners,
@@ -61,7 +63,7 @@ export function SortablePreviewStageItem({
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-1 -m-1 touch-none"
-        aria-label="Arrastar para reordenar"
+        aria-label={t("Arrastar para reordenar")}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </button>
@@ -106,7 +108,7 @@ export function SortablePreviewStageItem({
           )}
         >
           <Check className="h-3 w-3" />
-          <span className="hidden sm:inline">Ganho</span>
+          <span className="hidden sm:inline">{t("Ganho")}</span>
         </button>
         <button
           onClick={() => onFieldChange('is_final_negative', !stage.is_final_negative)}
@@ -118,7 +120,7 @@ export function SortablePreviewStageItem({
           )}
         >
           <X className="h-3 w-3" />
-          <span className="hidden sm:inline">Perdido</span>
+          <span className="hidden sm:inline">{t("Perdido")}</span>
         </button>
       </div>
 

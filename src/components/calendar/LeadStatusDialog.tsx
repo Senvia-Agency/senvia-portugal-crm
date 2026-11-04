@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { STATUS_LABELS, LeadStatus } from '@/types';
+import { useLanguage } from '@/i18n';
 
 interface LeadStatusDialogProps {
   open: boolean;
@@ -30,7 +31,10 @@ export function LeadStatusDialog({
   leadName,
   actionType,
 }: LeadStatusDialogProps) {
+  const { t } = useLanguage();
   const [selectedStatus, setSelectedStatus] = useState<LeadStatus>('contacted');
+  // Split around a marker so the lead name keeps its bold.
+  const [leadBefore, leadAfter] = t('O lead {{name}} está associado a este evento.', { name: '\u0001' }).split('\u0001');
 
   const handleConfirm = () => {
     onConfirm(selectedStatus);
@@ -41,16 +45,16 @@ export function LeadStatusDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {actionType === 'delete' ? 'Eliminar evento' : 'Cancelar evento'}
+            {actionType === 'delete' ? t('Eliminar evento') : t('Cancelar evento')}
           </DialogTitle>
           <DialogDescription>
             {leadName ? (
               <>
-                O lead <strong>{leadName}</strong> está associado a este evento.
-                Para que status deseja mover o lead?
+                {leadBefore}<strong>{leadName}</strong>{leadAfter}
+                {' '}{t('Para que estado deseja mover o lead?')}
               </>
             ) : (
-              'Tem a certeza que pretende continuar?'
+              t('Tem a certeza que pretende continuar?')
             )}
           </DialogDescription>
         </DialogHeader>
@@ -65,7 +69,7 @@ export function LeadStatusDialog({
               <div key={status} className="flex items-center space-x-3">
                 <RadioGroupItem value={status} id={status} />
                 <Label htmlFor={status} className="cursor-pointer font-normal">
-                  {label}
+                  {t(label)}
                 </Label>
               </div>
             ))}
@@ -74,7 +78,7 @@ export function LeadStatusDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Voltar
+            {t('Voltar')}
           </Button>
           <Button
             variant={actionType === 'delete' ? 'destructive' : 'default'}
@@ -82,7 +86,7 @@ export function LeadStatusDialog({
             disabled={isLoading}
           >
             {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {actionType === 'delete' ? 'Eliminar' : 'Cancelar evento'}
+            {actionType === 'delete' ? t('Eliminar') : t('Cancelar evento')}
           </Button>
         </DialogFooter>
       </DialogContent>

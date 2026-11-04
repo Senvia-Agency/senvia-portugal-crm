@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { isPlaceholderEmail } from "@/lib/leadUtils";
 import { EMAIL_TEMPLATE_TRIGGERS } from "@/lib/email-template-triggers";
+import { useLanguage } from "@/i18n";
 
 interface SendLeadEmailModalProps {
   lead: Lead;
@@ -23,6 +24,7 @@ interface SendLeadEmailModalProps {
 }
 
 export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailModalProps) {
+  const { t } = useLanguage();
   const { data: templates, isLoading } = useEmailTemplates();
   const sendEmail = useSendTemplateEmail();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,13 +66,13 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            Enviar Email para {lead.name}
+            {t("Enviar Email para {{name}}", { name: lead.name })}
           </DialogTitle>
         </DialogHeader>
 
         {!lead.email || isPlaceholderEmail(lead.email) ? (
           <p className="text-sm text-muted-foreground py-4">
-            Este lead não tem email registado.
+            {t("Este lead não tem email registado.")}
           </p>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -78,7 +80,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
           </div>
         ) : (welcomeTemplates.length === 0 && otherTemplates.length === 0) ? (
           <p className="text-sm text-muted-foreground py-4">
-            Configure um template de email com o gatilho «Envio Manual: Lead» em Marketing → Templates.
+            {t("Configure um template de email com o gatilho «Envio Manual: Lead» em Marketing → Templates.")}
           </p>
         ) : (
           <div className="space-y-4">
@@ -88,7 +90,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <Star className="h-3.5 w-3.5 text-warning" />
-                      Boas-vindas
+                      {t("Boas-vindas")}
                     </p>
                     {welcomeTemplates.map(t => (
                       <TemplateItem
@@ -107,7 +109,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
                   <div className="space-y-2">
                     {welcomeTemplates.length > 0 && (
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-2">
-                        Outros templates
+                        {t("Outros templates")}
                       </p>
                     )}
                     {otherTemplates.map(t => (
@@ -126,9 +128,9 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
 
             {selected && (
               <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
-                <p className="text-xs text-muted-foreground">Assunto</p>
+                <p className="text-xs text-muted-foreground">{t("Assunto")}</p>
                 <p className="text-sm font-medium">{selected.subject}</p>
-                <p className="text-xs text-muted-foreground mt-2">Destinatário</p>
+                <p className="text-xs text-muted-foreground mt-2">{t("Destinatário")}</p>
                 <p className="text-sm">{lead.email}</p>
               </div>
             )}
@@ -143,7 +145,7 @@ export function SendLeadEmailModal({ lead, open, onOpenChange }: SendLeadEmailMo
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Enviar Email
+              {t("Enviar Email")}
             </Button>
           </div>
         )}
@@ -159,6 +161,7 @@ function TemplateItem({ name, subject, selected, onClick, highlight }: {
   onClick: () => void;
   highlight?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <button
       type="button"
@@ -173,7 +176,7 @@ function TemplateItem({ name, subject, selected, onClick, highlight }: {
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium truncate">{name}</p>
-        {highlight && <Badge variant="secondary" className="text-[10px] shrink-0">Boas-vindas</Badge>}
+        {highlight && <Badge variant="secondary" className="text-[10px] shrink-0">{t("Boas-vindas")}</Badge>}
       </div>
       <p className="text-xs text-muted-foreground truncate mt-0.5">{subject}</p>
     </button>

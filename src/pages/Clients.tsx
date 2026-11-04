@@ -2,15 +2,14 @@ import { useState, useMemo, useEffect, useRef } from "react";
 
 import { useSearchParams, useLocation } from "react-router-dom";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { matchesSearch } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Users, Crown, UserMinus, Euro, Shield, Upload } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Search, Users, Upload, Download, ChevronDown, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useClients, useClientStats, useDeleteClient } from "@/hooks/useClients";
 import { useClientLabels } from "@/hooks/useClientLabels";
@@ -19,12 +18,15 @@ import { ClientsTable } from "@/components/clients/ClientsTable";
 import { CreateClientModal } from "@/components/clients/CreateClientModal";
 import { EditClientModal } from "@/components/clients/EditClientModal";
 import { ClientDetailsDrawer } from "@/components/clients/ClientDetailsDrawer";
-import { ClientFilters, defaultFilters, type ClientFiltersState } from "@/components/clients/ClientFilters";
+import { ClientFilters } from "@/components/clients/ClientFilters";
+import { defaultFilters, hasClientFilters, type ClientFiltersState } from "@/components/clients/client-filters";
 import { BulkActionsBar } from "@/components/shared/BulkActionsBar";
 import { AssignTeamMemberModal } from "@/components/shared/AssignTeamMemberModal";
 import type { CrmClient } from "@/types/clients";
 import { formatCurrency } from "@/lib/format";
 import { mapClientsForExport, exportToCsv, exportToExcel } from "@/lib/export";
+import { ExportMenu } from "@/components/shared/ExportMenu";
+import { ImportClientsDialog } from "@/components/clients/ImportClientsDialog";
 import { useClientProposalTypes } from "@/hooks/useClientProposalTypes";
 import { CreateProposalModal } from "@/components/proposals/CreateProposalModal";
 import { importClients } from "@/lib/clients/import";
@@ -32,17 +34,33 @@ import { toast } from "sonner";
 import { useModules } from "@/hooks/useModules";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
 import * as XLSX from "xlsx";
+import { PageModuleIcon } from "@/components/layout/ModuleNavIcon";
+import { useLanguage } from "@/i18n";
+
+/** One figure of the summary line under the filters. */
+function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card px-4 py-2.5 shadow-sm">
+      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
+      {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
 
 export default function Clients() {
+  const { t } = useLanguage();
   const { profile, organization } = useAuth();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = usePersistedState("clients-search-v1", "");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedClient, setSelectedClient] = useState<CrmClient | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
-  const [filters, setFilters] = usePersistedState<ClientFiltersState>("clients-filters-v1", defaultFilters);
+  // v2: several states, sources and types can be picked at once (and there is no VIP any more).
+  const [filters, setFilters] = usePersistedState<ClientFiltersState>("clients-filters-v2", defaultFilters);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -62,9 +80,15 @@ export default function Clients() {
   const showEnergy = isTelecom && modules.energy;
   const [isImporting, setIsImporting] = useState(false);
 
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const client of clients ?? []) if (client.source) counts.set(client.source, (counts.get(client.source) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }));
+  }, [clients]);
+
   const filteredClients = useMemo(() => {
     if (!clients) return [];
-    
+
     return clients.filter((client) => {
       if (search.trim()) {
         const matchesSearchTerm = matchesSearch(
@@ -80,28 +104,28 @@ export default function Clients() {
         if (!matchesSearchTerm) return false;
       }
 
-      if (filters.status !== 'all' && client.status !== filters.status) {
+      if (filters.statuses.length > 0 && !filters.statuses.includes(client.status)) {
         return false;
       }
 
-      if (filters.source !== 'all' && client.source !== filters.source) {
+      if (filters.sources.length > 0 && !(client.source && filters.sources.includes(client.source))) {
         return false;
       }
 
       if (filters.dateFrom || filters.dateTo) {
         const clientDate = parseISO(client.created_at);
-        const from = filters.dateFrom ? startOfDay(filters.dateFrom) : new Date(0);
-        const to = filters.dateTo ? endOfDay(filters.dateTo) : new Date(2100, 11, 31);
-        
+        const from = filters.dateFrom ? startOfDay(new Date(filters.dateFrom)) : new Date(0);
+        const to = filters.dateTo ? endOfDay(new Date(filters.dateTo)) : new Date(2100, 11, 31);
+
         if (!isWithinInterval(clientDate, { start: from, end: to })) {
           return false;
         }
       }
 
       // Proposal type filter (telecom)
-      if (filters.proposalType !== 'all') {
+      if (filters.proposalTypes.length > 0) {
         const types = clientTypesMap[client.id];
-        if (!types || !types.includes(filters.proposalType)) {
+        if (!types || !filters.proposalTypes.some(type => types.includes(type))) {
           return false;
         }
       }
@@ -110,11 +134,25 @@ export default function Clients() {
     });
   }, [clients, search, filters, clientTypesMap]);
 
+  const filtering = !!search.trim() || hasClientFilters(filters);
+
+  // Editing from the record goes back to the record when the edit closes.
+  const [editFromDetails, setEditFromDetails] = useState(false);
   const handleEdit = (client: CrmClient) => {
     setSelectedClient(client);
+    setEditFromDetails(showDetailsDrawer);
     setShowDetailsDrawer(false);
     setShowEditModal(true);
   };
+  const handleEditOpenChange = (open: boolean) => {
+    setShowEditModal(open);
+    if (!open && editFromDetails) {
+      setEditFromDetails(false);
+      setShowDetailsDrawer(true);
+    }
+  };
+  // The record shows the client as saved, not as it was when it was opened.
+  const shownClient = (selectedClient && clients?.find((client) => client.id === selectedClient.id)) || selectedClient;
 
   const handleView = (client: CrmClient) => {
     setSelectedClient(client);
@@ -126,6 +164,7 @@ export default function Clients() {
   };
 
   const handleClearFilters = () => {
+    setSearch("");
     setFilters(defaultFilters);
   };
 
@@ -147,7 +186,7 @@ export default function Clients() {
 
   // Auto-open client drawer from location state (e.g. from Lead → Won flow)
   useEffect(() => {
-    const openClientId = (location.state as any)?.openClientId;
+    const openClientId = (location.state as { openClientId?: string } | null)?.openClientId;
     if (openClientId && clients && clients.length > 0) {
       const client = clients.find(c => c.id === openClientId);
       if (client) {
@@ -163,19 +202,13 @@ export default function Clients() {
     setShowAssignModal(false);
   };
 
-  const handleExportCsv = () => {
-    const selectedClients = filteredClients.filter(c => selectedIds.includes(c.id));
-    const data = mapClientsForExport(selectedClients, organization?.niche === 'telecom');
-    exportToCsv(data, `clientes_${format(new Date(), 'yyyy-MM-dd')}`);
-    toast.success(`${selectedClients.length} clientes exportados para CSV`);
+  const exportClients = (list: CrmClient[], kind: 'csv' | 'excel') => {
+    const data = mapClientsForExport(list, organization?.niche === 'telecom');
+    const name = `clientes_${format(new Date(), 'yyyy-MM-dd')}`;
+    if (kind === 'csv') exportToCsv(data, name); else exportToExcel(data, name);
+    toast.success(t("{{n}} clientes exportados para {{format}}", { n: list.length, format: kind === 'csv' ? 'CSV' : 'Excel' }));
   };
-
-  const handleExportExcel = () => {
-    const selectedClients = filteredClients.filter(c => selectedIds.includes(c.id));
-    const data = mapClientsForExport(selectedClients, organization?.niche === 'telecom');
-    exportToExcel(data, `clientes_${format(new Date(), 'yyyy-MM-dd')}`);
-    toast.success(`${selectedClients.length} clientes exportados para Excel`);
-  };
+  const selectedClients = () => filteredClients.filter(c => selectedIds.includes(c.id));
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -183,7 +216,7 @@ export default function Clients() {
     e.target.value = "";
 
     setIsImporting(true);
-    const toastId = toast.loading("A ler ficheiro...");
+    const toastId = toast.loading(t("A ler ficheiro..."));
 
     try {
       const buffer = await file.arrayBuffer();
@@ -193,7 +226,7 @@ export default function Clients() {
 
       if (!data.length) {
         toast.dismiss(toastId);
-        toast.error("Ficheiro vazio ou sem dados.");
+        toast.error(t("Ficheiro vazio ou sem dados."));
         setIsImporting(false);
         return;
       }
@@ -203,238 +236,159 @@ export default function Clients() {
         organization.id,
         profile.id,
         teamMembers || [],
-        (current, total) => toast.loading(`A importar: ${current}/${total}...`, { id: toastId })
+        (current, total) => toast.loading(t("A importar: {{current}}/{{total}}...", { current, total }), { id: toastId })
       );
 
       toast.dismiss(toastId);
 
       if (result.inserted > 0) {
-        toast.success(`${result.inserted} clientes importados com sucesso!`);
+        toast.success(t("{{n}} clientes importados com sucesso!", { n: result.inserted }));
       }
       if (result.failed > 0) {
-        toast.error(`${result.failed} linhas falharam. ${result.errors[0] || ""}`);
+        toast.error(`${t("{{n}} linhas falharam.", { n: result.failed })} ${result.errors[0] || ""}`);
       }
 
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["cpes"] });
     } catch (err) {
       toast.dismiss(toastId);
-      toast.error("Erro ao processar ficheiro.");
+      toast.error(t("Erro ao processar ficheiro."));
       console.error("[importClients] error:", err);
     } finally {
       setIsImporting(false);
     }
   };
 
+  const total = clients?.length ?? 0;
+
   return (
     <>
-      <SEO 
-        title={`${labels.plural} | Senvia OS`}
-        description={`Gestão de ${labels.plural.toLowerCase()} CRM`}
+      <SEO
+        title={`${t(labels.plural)} | Senvia OS`}
+        description={t("Gestão de {{entities}} CRM", { entities: t(labels.plural).toLowerCase() })}
       />
-      
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        <header className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestão comercial</p>
-            <h1 className="text-3xl font-semibold tracking-tight md:text-[2.1rem]">{labels.plural}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Gestão de {labels.plural.toLowerCase()} e relacionamento comercial</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <>
-              {isTelecom && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={handleImportFile}
-                  />
-                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
-                    <Upload className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{isImporting ? "A importar..." : "Importar"}</span>
-                  </Button>
-                </>
-              )}
-              <Button onClick={() => setShowCreateModal(true)} className="h-10 px-4">
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{labels.new}</span>
-              </Button>
-            </>
-          </div>
-        </header>
 
-        {/* Search and filters follow the page header, like Finance. */}
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-3 md:p-4">
+      <div className="crm-page">
+        <div className="space-y-4 p-4 sm:p-6 lg:px-8 lg:py-7">
+          {/* One line: title and count, the rarely used actions behind ⋯, and the one main action. */}
+          <header className="flex flex-wrap items-center gap-x-3 gap-y-3">
+            <PageModuleIcon to="/clients" />
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">{t(labels.plural)}</h1>
+              <span className="text-sm tabular-nums text-muted-foreground">{filtering ? `${filteredClients.length} de ${total}` : total}</span>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              {isTelecom && <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />}
+              {/* Any organization imports from a plain spreadsheet; telecom keeps its file with CPEs. */}
+              {isTelecom ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-9 rounded-full px-3" disabled={isImporting} aria-label={t("Importar {{entities}}", { entities: t(labels.plural).toLowerCase() })}>
+                      {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      <span className="hidden sm:inline">{isImporting ? t("A importar…") : t("Importar")}</span><ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem onSelect={() => setShowImport(true)}><Upload className="mr-2 h-4 w-4" />{t("Importar {{entities}}", { entities: t(labels.plural).toLowerCase() })}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" />{t("Ficheiro com CPEs (Perfect2Gether)")}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button variant="outline" className="h-9 rounded-full px-3" onClick={() => setShowImport(true)} aria-label={t("Importar {{entities}}", { entities: t(labels.plural).toLowerCase() })}>
+                  <Upload className="h-4 w-4" /><span className="hidden sm:inline">{t("Importar")}</span>
+                </Button>
+              )}
+              <ExportMenu count={filteredClients.length} noun={labels.plural.toLowerCase()} onExport={(kind) => exportClients(filteredClients, kind)} />
+              <Button onClick={() => setShowCreateModal(true)} className="h-9 rounded-full px-4">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{t(labels.new)}</span>
+              </Button>
+            </div>
+          </header>
+
           <ClientFilters
             filters={filters}
             onFiltersChange={setFilters}
-            onClearFilters={handleClearFilters}
+            search={search}
+            onSearch={setSearch}
+            sourceCounts={sourceCounts}
             isTelecom={showEnergy}
-            search={<div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Pesquisar por nome, email, telefone, empresa ou NIF..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 border-primary/35 bg-primary/[0.04] pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/25"
-            />
-          </div>}
+            hasActive={filtering}
+            onClear={handleClearFilters}
           />
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          <Card className="rounded-xl border-border/70 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{labels.total}</p>
-                  <p className="text-2xl font-bold">{stats.total}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-xl border-border/70 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                  <Shield className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{labels.active}</p>
-                  <p className="text-2xl font-bold">{stats.active}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-xl border-border/70 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10">
-                  <Crown className="h-5 w-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{labels.vip}</p>
-                  <p className="text-2xl font-bold">{stats.vip}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-xl border-border/70 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-                  <UserMinus className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{labels.inactive}</p>
-                  <p className="text-2xl font-bold">{stats.inactive}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {organization?.niche === 'telecom' ? (
-            <Card className="col-span-2 rounded-xl border-border/70 shadow-sm md:col-span-1">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
-                    <Euro className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Comissão Total</p>
-                    <p className="text-2xl font-bold">{formatCurrency(stats.totalComissao)}</p>
-                    {showEnergy && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {stats.totalMwh.toFixed(1)} MWh · {stats.totalKwp.toFixed(1)} kWp
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="col-span-2 rounded-xl border-border/70 shadow-sm md:col-span-1">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
-                    <Euro className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valor Total</p>
-                    <p className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Bulk Actions Bar */}
-        <BulkActionsBar
-          selectedCount={selectedIds.length}
-          onAssignTeamMember={() => setShowAssignModal(true)}
-          onExportCsv={handleExportCsv}
-          onExportExcel={handleExportExcel}
-          onClearSelection={() => setSelectedIds([])}
-          entityLabel="clientes selecionados"
-        />
-
-        {/* Table */}
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+          {/* The figures that matter, in one compact row instead of five big cards. */}
+          <div className={cn("grid grid-cols-2 gap-2", organization?.niche === 'telecom' ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+            <Figure label={t(labels.total)} value={String(stats.total)} />
+            <Figure label={t(labels.active)} value={String(stats.active)} />
+            <Figure label={t(labels.inactive)} value={String(stats.inactive)} />
+            {organization?.niche === 'telecom' && (
+              <Figure label={t("Comissão total")} value={formatCurrency(stats.totalComissao)}
+                hint={showEnergy ? `${stats.totalMwh.toFixed(1)} MWh · ${stats.totalKwp.toFixed(1)} kWp` : undefined} />
+            )}
           </div>
-        ) : filteredClients.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={search ? "Nenhum cliente encontrado" : "Ainda não tens clientes"}
-            description={search ? "Tenta ajustar a pesquisa." : "Cria o teu primeiro cliente ou converte uma lead ganha. O Otto pode ajudar."}
-          >
-            {!search && (
+
+          <BulkActionsBar
+            selectedCount={selectedIds.length}
+            onAssignTeamMember={() => setShowAssignModal(true)}
+            onExportCsv={() => exportClients(selectedClients(), 'csv')}
+            onExportExcel={() => exportClients(selectedClients(), 'excel')}
+            onClearSelection={() => setSelectedIds([])}
+            entityLabel="clientes selecionados"
+          />
+
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : filteredClients.length === 0 && filtering ? (
+            <div className="flex h-56 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <Search className="h-10 w-10 opacity-50" />
+              <p className="text-base font-medium">{t("Nenhum {{entity}} corresponde aos filtros", { entity: t(labels.singular).toLowerCase() })}</p>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={handleClearFilters}>{t("Limpar filtros")}</Button>
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title={t("Ainda não tens clientes")}
+              description={t("Cria o teu primeiro cliente ou converte uma lead ganha. O Otto pode ajudar.")}
+            >
               <Button onClick={() => setShowCreateModal(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Criar primeiro cliente
+                {t("Criar primeiro cliente")}
               </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <ClientsTable
-            clients={filteredClients}
-            onEdit={handleEdit}
-            onView={handleView}
-            onDelete={handleDelete}
-            selectedIds={selectedIds}
-            onSelectionChange={setSelectedIds}
-            isTelecom={showEnergy}
-          />
-        )}
+            </EmptyState>
+          ) : (
+            <ClientsTable
+              clients={filteredClients}
+              onEdit={handleEdit}
+              onView={handleView}
+              onDelete={handleDelete}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              isTelecom={showEnergy}
+            />
+          )}
+        </div>
       </div>
 
       {/* Modals */}
+      <ImportClientsDialog open={showImport} onOpenChange={setShowImport} />
       <CreateClientModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
       />
 
       <EditClientModal
-        client={selectedClient}
+        client={shownClient}
         open={showEditModal}
-        onOpenChange={setShowEditModal}
+        onOpenChange={handleEditOpenChange}
       />
 
       <ClientDetailsDrawer
-        client={selectedClient}
+        client={shownClient}
         open={showDetailsDrawer}
         onOpenChange={setShowDetailsDrawer}
         onEdit={handleEdit}

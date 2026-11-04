@@ -8,8 +8,6 @@
   .app-shell[data-interface='classic'] {
     background: hsl(var(--background));
   }
-  .app-shell[data-interface='classic'] .workspace-tab-strip,
-  .app-shell[data-interface='classic'] .workspace-tabs-holder,
   .app-shell[data-interface='classic'] [data-workspace-search],
   .app-shell[data-interface='classic'] [data-workspace-user] {
     display: none;
@@ -95,6 +93,11 @@
     --sidebar-border: 222 47% 16%;
     --sidebar-ring: 217 91% 60%;
     --sidebar-muted: 220 9% 46%;
+
+    /* Workplace semantic text colors */
+    --workplace-danger-ink: 0 65% 42%;
+    --workplace-warning-ink: 28 65% 30%;
+    --workplace-success-ink: 158 65% 30%;
 
     /* Kanban Column Colors */
     --kanban-new: 217 91% 60%;
@@ -196,21 +199,29 @@
 
   .leads-page { container: leads / inline-size; }
   .leads-content { padding: 1rem; }
-  .leads-sidebar-filters, .leads-page .leads-wide-action { display: none; }
+  /* Pages with a search + filter row (FilterRow): the search on its own line, then the pills,
+     which scroll sideways on a phone instead of wrapping. Wide enough, they share one line. */
+  .crm-page { container-type: inline-size; }
+  .crm-find { display: flex; flex-direction: column; gap: 0.5rem; }
+  .crm-filters { scrollbar-width: none; }
+  .crm-filters::-webkit-scrollbar { display: none; }
+  @container (min-width: 900px) {
+    .crm-find { flex-direction: row; align-items: center; gap: 0.75rem; }
+    .crm-search { flex: 0 0 18rem; }
+  }
+  @container (min-width: 1100px) {
+    .crm-search { flex-basis: 20rem; }
+  }
+
+  .leads-page .leads-add-label { display: none; }
 
   @container leads (min-width: 600px) {
     .leads-content { padding: 1.5rem; }
-    .leads-page .leads-header { flex-direction: row; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; }
-    .leads-heading { flex: 1 1 17rem; }
-    .leads-actions { flex: 0 0 auto; }
+    .leads-page .leads-add-label { display: inline; }
   }
 
   @container leads (min-width: 1100px) {
-    .leads-content { padding: 2rem; }
-    .leads-layout { grid-template-columns: 232px minmax(0, 1fr); }
-    .leads-sidebar-filters { display: block; position: sticky; top: 1rem; max-height: calc(100dvh - 2rem); overflow-y: auto; }
-    .leads-inline-filters, .leads-page .leads-compact-action { display: none; }
-    .leads-page .leads-wide-action { display: inline-flex; }
+    .leads-content { padding: 1.75rem 2rem; }
   }
 
   @container leads (max-width: 1099px) {
@@ -334,6 +345,20 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Scroll strips fade on the side that still hides items (see useScrollEdges). */
+  .scroll-fade-x[data-fade-start='true'] { --fade-from: transparent; }
+  .scroll-fade-x[data-fade-end='true'] { --fade-to: transparent; }
+  .scroll-fade-x:is([data-fade-start='true'], [data-fade-end='true']) {
+    -webkit-mask-image: linear-gradient(to right, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+    mask-image: linear-gradient(to right, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+  }
+  .scroll-fade-y[data-fade-start='true'] { --fade-from: transparent; }
+  .scroll-fade-y[data-fade-end='true'] { --fade-to: transparent; }
+  .scroll-fade-y:is([data-fade-start='true'], [data-fade-end='true']) {
+    -webkit-mask-image: linear-gradient(to bottom, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
+    mask-image: linear-gradient(to bottom, var(--fade-from, #000), #000 2.5rem, #000 calc(100% - 2.5rem), var(--fade-to, #000));
   }
 }
 

@@ -9,6 +9,7 @@ import { useUpdateProfile, useChangePassword } from '@/hooks/useProfile';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from '@/i18n';
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { ArrowLeft, Bot, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ import {
 export default function Settings() {
   const { profile, organization, refetchUserData } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const updateOrganization = useUpdateOrganization();
   const updateKeyInvoiceOrganization = useUpdateOrganization({ silent: true });
@@ -304,8 +306,8 @@ export default function Settings() {
     if (error) {
       setIntegrationsEnabled(previousState);
       toast({
-        title: 'Não foi possível alterar a integração',
-        description: 'Tenta novamente. A definição anterior foi mantida.',
+        title: t('Não foi possível alterar a integração'),
+        description: t('Tenta novamente. A definição anterior foi mantida.'),
         variant: 'destructive',
       });
       return;
@@ -347,7 +349,7 @@ export default function Settings() {
 
   const handleLoadVendusOptions = async () => {
     if (!organization?.id || (!vendusApiKey.trim() && !chavesGuardadas.vendus)) {
-      toast({ title: 'Introduz a chave API Vendus', variant: 'destructive' });
+      toast({ title: t('Introduz a chave API Vendus'), variant: 'destructive' });
       return;
     }
     const requestId = ++vendusLookupSequence.current;
@@ -362,22 +364,22 @@ export default function Settings() {
       });
       if (requestId !== vendusLookupSequence.current) return;
       if (error || !data || !Array.isArray(data.registers) || !Array.isArray(data.payment_methods)) {
-        throw new Error('Não foi possível validar a chave Vendus.');
+        throw new Error(t('Não foi possível validar a chave Vendus.'));
       }
       setVendusOptionsLoaded(true);
       setVendusRegisterReady(data.register_ready === true);
       setVendusReadinessError(data.readiness_error || '');
       toast({
-        title: 'Chave Vendus validada',
+        title: t('Chave Vendus validada'),
         description: data.register_ready === true
-          ? 'A caixa API está pronta. O método de pagamento vem de cada venda.'
-          : data.readiness_error || 'A Vendus ainda não tem uma caixa API pronta para faturação.',
+          ? t('A caixa API está pronta. O método de pagamento vem de cada venda.')
+          : data.readiness_error || t('A Vendus ainda não tem uma caixa API pronta para faturação.'),
         variant: data.register_ready === true ? 'default' : 'destructive',
       });
     } catch {
       if (requestId === vendusLookupSequence.current) {
-        toast({ title: 'Falha na ligação Vendus',
-          description: 'Confirma a chave API e as permissões do utilizador na Vendus.',
+        toast({ title: t('Falha na ligação Vendus'),
+          description: t('Confirma a chave API e as permissões do utilizador na Vendus.'),
           variant: 'destructive' });
       }
     } finally {
@@ -389,8 +391,8 @@ export default function Settings() {
     const apiKey = vendusApiKey.trim();
     if ((!apiKey && !chavesGuardadas.vendus) || !vendusOptionsLoaded) {
       toast({
-        title: 'Dados Vendus incompletos',
-        description: 'Valida a chave API antes de guardar.',
+        title: t('Dados Vendus incompletos'),
+        description: t('Valida a chave API antes de guardar.'),
         variant: 'destructive',
       });
       return;
@@ -429,8 +431,8 @@ export default function Settings() {
         }
       } catch {
         toast({
-          title: 'URL inválido',
-          description: 'Usa um endpoint HTTPS no formato https://servidor/API5.php, sem parâmetros nem credenciais no endereço.',
+          title: t('URL inválido'),
+          description: t('Usa um endpoint HTTPS no formato https://servidor/API5.php, sem parâmetros nem credenciais no endereço.'),
           variant: 'destructive',
         });
         return;
@@ -458,18 +460,18 @@ export default function Settings() {
         body: { organization_id: organizationId },
       });
       if (error || !data?.connected) {
-        let message = data?.error || 'Não foi possível confirmar a ligação ao KeyInvoice.';
+        let message = data?.error || t('Não foi possível confirmar a ligação ao KeyInvoice.');
         if (error?.context instanceof Response) {
           const detail = await error.context.json().catch(() => null);
           if (typeof detail?.error === 'string') message = detail.error;
         }
         throw new Error(message);
       }
-      toast({ title: 'Ligação KeyInvoice validada', description: 'A chave foi guardada e o acesso à empresa foi confirmado.' });
+      toast({ title: t('Ligação KeyInvoice validada'), description: t('A chave foi guardada e o acesso à empresa foi confirmado.') });
     } catch (error) {
       toast({
-        title: 'Chave guardada, ligação não validada',
-        description: error instanceof Error ? error.message : 'Não foi possível contactar o KeyInvoice.',
+        title: t('Chave guardada, ligação não validada'),
+        description: error instanceof Error ? error.message : t('Não foi possível contactar o KeyInvoice.'),
         variant: 'destructive',
       });
     }
@@ -500,14 +502,14 @@ export default function Settings() {
         .eq('organization_id', organizationId)
         .eq('active', true);
       if (mappingsError) {
-        throw new Error('não foi possível consultar os produtos ligados ao Stripe');
+        throw new Error(t('não foi possível consultar os produtos ligados ao Stripe'));
       }
 
       const mappedProductIds = [...new Set((activeMappings ?? []).map((mapping) => mapping.product_id))];
       if (mappedProductIds.length === 0) {
         toast({
-          title: 'Configuração fiscal guardada',
-          description: 'A taxa foi atualizada. Não existem produtos ativos ligados ao Stripe.',
+          title: t('Configuração fiscal guardada'),
+          description: t('A taxa foi atualizada. Não existem produtos ativos ligados ao Stripe.'),
         });
         return;
       }
@@ -519,13 +521,13 @@ export default function Settings() {
         .in('id', mappedProductIds)
         .is('tax_value', null);
       if (productsError) {
-        throw new Error('não foi possível identificar os produtos que herdam a taxa global');
+        throw new Error(t('não foi possível identificar os produtos que herdam a taxa global'));
       }
 
       if (!inheritedProducts?.length) {
         toast({
-          title: 'Configuração fiscal guardada',
-          description: 'A taxa foi atualizada. Nenhum produto ativo no Stripe herda a taxa global.',
+          title: t('Configuração fiscal guardada'),
+          description: t('A taxa foi atualizada. Nenhum produto ativo no Stripe herda a taxa global.'),
         });
         return;
       }
@@ -536,7 +538,7 @@ export default function Settings() {
             body: { productId: product.id, action: 'sync' },
           });
           if (error || data?.error) {
-            throw new Error(data?.error || error?.message || 'erro desconhecido');
+            throw new Error(data?.error || error?.message || t('erro desconhecido'));
           }
         }),
       );
@@ -546,7 +548,7 @@ export default function Settings() {
 
       const failures = syncResults.flatMap((result, index) => {
         if (result.status === 'fulfilled') return [];
-        const reason = result.reason instanceof Error ? result.reason.message : 'erro desconhecido';
+        const reason = result.reason instanceof Error ? result.reason.message : t('erro desconhecido');
         return [{ name: inheritedProducts[index].name, reason }];
       });
 
@@ -555,27 +557,27 @@ export default function Settings() {
           .slice(0, 3)
           .map((failure) => `${failure.name}: ${failure.reason}`)
           .join(' · ');
-        const remaining = failures.length > 3 ? ` · Mais ${failures.length - 3} produto(s) com erro.` : '';
+        const remaining = failures.length > 3 ? ` · ${t('Mais {{n}} produto(s) com erro.', { n: failures.length - 3 })}` : '';
         toast({
-          title: 'Configuração guardada; sincronização incompleta',
-          description: `A taxa ficou guardada, mas ${failures.length} de ${inheritedProducts.length} produto(s) não foram atualizados no Stripe. ${details}${remaining}`,
+          title: t('Configuração guardada; sincronização incompleta'),
+          description: `${t('A taxa ficou guardada, mas {{failed}} de {{total}} produto(s) não foram atualizados no Stripe.', { failed: failures.length, total: inheritedProducts.length })} ${details}${remaining}`,
           variant: 'destructive',
         });
         return;
       }
 
       toast({
-        title: 'Configuração fiscal guardada',
+        title: t('Configuração fiscal guardada'),
         description: inheritedProducts.length === 1
-          ? 'A taxa foi atualizada e o produto que a herda foi ressincronizado no Stripe.'
-          : `A taxa foi atualizada e ${inheritedProducts.length} produtos que a herdam foram ressincronizados no Stripe.`,
+          ? t('A taxa foi atualizada e o produto que a herda foi ressincronizado no Stripe.')
+          : t('A taxa foi atualizada e {{n}} produtos que a herdam foram ressincronizados no Stripe.', { n: inheritedProducts.length }),
       });
     } catch (error) {
       if (!taxConfigSaved) return;
-      const reason = error instanceof Error ? error.message : 'ocorreu um erro inesperado';
+      const reason = error instanceof Error ? error.message : t('ocorreu um erro inesperado');
       toast({
-        title: 'Configuração fiscal guardada',
-        description: `A taxa ficou guardada, mas ${reason}. Tenta guardar novamente para repetir a sincronização.`,
+        title: t('Configuração fiscal guardada'),
+        description: t('A taxa ficou guardada, mas {{reason}}. Tenta guardar novamente para repetir a sincronização.', { reason }),
         variant: 'destructive',
       });
     } finally {
@@ -585,7 +587,7 @@ export default function Settings() {
 
   const handleSaveOrgName = () => {
     if (!orgName.trim()) {
-      toast({ title: 'Nome inválido', description: 'O nome da organização não pode estar vazio.', variant: 'destructive' });
+      toast({ title: t('Nome inválido'), description: t('O nome da organização não pode estar vazio.'), variant: 'destructive' });
       return;
     }
     updateOrganization.mutate({ name: orgName.trim() });
@@ -593,7 +595,7 @@ export default function Settings() {
 
   const handleSaveProfile = () => {
     if (!fullName.trim()) {
-      toast({ title: 'Nome inválido', description: 'O nome não pode estar vazio.', variant: 'destructive' });
+      toast({ title: t('Nome inválido'), description: t('O nome não pode estar vazio.'), variant: 'destructive' });
       return;
     }
     updateProfile.mutate({ full_name: fullName.trim(), email: profileEmail, phone: profilePhone, email_signature: emailSignature, brevo_sender_email: profileBrevoSenderEmail });
@@ -601,15 +603,15 @@ export default function Settings() {
 
   const handleChangePassword = () => {
     if (!newPassword || !confirmPassword) {
-      toast({ title: 'Campos em falta', description: 'Preencha ambos os campos de password.', variant: 'destructive' });
+      toast({ title: t('Campos em falta'), description: t('Preencha ambos os campos de password.'), variant: 'destructive' });
       return;
     }
     if (newPassword.length < 6) {
-      toast({ title: 'Password muito curta', description: 'A password deve ter pelo menos 6 caracteres.', variant: 'destructive' });
+      toast({ title: t('Password muito curta'), description: t('A password deve ter pelo menos 6 caracteres.'), variant: 'destructive' });
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: 'Passwords não coincidem', description: 'As passwords introduzidas não são iguais.', variant: 'destructive' });
+      toast({ title: t('Passwords não coincidem'), description: t('As passwords introduzidas não são iguais.'), variant: 'destructive' });
       return;
     }
     changePassword.mutate({ newPassword }, {
@@ -744,13 +746,13 @@ export default function Settings() {
           <>
             <PageHeader
               icon={SettingsIcon}
-              title="Definições"
-              subtitle="Configure a sua organização e integrações."
+              title={t("Definições")}
+              subtitle={t("Configure a sua organização e integrações.")}
               actions={isAdmin ? (
                 <Button asChild variant="outline" size="sm">
                   <Link to="/settings/otto" className="gap-2">
                     <Bot className="h-4 w-4" aria-hidden="true" />
-                    Permissões do Otto
+                    {t("Permissões do Otto")}
                   </Link>
                 </Button>
               ) : undefined}
@@ -767,10 +769,10 @@ export default function Settings() {
           // Level 2: Tabs + content
           <>
             <div className="flex items-center gap-3 mb-4">
-              <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0">
+              <Button variant="back" size="icon" onClick={handleBack} className="shrink-0">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <h1 className="text-lg font-semibold text-foreground">{sectionTitles[activeGroup]}</h1>
+              <h1 className="text-lg font-semibold text-foreground">{t(sectionTitles[activeGroup])}</h1>
             </div>
 
             {groupSubs.length > 1 && (
@@ -791,7 +793,7 @@ export default function Settings() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {sub.label}
+                      {t(sub.label)}
                     </button>
                   );
                 })}
@@ -800,7 +802,7 @@ export default function Settings() {
 
             <div>
               {activeSub ? renderSubContent(activeSub) : (
-                <p className="text-muted-foreground">Sem opções disponíveis nesta secção.</p>
+                <p className="text-muted-foreground">{t("Sem opções disponíveis nesta secção.")}</p>
               )}
             </div>
           </>

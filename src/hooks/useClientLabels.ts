@@ -17,13 +17,11 @@ export function useClientLabels(): NicheLabels {
       const generic = NICHE_CLIENT_LABELS.generic;
       return {
         ...labels,
-        vip: generic.vip,
         active: generic.active,
         inactive: generic.inactive,
         statusFieldLabel: generic.statusFieldLabel,
         statusActive: generic.statusActive,
         statusInactive: generic.statusInactive,
-        statusVip: generic.statusVip,
       };
     }
 

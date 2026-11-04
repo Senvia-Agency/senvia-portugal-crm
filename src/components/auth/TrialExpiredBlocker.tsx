@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CreditCard, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/i18n';
 
 interface TrialExpiredBlockerProps {
   trialEndsAt?: string;
@@ -8,6 +9,7 @@ interface TrialExpiredBlockerProps {
 
 export function TrialExpiredBlocker({ trialEndsAt }: TrialExpiredBlockerProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Calculate days until data deletion (60 days after trial end)
   let daysUntilDeletion = 60;
@@ -27,10 +29,10 @@ export function TrialExpiredBlocker({ trialEndsAt }: TrialExpiredBlockerProps) {
 
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight">
-            O seu período de teste terminou
+            {t("O seu período de teste terminou")}
           </h1>
           <p className="text-muted-foreground text-sm">
-            Os 14 dias de teste gratuito chegaram ao fim. Para continuar a usar o sistema, escolha um plano.
+            {t("Os 14 dias de teste gratuito chegaram ao fim. Para continuar a usar o sistema, escolha um plano.")}
           </p>
         </div>
 
@@ -39,12 +41,12 @@ export function TrialExpiredBlocker({ trialEndsAt }: TrialExpiredBlockerProps) {
             <Clock className="h-4 w-4" />
             <span className="text-sm font-semibold">
               {daysUntilDeletion > 0
-                ? `${daysUntilDeletion} dias restantes antes dos dados serem eliminados`
-                : 'Os seus dados serão eliminados em breve'}
+                ? t(daysUntilDeletion === 1 ? "{{n}} dia restante antes de os dados serem eliminados" : "{{n}} dias restantes antes de os dados serem eliminados", { n: daysUntilDeletion })
+                : t('Os seus dados serão eliminados em breve')}
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Se não escolher um plano dentro de 60 dias após o fim do teste, todos os seus dados serão permanentemente apagados.
+            {t("Se não escolher um plano dentro de 60 dias após o fim do teste, todos os seus dados serão permanentemente apagados.")}
           </p>
         </div>
 
@@ -54,7 +56,7 @@ export function TrialExpiredBlocker({ trialEndsAt }: TrialExpiredBlockerProps) {
           onClick={() => navigate('/settings?tab=billing')}
         >
           <CreditCard className="h-4 w-4" />
-          Escolher Plano
+          {t("Escolher Plano")}
         </Button>
       </div>
     </div>

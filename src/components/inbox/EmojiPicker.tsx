@@ -4,6 +4,7 @@
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data/sets/15/google.json";
 import { EMOJI_SHEET } from "./EmojiGlyph";
+import { useLanguage } from "@/i18n";
 
 // pt-PT labels for the picker chrome (emoji-mart defaults to English).
 const I18N_PT = {
@@ -35,14 +36,19 @@ const I18N_PT = {
   },
 };
 
+type PickerLabels = { [key: string]: string | PickerLabels };
+const localize = (labels: PickerLabels, t: (text: string) => string): PickerLabels =>
+  Object.fromEntries(Object.entries(labels).map(([key, value]) => [key, typeof value === "string" ? t(value) : localize(value, t)]));
+
 export function EmojiPicker({ onSelect }: { onSelect: (native: string) => void }) {
+  const { t } = useLanguage();
   return (
     <Picker
       data={data}
       set="google"
       getSpritesheetURL={() => EMOJI_SHEET}
       theme="auto"
-      i18n={I18N_PT}
+      i18n={localize(I18N_PT, t)}
       previewPosition="none"
       skinTonePosition="search"
       perLine={8}

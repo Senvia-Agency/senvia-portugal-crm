@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { KeyInvoiceSeriesSettings } from './KeyInvoiceSeriesSettings';
+import { useLanguage } from '@/i18n';
 
 interface FiscalSettingsTabProps {
   taxRate: string;
@@ -32,57 +33,58 @@ const EXEMPTION_OPTIONS = [
 
 export function FiscalSettingsTab({ taxRate, setTaxRate, taxExemptionReason, setTaxExemptionReason, onSave, isPending }: FiscalSettingsTabProps) {
   const { organization } = useAuth();
+  const { t } = useLanguage();
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Configuração Fiscal</CardTitle>
-          <CardDescription>Defina a taxa de IVA global aplicada a todos os produtos e faturas.</CardDescription>
+          <CardTitle>{t('Configuração Fiscal')}</CardTitle>
+          <CardDescription>{t('Defina a taxa de IVA global aplicada a todos os produtos e faturas.')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="rounded-lg bg-muted/50 border p-3 flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
             {taxRate === '0'
-              ? 'A isenção aplica-se a todos os produtos e faturas da organização, mesmo que uma ficha de produto tenha uma taxa antiga.'
-              : 'Esta taxa é usada por defeito. Produtos com uma taxa própria podem usar essa taxa. Alterações aqui afetam toda a organização.'}
+              ? t('A isenção aplica-se a todos os produtos e faturas da organização, mesmo que uma ficha de produto tenha uma taxa antiga.')
+              : t('Esta taxa é usada por defeito. Produtos com uma taxa própria podem usar essa taxa. Alterações aqui afetam toda a organização.')}
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label>Taxa de IVA</Label>
+          <Label>{t('Taxa de IVA')}</Label>
           <Select value={taxRate} onValueChange={setTaxRate}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="23">IVA 23%</SelectItem>
-              <SelectItem value="13">IVA 13% (Intermédia)</SelectItem>
-              <SelectItem value="6">IVA 6% (Reduzida)</SelectItem>
-              <SelectItem value="0">Isento de IVA</SelectItem>
+              <SelectItem value="23">{t('IVA 23%')}</SelectItem>
+              <SelectItem value="13">{t('IVA 13% (Intermédia)')}</SelectItem>
+              <SelectItem value="6">{t('IVA 6% (Reduzida)')}</SelectItem>
+              <SelectItem value="0">{t('Isento de IVA')}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Taxa de imposto aplicada nas faturas emitidas.
+            {t('Taxa de imposto aplicada nas faturas emitidas.')}
           </p>
         </div>
 
         {taxRate === '0' && (
           <div className="space-y-2">
-            <Label>Motivo de Isenção (AT)</Label>
+            <Label>{t('Motivo de Isenção (AT)')}</Label>
             <Select value={taxExemptionReason} onValueChange={setTaxExemptionReason}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o motivo..." />
+                <SelectValue placeholder={t('Selecione o motivo...')} />
               </SelectTrigger>
               <SelectContent>
                 {EXEMPTION_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem key={opt.value} value={opt.value}>{t(opt.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {!taxExemptionReason && (
               <p className="text-xs text-destructive">
-                Obrigatório para emissão de faturas isentas de IVA.
+                {t('Obrigatório para emissão de faturas isentas de IVA.')}
               </p>
             )}
           </div>
@@ -90,15 +92,15 @@ export function FiscalSettingsTab({ taxRate, setTaxRate, taxExemptionReason, set
 
         <Button onClick={onSave} disabled={isPending || (taxRate === '0' && !taxExemptionReason)}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Guardar
+          {t('Guardar')}
         </Button>
       </CardContent>
     </Card>
     {organization?.billing_provider === 'keyinvoice' && (
       <Card>
         <CardHeader>
-          <CardTitle>Séries KeyInvoice</CardTitle>
-          <CardDescription>Escolha as séries usadas nos documentos fiscais recorrentes automáticos.</CardDescription>
+          <CardTitle>{t('Séries KeyInvoice')}</CardTitle>
+          <CardDescription>{t('Escolha as séries usadas nos documentos fiscais recorrentes automáticos.')}</CardDescription>
         </CardHeader>
         <CardContent>
           <KeyInvoiceSeriesSettings />

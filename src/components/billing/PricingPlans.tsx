@@ -5,6 +5,7 @@ import { Users, FileText, Inbox, CheckCheck } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { TimelineContent } from "@/components/ui/timeline-animation";
 import { cn } from "@/lib/utils";
+import { tr, useLanguage } from "@/i18n";
 import {
   STRIPE_PLANS,
   YEARLY_DISCOUNT_PCT,
@@ -30,6 +31,7 @@ function PricingSwitch({
   period: BillingPeriod;
   onChange: (p: BillingPeriod) => void;
 }) {
+  const { t } = useLanguage();
   const options: { key: BillingPeriod; label: string }[] = [
     { key: "monthly", label: "Mensal" },
     { key: "yearly", label: "Anual" },
@@ -56,10 +58,10 @@ function PricingSwitch({
                 />
               )}
               <span className="relative flex items-center gap-2">
-                {opt.label}
+                {t(opt.label)}
                 {opt.key === "yearly" && (
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-black">
-                    Poupa {YEARLY_DISCOUNT_PCT}%
+                    {t("Poupe {{pct}}%", { pct: YEARLY_DISCOUNT_PCT })}
                   </span>
                 )}
               </span>
@@ -73,12 +75,12 @@ function PricingSwitch({
 
 function planLimitRows(plan: StripePlan) {
   const usersText =
-    plan.limits.users === "Ilimitados" ? "Utilizadores ilimitados" : `${plan.limits.users} utilizadores`;
-  const formsText = plan.limits.forms === "Ilimitados" ? "Formulários ilimitados" : plan.limits.forms;
+    plan.limits.users === "Ilimitados" ? tr("Utilizadores ilimitados") : tr("{{limit}} utilizadores", { limit: tr(plan.limits.users) });
+  const formsText = plan.limits.forms === "Ilimitados" ? tr("Formulários ilimitados") : tr(plan.limits.forms);
   return [
     { icon: Users, text: usersText },
     { icon: FileText, text: formsText },
-    { icon: Inbox, text: plan.limits.inboxes },
+    { icon: Inbox, text: tr(plan.limits.inboxes) },
   ];
 }
 
@@ -105,7 +107,9 @@ export function PricingPlans({
   currentPlanId?: string | null;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
+  const headingParts = t("Um plano para o seu {{highlight}}", { highlight: "|" }).split("|");
   const isYearly = period === "yearly";
 
   return (
@@ -130,7 +134,7 @@ export function PricingPlans({
             customVariants={revealVariants}
             className="mb-4 text-3xl font-medium text-gray-900 sm:text-4xl md:text-5xl"
           >
-            Um plano para o teu{" "}
+            {headingParts[0]}
             <TimelineContent
               as="span"
               animationNum={1}
@@ -138,8 +142,9 @@ export function PricingPlans({
               customVariants={revealVariants}
               className="inline-block rounded-xl border border-dashed border-blue-500 bg-blue-100 px-2 py-1 text-blue-700"
             >
-              negócio
+              {t("negócio")}
             </TimelineContent>
+            {headingParts[1]}
           </TimelineContent>
           <TimelineContent
             as="p"
@@ -148,13 +153,13 @@ export function PricingPlans({
             customVariants={revealVariants}
             className="mx-auto w-[85%] text-sm text-gray-600 sm:w-[70%] sm:text-base"
           >
-            49 €/mês. Inclui 5 utilizadores; adiciona mais por 5 €/mês cada. CRM, vendas, marketing, financeiro e email num só lugar.
+            {t("49 €/mês. Inclui 5 utilizadores; adicione mais por 5 €/mês cada. CRM, vendas, marketing, financeiro e email num só lugar.")}
           </TimelineContent>
         </div>
       )}
 
       <TimelineContent as="div" animationNum={3} timelineRef={ref} customVariants={revealVariants}>
-        <p className="text-center text-sm text-gray-700">Faturação mensal · Utilizadores atuais mantêm os limites contratados</p>
+        <p className="text-center text-sm text-gray-700">{t("Faturação mensal · Utilizadores atuais mantêm os limites contratados")}</p>
       </TimelineContent>
 
       <div className="relative mx-auto grid max-w-xl gap-4 py-6">
@@ -162,7 +167,7 @@ export function PricingPlans({
           const popular = !!plan.highlighted;
           const isCurrent = currentPlanId === plan.id;
           const price = monthlyPrice(plan, period);
-          const includesHeader = index === 0 ? "Inclui:" : `Tudo do ${STRIPE_PLANS[index - 1].name}, mais:`;
+          const includesHeader = index === 0 ? t("Inclui:") : t("Tudo do {{plan}}, mais:", { plan: STRIPE_PLANS[index - 1].name });
           return (
             <TimelineContent
               key={plan.id}
@@ -181,20 +186,20 @@ export function PricingPlans({
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="mb-2 text-3xl font-semibold text-gray-900">{plan.name}</h3>
                     {isCurrent ? (
-                      <span className="h-fit rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white">Atual</span>
+                      <span className="h-fit rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white">{t("Atual")}</span>
                     ) : popular ? (
-                      <span className="h-fit rounded-full bg-blue-500 px-3 py-1 text-sm font-medium text-white">Popular</span>
+                      <span className="h-fit rounded-full bg-blue-500 px-3 py-1 text-sm font-medium text-white">{t("Popular")}</span>
                     ) : null}
                   </div>
-                  <p className="mb-4 text-sm text-gray-600">{plan.description}</p>
+                  <p className="mb-4 text-sm text-gray-600">{t(plan.description)}</p>
                   <div className="flex items-baseline">
                     <span className="flex items-baseline text-4xl font-semibold text-gray-900">
                       <NumberFlow value={price} className="text-4xl font-semibold" />€
                     </span>
-                    <span className="ml-1 text-gray-600">/mês</span>
+                    <span className="ml-1 text-gray-600">{t("/mês")}</span>
                   </div>
                   <p className={cn("mt-1 text-xs text-gray-500 transition-opacity", isYearly ? "opacity-100" : "opacity-0")}>
-                    faturado anualmente · {plan.priceYearly}€/ano
+                    {t("faturado anualmente · {{price}}€/ano", { price: plan.priceYearly })}
                   </p>
                 </CardHeader>
 
@@ -220,7 +225,7 @@ export function PricingPlans({
                           <span className="mr-3 mt-0.5 grid h-6 w-6 place-content-center rounded-full border border-blue-500 bg-green-50">
                             <CheckCheck className="h-4 w-4 text-blue-500" />
                           </span>
-                          <span className="text-sm text-gray-600">{feature}</span>
+                          <span className="text-sm text-gray-600">{t(feature)}</span>
                         </li>
                       ))}
                     </ul>

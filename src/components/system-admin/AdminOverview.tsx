@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { OrgStripeData } from "@/components/system-admin/OrganizationsTable";
 import { classifyOrg, BUCKET_META, type OrgBucket } from "@/components/system-admin/orgStatus";
 import type { OrgFilter } from "@/components/system-admin/OrganizationsTable";
+import { useLanguage, intlLocale } from "@/i18n";
 
 const ORDER: OrgBucket[] = ["paying", "trial", "overdue", "blocked", "expired", "canceled", "exempt"];
 
@@ -42,7 +43,7 @@ function inMonth(date: string | null | undefined, ref: Date): boolean {
 }
 
 function capMonth(d: Date): string {
-  const s = d.toLocaleDateString("pt-PT", { month: "short" }).replace(".", "");
+  const s = d.toLocaleDateString(intlLocale(), { month: "short" }).replace(".", "");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -50,6 +51,7 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
   // A fresh Date() on every render invalidated the memo below on every render.
   // Minute precision is plenty for "days until trial ends".
   const now = useMemo(() => new Date(), []);
+  const { t, language } = useLanguage();
 
   const stripeMap = useMemo(() => {
     const m = new Map<string, OrgStripeData>();
@@ -101,7 +103,7 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
     const newOrgsDelta = (monthly[5]?.value ?? 0) - (monthly[4]?.value ?? 0);
 
     return { buckets: counts, trialExpiringSoon, monthly, newPayingThisMonth, newPayingLastMonth, newOrgsDelta, mrrAddedThisMonth };
-  }, [organizations, stripeMap, now]);
+  }, [organizations, stripeMap, now, language]);
 
   const mrr = stripeStats?.mrr ?? 0;
   const arr = mrr * 12;
@@ -115,19 +117,19 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
         trialExpiringSoon > 0 && {
           key: "trial" as const,
           icon: Clock,
-          label: `${trialExpiringSoon} ${trialExpiringSoon === 1 ? "trial expira" : "trials expiram"} em ≤3 dias`,
+          label: t(trialExpiringSoon === 1 ? "{{n}} trial expira em ≤3 dias" : "{{n}} trials expiram em ≤3 dias", { n: trialExpiringSoon }),
           tone: "amber",
         },
         buckets.overdue + buckets.blocked > 0 && {
           key: "overdue" as const,
           icon: CardIcon,
-          label: `${buckets.overdue + buckets.blocked} com pagamento em falha`,
+          label: t("{{n}} com pagamento em falha", { n: buckets.overdue + buckets.blocked }),
           tone: "red",
         },
         buckets.expired > 0 && {
           key: "expired" as const,
           icon: AlertTriangle,
-          label: `${buckets.expired} ${buckets.expired === 1 ? "trial expirado" : "trials expirados"} por converter`,
+          label: t(buckets.expired === 1 ? "{{n}} trial expirado por converter" : "{{n}} trials expirados por converter", { n: buckets.expired }),
           tone: "amber",
         },
       ].filter(Boolean as unknown as (v: unknown) => boolean)
@@ -167,22 +169,22 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
           label="MRR"
           value={`€${mrr.toLocaleString("pt-PT")}`}
           subtitle={`≈ €${arr.toLocaleString("pt-PT")} ARR`}
-          delta={mrrAddedThisMonth > 0 ? { value: `+€${mrrAddedThisMonth.toLocaleString("pt-PT")}`, up: true, note: "novos este mês" } : undefined}
+          delta={mrrAddedThisMonth > 0 ? { value: `+€${mrrAddedThisMonth.toLocaleString("pt-PT")}`, up: true, note: t("novos este mês") } : undefined}
           icon={<Euro className="h-4 w-4" />}
           loading={loading}
           compact={sidebar}
           onClick={onFocus && buckets.paying > 0 ? () => onFocus("paying") : undefined}
         />
         <MetricCard
-          label="Clientes a pagar"
+          label={t("Clientes a pagar")}
           value={buckets.paying}
-          subtitle={activeTotal > 0 ? `${payingPct}% das contas ativas` : "sem contas ativas"}
+          subtitle={activeTotal > 0 ? t("{{pct}}% das contas ativas", { pct: payingPct }) : t("sem contas ativas")}
           delta={
             newPayingThisMonth > 0 || newPayingLastMonth > 0
               ? {
                   value: `${newPayingThisMonth >= newPayingLastMonth ? "+" : ""}${newPayingThisMonth - newPayingLastMonth}`,
                   up: newPayingThisMonth >= newPayingLastMonth,
-                  note: `${newPayingThisMonth} este mês vs ${newPayingLastMonth}`,
+                  note: t("{{now}} este mês vs {{before}}", { now: newPayingThisMonth, before: newPayingLastMonth }),
                 }
               : undefined
           }
@@ -193,18 +195,18 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
           onClick={onFocus && buckets.paying > 0 ? () => onFocus("paying") : undefined}
         />
         <MetricCard
-          label="Em trial"
+          label={t("Em trial")}
           value={buckets.trial}
-          subtitle={trialExpiringSoon > 0 ? `${trialExpiringSoon} expiram em ≤3 dias` : "a converter"}
+          subtitle={trialExpiringSoon > 0 ? t("{{n}} expiram em ≤3 dias", { n: trialExpiringSoon }) : t("a converter")}
           icon={<Sparkles className="h-4 w-4" />}
           loading={loading}
           compact={sidebar}
           onClick={onFocus && buckets.trial > 0 ? () => onFocus("trial") : undefined}
         />
         <MetricCard
-          label="Trials expirados"
+          label={t("Trials expirados")}
           value={buckets.expired}
-          subtitle="nunca converteram"
+          subtitle={t("nunca converteram")}
           icon={<AlertTriangle className="h-4 w-4" />}
           tone={buckets.expired > 0 ? "danger" : "default"}
           loading={loading}
@@ -217,12 +219,12 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
       <div className={cn("grid gap-4 lg:grid-cols-3", sidebar && "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:gap-3")}>
         <Card className={cn("lg:col-span-2", sidebar && "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col")}>
           <CardHeader className={cn("pb-2", sidebar && "xl:px-4 xl:pt-4")}>
-            <CardTitle className="text-sm">Novas empresas por mês</CardTitle>
+            <CardTitle className="text-sm">{t("Novas empresas por mês")}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Últimos 6 meses
+              {t("Últimos 6 meses")}
               {!loading && newOrgsDelta !== 0 && (
                 <span className={cn("ml-1.5 font-medium", newOrgsDelta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                  {newOrgsDelta > 0 ? "+" : ""}{newOrgsDelta} vs mês anterior
+                  {newOrgsDelta > 0 ? "+" : ""}{t("{{n}} vs mês anterior", { n: newOrgsDelta })}
                 </span>
               )}
             </p>
@@ -249,7 +251,7 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
                       fontSize: 12,
                     }}
                     labelStyle={{ color: "hsl(var(--card-foreground))", fontWeight: 600 }}
-                    formatter={(v: number) => [`${v}`, "Novas"]}
+                    formatter={(v: number) => [`${v}`, t("Novas")]}
                   />
                   <Bar dataKey="value" className="fill-primary" radius={[6, 6, 0, 0]} maxBarSize={44} />
                 </BarChart>
@@ -261,8 +263,8 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
 
         <Card className={cn(sidebar && "xl:shrink-0")}>
           <CardHeader className={cn("pb-2", sidebar && "xl:px-4 xl:pt-4")}>
-            <CardTitle className="text-sm">Estado das assinaturas</CardTitle>
-            <p className="text-xs text-muted-foreground">Distribuição atual</p>
+            <CardTitle className="text-sm">{t("Estado das subscrições")}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t("Distribuição atual")}</p>
           </CardHeader>
           <CardContent className={cn(sidebar && "xl:px-4 xl:pb-4")}>
             {loading ? (
@@ -282,7 +284,7 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
                           key={k}
                           className={BUCKET_META[k].dot}
                           style={{ width: `${(buckets[k] / barTotal) * 100}%` }}
-                          title={`${BUCKET_META[k].label}: ${buckets[k]}`}
+                          title={`${t(BUCKET_META[k].label)}: ${buckets[k]}`}
                         />
                       ) : null,
                     )}
@@ -291,7 +293,7 @@ export function AdminOverview({ organizations, stripeStats, loading, onFocus, si
                   {ORDER.map((k) => (
                     <div key={k} className="flex items-center gap-2 text-sm">
                       <span className={cn("h-2 w-2 shrink-0 rounded-full", BUCKET_META[k].dot)} />
-                      <span className="flex-1 text-muted-foreground">{BUCKET_META[k].label}</span>
+                      <span className="flex-1 text-muted-foreground">{t(BUCKET_META[k].label)}</span>
                       <span className="font-medium tabular-nums text-foreground">{buckets[k]}</span>
                     </div>
                   ))}

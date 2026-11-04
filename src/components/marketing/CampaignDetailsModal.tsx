@@ -15,6 +15,7 @@ import { CAMPAIGN_STATUS_LABELS, CAMPAIGN_STATUS_STYLES } from "@/types/marketin
 import { format } from "date-fns";
 import { normalizeString } from "@/lib/utils";
 import { CampaignEmailPreview } from "@/components/marketing/CampaignEmailPreview";
+import { useLanguage } from "@/i18n";
 
 type MetricFilter = 'all' | 'delivered' | 'opened' | 'clicked' | 'failed';
 
@@ -62,6 +63,7 @@ function CampaignDetailsPanel({
   setActiveFilter,
   setRecipientSearch,
 }: CampaignDetailsPanelProps) {
+  const { t } = useLanguage();
   const handleFilterClick = (filterKey: MetricFilter) => {
     setActiveFilter(activeFilter === filterKey ? null : filterKey);
   };
@@ -83,7 +85,7 @@ function CampaignDetailsPanel({
               {metric.value}
               {metric.pct !== undefined && <span className="ml-1 text-xs font-normal text-muted-foreground">({metric.pct}%)</span>}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{metric.label}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t(metric.label)}</p>
           </button>
         ))}
       </div>
@@ -91,7 +93,7 @@ function CampaignDetailsPanel({
       {campaign.status === 'sending' && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Progresso</span>
+            <span>{t("Progresso")}</span>
             <span>{progress}%</span>
           </div>
           <Progress value={progress} />
@@ -101,19 +103,19 @@ function CampaignDetailsPanel({
       <div className="space-y-2 rounded-lg border bg-muted/50 p-4 text-sm">
         {campaign.template && (
           <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Template:</span>
+            <span className="text-muted-foreground">{t("Template:")}</span>
             <span className="font-medium text-right">{campaign.template.name}</span>
           </div>
         )}
         {(campaign.subject || campaign.template?.subject) && (
           <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Assunto:</span>
+            <span className="text-muted-foreground">{t("Assunto:")}</span>
             <span className="font-medium text-right">{campaign.subject || campaign.template?.subject}</span>
           </div>
         )}
         {campaign.sent_at && (
           <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Enviada em:</span>
+            <span className="text-muted-foreground">{t("Enviada em:")}</span>
             <span className="text-right">{format(new Date(campaign.sent_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
         )}
@@ -122,11 +124,11 @@ function CampaignDetailsPanel({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold">Destinatários ({filteredSends.length})</p>
+            <p className="text-sm font-semibold">{t("Destinatários ({{n}})", { n: filteredSends.length })}</p>
             {activeFilter && (
               <Badge variant="secondary" className="gap-1 text-xs">
-                {FILTER_LABELS[activeFilter]}
-                <button type="button" onClick={() => setActiveFilter(null)} aria-label="Limpar filtro">
+                {t(FILTER_LABELS[activeFilter])}
+                <button type="button" onClick={() => setActiveFilter(null)} aria-label={t("Limpar filtro")}>
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
@@ -137,7 +139,7 @@ function CampaignDetailsPanel({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar destinatário..."
+            placeholder={t("Pesquisar destinatário...")}
             value={recipientSearch}
             onChange={(e) => setRecipientSearch(e.target.value)}
             className="pl-10"
@@ -156,11 +158,11 @@ function CampaignDetailsPanel({
                   {send.opened_at && <Eye className="h-3.5 w-3.5" style={{ color: 'hsl(var(--accent-foreground))' }} />}
                   {send.clicked_at && <MousePointer className="h-3.5 w-3.5" style={{ color: 'hsl(var(--primary))' }} />}
                   {(send.status === 'failed' || send.status === 'bounced') ? (
-                    <Badge variant="destructive" className="text-xs">Erro</Badge>
+                    <Badge variant="destructive" className="text-xs">{t("Erro")}</Badge>
                   ) : send.status === 'delivered' ? (
-                    <Badge variant="secondary" className="text-xs">Entregue</Badge>
+                    <Badge variant="secondary" className="text-xs">{t("Entregue")}</Badge>
                   ) : (
-                    <Badge variant="secondary" className="text-xs">Enviado</Badge>
+                    <Badge variant="secondary" className="text-xs">{t("Enviado")}</Badge>
                   )}
                 </div>
               </div>
@@ -168,7 +170,7 @@ function CampaignDetailsPanel({
 
             {filteredSends.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                {recipientSearch || activeFilter ? 'Nenhum destinatário encontrado' : 'Sem dados de envio'}
+                {recipientSearch || activeFilter ? t('Nenhum destinatário encontrado') : t('Sem dados de envio')}
               </p>
             )}
           </div>
@@ -184,6 +186,7 @@ export function CampaignDetailsModal({ campaign, open, onOpenChange }: CampaignD
   const [recipientSearch, setRecipientSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<MetricFilter | null>(null);
   const hasSyncedRef = useRef<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (open && campaign?.id && hasSyncedRef.current !== campaign.id) {
@@ -253,18 +256,18 @@ export function CampaignDetailsModal({ campaign, open, onOpenChange }: CampaignD
       <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
         <div className="border-b bg-card">
           <div className="flex w-full items-center gap-3 px-4 py-4 md:px-6">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => onOpenChange(false)}>
+            <Button variant="back" size="icon" className="h-8 w-8 shrink-0" onClick={() => onOpenChange(false)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0 flex-1">
               <DialogTitle className="truncate text-lg font-semibold">{campaign.name}</DialogTitle>
               <div className="mt-0.5 flex items-center gap-2">
                 <Badge className="text-xs" style={{ backgroundColor: style.bg, color: style.text }}>
-                  {CAMPAIGN_STATUS_LABELS[campaign.status]}
+                  {t(CAMPAIGN_STATUS_LABELS[campaign.status])}
                 </Badge>
                 {campaign.sent_at && (
                   <span className="text-xs text-muted-foreground">
-                    Enviada a {format(new Date(campaign.sent_at), "dd/MM/yyyy 'às' HH:mm")}
+                    {t("Enviada a {{date}} às {{time}}", { date: format(new Date(campaign.sent_at), "dd/MM/yyyy"), time: format(new Date(campaign.sent_at), "HH:mm") })}
                   </span>
                 )}
                 {(isFetching || isSyncing) && (
@@ -280,8 +283,8 @@ export function CampaignDetailsModal({ campaign, open, onOpenChange }: CampaignD
             <Tabs defaultValue="dados" className="flex h-full flex-col">
               <div className="border-b px-4 py-3">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="dados">Dados</TabsTrigger>
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                  <TabsTrigger value="dados">{t("Dados")}</TabsTrigger>
+                  <TabsTrigger value="preview">{t("Pré-visualização")}</TabsTrigger>
                 </TabsList>
               </div>
 

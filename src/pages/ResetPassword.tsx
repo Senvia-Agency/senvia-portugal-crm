@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useLanguage } from '@/i18n';
 
 export default function ResetPassword() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -68,8 +70,8 @@ export default function ResetPassword() {
 
     if (password.length < 6) {
       toast({
-        title: 'Palavra-passe muito curta',
-        description: 'A palavra-passe deve ter pelo menos 6 caracteres.',
+        title: t('Palavra-passe muito curta'),
+        description: t('A palavra-passe deve ter pelo menos 6 caracteres.'),
         variant: 'destructive',
       });
       return;
@@ -77,8 +79,8 @@ export default function ResetPassword() {
 
     if (password !== confirmPassword) {
       toast({
-        title: 'Palavras-passe não coincidem',
-        description: 'Verifique se as palavras-passe são iguais.',
+        title: t('Palavras-passe não coincidem'),
+        description: t('Verifique se as palavras-passe são iguais.'),
         variant: 'destructive',
       });
       return;
@@ -95,8 +97,8 @@ export default function ResetPassword() {
 
       setSuccess(true);
       toast({
-        title: 'Palavra-passe alterada!',
-        description: 'A sua palavra-passe foi alterada com sucesso.',
+        title: t('Palavra-passe alterada!'),
+        description: t('A sua palavra-passe foi alterada com sucesso.'),
       });
 
       // Redirect to login after success
@@ -104,9 +106,9 @@ export default function ResetPassword() {
         navigate('/');
       }, 2000);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro ao alterar a palavra-passe.';
+      const errorMessage = err instanceof Error ? err.message : t('Ocorreu um erro ao alterar a palavra-passe.');
       toast({
-        title: 'Erro',
+        title: t('Erro'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -133,12 +135,12 @@ export default function ResetPassword() {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
               <AlertCircle className="h-6 w-6 text-destructive" />
             </div>
-            <CardTitle className="text-white">Link Inválido</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardTitle className="text-white">{t('Link Inválido')}</CardTitle>
+            <CardDescription>{t(error)}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button onClick={() => navigate('/')}>
-              Voltar ao Login
+              {t('Voltar ao Login')}
             </Button>
           </CardContent>
         </Card>
@@ -154,9 +156,9 @@ export default function ResetPassword() {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
               <CheckCircle2 className="h-6 w-6 text-green-500" />
             </div>
-            <CardTitle className="text-white">Palavra-passe Alterada!</CardTitle>
+            <CardTitle className="text-white">{t('Palavra-passe Alterada!')}</CardTitle>
             <CardDescription>
-              A sua palavra-passe foi alterada com sucesso. A redirecionar para o login...
+              {t('A sua palavra-passe foi alterada com sucesso. A redirecionar para o login...')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -174,19 +176,19 @@ export default function ResetPassword() {
           <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <KeyRound className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-white">Nova Palavra-passe</CardTitle>
+          <CardTitle className="text-white">{t('Nova Palavra-passe')}</CardTitle>
           <CardDescription>
-            Introduza a sua nova palavra-passe.
+            {t('Introduza a sua nova palavra-passe.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-200">Nova Palavra-passe</Label>
+              <Label htmlFor="password" className="text-slate-200">{t('Nova Palavra-passe')}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t('Mínimo 6 caracteres')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-slate-800/50 border-slate-700 text-white"
@@ -204,25 +206,25 @@ export default function ResetPassword() {
                     passwordStrength.label === 'Fraca' ? 'text-destructive' :
                     passwordStrength.label === 'Média' ? 'text-yellow-500' : 'text-green-500'
                   }`}>
-                    Força: {passwordStrength.label}
+                    {t('Força: {{label}}', { label: t(passwordStrength.label) })}
                   </p>
                 </div>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-slate-200">Confirmar Palavra-passe</Label>
+              <Label htmlFor="confirmPassword" className="text-slate-200">{t('Confirmar Palavra-passe')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Repita a palavra-passe"
+                placeholder={t('Repita a palavra-passe')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="bg-slate-800/50 border-slate-700 text-white"
                 required
               />
               {confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-destructive">As palavras-passe não coincidem</p>
+                <p className="text-xs text-destructive">{t('As palavras-passe não coincidem')}</p>
               )}
             </div>
 
@@ -232,7 +234,7 @@ export default function ResetPassword() {
               disabled={isSubmitting || !isValidSession}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Alterar Palavra-passe
+              {t('Alterar Palavra-passe')}
             </Button>
           </form>
         </CardContent>

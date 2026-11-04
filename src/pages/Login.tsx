@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PENDING_ORG_STORAGE_KEY } from '@/components/auth/CompleteOrganizationSetup';
 import senviaLogo from "@/assets/senvia-logo.png";
 import { hardGo } from '@/lib/nav';
+import { useLanguage } from '@/i18n';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -54,6 +55,7 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const { signIn, user, session, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   
   // Tab state - default to signup if query param is set
@@ -167,8 +169,8 @@ export default function Login() {
     });
     if (!result.success) {
       toast({
-        title: 'Erro de validação',
-        description: result.error.errors[0].message,
+        title: t('Erro de validação'),
+        description: t(result.error.errors[0].message),
         variant: 'destructive',
       });
       return;
@@ -187,8 +189,8 @@ export default function Login() {
       if (checkError) {
         console.error('Membership check error:', checkError);
         toast({
-          title: 'Erro de verificação',
-          description: 'Não foi possível verificar o acesso. Tente novamente.',
+          title: t('Erro de verificação'),
+          description: t('Não foi possível verificar o acesso. Tente novamente.'),
           variant: 'destructive',
         });
         setIsLoading(false);
@@ -210,8 +212,8 @@ export default function Login() {
         const { error: preAuthError } = await signIn(loginEmail, loginPassword);
         if (preAuthError) {
           toast({
-            title: 'Dados inválidos',
-            description: 'O código da empresa, o email ou a palavra-passe não estão corretos.',
+            title: t('Dados inválidos'),
+            description: t('O código da empresa, o email ou a palavra-passe não estão corretos.'),
             variant: 'destructive',
           });
           setIsLoading(false);
@@ -234,10 +236,10 @@ export default function Login() {
 
         await supabase.auth.signOut();
         toast({
-          title: membership ? 'Acesso negado' : 'Dados inválidos',
+          title: membership ? t('Acesso negado') : t('Dados inválidos'),
           description: membership
-            ? 'Não tem acesso a esta empresa. Verifique o código ou contacte o administrador.'
-            : 'O código da empresa ou email não existe.',
+            ? t('Não tem acesso a esta empresa. Verifique o código ou contacte o administrador.')
+            : t('O código da empresa ou email não existe.'),
           variant: 'destructive',
         });
         setIsLoading(false);
@@ -249,9 +251,9 @@ export default function Login() {
 
       if (authError) {
         toast({
-          title: 'Erro ao iniciar sessão',
+          title: t('Erro ao iniciar sessão'),
           description: authError.message === 'Invalid login credentials' 
-            ? 'Email ou palavra-passe incorretos' 
+            ? t('Email ou palavra-passe incorretos') 
             : authError.message,
           variant: 'destructive',
         });
@@ -263,8 +265,8 @@ export default function Login() {
       localStorage.setItem('senvia_active_organization_id', membership.organization_id);
 
       toast({
-        title: 'Bem-vindo!',
-        description: `Sessão iniciada em ${membership.organization_name}`,
+        title: t('Bem-vindo!'),
+        description: t('Sessão iniciada em {{org}}', { org: membership.organization_name }),
       });
       
       // Force reload to ensure AuthContext picks up the active org
@@ -273,8 +275,8 @@ export default function Login() {
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
-        title: 'Erro',
-        description: error.message || 'Ocorreu um erro inesperado.',
+        title: t('Erro'),
+        description: error.message || t('Ocorreu um erro inesperado.'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -296,8 +298,8 @@ export default function Login() {
     
     if (!result.success) {
       toast({
-        title: 'Erro de validação',
-        description: result.error.errors[0].message,
+        title: t('Erro de validação'),
+        description: t(result.error.errors[0].message),
         variant: 'destructive',
       });
       return;
@@ -305,8 +307,8 @@ export default function Login() {
 
     if (isSlugAvailable === false) {
       toast({
-        title: 'Código indisponível',
-        description: 'Este código já está em uso. Por favor, escolha outro.',
+        title: t('Código indisponível'),
+        description: t('Este código já está em uso. Por favor, escolha outro.'),
         variant: 'destructive',
       });
       return;
@@ -324,9 +326,9 @@ export default function Login() {
       } as never);
       if (repetido === true) {
         toast({
-          title: 'Já existe um registo com este número',
+          title: t('Já existe um registo com este número'),
           description:
-            'Foi criada uma conta com este WhatsApp nas últimas 24 horas. Entra com essa conta ou usa "Esqueci-me da palavra-passe". Se precisares de ajuda, fala connosco.',
+            t('Foi criada uma conta com este WhatsApp nas últimas 24 horas. Entra com essa conta ou usa "Esqueceu a palavra-passe?". Se precisares de ajuda, fala connosco.'),
           variant: 'destructive',
         });
         return;
@@ -421,8 +423,8 @@ export default function Login() {
         } catch {}
 
         toast({
-          title: 'Confirme o seu email',
-          description: 'Enviámos um email de confirmação. Confirme o seu email e depois faça login.',
+          title: t('Confirme o seu email'),
+          description: t('Enviámos um email de confirmação. Confirme o seu email e depois inicie sessão.'),
         });
 
         setActiveTab('login');
@@ -444,8 +446,8 @@ export default function Login() {
       if (orgError && !orgError.message.includes('already belongs to an organization')) {
         if (orgError.message.includes('Slug already exists')) {
           toast({
-            title: 'Código indisponível',
-            description: 'Este código de empresa já está em uso. Por favor, escolha outro.',
+            title: t('Código indisponível'),
+            description: t('Este código de empresa já está em uso. Por favor, escolha outro.'),
             variant: 'destructive',
           });
           setIsLoading(false);
@@ -481,8 +483,8 @@ export default function Login() {
       } catch {}
 
       toast({
-        title: 'Conta criada com sucesso!',
-        description: 'Bem-vindo ao SENVIA. A redirecionar para o dashboard...',
+        title: t('Conta criada com sucesso!'),
+        description: t('Bem-vindo ao SENVIA. A redirecionar para o painel...'),
       });
 
       // Force page reload to ensure AuthContext picks up all data
@@ -492,7 +494,7 @@ export default function Login() {
       let message = error.message;
       if (error.message.includes('already registered')) {
         message =
-          'Este email já tem conta. Entre com ela, ou use "Esqueci-me da password" para recuperar o acesso.';
+          t('Este email já tem conta. Entre com ela, ou use "Esqueceu a palavra-passe?" para recuperar o acesso.');
       } else if (
         // The signup transaction now also creates the organization, so a slug
         // taken between the availability check and submit aborts the whole
@@ -500,7 +502,7 @@ export default function Login() {
         error.message.includes('Recent signup exists for this phone')
       ) {
         message =
-          'Já foi criada uma conta com este WhatsApp nas últimas 24 horas. Entra com essa conta em vez de criar outra.';
+          t('Já foi criada uma conta com este WhatsApp nas últimas 24 horas. Entra com essa conta em vez de criar outra.');
       } else if (
         // The signup transaction now also creates the organization, so a slug
         // taken between the availability check and submit aborts the whole
@@ -508,10 +510,10 @@ export default function Login() {
         error.message.includes('Database error saving new user') ||
         error.message.includes('Slug already exists')
       ) {
-        message = 'Este código de empresa já está em uso. Escolha outro e tente novamente.';
+        message = t('Este código de empresa já está em uso. Escolha outro e tente novamente.');
       }
       toast({
-        title: 'Erro ao criar conta',
+        title: t('Erro ao criar conta'),
         description: message,
         variant: 'destructive',
       });
@@ -538,15 +540,15 @@ export default function Login() {
         <Card className="border-slate-800 bg-slate-900/50 backdrop-blur">
           <CardHeader className="text-center">
             <CardTitle className="text-white">
-              {activeTab === 'signup' ? 'Comece o seu teste grátis' : 'Aceder à Plataforma'}
+              {activeTab === 'signup' ? t('Comece o seu teste grátis') : t('Aceder à Plataforma')}
             </CardTitle>
             <CardDescription className="text-slate-400">
               {activeTab === 'signup' ? (
                 <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1 text-xs font-medium mt-1">
-                  ✨ 14 dias grátis · Sem cartão de crédito
+                  ✨ {t("14 dias grátis · Sem cartão de crédito")}
                 </span>
               ) : (
-                'Entre na sua conta ou crie uma nova'
+                t('Entre na sua conta ou crie uma nova')
               )}
             </CardDescription>
           </CardHeader>
@@ -554,10 +556,10 @@ export default function Login() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-slate-800">
                 <TabsTrigger value="login" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                  Entrar
+                  {t("Entrar")}
                 </TabsTrigger>
                 <TabsTrigger value="signup" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                  Registar
+                  {t("Registar")}
                 </TabsTrigger>
               </TabsList>
               
@@ -565,18 +567,18 @@ export default function Login() {
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-company-code" className="text-slate-300">Código da Empresa</Label>
+                    <Label htmlFor="login-company-code" className="text-slate-300">{t("Código da Empresa")}</Label>
                     <Input
                       id="login-company-code"
                       type="text"
-                      placeholder="minha-empresa"
+                      placeholder={t("minha-empresa")}
                       value={loginCompanyCode}
                       onChange={(e) => setLoginCompanyCode(e.target.value.toLowerCase())}
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 font-mono"
                       required
                     />
                     <p className="text-xs text-slate-500">
-                      Código fornecido pelo administrador da empresa
+                      {t("Código fornecido pelo administrador da empresa")}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -584,7 +586,7 @@ export default function Login() {
                     <Input
                       id="login-email"
                       type="email"
-                      placeholder="seu@email.com"
+                      placeholder={t("seu@email.com")}
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
@@ -592,7 +594,7 @@ export default function Login() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-slate-300">Palavra-passe</Label>
+                    <Label htmlFor="login-password" className="text-slate-300">{t("Palavra-passe")}</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -609,8 +611,8 @@ export default function Login() {
                       onClick={() => {
                         if (!loginEmail) {
                           toast({
-                            title: 'Email necessário',
-                            description: 'Insira o seu email para recuperar a palavra-passe.',
+                            title: t('Email necessário'),
+                            description: t('Insira o seu email para recuperar a palavra-passe.'),
                             variant: 'destructive',
                           });
                           return;
@@ -620,21 +622,21 @@ export default function Login() {
                         }).then(({ error }) => {
                           if (error) {
                             toast({
-                              title: 'Erro',
+                              title: t('Erro'),
                               description: error.message,
                               variant: 'destructive',
                             });
                           } else {
                             toast({
-                              title: 'Email enviado',
-                              description: 'Verifique o seu email para redefinir a palavra-passe.',
+                              title: t('Email enviado'),
+                              description: t('Verifique o seu email para redefinir a palavra-passe.'),
                             });
                           }
                         });
                       }}
                       className="text-sm text-primary hover:underline"
                     >
-                      Esqueceu a palavra-passe?
+                      {t("Esqueceu a palavra-passe?")}
                     </button>
                   </div>
                   <Button
@@ -645,10 +647,10 @@ export default function Login() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        A entrar...
+                        {t("A entrar...")}
                       </>
                     ) : (
-                      'Entrar'
+                      t('Entrar')
                     )}
                   </Button>
                 </form>
@@ -658,7 +660,7 @@ export default function Login() {
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name" className="text-slate-300">Nome Completo</Label>
+                    <Label htmlFor="signup-name" className="text-slate-300">{t("Nome Completo")}</Label>
                     <Input
                       id="signup-name"
                       type="text"
@@ -674,7 +676,7 @@ export default function Login() {
                     <Input
                       id="signup-email"
                       type="email"
-                      placeholder="seu@email.com"
+                      placeholder={t("seu@email.com")}
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
@@ -682,7 +684,7 @@ export default function Login() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-slate-300">Palavra-passe</Label>
+                    <Label htmlFor="signup-password" className="text-slate-300">{t("Palavra-passe")}</Label>
                     <Input
                       id="signup-password"
                       type="password"
@@ -694,7 +696,7 @@ export default function Login() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-confirm-password" className="text-slate-300">Confirmar Palavra-passe</Label>
+                    <Label htmlFor="signup-confirm-password" className="text-slate-300">{t("Confirmar Palavra-passe")}</Label>
                     <Input
                       id="signup-confirm-password"
                       type="password"
@@ -707,14 +709,14 @@ export default function Login() {
                   </div>
                   
                   <div className="border-t border-slate-700 pt-4 mt-4">
-                    <p className="text-sm text-slate-400 mb-3">Dados da sua empresa</p>
+                    <p className="text-sm text-slate-400 mb-3">{t("Dados da sua empresa")}</p>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="org-name" className="text-slate-300">Nome da Empresa</Label>
+                      <Label htmlFor="org-name" className="text-slate-300">{t("Nome da Empresa")}</Label>
                       <Input
                         id="org-name"
                         type="text"
-                        placeholder="Minha Empresa Lda"
+                        placeholder={t("A Minha Empresa, Lda.")}
                         value={organizationName}
                         onChange={(e) => setOrganizationName(e.target.value)}
                         className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
@@ -724,13 +726,13 @@ export default function Login() {
                     
                     <div className="space-y-2 mt-3">
                       <Label htmlFor="org-slug" className="text-slate-300">
-                        Código da Empresa
+                        {t("Código da Empresa")}
                       </Label>
                       <div className="relative">
                         <Input
                           id="org-slug"
                           type="text"
-                          placeholder="minha-empresa"
+                          placeholder={t("minha-empresa")}
                           value={organizationSlug}
                           onChange={(e) => handleSlugChange(e.target.value)}
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 pr-10"
@@ -749,15 +751,15 @@ export default function Login() {
                         </div>
                       </div>
                       <p className="text-xs text-slate-500">
-                        senvia.app/<span className="text-primary">{organizationSlug || 'a-tua-empresa'}</span>
+                        senvia.app/<span className="text-primary">{organizationSlug || t('a-tua-empresa')}</span>
                       </p>
                       {isSlugAvailable === false && (
-                        <p className="text-xs text-red-400">Este código já está em uso</p>
+                        <p className="text-xs text-red-400">{t("Este código já está em uso")}</p>
                       )}
                     </div>
 
                     <div className="space-y-2 mt-3">
-                      <Label className="text-slate-300">WhatsApp da Empresa *</Label>
+                      <Label className="text-slate-300">{t("WhatsApp da Empresa *")}</Label>
                       <PhoneInput
                         value={contactPhone}
                         onChange={setContactPhone}
@@ -765,7 +767,7 @@ export default function Login() {
                         className="[&_button]:h-12 [&_button]:bg-slate-800 [&_button]:border-slate-700 [&_button]:text-white [&_button]:hover:bg-slate-700 [&_input]:h-12 [&_input]:bg-slate-800 [&_input]:border-slate-700 [&_input]:text-white [&_input]:placeholder:text-slate-500"
                       />
                       <p className="text-xs text-slate-500">
-                        Escolhe o país e introduz o número. Usado para contacto e mensagens de WhatsApp.
+                        {t("Escolhe o país e introduz o número. Usado para contacto e mensagens de WhatsApp.")}
                       </p>
                     </div>
                     
@@ -779,10 +781,10 @@ export default function Login() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        A criar conta...
+                        {t("A criar conta...")}
                       </>
                     ) : (
-                      'Criar Conta'
+                      t('Criar Conta')
                     )}
                   </Button>
                 </form>

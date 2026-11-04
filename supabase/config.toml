@@ -102,6 +102,9 @@ verify_jwt = false
 [functions.create-checkout]
 verify_jwt = false
 
+[functions.billing-details]
+verify_jwt = false
+
 [functions.check-subscription]
 verify_jwt = false
 
@@ -156,6 +159,15 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.task-reminders]
+verify_jwt = false
+
+[functions.time-clock-reminders]
+verify_jwt = false
+
+[functions.lead-reassign]
+verify_jwt = false
+
+[functions.review-video]
 verify_jwt = false
 
 [functions.send-scheduled-messages]

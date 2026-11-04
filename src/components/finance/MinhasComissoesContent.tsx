@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { useLanguage, tr, dateLocale } from '@/i18n';
 import type { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,18 +33,19 @@ const hasConfirmed = (s: CommissionSale) => portions(s).confirmed > EPS;
 const hasPending = (s: CommissionSale) => portions(s).pending > EPS;
 
 function badgeMeta(s: CommissionSale): { label: string; className: string } {
-  if (isCancelled(s)) return { label: 'Anulada', className: 'bg-red-500/10 text-red-700 dark:text-red-400' };
+  if (isCancelled(s)) return { label: tr('Anulada'), className: 'bg-red-500/10 text-red-700 dark:text-red-400' };
   const { fraction } = portions(s);
-  if (fraction >= 0.999) return { label: 'Confirmada', className: 'bg-green-500/10 text-green-700 dark:text-green-400' };
-  if (fraction > 0) return { label: `Parcial (${Math.round(fraction * 100)}%)`, className: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' };
+  if (fraction >= 0.999) return { label: tr('Confirmada'), className: 'bg-green-500/10 text-green-700 dark:text-green-400' };
+  if (fraction > 0) return { label: tr('Parcial ({{pct}}%)', { pct: Math.round(fraction * 100) }), className: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' };
   // nothing earned: distinguish "concluded but awaiting payment" from "not concluded yet"
   return {
-    label: isConcluded(s) ? 'Aguarda pagamento' : 'Pendente',
+    label: isConcluded(s) ? tr('Aguarda pagamento') : tr('Pendente'),
     className: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
   };
 }
 
 export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: DateRange; userId?: string | null }) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const isTelecom = organization?.niche === 'telecom';
   const dateOf = (s: Parameters<typeof telecomCommissionDate>[0] & { kind?: 'direct' | 'recurring' }) =>
@@ -134,31 +135,31 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Clock className="h-4 w-4 text-yellow-600" /> Pendentes
+              <Clock className="h-4 w-4 text-yellow-600" /> {t("Pendentes")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.pendingTotal)}</div>
-            <div className="text-xs text-muted-foreground">{stats.pendingCount} venda(s)</div>
+            <div className="text-xs text-muted-foreground">{t("{{n}} venda(s)", { n: stats.pendingCount })}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-green-600" /> Confirmadas
+              <CheckCircle2 className="h-4 w-4 text-green-600" /> {t("Confirmadas")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.confirmedTotal)}</div>
-            <div className="text-xs text-muted-foreground">{stats.confirmedCount} venda(s)</div>
+            <div className="text-xs text-muted-foreground">{t("{{n}} venda(s)", { n: stats.confirmedCount })}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Wallet className="h-4 w-4" /> Confirmadas este mês
+              <Wallet className="h-4 w-4" /> {t("Confirmadas este mês")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -169,10 +170,10 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
         <TabsList>
-          <TabsTrigger value="pending">Pendentes</TabsTrigger>
-          <TabsTrigger value="confirmed">Confirmadas</TabsTrigger>
-          <TabsTrigger value="cancelled">Anuladas</TabsTrigger>
-          <TabsTrigger value="all">Tudo</TabsTrigger>
+          <TabsTrigger value="pending">{t("Pendentes")}</TabsTrigger>
+          <TabsTrigger value="confirmed">{t("Confirmadas")}</TabsTrigger>
+          <TabsTrigger value="cancelled">{t("Anuladas")}</TabsTrigger>
+          <TabsTrigger value="all">{t("Tudo")}</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -182,18 +183,18 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground">Sem vendas para mostrar.</div>
+          <div className="p-12 text-center text-muted-foreground">{t("Sem vendas para mostrar.")}</div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{isTelecom ? 'Recebimento previsto' : 'Data'}</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Código</TableHead>
-                  <TableHead className="text-right">Valor venda</TableHead>
-                  <TableHead className="text-right">Comissão</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead>{isTelecom ? t('Recebimento previsto') : t('Data')}</TableHead>
+                  <TableHead>{t("Cliente")}</TableHead>
+                  <TableHead>{t("Código")}</TableHead>
+                  <TableHead className="text-right">{t("Valor venda")}</TableHead>
+                  <TableHead className="text-right">{t("Comissão")}</TableHead>
+                  <TableHead>{t("Estado")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -203,7 +204,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
                     <TableRow key={s.id}>
                       <TableCell className="text-sm">
                         {dateOf(s)
-                          ? format(new Date(dateOf(s)!), isTelecom ? 'MMM yyyy' : 'dd MMM yyyy', { locale: pt })
+                          ? format(new Date(dateOf(s)!), isTelecom ? 'MMM yyyy' : 'dd MMM yyyy', { locale: dateLocale() })
                           : '-'}
                       </TableCell>
                       <TableCell>

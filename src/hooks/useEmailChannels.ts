@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { tr } from '@/i18n';
 
 export interface EmailSignature {
   id: string;
@@ -129,11 +130,15 @@ export function useCreateEmailChannel() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: EmailChannelInput) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('email-inbox', {
         body: { organization_id: organization.id, action: 'create', ...input },
       });
-      if (error) throw error;
+      // The function says why a mailbox was refused (wrong password, Microsoft, unreachable server).
+      if (error) {
+        const reason = await (error as { context?: Response }).context?.json?.().catch(() => null);
+        throw new Error(reason?.error ?? error.message);
+      }
       if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
       return data as { ok: boolean; channel_id: string; chatwoot_inbox_id: number };
     },
@@ -149,7 +154,7 @@ export function useUpdateEmailChannel() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: EmailChannelUpdate) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('email-inbox', {
         body: { organization_id: organization.id, action: 'update', ...input },
       });
@@ -188,7 +193,7 @@ export function useDeleteEmailChannel() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (channelId: string) => {
-      if (!organization?.id) throw new Error('Organização não encontrada');
+      if (!organization?.id) throw new Error(tr('Organização não encontrada'));
       const { data, error } = await supabase.functions.invoke('email-inbox', {
         body: { organization_id: organization.id, action: 'delete', channel_id: channelId },
       });

@@ -42,6 +42,7 @@ test('reader measures a viewport mounted after the dialog opens and cancels its 
     };
     if (name === '@/components/ui/button') return { Button: ({ asChild, variant, size, children, ...props }) => React.createElement('button', props, children) };
     if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
+    if (name === '@/i18n') return { useLanguage: () => ({ t: (text, values) => values ? text.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key]) : text }) };
     if (name === './PdfCanvas') return { PdfCanvas: ({ width }) => React.createElement('canvas', { 'data-width': width }) };
     return require(name);
   };

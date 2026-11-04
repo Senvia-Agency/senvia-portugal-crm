@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 import { invoiceClientName } from '@/lib/invoice-display';
 
 export interface InvoiceRow {
@@ -24,6 +25,8 @@ export interface InvoiceRow {
   updated_at: string;
   credit_note_reference: string | null;
   related_invoice_id: string | null;
+  /** Delivery of the document by email (not_requested, sent, delivered, failed…). */
+  email_status: string | null;
 }
 
 export function useInvoices() {
@@ -66,6 +69,7 @@ export function useInvoices() {
         updated_at: row.updated_at,
         credit_note_reference: null as string | null,
         related_invoice_id: row.related_invoice_id || null,
+        email_status: row.email_status ?? null,
       }));
 
       // Fetch credit notes that reference these invoices
@@ -125,8 +129,8 @@ export function useSyncInvoices() {
       // Suppress toast for unconfigured credentials
       if (error.message?.includes('não configuradas') || error.message?.includes('not configured')) return;
       toast({
-        title: 'Erro na sincronização',
-        description: error.message || 'Não foi possível sincronizar faturas.',
+        title: tr('Erro na sincronização'),
+        description: error.message || tr('Não foi possível sincronizar faturas.'),
         variant: 'destructive',
       });
     },

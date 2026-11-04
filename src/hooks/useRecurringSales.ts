@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { toast } from "sonner";
+import { tr } from "@/i18n";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { RecurringStatus } from "@/types/sales";
@@ -161,10 +162,10 @@ export function useRenewSale() {
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
       queryClient.invalidateQueries({ queryKey: ["finance-stats"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      toast.success("Ciclo de renovação criado com sucesso!");
+      toast.success(tr("Ciclo de renovação criado com sucesso!"));
     },
     onError: () => {
-      toast.error("Erro ao registar renovação");
+      toast.error(tr("Erro ao registar renovação"));
     },
   });
 }
@@ -197,10 +198,10 @@ export function useCancelRecurrence() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["recurring-sales"] });
       queryClient.invalidateQueries({ queryKey: ["sale-recurrence"] });
-      toast.success("Recorrência cancelada");
+      toast.success(tr("Recorrência cancelada"));
     },
     onError: () => {
-      toast.error("Erro ao cancelar recorrência");
+      toast.error(tr("Erro ao cancelar recorrência"));
     },
   });
 }

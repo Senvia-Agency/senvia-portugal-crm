@@ -35,6 +35,8 @@ export interface PaymentWithSale {
     credit_note_reference: string | null;
     invoice_pdf_url: string | null;
     client_org_id?: string | null;
+    /** The sale's own status; a cancelled sale has nothing left to receive. */
+    status?: string | null;
     recurring_status?: RecurringStatus | null;
     next_renewal_date?: string | null;
     sale_date?: string | null;

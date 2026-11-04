@@ -8,6 +8,7 @@ import { Loader2, User, Mail, Phone, Building, FileText, MapPin, MessageSquare, 
 import { useClientFieldsSettings, useUpdateClientFieldsSettings } from '@/hooks/useClientFieldsSettings';
 import { ClientFieldKey, ClientFieldsSettings, DEFAULT_CLIENT_FIELDS_SETTINGS } from '@/types/clients';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useLanguage } from '@/i18n';
 
 const FIELD_ICONS: Record<ClientFieldKey, React.ReactNode> = {
   name: <User className="h-4 w-4" />,
@@ -25,6 +26,7 @@ const FIELD_ORDER: ClientFieldKey[] = ['name', 'email', 'phone', 'company', 'com
 export function ClientFieldsEditor() {
   const { data: savedSettings, isLoading } = useClientFieldsSettings();
   const updateSettings = useUpdateClientFieldsSettings();
+  const { t } = useLanguage();
   const [settings, setSettings] = useState<ClientFieldsSettings>(DEFAULT_CLIENT_FIELDS_SETTINGS);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -79,10 +81,10 @@ export function ClientFieldsEditor() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <User className="h-5 w-5" />
-          Campos Obrigatórios
+          {t('Campos Obrigatórios')}
         </CardTitle>
         <CardDescription>
-          Configure quais campos são visíveis e obrigatórios ao criar ou editar registos.
+          {t('Configure quais campos são visíveis e obrigatórios ao criar ou editar registos.')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -90,11 +92,11 @@ export function ClientFieldsEditor() {
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-2 border-b">
           <div className="flex items-center gap-1.5">
             <Eye className="h-4 w-4" />
-            <span>Visível</span>
+            <span>{t('Visível')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-destructive font-medium">*</span>
-            <span>Obrigatório</span>
+            <span>{t('Obrigatório')}</span>
           </div>
         </div>
 
@@ -166,14 +168,14 @@ export function ClientFieldsEditor() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Pelo menos <strong>Nome</strong> ou <strong>Empresa</strong> deve ser visível e obrigatório para identificar o cliente.
+              {t('Pelo menos Nome ou Empresa deve ser visível e obrigatório para identificar o cliente.')}
             </AlertDescription>
           </Alert>
         )}
 
         {/* Info */}
         <p className="text-xs text-muted-foreground">
-          Para criar clientes, é necessário ter pelo menos o campo <strong>Nome</strong> ou <strong>Empresa</strong> visível e obrigatório.
+          {t('Para criar clientes, é necessário ter pelo menos o campo Nome ou Empresa visível e obrigatório.')}
         </p>
 
         {/* Save Button */}
@@ -187,7 +189,7 @@ export function ClientFieldsEditor() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Guardar Alterações
+            {t('Guardar Alterações')}
           </Button>
         </div>
       </CardContent>

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useSendInvoiceEmail } from "@/hooks/useSendInvoiceEmail";
 import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
 import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
+import { useLanguage } from "@/i18n";
 
 interface SendInvoiceEmailModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function SendInvoiceEmailModal({
   organizationId,
   clientEmail,
 }: SendInvoiceEmailModalProps) {
+  const { t } = useLanguage();
   const docLabel = {
     invoice: "Fatura",
     invoice_receipt: "Fatura-Recibo",
@@ -64,25 +66,25 @@ export function SendInvoiceEmailModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            Enviar {docLabel} por Email
+            {t("Enviar {{document}} por email", { document: t(docLabel) })}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Email do destinatário</Label>
+            <Label>{t("Email do destinatário")}</Label>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@exemplo.com"
+              placeholder={t("email@exemplo.com")}
             />
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)}>
             <Button onClick={handleSubmit} disabled={!email || sendEmail.isPending}>
@@ -91,7 +93,7 @@ export function SendInvoiceEmailModal({
               ) : (
                 <Mail className="h-4 w-4 mr-1" />
               )}
-              Enviar
+              {t("Enviar")}
             </Button>
           </EmailTemplateGate>
         </DialogFooter>

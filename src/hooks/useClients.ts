@@ -5,6 +5,7 @@ import { useTeamFilter } from '@/hooks/useTeamFilter';
 import { toast } from 'sonner';
 import { isPerfect2GetherOrg } from '@/lib/perfect2gether';
 import type { CrmClient, ClientStatus } from '@/types/clients';
+import { tr } from "@/i18n";
 
 export function useClients() {
   const { organization } = useAuth();
@@ -33,7 +34,8 @@ export function useClients() {
         throw error;
       }
 
-      return data as CrmClient[];
+      // There is no VIP status any more: a client still saved as "vip" is an active client.
+      return (data ?? []).map((client) => (client.status === 'vip' ? { ...client, status: 'active' } : client)) as CrmClient[];
     },
     enabled: !!organizationId,
   });
@@ -121,12 +123,12 @@ export function useCreateClient() {
     },
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['crm-clients'] });
-      toast.success('Cliente criado com sucesso');
+      toast.success(tr("Cliente criado com sucesso"));
       return client;
     },
     onError: (error) => {
       console.error('Error creating client:', error);
-      toast.error('Erro ao criar cliente');
+      toast.error(tr("Erro ao criar cliente"));
     },
   });
 }
@@ -149,11 +151,11 @@ export function useUpdateClient() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['crm-clients'] });
       queryClient.invalidateQueries({ queryKey: ['crm-client', variables.id] });
-      toast.success('Cliente atualizado');
+      toast.success(tr("Cliente atualizado"));
     },
     onError: (error) => {
       console.error('Error updating client:', error);
-      toast.error('Erro ao atualizar cliente');
+      toast.error(tr("Erro ao atualizar cliente"));
     },
   });
 }
@@ -172,11 +174,11 @@ export function useDeleteClient() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-clients'] });
-      toast.success('Cliente removido');
+      toast.success(tr("Cliente removido"));
     },
     onError: (error) => {
       console.error('Error deleting client:', error);
-      toast.error('Erro ao remover cliente');
+      toast.error(tr("Erro ao remover cliente"));
     },
   });
 }
@@ -246,11 +248,11 @@ export function useConvertLeadToClient() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-clients'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success('Lead convertido em cliente');
+      toast.success(tr("Lead convertido em cliente"));
     },
     onError: (error) => {
       console.error('Error converting lead:', error);
-      toast.error('Erro ao converter lead');
+      toast.error(tr("Erro ao converter lead"));
     },
   });
 }
@@ -261,7 +263,6 @@ export function useClientStats() {
   const stats = {
     total: clients?.length || 0,
     active: clients?.filter(c => c.status === 'active').length || 0,
-    vip: clients?.filter(c => c.status === 'vip').length || 0,
     inactive: clients?.filter(c => c.status === 'inactive').length || 0,
     totalValue: clients?.reduce((sum, c) => sum + (c.total_value || 0), 0) || 0,
     totalComissao: clients?.reduce((sum, c) => sum + (c.total_comissao || 0), 0) || 0,

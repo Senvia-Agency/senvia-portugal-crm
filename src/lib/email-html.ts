@@ -12,6 +12,13 @@ export function escapeEmailText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** A 1×1 image is the original sender's open tracker, not something to show or resend. */
+function isTrackingPixel(element: Element): boolean {
+  const style = element instanceof window.HTMLElement ? element.style : null;
+  const size = (name: 'width' | 'height') => Number.parseFloat(element.getAttribute(name) ?? style?.[name] ?? '');
+  return size('width') <= 1 || size('height') <= 1;
+}
+
 export function sanitizeEmailHtml(html: string): string {
   const fragment = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: EMAIL_TAGS,
@@ -24,10 +31,12 @@ export function sanitizeEmailHtml(html: string): string {
     const href = element.getAttribute('href');
     if (href !== null && !safeEmailLink(href)) element.removeAttribute('href');
     const src = element.getAttribute('src');
-    const signatureImage = element.tagName === 'IMG' && element.closest('.senvia-signature') !== null;
+    // The signature and the quoted or forwarded email keep their HTTPS images (logos,
+    // icons, photos), as Gmail does; without them they reached the recipient broken.
+    const keptImage = element.tagName === 'IMG' && element.closest('.senvia-signature, .senvia-quote') !== null && !isTrackingPixel(element);
     if (src !== null
       && !/^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(src)
-      && !(signatureImage && /^https:\/\//i.test(src))) element.removeAttribute('src');
+      && !(keptImage && /^https:\/\//i.test(src))) element.removeAttribute('src');
     const classes = (element.getAttribute('class') || '').split(/\s+/).filter(value => value === 'senvia-quote' || value === 'senvia-signature');
     element.removeAttribute('class');
     if (classes.length) element.setAttribute('class', classes.join(' '));

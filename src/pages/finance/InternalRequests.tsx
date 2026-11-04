@@ -19,8 +19,10 @@ import { RequestsTable } from '@/components/finance/RequestsTable';
 import { SubmitRequestModal } from '@/components/finance/SubmitRequestModal';
 import { ReviewRequestModal } from '@/components/finance/ReviewRequestModal';
 import type { InternalRequest, RequestType, RequestStatus } from '@/types/internal-requests';
+import { useLanguage } from '@/i18n';
 
 export default function InternalRequests() {
+  const { t } = useLanguage();
   const [filterType, setFilterType] = usePersistedState<RequestType | 'all'>('requests-type-v1', 'all');
   const [filterStatus, setFilterStatus] = usePersistedState<RequestStatus | 'all'>('requests-status-v1', 'all');
   const [showSubmit, setShowSubmit] = useState(false);
@@ -42,13 +44,13 @@ export default function InternalRequests() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Pedidos Internos</h2>
+          <h2 className="text-lg font-semibold">{t("Pedidos Internos")}</h2>
           {canApprove && pendingCount > 0 && (
-            <p className="text-sm text-muted-foreground">{pendingCount} pedido(s) pendente(s)</p>
+            <p className="text-sm text-muted-foreground">{t("{{n}} pedido(s) pendente(s)", { n: pendingCount })}</p>
           )}
         </div>
         <Button size="sm" onClick={() => setShowSubmit(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Novo Pedido
+          <Plus className="mr-1.5 h-4 w-4" /> {t("Novo Pedido")}
         </Button>
       </div>
 
@@ -74,13 +76,13 @@ export default function InternalRequests() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Apagar pedido?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Apagar pedido?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é irreversível. O pedido será permanentemente removido.
+              {t("Esta ação é irreversível. O pedido será permanentemente removido.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteId) deleteRequest.mutate(deleteId);
@@ -88,7 +90,7 @@ export default function InternalRequests() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Apagar
+              {t("Apagar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

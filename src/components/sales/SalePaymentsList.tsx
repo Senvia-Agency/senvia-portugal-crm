@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Plus, Pencil, Trash2, CreditCard, Receipt, AlertCircle, Ban, FileText, QrCode, Mail, Eye, RefreshCw, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +46,8 @@ import { useSyncInvoice } from "@/hooks/useInvoiceDetails";
 import type { InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage, dateLocale } from "@/i18n";
+import { Trans } from "react-i18next";
 
 export interface SaleFiscalDocument {
   id: string;
@@ -118,6 +119,7 @@ export function SalePaymentsList({
   creditNoteId,
   preventPaymentDeletion = false,
 }: SalePaymentsListProps) {
+  const { t } = useLanguage();
   const { data: payments = [], isLoading } = useSalePayments(saleId);
   const { organization } = useAuth();
   const queryClient = useQueryClient();
@@ -208,7 +210,7 @@ export function SalePaymentsList({
     try {
       await openPdfInNewTab(path);
     } catch {
-      toast.error('Erro ao abrir PDF');
+      toast.error(t("Erro ao abrir PDF"));
     }
   };
 
@@ -231,7 +233,7 @@ export function SalePaymentsList({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Pagamentos</span>
+          <span className="text-sm font-medium">{t("Pagamentos")}</span>
         </div>
         <div className="animate-pulse space-y-2">
           <div className="h-16 bg-muted/50 rounded-lg" />
@@ -248,7 +250,7 @@ export function SalePaymentsList({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Pagamentos</span>
+            <span className="text-sm font-medium">{t("Pagamentos")}</span>
             {payments.length > 0 && (
               <Badge variant="secondary" className="text-xs">
                 {payments.length}
@@ -262,7 +264,7 @@ export function SalePaymentsList({
               onClick={() => setShowTypeSelector(true)}
             >
               <Plus className="h-4 w-4 mr-1" />
-              Adicionar
+              {t("Adicionar")}
             </Button>
           )}
         </div>
@@ -281,23 +283,23 @@ export function SalePaymentsList({
                     <span className="text-sm font-medium">
                       {formatCurrency(Number(payment.amount))}
                     </span>
-                    <StatusBadge {...paymentRecordStatusBadge(payment.status)} />
+                    <StatusBadge {...paymentRecordStatusBadge(payment.status)} label={t(paymentRecordStatusBadge(payment.status).label)} />
                     {payment.payment_method && (
                       <Badge variant="secondary" className="text-xs">
-                        {PAYMENT_METHOD_LABELS[payment.payment_method]}
+                        {t(PAYMENT_METHOD_LABELS[payment.payment_method])}
                       </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>
-                      {format(new Date(payment.payment_date), "d MMM yyyy", { locale: pt })}
+                      {format(new Date(payment.payment_date), "d MMM yyyy", { locale: dateLocale() })}
                     </span>
                     {/* Stripe bills in advance, so the charge date and the month
                         the subscription actually covers frequently differ. */}
                     {billingPeriodLabel(payment.billing_period_start, payment.billing_period_end) && (
                       <>
                         <span>•</span>
-                        <span>Cobre {billingPeriodLabel(payment.billing_period_start, payment.billing_period_end)}</span>
+                        <span>{t("Cobre")} {billingPeriodLabel(payment.billing_period_start, payment.billing_period_end)}</span>
                       </>
                     )}
                     {payment.invoice_reference && (
@@ -353,7 +355,7 @@ export function SalePaymentsList({
                       }}
                     >
                       <Receipt className="h-3 w-3 mr-1" />
-                      Emitir Recibo
+                      {t("Emitir Recibo")}
                     </Button>
                   )}
                   {/* Buttons shown after receipt is issued (invoice_reference exists) */}
@@ -363,7 +365,7 @@ export function SalePaymentsList({
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => handlePdfView(payment.invoice_file_url!)}
-                      title="Ver PDF"
+                      title={t("Ver PDF")}
                     >
                        <FileDown className="h-3.5 w-3.5" />
                     </Button>
@@ -381,7 +383,7 @@ export function SalePaymentsList({
                         paymentId: payment.id,
                       })}
                       disabled={syncInvoice.isPending}
-                      title="Buscar PDF"
+                      title={t("Obter PDF")}
                     >
                       <RefreshCw className={`h-3.5 w-3.5 ${syncInvoice.isPending ? 'animate-spin' : ''}`} />
                     </Button>
@@ -392,7 +394,7 @@ export function SalePaymentsList({
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => window.open(payment.qr_code_url!, '_blank')}
-                      title="Ver QR Code"
+                      title={t("Ver QR Code")}
                     >
                       <QrCode className="h-3.5 w-3.5" />
                     </Button>
@@ -445,7 +447,7 @@ export function SalePaymentsList({
                           },
                         });
                       }}
-                      title="Ver detalhes"
+                      title={t("Ver detalhes")}
                     >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
@@ -462,7 +464,7 @@ export function SalePaymentsList({
                             documentId: payment.invoicexpress_id,
                             documentType: 'receipt',
                           })}
-                          title="Enviar por email"
+                          title={t("Enviar por email")}
                         >
                           <Mail className="h-3.5 w-3.5" />
                         </Button>
@@ -472,7 +474,7 @@ export function SalePaymentsList({
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => setCancellingPayment(payment)}
-                        title="Anular recibo"
+                        title={t("Anular recibo")}
                       >
                         <Ban className="h-3.5 w-3.5" />
                       </Button>}
@@ -486,7 +488,7 @@ export function SalePaymentsList({
           <div className="flex flex-col items-center justify-center p-6 rounded-lg border border-dashed text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground mb-3">
-              Nenhum pagamento registado
+              {t("Nenhum pagamento registado")}
             </p>
             {!readonly && summary.remainingToSchedule > 0 && (
               <Button
@@ -495,7 +497,7 @@ export function SalePaymentsList({
                 onClick={() => setShowTypeSelector(true)}
               >
                 <Plus className="h-4 w-4 mr-1" />
-                Adicionar Pagamento
+                {t("Adicionar Pagamento")}
               </Button>
             )}
           </div>
@@ -551,20 +553,18 @@ export function SalePaymentsList({
       <AlertDialog open={!!deletingPayment} onOpenChange={(open) => !open && setDeletingPayment(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Pagamento</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminar Pagamento")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar este pagamento de{" "}
-              <strong>{deletingPayment && formatCurrency(Number(deletingPayment.amount))}</strong>?
-              Esta ação não pode ser desfeita.
+              <Trans i18nKey="Tem a certeza que deseja eliminar este pagamento de <b>{{amount}}</b>? Esta ação não pode ser desfeita." values={{ amount: deletingPayment ? formatCurrency(Number(deletingPayment.amount)) : "" }} components={{ b: <strong /> }} />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDelete} 
               className="bg-destructive hover:bg-destructive/90"
             >
-              Eliminar
+              {t("Eliminar")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

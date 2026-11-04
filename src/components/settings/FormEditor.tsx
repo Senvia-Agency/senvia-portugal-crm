@@ -60,6 +60,7 @@ import { useTeamMembers } from '@/hooks/useTeam';
 import { useAuth } from '@/contexts/AuthContext';
 import { Form, FormSettings, FormMode, MetaPixel, migrateFormSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/i18n';
 import { FormPreview } from './FormPreview';
 import { ConversationalFormPreview } from './ConversationalFormPreview';
 import { LogoUploader } from './LogoUploader';
@@ -81,6 +82,7 @@ interface FormEditorProps {
 export function FormEditor({ form, onBack }: FormEditorProps) {
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const updateForm = useUpdateForm();
   const isMobile = useIsMobile();
 
@@ -141,15 +143,15 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
 
   const handleSave = () => {
     if (!name.trim()) {
-      toast({ title: "Nome em falta", description: "Dá um nome ao formulário.", variant: "destructive" });
+      toast({ title: t("Nome em falta"), description: t("Dá um nome ao formulário."), variant: "destructive" });
       return;
     }
     if (!form.is_default && !slug.trim()) {
-      toast({ title: "Endereço em falta", description: "O formulário precisa de um endereço (slug) para o link público.", variant: "destructive" });
+      toast({ title: t("Endereço em falta"), description: t("O formulário precisa de um endereço (slug) para o link público."), variant: "destructive" });
       return;
     }
     if (assignMode === 'rotate' && assignedUserIds.length < 2) {
-      toast({ title: "Rotação precisa de 2+ pessoas", description: "Seleciona pelo menos 2 colaboradores para a rotação, ou muda o modo de atribuição.", variant: "destructive" });
+      toast({ title: t("Rotação precisa de 2+ pessoas"), description: t("Seleciona pelo menos 2 colaboradores para a rotação, ou muda o modo de atribuição."), variant: "destructive" });
       return;
     }
     // Drop invalid/empty pixels so they are never persisted (matches the inline warning).
@@ -174,8 +176,8 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
       {
         onSuccess: () => {
           toast({
-            title: "Alterações guardadas",
-            description: "O formulário foi atualizado com sucesso.",
+            title: t("Alterações guardadas"),
+            description: t("O formulário foi atualizado com sucesso."),
           });
         }
       }
@@ -216,8 +218,8 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
     toast({
-      title: "Link copiado!",
-      description: "O link do formulário foi copiado para a área de transferência.",
+      title: t("Link copiado!"),
+      description: t("O link do formulário foi copiado para a área de transferência."),
     });
   };
 
@@ -262,32 +264,32 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <Settings className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Detalhes</span>
+                <span className="font-medium">{t('Detalhes')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Nome e URL do formulário
+                  {t('Nome e URL do formulário')}
                 </p>
               </div>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4 pt-2 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="form-name">Nome</Label>
+              <Label htmlFor="form-name">{t('Nome')}</Label>
               <Input
                 id="form-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Nome do formulário"
+                placeholder={t("Nome do formulário")}
                 maxLength={100}
               />
             </div>
             {!form.is_default && (
               <div className="space-y-2">
-                <Label htmlFor="form-slug">Slug (URL)</Label>
+                <Label htmlFor="form-slug">{t('Slug (URL)')}</Label>
                 <Input
                   id="form-slug"
                   value={slug}
                   onChange={(e) => setSlug(generateSlug(e.target.value))}
-                  placeholder="slug-do-formulario"
+                  placeholder={t("slug-do-formulario")}
                   maxLength={50}
                 />
               </div>
@@ -320,9 +322,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <UserPlus className="h-5 w-5 text-blue-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Atribuição Automática</span>
+                <span className="font-medium">{t('Atribuição Automática')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Quem recebe os leads deste formulário
+                  {t('Quem recebe os leads deste formulário')}
                 </p>
               </div>
             </div>
@@ -341,11 +343,11 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
               <div className="flex items-center justify-between gap-3 pt-3">
                 <Label className="text-sm font-normal flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  Avisar também os administradores
+                  {t('Avisar também os administradores')}
                 </Label>
                 <Switch checked={notifyAllAdmins} onCheckedChange={setNotifyAllAdmins} />
               </div>
-              <p className="text-xs text-muted-foreground">Recebem o aviso mesmo que não estejam na lista acima.</p>
+              <p className="text-xs text-muted-foreground">{t('Recebem o aviso mesmo que não estejam na lista acima.')}</p>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -358,25 +360,25 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <Target className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Etapa Inicial do Lead</span>
+                <span className="font-medium">{t('Etapa Inicial do Lead')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Em qual etapa do pipeline o lead entra automaticamente
+                  {t('Em qual etapa do pipeline o lead entra automaticamente')}
                 </p>
               </div>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4 pt-2 space-y-4">
             <div className="space-y-2">
-              <Label>Etapa do Pipeline</Label>
+              <Label>{t('Etapa do Pipeline')}</Label>
               <Select
                 value={targetStage || 'default'}
                 onValueChange={(v) => setTargetStage(v === 'default' ? null : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Primeira etapa (padrão)" />
+                  <SelectValue placeholder={t('Primeira etapa (predefinida)')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Primeira etapa (padrão)</SelectItem>
+                  <SelectItem value="default">{t('Primeira etapa (predefinida)')}</SelectItem>
                   {stages.map((stage) => (
                     <SelectItem key={stage.id} value={stage.key}>
                       {stage.name}
@@ -385,7 +387,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Os leads deste formulário entrarão diretamente nesta etapa do pipeline. O nome do formulário será adicionado nas notas do lead.
+                {t('Os leads deste formulário entrarão diretamente nesta etapa do pipeline. O nome do formulário será adicionado nas notas do lead.')}
               </p>
             </div>
           </AccordionContent>
@@ -399,9 +401,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <MessagesSquare className="h-5 w-5 text-violet-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Tipo de Formulário</span>
+                <span className="font-medium">{t('Tipo de Formulário')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Escolha entre tradicional ou conversacional
+                  {t('Escolha entre tradicional ou conversacional')}
                 </p>
               </div>
             </div>
@@ -431,9 +433,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                   <p className={cn(
                     "font-medium text-sm",
                     settings.mode === 'traditional' ? "text-primary" : "text-foreground"
-                  )}>Tradicional</p>
+                  )}>{t('Tradicional')}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Todos os campos visíveis
+                    {t('Todos os campos visíveis')}
                   </p>
                 </div>
                 {settings.mode === 'traditional' && (
@@ -466,9 +468,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                   <p className={cn(
                     "font-medium text-sm",
                     settings.mode === 'conversational' ? "text-primary" : "text-foreground"
-                  )}>Conversacional</p>
+                  )}>{t('Conversacional')}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Uma pergunta de cada vez
+                    {t('Uma pergunta de cada vez')}
                   </p>
                 </div>
                 {settings.mode === 'conversational' && (
@@ -495,31 +497,31 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <Palette className="h-5 w-5 text-primary" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Aparência</span>
+                <span className="font-medium">{t('Aparência')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Título, subtítulo, logo e cores
+                  {t('Título, subtítulo, logo e cores')}
                 </p>
               </div>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4 pt-2 space-y-5">
             <div className="space-y-2">
-              <Label>Título</Label>
+              <Label>{t('Título')}</Label>
               <Input
                 value={settings.title}
                 onChange={(e) => updateSetting('title', e.target.value)}
                 maxLength={100}
-                placeholder="Contacte-nos"
+                placeholder={t("Contacte-nos")}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Subtítulo</Label>
+              <Label>{t('Subtítulo')}</Label>
               <Textarea
                 value={settings.subtitle}
                 onChange={(e) => updateSetting('subtitle', e.target.value)}
                 maxLength={200}
-                placeholder="Preencha o formulário..."
+                placeholder={t("Preencha o formulário...")}
                 rows={2}
               />
             </div>
@@ -527,7 +529,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                Logo
+                {t('Logo')}
               </Label>
               <LogoUploader
                 value={settings.logo_url}
@@ -538,7 +540,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
             <div className="space-y-3">
               <Label className="flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-                Cor Principal
+                {t('Cor Principal')}
               </Label>
               <div className="flex flex-wrap gap-2">
                 {PRESET_COLORS.map((color) => (
@@ -582,9 +584,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <MessageSquare className="h-5 w-5 text-green-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Campos</span>
+                <span className="font-medium">{t('Campos')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Configure os campos do formulário
+                  {t('Configure os campos do formulário')}
                 </p>
               </div>
             </div>
@@ -605,21 +607,21 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <CheckCircle className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Mensagens</span>
+                <span className="font-medium">{t('Mensagens')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Sucesso, erro e botão de envio
+                  {t('Sucesso, erro e botão de envio')}
                 </p>
               </div>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4 pt-2 space-y-5">
             <div className="space-y-2">
-              <Label>Texto do Botão</Label>
+              <Label>{t('Texto do Botão')}</Label>
               <Input
                 value={settings.submit_button_text}
                 onChange={(e) => updateSetting('submit_button_text', e.target.value)}
                 maxLength={30}
-                placeholder="Enviar"
+                placeholder={t("Enviar")}
               />
             </div>
 
@@ -627,34 +629,34 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                   <CheckCircle className="h-4 w-4" />
-                  Mensagem de Sucesso
+                  {t('Mensagem de Sucesso')}
                 </Label>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowSuccessPreview(!showSuccessPreview)}
                 >
-                  {showSuccessPreview ? 'Esconder' : 'Pré-visualizar'}
+                  {showSuccessPreview ? t('Esconder') : t('Pré-visualizar')}
                 </Button>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Título</Label>
+                  <Label className="text-xs">{t('Título')}</Label>
                   <Input
                     value={settings.success_message.title}
                     onChange={(e) => updateSuccessMessage('title', e.target.value)}
                     maxLength={50}
-                    placeholder="Obrigado!"
+                    placeholder={t("Obrigado!")}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Descrição</Label>
+                  <Label className="text-xs">{t('Descrição')}</Label>
                   <Textarea
                     value={settings.success_message.description}
                     onChange={(e) => updateSuccessMessage('description', e.target.value)}
                     maxLength={200}
-                    placeholder="Recebemos o seu contacto..."
+                    placeholder={t("Recebemos o seu contacto...")}
                     rows={2}
                   />
                 </div>
@@ -662,12 +664,12 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Mensagem de Erro</Label>
+              <Label>{t('Mensagem de Erro')}</Label>
               <Textarea
                 value={settings.error_message}
                 onChange={(e) => updateSetting('error_message', e.target.value)}
                 maxLength={200}
-                placeholder="Não foi possível enviar..."
+                placeholder={t("Não foi possível enviar...")}
                 rows={2}
               />
             </div>
@@ -682,9 +684,9 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
                 <Zap className="h-5 w-5 text-orange-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Automação</span>
+                <span className="font-medium">{t('Automação')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Mensagens automáticas e regras de IA
+                  {t('Mensagens automáticas e regras de IA')}
                 </p>
               </div>
             </div>
@@ -694,7 +696,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
               <div className="flex gap-3 rounded-lg border bg-muted/40 p-4">
                 <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                 <p className="text-sm text-muted-foreground">
-                  A resposta automática está em modo <strong className="text-foreground">Global</strong>: a mensagem e as regras de IA são iguais para todos os formulários e configuram-se em Definições, Formulários de Captação, separador Configuração de IA. Para dar a este formulário mensagens próprias, muda o modo para <strong className="text-foreground">Resposta por Formulário</strong>.
+                  {t('A resposta automática está em modo Global: a mensagem e as regras de IA são iguais para todos os formulários e configuram-se em Definições, Formulários de Captação, separador Configuração de IA. Para dar a este formulário mensagens próprias, muda o modo para Resposta por Formulário.')}
                 </p>
               </div>
             ) : (
@@ -703,19 +705,19 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Thermometer className="h-4 w-4 text-muted-foreground" />
-                <Label className="font-medium">Modelos de Mensagem por Temperatura</Label>
+                <Label className="font-medium">{t('Modelos de Mensagem por Temperatura')}</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Mensagem de boas-vindas enviada automaticamente por WhatsApp ao novo lead. Clica numa variável para a inserir; é substituída pelos dados do lead no envio.
+                {t('Mensagem de boas-vindas enviada automaticamente por WhatsApp ao novo lead. Clica numa variável para a inserir; é substituída pelos dados do lead no envio.')}
               </p>
 
               <div className="space-y-4">
                 <div className="p-3 rounded-lg border border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/20">
                   <MessageTemplateField
-                    label={<span className="flex items-center gap-2 text-red-600 dark:text-red-400 font-medium">🔥 Lead Quente</span>}
+                    label={<span className="flex items-center gap-2 text-red-600 dark:text-red-400 font-medium">{t('🔥 Lead Quente')}</span>}
                     value={msgTemplateHot}
                     onChange={setMsgTemplateHot}
-                    placeholder="Olá {{primeiro_nome}}! Vimos que tem interesse urgente. Podemos ajudar agora mesmo?"
+                    placeholder={t("Olá {{primeiro_nome}}! Vimos que tem interesse urgente. Podemos ajudar agora mesmo?", { primeiro_nome: "{{primeiro_nome}}" })}
                     rows={3}
                     className="text-sm"
                     variables={templateVariables}
@@ -724,10 +726,10 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
 
                 <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
                   <MessageTemplateField
-                    label={<span className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">😐 Lead Morno</span>}
+                    label={<span className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">{t('😐 Lead Morno')}</span>}
                     value={msgTemplateWarm}
                     onChange={setMsgTemplateWarm}
-                    placeholder="Olá {{primeiro_nome}}! Obrigado pelo seu contacto. Gostaria de saber mais sobre os nossos serviços?"
+                    placeholder={t("Olá {{primeiro_nome}}! Obrigado pelo seu contacto. Gostaria de saber mais sobre os nossos serviços?", { primeiro_nome: "{{primeiro_nome}}" })}
                     rows={3}
                     className="text-sm"
                     variables={templateVariables}
@@ -736,10 +738,10 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
 
                 <div className="p-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
                   <MessageTemplateField
-                    label={<span className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">🥶 Lead Frio</span>}
+                    label={<span className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">{t('🥶 Lead Frio')}</span>}
                     value={msgTemplateCold}
                     onChange={setMsgTemplateCold}
-                    placeholder="Olá {{primeiro_nome}}! Recebemos o seu contacto. Estamos disponíveis para esclarecer qualquer dúvida."
+                    placeholder={t("Olá {{primeiro_nome}}! Recebemos o seu contacto. Estamos disponíveis para esclarecer qualquer dúvida.", { primeiro_nome: "{{primeiro_nome}}" })}
                     rows={3}
                     className="text-sm"
                     variables={templateVariables}
@@ -752,24 +754,15 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
             <div className="space-y-3 pt-4 border-t">
               <div className="flex items-center gap-2">
                 <Bot className="h-4 w-4 text-muted-foreground" />
-                <Label className="font-medium">Regras de Qualificação por IA</Label>
+                <Label className="font-medium">{t('Regras de Qualificação por IA')}</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Defina critérios para a IA classificar automaticamente a temperatura dos leads.
+                {t('Defina critérios para a IA classificar automaticamente a temperatura dos leads.')}
               </p>
               <Textarea
                 value={aiQualificationRules}
                 onChange={(e) => setAiQualificationRules(e.target.value)}
-                placeholder={`Exemplo de regras:
-
-Quente: Lead que menciona urgência, preço ou quer agendar
-Morno: Lead com interesse demonstrado mas sem urgência
-Frio: Lead que apenas pede informações gerais
-
-Considerar também:
-Palavras como "orçamento", "já" significam Quente
-Perguntas sobre funcionamento significam Morno
-Campos opcionais vazios significam Frio`}
+                placeholder={t("Exemplo de regras:\n\nQuente: Lead que menciona urgência, preço ou quer agendar\nMorno: Lead com interesse demonstrado mas sem urgência\nFrio: Lead que apenas pede informações gerais\n\nConsiderar também:\nPalavras como \"orçamento\", \"já\" significam Quente\nPerguntas sobre funcionamento significam Morno\nCampos opcionais vazios significam Frio")}
                 rows={8}
                 className="text-sm font-mono"
               />
@@ -787,21 +780,21 @@ Campos opcionais vazios significam Frio`}
                 <Target className="h-5 w-5 text-blue-600" />
               </div>
               <div className="text-left">
-                <span className="font-medium">Meta Pixels</span>
+                <span className="font-medium">{t('Meta Pixels')}</span>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Rastreamento de conversões Facebook/Meta
+                  {t('Rastreamento de conversões Facebook/Meta')}
                 </p>
               </div>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4 pt-2 space-y-4">
             <p className="text-xs text-muted-foreground bg-blue-500/10 text-blue-700 dark:text-blue-400 p-3 rounded-lg">
-              Os pixels disparam eventos <strong>PageView</strong> e <strong>Lead</strong> automaticamente quando o formulário é visualizado e submetido.
+              {t('Os pixels disparam eventos PageView e Lead automaticamente quando o formulário é visualizado e submetido.')}
             </p>
 
             {metaPixels.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                Nenhum pixel configurado para este formulário.
+                {t('Nenhum pixel configurado para este formulário.')}
               </p>
             ) : (
               <div className="space-y-3">
@@ -810,7 +803,7 @@ Campos opcionais vazios significam Frio`}
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground font-medium">#{index + 1}</span>
                       <Input
-                        placeholder="Nome do pixel (ex: Pixel Principal)"
+                        placeholder={t("Nome do pixel (ex: Pixel Principal)")}
                         value={pixel.name}
                         onChange={(e) => handleUpdatePixel(pixel.id, 'name', e.target.value)}
                         className="flex-1"
@@ -821,7 +814,7 @@ Campos opcionais vazios significam Frio`}
                         size="icon"
                         onClick={() => handleUpdatePixel(pixel.id, 'enabled', !pixel.enabled)}
                         className={pixel.enabled ? 'text-green-500' : 'text-muted-foreground'}
-                        title={pixel.enabled ? 'Ativo' : 'Inativo'}
+                        title={pixel.enabled ? t('Ativo') : t('Inativo')}
                       >
                         {pixel.enabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
                       </Button>
@@ -836,13 +829,13 @@ Campos opcionais vazios significam Frio`}
                       </Button>
                     </div>
                     <Input
-                      placeholder="Pixel ID (15-16 dígitos)"
+                      placeholder={t("Pixel ID (15-16 dígitos)")}
                       value={pixel.pixel_id}
                       onChange={(e) => handleUpdatePixel(pixel.id, 'pixel_id', e.target.value.replace(/\D/g, '').slice(0, 16))}
                       className={pixel.pixel_id && !isValidPixelId(pixel.pixel_id) ? 'border-destructive' : ''}
                     />
                     {pixel.pixel_id && !isValidPixelId(pixel.pixel_id) && (
-                      <p className="text-xs text-destructive">Pixel ID deve ter 15-16 dígitos</p>
+                      <p className="text-xs text-destructive">{t('Pixel ID deve ter 15-16 dígitos')}</p>
                     )}
                   </div>
                 ))}
@@ -856,7 +849,7 @@ Campos opcionais vazios significam Frio`}
               className="w-full"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Adicionar Pixel
+              {t('Adicionar Pixel')}
             </Button>
           </AccordionContent>
         </AccordionItem>
@@ -869,9 +862,9 @@ Campos opcionais vazios significam Frio`}
     <div className="flex h-full flex-col bg-muted/30">
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div>
-          <h3 className="font-medium">Pré-visualização</h3>
+          <h3 className="font-medium">{t('Pré-visualização')}</h3>
           <p className="text-xs text-muted-foreground">
-            {settings.mode === 'conversational' ? 'Modo Conversacional' : 'Modo Tradicional'}
+            {settings.mode === 'conversational' ? t('Modo Conversacional') : t('Modo Tradicional')}
           </p>
         </div>
       </div>
@@ -893,7 +886,7 @@ Campos opcionais vazios significam Frio`}
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon-sm" onClick={onBack}>
+            <Button variant="back" size="icon-sm" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span className="font-medium truncate">{form.name}</span>
@@ -924,20 +917,20 @@ Campos opcionais vazios significam Frio`}
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon-sm" onClick={onBack}>
+                <Button variant="back" size="icon-sm" onClick={onBack}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
                   <h2 className="text-lg font-semibold">{form.name}</h2>
                   <p className="text-sm text-muted-foreground">
-                    Personalize o formulário
+                    {t('Personalize o formulário')}
                   </p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handlePreview}>
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Abrir
+                  {t('Abrir')}
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={updateForm.isPending}>
                   {updateForm.isPending ? (
@@ -945,7 +938,7 @@ Campos opcionais vazios significam Frio`}
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
-                  Guardar
+                  {t('Guardar')}
                 </Button>
               </div>
             </div>

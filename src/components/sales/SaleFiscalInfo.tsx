@@ -8,6 +8,7 @@ import { roundCurrency, splitLineVat } from "@/lib/product-fiscal";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { BillingTarget } from "@/types/clients";
+import { useLanguage } from "@/i18n";
 
 interface ClientFiscalData {
   name?: string | null;
@@ -43,21 +44,22 @@ export function BillingRecipientSelector({
   onChange: (value: BillingTarget) => void;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   if (!client) return null;
 
   return (
     <div className="space-y-2">
-      <Label>Faturar a</Label>
+      <Label>{t("Faturar a")}</Label>
       <Select value={value} onValueChange={(next) => onChange(next as BillingTarget)} disabled={disabled}>
         <SelectTrigger><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="client">Cliente — {client.name || 'Pessoa'}</SelectItem>
+          <SelectItem value="client">{t("Cliente — {{name}}", { name: client.name || t("Pessoa") })}</SelectItem>
           <SelectItem value="company" disabled={!client.company?.trim()}>
-            Empresa — {client.company?.trim() || 'Adiciona uma empresa à ficha do cliente'}
+            {t("Empresa — {{name}}", { name: client.company?.trim() || t("Adiciona uma empresa à ficha do cliente") })}
           </SelectItem>
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">A escolha fica nesta venda e será usada na fatura.</p>
+      <p className="text-xs text-muted-foreground">{t("A escolha fica nesta venda e será usada na fatura.")}</p>
     </div>
   );
 }
@@ -77,6 +79,7 @@ interface BillingOrganization {
  * Only renders when InvoiceXpress is active.
  */
 export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget }: SaleFiscalInfoProps) {
+  const { t } = useLanguage();
   if (!isInvoiceXpressActive || !client) return null;
 
   const billCompany = billingTarget === 'company';
@@ -97,7 +100,7 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget 
         <Alert className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
-            {billCompany ? 'A empresa' : 'O cliente'} precisa de nome e NIF para emitir faturas.
+            {billCompany ? t("A empresa precisa de nome e NIF para emitir faturas.") : t("O cliente precisa de nome e NIF para emitir faturas.")}
           </AlertDescription>
         </Alert>
       )}
@@ -107,24 +110,24 @@ export function ClientFiscalCard({ client, isInvoiceXpressActive, billingTarget 
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm text-amber-600 dark:text-amber-400">
             {useCompanyAddress
-              ? 'Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.'
-              : 'Preenche a morada do cliente, escolhida também para a empresa, antes de emitir a fatura.'}
+              ? t("Preenche a morada fiscal própria da empresa na ficha do cliente antes de emitir a fatura.")
+              : t("Preenche a morada do cliente, escolhida também para a empresa, antes de emitir a fatura.")}
           </AlertDescription>
         </Alert>
       )}
 
       {/* Fiscal data mini-card */}
       <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border text-sm">
-        <span className="font-medium">{recipientName || (billCompany ? 'Empresa sem nome' : 'Cliente sem nome')}</span>
+        <span className="font-medium">{recipientName || (billCompany ? t("Empresa sem nome") : t("Cliente sem nome"))}</span>
         <div className="flex items-center gap-1.5">
           {hasNif ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
           ) : (
             <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           )}
-          <span className="text-muted-foreground">NIF:</span>
+          <span className="text-muted-foreground">{t("NIF:")}</span>
           <span className={hasNif ? "font-mono font-medium" : "text-muted-foreground italic"}>
-            {recipientNif || "Não definido"}
+            {recipientNif || t("Não definido")}
           </span>
         </div>
         {hasAddress && (

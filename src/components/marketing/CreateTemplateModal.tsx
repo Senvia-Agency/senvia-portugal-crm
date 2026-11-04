@@ -30,6 +30,7 @@ import { TemplateAutomationSection } from "./TemplateAutomationSection";
 import { useCreateEmailTemplate } from "@/hooks/useEmailTemplates";
 import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import { isManualEmailTrigger } from "@/lib/email-template-triggers";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -47,6 +48,7 @@ interface CreateTemplateModalProps {
 
 export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalProps) {
   const createTemplate = useCreateEmailTemplate();
+  const { t } = useLanguage();
 
   // Automation state
   const [automationEnabled, setAutomationEnabled] = useState(false);
@@ -97,7 +99,7 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90dvh] overflow-y-auto sm:w-full">
         <DialogHeader>
-          <DialogTitle>Novo Template de Email</DialogTitle>
+          <DialogTitle>{t("Novo Template de Email")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -108,9 +110,9 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome do Template</FormLabel>
+                    <FormLabel>{t("Nome do Template")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Boas-vindas ao Cliente" {...field} />
+                      <Input placeholder={t("Ex: Boas-vindas ao Cliente")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -122,18 +124,18 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoria</FormLabel>
+                    <FormLabel>{t("Categoria")}</FormLabel>
                     <Select
                       onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
                       value={field.value ?? "__none__"}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Sem categoria" />
+                          <SelectValue placeholder={t("Sem categoria")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__none__">Sem categoria</SelectItem>
+                        <SelectItem value="__none__">{t("Sem categoria")}</SelectItem>
                         {(categories ?? []).map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
@@ -143,7 +145,7 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
                     </Select>
                     {!categories?.length && (
                       <p className="text-xs text-muted-foreground">
-                        Ainda não há categorias. Crie-as em Definições, Categorias de Templates.
+                        {t("Ainda não há categorias. Crie-as em Definições, Categorias de Templates.")}
                       </p>
                     )}
                     <FormMessage />
@@ -157,9 +159,9 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
               name="subject"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assunto do Email</FormLabel>
+                  <FormLabel>{t("Assunto do Email")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Bem-vindo à {{organizacao}}!" {...field} />
+                    <Input placeholder={t("Ex: Bem-vindo à {{organizacao}}!", { organizacao: "{{organizacao}}" })} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -171,7 +173,7 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
               name="html_content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Conteúdo do Email</FormLabel>
+                  <FormLabel>{t("Conteúdo do Email")}</FormLabel>
                   <FormControl>
                     <TemplateEditor value={field.value} onChange={field.onChange} />
                   </FormControl>
@@ -196,10 +198,10 @@ export function CreateTemplateModal({ open, onOpenChange }: CreateTemplateModalP
 
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={createTemplate.isPending}>
-                {createTemplate.isPending ? "A criar..." : "Criar Template"}
+                {createTemplate.isPending ? t("A criar...") : t("Criar Template")}
               </Button>
             </div>
           </form>

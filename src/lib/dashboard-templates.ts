@@ -136,7 +136,7 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
     icon: Phone,
     defaultVisible: true,
     chartType: 'donut',
-    description: 'Leads vindos do website e outras fontes directas',
+    description: 'Leads vindos do website e outras fontes diretas',
   },
   conversion_rate: {
     type: 'conversion_rate',
@@ -164,7 +164,7 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
   },
   sales_active: {
     type: 'sales_active',
-    title: 'Vendas Activas',
+    title: 'Vendas Ativas',
     titleByNiche: {
       clinic: 'Tratamentos em Curso',
       dental: 'Tratamentos em Curso',
@@ -189,7 +189,7 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
     defaultVisible: true,
     requiredModule: 'proposals',
     chartType: 'none',
-    description: 'Propostas aguardando resposta',
+    description: 'Propostas à espera de resposta',
   },
   proposals_accepted: {
     type: 'proposals_accepted',
@@ -219,7 +219,7 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
     icon: Heart,
     defaultVisible: true,
     chartType: 'bar',
-    description: 'Clientes com vendas activas',
+    description: 'Clientes com vendas ativas',
   },
   treatments_completed: {
     type: 'treatments_completed',
@@ -233,12 +233,12 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
   // Construction specific
   active_projects: {
     type: 'active_projects',
-    title: 'Obras Activas',
+    title: 'Obras Ativas',
     icon: Hammer,
     defaultVisible: true,
     requiredModule: 'sales',
     chartType: 'bar',
-    description: 'Projectos em execução',
+    description: 'Projetos em execução',
   },
   pending_quotes: {
     type: 'pending_quotes',
@@ -247,7 +247,7 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
     defaultVisible: true,
     requiredModule: 'proposals',
     chartType: 'donut',
-    description: 'Orçamentos aguardando aprovação',
+    description: 'Orçamentos à espera de aprovação',
   },
   completed_projects: {
     type: 'completed_projects',
@@ -321,19 +321,19 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, WidgetTemplate> = {
     defaultVisible: true,
     requiredModule: 'sales',
     chartType: 'bar',
-    description: 'Serviços aguardando instalação',
+    description: 'Serviços à espera de instalação',
   },
   active_customers: {
     type: 'active_customers',
-    title: 'Clientes Activos',
+    title: 'Clientes Ativos',
     icon: Users,
     defaultVisible: true,
     chartType: 'area',
-    description: 'Base de clientes activa',
+    description: 'Base de clientes ativa',
   },
   monthly_commissions: {
     type: 'monthly_commissions',
-    title: 'Comissões do Mês',
+    title: 'Comissões',
     icon: Euro,
     defaultVisible: true,
     requiredModule: 'sales',

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
 import { CalendarIcon, Loader2, Receipt, CreditCard, FileText, Paperclip } from "lucide-react";
 import {
   Dialog,
@@ -29,6 +28,7 @@ import { InvoiceUploader } from "./InvoiceUploader";
 import type { SalePayment, PaymentMethod, PaymentRecordStatus } from "@/types/sales";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/types/sales";
 import { BankAccountSelect } from "@/components/finance/BankAccountSelect";
+import { useLanguage, dateLocale } from "@/i18n";
 
 interface AddPaymentModalProps {
   open: boolean;
@@ -55,6 +55,7 @@ export function AddPaymentModal({
   onEditSuccess,
   hasInvoiceXpress = false,
 }: AddPaymentModalProps) {
+  const { t } = useLanguage();
   const createPayment = useCreateSalePayment();
   const updatePayment = useUpdateSalePayment();
   const isEditing = !!payment;
@@ -145,7 +146,7 @@ export function AddPaymentModal({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Pagamento" : "Adicionar Pagamento"}
+            {isEditing ? t("Editar Pagamento") : t("Adicionar Pagamento")}
           </DialogTitle>
         </DialogHeader>
 
@@ -155,7 +156,7 @@ export function AddPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
-                Valor *
+                {t("Valor *")}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -174,7 +175,7 @@ export function AddPaymentModal({
               </div>
               {remaining > 0 && !isEditing && (
                 <p className="text-xs text-muted-foreground">
-                  Em falta: {formatCurrency(remaining)}
+                  {t("Em falta:")} {formatCurrency(remaining)}
                 </p>
               )}
             </div>
@@ -182,7 +183,7 @@ export function AddPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                Data *
+                {t("Data *")}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -194,8 +195,8 @@ export function AddPaymentModal({
                     )}
                   >
                     {paymentDate 
-                      ? format(paymentDate, "dd/MM/yyyy", { locale: pt }) 
-                      : "Selecionar..."
+                      ? format(paymentDate, "dd/MM/yyyy", { locale: dateLocale() }) 
+                      : t("Selecionar...")
                     }
                   </Button>
                 </PopoverTrigger>
@@ -204,7 +205,7 @@ export function AddPaymentModal({
                     mode="single"
                     selected={paymentDate}
                     onSelect={(date) => date && setPaymentDate(date)}
-                    locale={pt}
+                    locale={dateLocale()}
                   />
                 </PopoverContent>
               </Popover>
@@ -213,18 +214,18 @@ export function AddPaymentModal({
 
           {/* Payment Method */}
           <div className="space-y-2">
-            <Label>Método de Pagamento</Label>
+            <Label>{t("Método de Pagamento")}</Label>
             <Select 
               value={paymentMethod} 
               onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar método..." />
+                <SelectValue placeholder={t("Selecionar método...")} />
               </SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((method) => (
                   <SelectItem key={method} value={method}>
-                    {PAYMENT_METHOD_LABELS[method]}
+                    {t(PAYMENT_METHOD_LABELS[method])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -233,7 +234,7 @@ export function AddPaymentModal({
 
           {/* Status */}
           <div className="space-y-2">
-              <Label>Estado</Label>
+              <Label>{t("Estado")}</Label>
               <RadioGroup
                 value={status}
                 onValueChange={(v) => setStatus(v as PaymentRecordStatus)}
@@ -242,13 +243,13 @@ export function AddPaymentModal({
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="paid" id="paid" />
                   <Label htmlFor="paid" className="font-normal cursor-pointer">
-                    Pago
+                    {t("Pago")}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="pending" id="pending" />
                   <Label htmlFor="pending" className="font-normal cursor-pointer">
-                    Agendado
+                    {t("Agendado")}
                   </Label>
                 </div>
               </RadioGroup>
@@ -259,12 +260,12 @@ export function AddPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
-                Referência da Fatura
+                {t("Referência da Fatura")}
               </Label>
               <Input
                 value={invoiceReference}
                 onChange={(e) => setInvoiceReference(e.target.value)}
-                placeholder="FT 2024/0001"
+                placeholder={t("FT 2024/0001")}
               />
             </div>
           )}
@@ -274,7 +275,7 @@ export function AddPaymentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
-                Anexar Fatura
+                {t("Anexar Fatura")}
               </Label>
               <InvoiceUploader
                 value={invoiceFileUrl}
@@ -289,12 +290,12 @@ export function AddPaymentModal({
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              Notas
+              {t("Notas")}
             </Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observações sobre este pagamento..."
+              placeholder={t("Observações sobre este pagamento...")}
               rows={2}
             />
           </div>
@@ -310,7 +311,7 @@ export function AddPaymentModal({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               type="submit"
@@ -320,12 +321,12 @@ export function AddPaymentModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  A guardar...
+                  {t("A guardar...")}
                 </>
               ) : isEditing ? (
-                "Guardar Alterações"
+                t("Guardar Alterações")
               ) : (
-                "Adicionar Pagamento"
+                t("Adicionar Pagamento")
               )}
             </Button>
           </div>

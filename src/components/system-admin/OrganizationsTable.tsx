@@ -10,6 +10,7 @@ import { AdminTableSkeleton } from "@/components/system-admin/AdminShell";
 import { classifyOrg, BUCKET_META, since, until, type OrgBucket } from "@/components/system-admin/orgStatus";
 import { ManageSeatsDialog } from "./ManageSeatsDialog";
 import { OrgDetailSheet } from "./OrgDetailSheet";
+import { useLanguage, tr } from "@/i18n";
 
 interface Organization {
   id: string;
@@ -79,13 +80,13 @@ const DORMANT_MS = 7 * 86400000;
 
 function contextLine(status: OrgBucket, o: Organization, now: Date): string {
   switch (status) {
-    case "paying": return o.first_paid_at ? `cliente há ${since(o.first_paid_at, now)}` : "ativo";
-    case "trial": return o.trial_ends_at ? `faltam ${until(o.trial_ends_at, now)}` : "trial";
-    case "overdue": return "pagamento falhou";
-    case "blocked": return o.payment_failed_at ? `bloqueado há ${since(o.payment_failed_at, now)}` : "bloqueado";
-    case "expired": return o.trial_ends_at ? `expirou há ${since(o.trial_ends_at, now)}` : "expirado";
-    case "canceled": return "cancelado";
-    case "exempt": return "conta interna";
+    case "paying": return o.first_paid_at ? tr("cliente há {{time}}", { time: since(o.first_paid_at, now) }) : tr("ativo");
+    case "trial": return o.trial_ends_at ? tr("faltam {{time}}", { time: until(o.trial_ends_at, now) }) : tr("trial");
+    case "overdue": return tr("pagamento falhou");
+    case "blocked": return o.payment_failed_at ? tr("bloqueado há {{time}}", { time: since(o.payment_failed_at, now) }) : tr("bloqueado");
+    case "expired": return o.trial_ends_at ? tr("expirou há {{time}}", { time: since(o.trial_ends_at, now) }) : tr("expirado");
+    case "canceled": return tr("cancelado");
+    case "exempt": return tr("conta interna");
   }
 }
 
@@ -100,6 +101,7 @@ export function OrganizationsTable({
   onFilterChange,
 }: OrganizationsTableProps) {
   const [query, setQuery] = useState("");
+  const { t } = useLanguage();
   const [seatsDialog, setSeatsDialog] = useState<{ id: string; name: string; seats: number } | null>(null);
   // Clicking a row opens the detail panel. Entering another organization is a
   // deliberate act with consequences, so it lives behind its own button there.
@@ -181,7 +183,7 @@ export function OrganizationsTable({
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Procurar empresa, responsável, código, email ou telefone…"
+          placeholder={t("Procurar empresa, responsável, código, email ou telefone…")}
           className="h-11 w-full rounded-xl border bg-card pl-10 pr-16 text-sm outline-none ring-primary/30 transition focus:border-primary/40 focus:ring-2"
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
@@ -194,12 +196,12 @@ export function OrganizationsTable({
         <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
           <TabsList className="h-auto flex-wrap">
             {FILTERS.map((f) => (
-              <TabsTrigger key={f.key} value={f.key} className="text-xs">{f.label}</TabsTrigger>
+              <TabsTrigger key={f.key} value={f.key} className="text-xs">{t(f.label)}</TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {loading ? "…" : `${rows.length} ${rows.length === 1 ? "empresa" : "empresas"}`}
+          {loading ? "…" : t(rows.length === 1 ? "{{n}} empresa" : "{{n}} empresas", { n: rows.length })}
         </span>
       </div>
 
@@ -209,9 +211,9 @@ export function OrganizationsTable({
           <AdminTableSkeleton rows={8} cols={6} />
         ) : rows.length === 0 ? (
           <div className="px-6 py-14 text-center">
-            <p className="text-sm font-medium text-foreground">Sem resultados</p>
+            <p className="text-sm font-medium text-foreground">{t("Sem resultados")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {query ? <>Nada corresponde a “{query}”.</> : "Nenhuma empresa neste filtro."}
+              {query ? <>{t("Nada corresponde a “{{query}}”.", { query })}</> : t("Nenhuma empresa neste filtro.")}
             </p>
           </div>
         ) : (
@@ -219,10 +221,10 @@ export function OrganizationsTable({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortHead label="Empresa" k="name" sort={sort} onSort={toggleSort} />
-                  <TableHead>Estado</TableHead>
-                  <SortHead label="Última atividade" k="activity" sort={sort} onSort={toggleSort} />
-                  <SortHead label="€/mês" k="mrr" sort={sort} onSort={toggleSort} align="right" />
+                  <SortHead label={t("Empresa")} k="name" sort={sort} onSort={toggleSort} />
+                  <TableHead>{t("Estado")}</TableHead>
+                  <SortHead label={t("Última atividade")} k="activity" sort={sort} onSort={toggleSort} />
+                  <SortHead label={t("€/mês")} k="mrr" sort={sort} onSort={toggleSort} align="right" />
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -236,14 +238,14 @@ export function OrganizationsTable({
                   const lastMs = org.last_active_at ? now.getTime() - new Date(org.last_active_at).getTime() : null;
                   const dormant = lastMs === null || lastMs > DORMANT_MS;
                   const activityLabel = org.last_active_at
-                    ? (lastMs !== null && lastMs < 3600000 ? "agora" : `há ${since(org.last_active_at, now)}`)
-                    : "nunca";
+                    ? (lastMs !== null && lastMs < 3600000 ? t("agora") : t("há {{time}}", { time: since(org.last_active_at, now) }))
+                    : t("nunca");
 
                   return (
                     <TableRow
                       key={org.id}
                       onClick={() => setDetailOrg(org)}
-                      title={`Ver ${org.name}`}
+                      title={t("Ver {{name}}", { name: org.name })}
                       className={cn("group cursor-pointer", isCurrent && "bg-primary/5")}
                     >
                       <TableCell>
@@ -251,7 +253,7 @@ export function OrganizationsTable({
                           <span className="flex items-center gap-1.5 font-medium">
                             <span className="max-w-[220px] truncate">{org.name}</span>
                             {isCurrent && (
-                              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">atual</span>
+                              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{t("atual")}</span>
                             )}
                           </span>
                           <span className="max-w-[220px] truncate text-xs text-muted-foreground">
@@ -261,7 +263,7 @@ export function OrganizationsTable({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
-                          <Badge className={cn("w-fit text-[10px]", meta.badge)}>{meta.label}</Badge>
+                          <Badge className={cn("w-fit text-[10px]", meta.badge)}>{t(meta.label)}</Badge>
                           <span className="text-[11px] text-muted-foreground">{contextLine(status, org, now)}</span>
                         </div>
                       </TableCell>

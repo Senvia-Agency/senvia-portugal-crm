@@ -1,0 +1,51 @@
+/* Mensagens: two panes on desktop, one at a time on phones and tablets. */
+.workplace-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - 11.5rem - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px));
+  min-height: 24rem;
+  overflow: hidden;
+  background: hsl(var(--workplace-canvas, var(--background)));
+}
+@media (min-width: 768px) { .workplace-chat { height: calc(100dvh - 7rem); } }
+.workplace-chat .chat-list-pane { min-height: 0; overflow: hidden; border-right: 1px solid hsl(var(--workplace-line, var(--border))); background: hsl(var(--card)); }
+.workplace-chat .chat-thread-pane { min-height: 0; min-width: 0; overflow: hidden; background: hsl(var(--workplace-canvas, var(--background))); }
+.workplace-chat[data-open='list'] .chat-thread-pane { display: none; }
+.workplace-chat[data-open='conversation'] .chat-list-pane { display: none; }
+@media (min-width: 1024px) {
+  .workplace-chat { grid-template-columns: 340px minmax(0, 1fr); }
+  .workplace-chat[data-open] .chat-list-pane, .workplace-chat[data-open] .chat-thread-pane { display: block; }
+  .workplace-chat .chat-back { display: none; }
+}
+
+/* Avatars and dimensional tiles (same language as the Feed and navigation). */
+:is(.workplace-chat, .chat-dialog) .chat-avatar {
+  display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 999px;
+  box-shadow: 0 0 0 2px hsl(var(--card)), 0 3px 8px hsl(222 47% 20% / .12);
+}
+:is(.workplace-chat, .chat-dialog) .chat-avatar--initials {
+  color: white; font-weight: 700;
+  background: linear-gradient(145deg, hsl(var(--chat-hue, 217) 85% 66%), hsl(calc(var(--chat-hue, 217) + 28) 78% 50%));
+}
+:is(.workplace-chat, .chat-dialog) .chat-tile { border-radius: 30%; color: white; }
+:is(.workplace-chat, .chat-dialog) .chat-tile--group { background: linear-gradient(145deg, hsl(255 91% 72%), hsl(252 79% 58%)); }
+:is(.workplace-chat, .chat-dialog) .chat-tile--channel { background: linear-gradient(145deg, hsl(199 97% 62%), hsl(215 88% 50%)); }
+
+/* Thread: a soft canvas with paper bubbles; mine in Senvia blue. */
+.workplace-chat .chat-scroll { background: hsl(var(--workplace-canvas, var(--muted)) / .6); }
+.workplace-chat .chat-bubble--theirs { border: 1px solid hsl(var(--workplace-line, var(--border))); background: hsl(var(--card)); box-shadow: 0 1px 2px hsl(222 47% 20% / .05); }
+.workplace-chat .chat-bubble--mine { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 2px 6px -2px hsl(var(--primary) / .45); }
+.workplace-chat .chat-bubble--deleted { background: transparent; box-shadow: none; border: 1px dashed hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+.workplace-chat .chat-bubble--highlight { outline: 3px solid hsl(45 93% 55% / .8); outline-offset: 2px; transition: outline-color 1s ease-out; }
+.workplace-chat .chat-message-actions { opacity: 0; transition: opacity .12s ease-out; }
+.workplace-chat .chat-message:hover .chat-message-actions,
+.workplace-chat .chat-message-actions:focus-visible,
+.workplace-chat .chat-message-actions[data-state='open'] { opacity: 1; }
+@media (hover: none) { .workplace-chat .chat-message-actions { opacity: .6; } }
+@media (prefers-reduced-motion: reduce) {
+  .workplace-chat .chat-message-actions, .workplace-chat .chat-bubble--highlight { transition: none; }
+}
+
+/* Inside the Inbox the chat fills the area beside the Caixas rail instead of the viewport. */
+.workplace-chat.workplace-chat--embedded { flex: 1 1 auto; height: 100%; min-width: 0; min-height: 0; }
+@media (min-width: 1024px) { .workplace-chat.workplace-chat--embedded { grid-template-columns: 320px minmax(0, 1fr); } }

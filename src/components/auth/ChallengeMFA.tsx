@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import senviaLogo from '@/assets/senvia-logo.png';
+import { useLanguage } from '@/i18n';
 
 interface ChallengeMFAProps {
   onSuccess: () => void;
@@ -14,6 +15,7 @@ interface ChallengeMFAProps {
 
 export function ChallengeMFA({ onSuccess, onCancel }: ChallengeMFAProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -46,8 +48,8 @@ export function ChallengeMFA({ onSuccess, onCancel }: ChallengeMFAProps) {
       onSuccess();
     } catch (error: any) {
       toast({
-        title: 'Código inválido',
-        description: 'O código inserido não é válido. Tente novamente.',
+        title: t('Código inválido'),
+        description: t('O código inserido não é válido. Tente novamente.'),
         variant: 'destructive',
       });
       setCode('');
@@ -74,9 +76,9 @@ export function ChallengeMFA({ onSuccess, onCancel }: ChallengeMFAProps) {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-white">Verificação de Dois Fatores</CardTitle>
+            <CardTitle className="text-white">{t("Verificação de Dois Fatores")}</CardTitle>
             <CardDescription className="text-slate-400">
-              Abra a sua app de autenticação e insira o código de 6 dígitos.
+              {t("Abra a sua app de autenticação e insira o código de 6 dígitos.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -104,21 +106,21 @@ export function ChallengeMFA({ onSuccess, onCancel }: ChallengeMFAProps) {
                 className="w-full"
               >
                 {isVerifying ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A verificar...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("A verificar...")}</>
                 ) : (
-                  'Verificar'
+                  t('Verificar')
                 )}
               </Button>
 
               <div className="text-center">
                 <p className="text-xs text-slate-500">
-                  Não consegue aceder?{' '}
+                  {t("Não consegue aceder?")}{' '}
                   <button
                     type="button"
                     onClick={handleSignOut}
                     className="text-primary hover:underline"
                   >
-                    Terminar sessão
+                    {t("Terminar sessão")}
                   </button>
                 </p>
               </div>

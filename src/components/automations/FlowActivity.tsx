@@ -21,6 +21,7 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useContactLists } from '@/hooks/useContactLists';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
+import { tr, useLanguage } from '@/i18n';
 import type {
   AutomationGraph, AutomationRun, AutomationRunStatus, AutomationRunStepStatus,
 } from '@/types/automations';
@@ -62,6 +63,7 @@ function matchesFilter(run: AutomationRun, filter: RunFilter): boolean {
 }
 
 export function RunStatusPill({ status }: { status: AutomationRunStatus }) {
+  const { t } = useLanguage();
   const meta = RUN_STATUS_META[status] ?? RUN_STATUS_META.running;
   const Icon = meta.icon;
   return (
@@ -72,7 +74,7 @@ export function RunStatusPill({ status }: { status: AutomationRunStatus }) {
       )}
     >
       <Icon className={cn('h-3.5 w-3.5', status === 'running' && 'animate-spin')} />
-      {meta.label}
+      {t(meta.label)}
     </span>
   );
 }
@@ -84,6 +86,7 @@ interface FlowActivityProps {
 
 /** Recent runs of this flow, with a per-run step timeline. */
 export function FlowActivity({ flowId, graph }: FlowActivityProps) {
+  const { t } = useLanguage();
   const { data: runs, isLoading } = useAutomationRuns(flowId);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   // Like n8n's executions list: one click shows only the failed ones.
@@ -97,10 +100,10 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   const { data: stages } = usePipelineStages();
   const lookups = useMemo<StepDetailLookups>(() => ({
     templateNameById: Object.fromEntries((templates ?? []).map((t) => [t.id, t.name])),
-    memberNameById: Object.fromEntries((members ?? []).map((m) => [m.user_id, m.full_name || m.email || 'utilizador'])),
+    memberNameById: Object.fromEntries((members ?? []).map((m) => [m.user_id, m.full_name || m.email || tr('utilizador')])),
     listNameById: Object.fromEntries((lists ?? []).map((l) => [l.id, l.name])),
     stageNameByKey: Object.fromEntries((stages ?? []).map((s) => [s.key, s.name])),
-  }), [templates, members, lists, stages]);
+  }), [templates, members, lists, stages, t]);
 
   if (isLoading) {
     return (
@@ -114,8 +117,8 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
     return (
       <EmptyState
         icon={ActivityIcon}
-        title="Ainda sem execuções"
-        description="Quando esta automação for ativada e um contacto entrar no fluxo, as execuções aparecem aqui."
+        title={t('Ainda sem execuções')}
+        description={t('Quando esta automação for ativada e um contacto entrar no fluxo, as execuções aparecem aqui.')}
       />
     );
   }
@@ -129,10 +132,10 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   return (
     <div className="space-y-4 p-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Em curso" value={activeCount} className="text-primary" onClick={() => setFilter('active')} />
-        <StatCard label="Concluídas" value={completedCount} className="text-success" onClick={() => setFilter('completed')} />
+        <StatCard label={t('Em curso')} value={activeCount} className="text-primary" onClick={() => setFilter('active')} />
+        <StatCard label={t('Concluídas')} value={completedCount} className="text-success" onClick={() => setFilter('completed')} />
         <StatCard
-          label="Falhadas"
+          label={t('Falhadas')}
           value={failedCount}
           className={failedCount > 0 ? 'text-destructive' : 'text-muted-foreground'}
           highlight={failedCount > 0}
@@ -143,11 +146,11 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
       <div className="flex flex-wrap items-center gap-1.5">
         {RUN_FILTERS.map((item) => (
           <GroupChip key={item.key} active={filter === item.key} onClick={() => setFilter(item.key)}>
-            {item.label} <span className="tabular-nums opacity-60">{countFor(item.key)}</span>
+            {t(item.label)} <span className="tabular-nums opacity-60">{countFor(item.key)}</span>
           </GroupChip>
         ))}
         <span className="ml-auto text-[11px] text-muted-foreground">
-          Uma execução em curso pára-se com «Parar»; uma parada ou falhada repete-se.
+          {t('Uma execução em curso para-se com «Parar»; uma parada ou falhada repete-se.')}
         </span>
       </div>
 
@@ -157,18 +160,18 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8" />
-                <TableHead>Contacto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Passo atual</TableHead>
-                <TableHead>Início</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t('Contacto')}</TableHead>
+                <TableHead>{t('Estado')}</TableHead>
+                <TableHead>{t('Passo atual')}</TableHead>
+                <TableHead>{t('Início')}</TableHead>
+                <TableHead className="text-right">{t('Ações')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visibleRuns.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma execução neste filtro.
+                    {t('Nenhuma execução neste filtro.')}
                   </TableCell>
                 </TableRow>
               )}
@@ -223,6 +226,7 @@ function RunRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useLanguage();
   const cancelRun = useCancelAutomationRun();
   const retryRun = useRetryAutomationRun();
   const failed = run.status === 'failed';
@@ -249,10 +253,10 @@ function RunRow({
 
         <TableCell>
           <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            {run.contact_name || run.contact_phone || run.contact_email || 'Contacto sem nome'}
+            {run.contact_name || run.contact_phone || run.contact_email || t('Contacto sem nome')}
             {isRetry && (
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title="Repetição de uma execução anterior">
-                Repetição
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title={t('Repetição de uma execução anterior')}>
+                {t('Repetição')}
               </span>
             )}
           </p>
@@ -272,10 +276,10 @@ function RunRow({
 
         <TableCell>
           <span className="text-sm text-muted-foreground">
-            {currentNode ? getNodeLabel(currentNode.type) : run.current_node_id ? '—' : 'Terminado'}
+            {currentNode ? getNodeLabel(currentNode.type) : run.current_node_id ? '—' : t('Terminado')}
           </span>
           {run.wake_at && ACTIVE_STATUSES.includes(run.status) && (
-            <p className="text-xs text-muted-foreground">Retoma {formatDateTime(run.wake_at)}</p>
+            <p className="text-xs text-muted-foreground">{t('Retoma {{date}}', { date: formatDateTime(run.wake_at) })}</p>
           )}
         </TableCell>
 
@@ -296,7 +300,7 @@ function RunRow({
                   cancelRun.mutate(run.id);
                 }}
               >
-                <Ban className="mr-1 h-3.5 w-3.5" /> Parar
+                <Ban className="mr-1 h-3.5 w-3.5" /> {t('Parar')}
               </Button>
             )}
             {/* n8n's retry: pick up where it broke, or start over. */}
@@ -311,7 +315,7 @@ function RunRow({
                   retryRun.mutate({ runId: run.id, from: 'failed_step' });
                 }}
               >
-                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repetir do passo
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t('Repetir do passo')}
               </Button>
             )}
             {!canCancel && (
@@ -325,7 +329,7 @@ function RunRow({
                   retryRun.mutate({ runId: run.id, from: 'start' });
                 }}
               >
-                <RotateCcw className="mr-1 h-3.5 w-3.5" /> {failed ? 'Do início' : 'Repetir do início'}
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> {failed ? t('Do início') : t('Repetir do início')}
               </Button>
             )}
           </div>
@@ -344,6 +348,7 @@ function RunRow({
 }
 
 function RunStepsTimeline({ run, lookups }: { run: AutomationRun; lookups: StepDetailLookups }) {
+  const { t } = useLanguage();
   const { data: steps, isLoading } = useAutomationRunSteps(run.id);
 
   if (isLoading) {
@@ -360,14 +365,14 @@ function RunStepsTimeline({ run, lookups }: { run: AutomationRun; lookups: StepD
         <div className="mb-3 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-destructive">Último erro</p>
+            <p className="text-xs font-semibold text-destructive">{t('Último erro')}</p>
             <p className="mt-0.5 break-words text-xs text-destructive/90">{run.last_error}</p>
           </div>
         </div>
       )}
 
       {!steps?.length ? (
-        <p className="text-xs text-muted-foreground">Sem passos registados para esta execução.</p>
+        <p className="text-xs text-muted-foreground">{t('Sem passos registados para esta execução.')}</p>
       ) : (
         <ol className="relative space-y-3 border-l border-border pl-5">
           {steps.map((step) => {
@@ -381,9 +386,9 @@ function RunStepsTimeline({ run, lookups }: { run: AutomationRun; lookups: StepD
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <StepIcon className={cn('h-3.5 w-3.5 shrink-0', meta.className)} />
                   <span className="text-xs font-semibold text-foreground">
-                    {step.node_type ? getNodeLabel(step.node_type) : 'Passo'}
+                    {step.node_type ? getNodeLabel(step.node_type) : t('Passo')}
                   </span>
-                  <span className={cn('text-[11px] font-medium', meta.className)}>{meta.label}</span>
+                  <span className={cn('text-[11px] font-medium', meta.className)}>{t(meta.label)}</span>
                   <span className="text-[11px] text-muted-foreground">{formatDateTime(step.created_at)}</span>
                 </div>
                 {rows.length > 0 && (

@@ -14,6 +14,222 @@ export type Database = {
   }
   public: {
     Tables: {
+      lead_reassignment_settings: {
+        Row: {
+          after_max: string
+          days: number[]
+          enabled: boolean
+          enabled_at: string | null
+          max_reassignments: number
+          notify_email: boolean
+          organization_id: string
+          pool: string
+          pool_user_ids: string[]
+          progress_rule: string
+          timeout_minutes: number
+          updated_at: string
+          updated_by: string | null
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          after_max?: string
+          days?: number[]
+          enabled?: boolean
+          enabled_at?: string | null
+          max_reassignments?: number
+          notify_email?: boolean
+          organization_id: string
+          pool?: string
+          pool_user_ids?: string[]
+          progress_rule?: string
+          timeout_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_end?: string
+          window_start?: string
+        }
+        Update: {
+          after_max?: string
+          days?: number[]
+          enabled?: boolean
+          enabled_at?: string | null
+          max_reassignments?: number
+          notify_email?: boolean
+          organization_id?: string
+          pool?: string
+          pool_user_ids?: string[]
+          progress_rule?: string
+          timeout_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      lead_reassignments: {
+        Row: {
+          created_at: string
+          from_user: string | null
+          id: string
+          lead_id: string
+          organization_id: string
+          reason: string
+          to_user: string | null
+        }
+        Insert: {
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id: string
+          organization_id: string
+          reason?: string
+          to_user?: string | null
+        }
+        Update: {
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id?: string
+          organization_id?: string
+          reason?: string
+          to_user?: string | null
+        }
+        Relationships: []
+      }
+      time_clock_entries: {
+        Row: {
+          action: string
+          admin_note: string | null
+          created_at: string
+          created_by: string | null
+          employee_note: string | null
+          id: string
+          organization_id: string
+          punched_at: string
+          source: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          admin_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_note?: string | null
+          id?: string
+          organization_id: string
+          punched_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          admin_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_note?: string | null
+          id?: string
+          organization_id?: string
+          punched_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      time_clock_entry_history: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changed_by_name: string | null
+          changed_fields: string[]
+          entry_id: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          organization_id: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changed_fields?: string[]
+          entry_id: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changed_fields?: string[]
+          entry_id?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      work_schedules: {
+        Row: {
+          days: number[]
+          end_time: string
+          lunch_end: string | null
+          lunch_start: string | null
+          organization_id: string
+          reminders: boolean
+          start_time: string
+          tolerance_min: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          days?: number[]
+          end_time?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id: string
+          reminders?: boolean
+          start_time?: string
+          tolerance_min?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          days?: number[]
+          end_time?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id?: string
+          reminders?: boolean
+          start_time?: string
+          tolerance_min?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       activation_objectives: {
         Row: {
           created_at: string | null
@@ -1908,6 +2124,130 @@ export type Database = {
           },
         ]
       }
+      email_account_preferences: {
+        Row: {
+          channel_id: string
+          color: string | null
+          is_default: boolean
+          label: string | null
+          notify: boolean
+          organization_id: string
+          position: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          color?: string | null
+          is_default?: boolean
+          label?: string | null
+          notify?: boolean
+          organization_id: string
+          position?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          color?: string | null
+          is_default?: boolean
+          label?: string | null
+          notify?: boolean
+          organization_id?: string
+          position?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_account_preferences_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_account_preferences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_contact_lists: {
+        Row: {
+          created_at: string
+          id: string
+          members: Json
+          name: string
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          members?: Json
+          name: string
+          organization_id: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          members?: Json
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_contact_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_contacts: {
+        Row: {
+          email: string
+          last_used_at: string
+          name: string | null
+          organization_id: string
+          user_id: string
+          uses: number
+        }
+        Insert: {
+          email: string
+          last_used_at?: string
+          name?: string | null
+          organization_id: string
+          user_id?: string
+          uses?: number
+        }
+        Update: {
+          email?: string
+          last_used_at?: string
+          name?: string | null
+          organization_id?: string
+          user_id?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_attachments: {
         Row: {
           content_id: string | null
@@ -2650,6 +2990,60 @@ export type Database = {
           },
         ]
       }
+      email_signatures: {
+        Row: {
+          channel_id: string
+          created_at: string
+          html: string
+          id: string
+          is_default: boolean
+          name: string
+          organization_id: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          html?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          html?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_signatures_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           automation_delay_minutes: number
@@ -3145,6 +3539,7 @@ export type Database = {
       }
       inbox_tasks: {
         Row: {
+          participant_ids: string[]
           assigned_to: string | null
           client_id: string | null
           contact_name: string | null
@@ -3164,8 +3559,12 @@ export type Database = {
           source_message: string | null
           suggested: boolean
           title: string
+          workplace_status: string
+          workplace_version: number
+          priority: string
         }
         Insert: {
+          participant_ids?: string[]
           assigned_to?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -3185,8 +3584,12 @@ export type Database = {
           source_message?: string | null
           suggested?: boolean
           title: string
+          workplace_status?: string
+          workplace_version?: number
+          priority?: string
         }
         Update: {
+          participant_ids?: string[]
           assigned_to?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -3206,6 +3609,9 @@ export type Database = {
           source_message?: string | null
           suggested?: boolean
           title?: string
+          workplace_status?: string
+          workplace_version?: number
+          priority?: string
         }
         Relationships: [
           {
@@ -8135,6 +8541,364 @@ export type Database = {
         }
         Relationships: []
       }
+      workplace_chat_conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          direct_key: string | null
+          id: string
+          is_default: boolean
+          kind: string
+          last_message_at: string | null
+          last_message_id: string | null
+          organization_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          direct_key?: string | null
+          id?: string
+          is_default?: boolean
+          kind: string
+          last_message_at?: string | null
+          last_message_id?: string | null
+          organization_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          direct_key?: string | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          last_message_at?: string | null
+          last_message_id?: string | null
+          organization_id?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
+      workplace_chat_member_settings: {
+        Row: {
+          conversation_id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workplace_chat_members: {
+        Row: {
+          conversation_id: string
+          joined_at: string
+          last_read_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          joined_at?: string
+          last_read_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          joined_at?: string
+          last_read_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workplace_chat_messages: {
+        Row: {
+          attachment_mime: string | null
+          attachment_name: string | null
+          attachment_path: string | null
+          attachment_size: number | null
+          body: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          duration_sec: number | null
+          edited_at: string | null
+          forwarded: boolean
+          id: string
+          kind: string
+          organization_id: string
+          reply_to_id: string | null
+          sender_id: string | null
+        }
+        Insert: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id: string
+          created_at?: string
+          deleted_at?: string | null
+          duration_sec?: number | null
+          edited_at?: string | null
+          forwarded?: boolean
+          id?: string
+          kind?: string
+          organization_id?: string
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_path?: string | null
+          attachment_size?: number | null
+          body?: string | null
+          conversation_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          duration_sec?: number | null
+          edited_at?: string | null
+          forwarded?: boolean
+          id?: string
+          kind?: string
+          organization_id?: string
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: []
+      }
+      workplace_chat_reactions: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          emoji?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workplace_posts: {
+        Row: {
+          attachments: Json
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          organization_id: string
+          pinned: boolean
+          recipient_id: string | null
+          recognition_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id: string
+          pinned?: boolean
+          recipient_id?: string | null
+          recognition_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id?: string
+          pinned?: boolean
+          recipient_id?: string | null
+          recognition_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      workplace_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          organization_id: string
+          post_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          post_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_comments_post_id_organization_id_fkey"
+            columns: ["post_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "workplace_posts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      workplace_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          organization_id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji?: string
+          organization_id: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          organization_id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "trial_activation_overview"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "workplace_reactions_post_id_organization_id_fkey"
+            columns: ["post_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "workplace_posts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
     }
     Views: {
       stripe_connection_summaries: {
@@ -8262,6 +9026,101 @@ export type Database = {
       }
     }
     Functions: {
+      time_clock_admin_save_entry: {
+        Args: {
+          _action: string
+          _entry_id: string | null
+          _note?: string | null
+          _organization_id: string
+          _punched_at: string
+          _reason: string
+          _user_id: string | null
+        }
+        Returns: string
+      }
+      time_clock_admin_set_status: {
+        Args: { _entry_ids: string[]; _organization_id: string; _reason?: string | null; _status: string }
+        Returns: number
+      }
+      time_clock_correct_entry: {
+        Args: { _at: string; _entry_id: string; _reason: string }
+        Returns: undefined
+      }
+      time_clock_punch: {
+        Args: { _action: string; _at?: string | null; _note?: string | null; _organization_id: string }
+        Returns: string
+      }
+      email_save_signatures: {
+        Args: { _channel_id: string; _items: Json }
+        Returns: {
+            channel_id: string
+            created_at: string
+            html: string
+            id: string
+            is_default: boolean
+            name: string
+            organization_id: string
+            position: number
+            updated_at: string
+            user_id: string
+          }[]
+      }
+      email_remember_contacts: {
+        Args: { _organization_id: string; _items: Json }
+        Returns: undefined
+      }
+      workplace_chat_add_members: {
+        Args: { _conversation_id: string; _member_ids: string[] }
+        Returns: undefined
+      }
+      workplace_chat_bootstrap: { Args: { _organization_id: string }; Returns: string }
+      workplace_chat_create_group: {
+        Args: { _member_ids: string[]; _organization_id: string; _title: string }
+        Returns: string
+      }
+      workplace_chat_leave_group: { Args: { _conversation_id: string }; Returns: undefined }
+      workplace_chat_list_conversations: {
+        Args: { _organization_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_default: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          kind: string
+          last_attachment_name: string | null
+          last_body: string | null
+          last_deleted: boolean
+          last_kind: string | null
+          last_message_at: string | null
+          last_sender_id: string | null
+          member_count: number
+          my_role: string
+          peer_user_id: string | null
+          title: string | null
+          unread: number
+        }[]
+      }
+      workplace_chat_mark_read: { Args: { _conversation_id: string }; Returns: undefined }
+      workplace_chat_rename_group: {
+        Args: { _conversation_id: string; _title: string }
+        Returns: undefined
+      }
+      workplace_chat_search_messages: {
+        Args: { _limit?: number; _organization_id: string; _term: string }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string | null
+        }[]
+      }
+      workplace_chat_start_direct: {
+        Args: { _organization_id: string; _other_user_id: string }
+        Returns: string
+      }
       meets_mfa_policy: {
         Args: { _user_id: string }
         Returns: boolean

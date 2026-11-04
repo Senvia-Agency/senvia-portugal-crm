@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHomeOrganization } from "@/hooks/useHomeOrganization";
+import { useLanguage } from "@/i18n";
 
 interface HomeOrgCardProps {
   /** Member count for the home org, when already loaded by the page. */
@@ -21,6 +22,7 @@ interface HomeOrgCardProps {
  */
 export function HomeOrgCard({ memberCount, loading }: HomeOrgCardProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { switchOrganization } = useAuth();
   const { home, isAtHome, isLoading } = useHomeOrganization();
   const [switching, setSwitching] = useState(false);
@@ -49,7 +51,7 @@ export function HomeOrgCard({ memberCount, loading }: HomeOrgCardProps) {
         <div className="flex items-center gap-2">
           <span className="truncate font-semibold">{home.organization_name}</span>
           <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-            a tua conta
+            {t("a tua conta")}
           </span>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -57,7 +59,7 @@ export function HomeOrgCard({ memberCount, loading }: HomeOrgCardProps) {
           {memberCount != null && (
             <span className="inline-flex items-center gap-1">
               <Users className="h-3 w-3" />
-              {memberCount} {memberCount === 1 ? "membro" : "membros"}
+              {t(memberCount === 1 ? "{{n}} membro" : "{{n}} membros", { n: memberCount })}
             </span>
           )}
         </div>
@@ -65,7 +67,7 @@ export function HomeOrgCard({ memberCount, loading }: HomeOrgCardProps) {
 
       <Button size="sm" onClick={enter} disabled={switching} className="shrink-0">
         {switching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        {isAtHome ? "Abrir painel" : "Entrar"}
+        {isAtHome ? t("Abrir painel") : t("Entrar", { context: "org" })}
         {!switching && <ArrowRight className="ml-2 h-4 w-4" />}
       </Button>
     </div>

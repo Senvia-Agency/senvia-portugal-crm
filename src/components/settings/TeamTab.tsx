@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, UserPlus, Copy, X, Check, Clock, Loader2, RefreshCw, Eye, EyeOff, MoreHorizontal, Key, UserCog, Ban, CheckCircle, Mail, Pencil, Phone, Trash2, Lightbulb, ArrowRight, AlertTriangle, Crown, Info, Plus, MessageCircleMore } from 'lucide-react';
 
 import { formatDistanceToNow } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { dateLocale, useLanguage } from '@/i18n';
 import { getBaseUrl } from '@/lib/constants';
 import { hardGo } from '@/lib/nav';
 import { EmailTemplateGate } from '@/components/marketing/EmailTemplateGate';
@@ -58,8 +58,9 @@ export function TeamTab() {
   const createTeamMember = useCreateTeamMember();
   const manageTeamMember = useManageTeamMember();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const teamAccessTemplate = useEmailTemplateRequirement(EMAIL_TEMPLATE_TRIGGERS.teamAccess);
-  const teamAccessTemplateMessage = `Configure um template de email ativo com o gatilho «${EMAIL_TEMPLATE_TRIGGER_LABELS[EMAIL_TEMPLATE_TRIGGERS.teamAccess]}» em Marketing → Templates antes de enviar.`;
+  const teamAccessTemplateMessage = t('Configure um template de email ativo com o gatilho «{{trigger}}» em Marketing → Templates antes de enviar.', { trigger: t(EMAIL_TEMPLATE_TRIGGER_LABELS[EMAIL_TEMPLATE_TRIGGERS.teamAccess]) });
 
   const salesSettings = (orgData?.sales_settings as any) || {};
   const commissionsEnabled = !!salesSettings.commissions_enabled;
@@ -143,17 +144,17 @@ export function TeamTab() {
 
   const handleCreateMember = async () => {
     if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+      toast({ title: t('Preencha todos os campos'), variant: 'destructive' });
       return;
     }
 
     if (password !== confirmPassword) {
-      toast({ title: 'As palavras-passe não coincidem', variant: 'destructive' });
+      toast({ title: t('As palavras-passe não coincidem'), variant: 'destructive' });
       return;
     }
 
     if (password.length < 6) {
-      toast({ title: 'A palavra-passe deve ter pelo menos 6 caracteres', variant: 'destructive' });
+      toast({ title: t('A palavra-passe deve ter pelo menos 6 caracteres'), variant: 'destructive' });
       return;
     }
 
@@ -172,7 +173,7 @@ export function TeamTab() {
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
-    toast({ title: 'Copiado!', description: `${field} copiado para a área de transferência.` });
+    toast({ title: t('Copiado!'), description: t('{{field}} copiado para a área de transferência.', { field: t(field) }) });
     setTimeout(() => setCopiedField(null), 2000);
   };
 
@@ -180,7 +181,7 @@ export function TeamTab() {
     const link = `${getBaseUrl()}/invite/${invite.token}`;
     navigator.clipboard.writeText(link);
     setCopiedInviteId(invite.id);
-    toast({ title: 'Link copiado!', description: 'Link de convite copiado para a área de transferência.' });
+    toast({ title: t('Link copiado!'), description: t('Link de convite copiado para a área de transferência.') });
     setTimeout(() => setCopiedInviteId(null), 2000);
   };
 
@@ -222,11 +223,11 @@ export function TeamTab() {
       if (data?.error) throw new Error(data.error);
 
       setEmailSent(true);
-      toast({ title: 'Email enviado!', description: `Credenciais enviadas para ${createdMember.email}.` });
+      toast({ title: t('Email enviado!'), description: t('Credenciais enviadas para {{email}}.', { email: createdMember.email }) });
     } catch (err: any) {
       toast({ 
-        title: 'Erro ao enviar email', 
-        description: err.message || 'Verifique se a integração Brevo está configurada.', 
+        title: t('Erro ao enviar email'), 
+        description: err.message || t('Verifique se a integração Brevo está configurada.'), 
         variant: 'destructive' 
       });
     } finally {
@@ -316,7 +317,7 @@ export function TeamTab() {
   const handleEditProfile = async () => {
     if (!selectedMember) return;
     if (!editFullName.trim()) {
-      toast({ title: 'O nome é obrigatório', variant: 'destructive' });
+      toast({ title: t('O nome é obrigatório'), variant: 'destructive' });
       return;
     }
     // Save commission rate if individual mode
@@ -362,13 +363,13 @@ export function TeamTab() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast({ title: 'Email enviado!', description: `Dados de acesso enviados para ${selectedMember.email}.` });
+      toast({ title: t('Email enviado!'), description: t('Dados de acesso enviados para {{email}}.', { email: selectedMember.email }) });
       setSendAccessOpen(false);
       setSelectedMember(null);
     } catch (err: any) {
       toast({
-        title: 'Erro ao enviar email',
-        description: err.message || 'Verifique se a integração Brevo está configurada.',
+        title: t('Erro ao enviar email'),
+        description: err.message || t('Verifique se a integração Brevo está configurada.'),
         variant: 'destructive',
       });
     } finally {
@@ -388,10 +389,10 @@ export function TeamTab() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Acessos
+              {t('Acessos')}
             </CardTitle>
             <CardDescription>
-              Gerencie os utilizadores e permissões da sua organização.
+              {t('Gira os utilizadores e permissões da sua organização.')}
             </CardDescription>
           </div>
 
@@ -410,8 +411,8 @@ export function TeamTab() {
               <div className="flex-1 min-w-0">
                 <p className={`text-xs ${isAtLimit ? 'text-red-600' : 'text-amber-600'}`}>
                   {isAtLimit
-                    ? `Atingiu o limite de ${maxUsers} utilizadores. Adicione mais utilizadores extra ou faça upgrade do plano.`
-                    : `Restam apenas ${availableSlots} vaga${availableSlots !== 1 ? 's' : ''} de ${maxUsers} utilizadores.`}
+                    ? t('Atingiu o limite de {{max}} utilizadores. Adicione mais utilizadores extra ou faça upgrade do plano.', { max: maxUsers })
+                    : t(availableSlots !== 1 ? 'Restam apenas {{n}} vagas de {{max}} utilizadores.' : 'Resta apenas {{n}} vaga de {{max}} utilizadores.', { n: availableSlots, max: maxUsers })}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {upgradeRecommendation && (
@@ -423,12 +424,12 @@ export function TeamTab() {
                         onClick={() => setShowUpgradeDialog(true)}
                       >
                         <ArrowRight className="h-3 w-3" />
-                        Ver opções
+                        {t('Ver opções')}
                       </Button>
                       {upgradeRecommendation.upgradeCheaper && (
                         <Badge variant="secondary" className="text-[10px] gap-1">
                           <Crown className="h-3 w-3" />
-                          Upgrade compensa mais
+                          {t('Upgrade compensa mais')}
                         </Badge>
                       )}
                     </>
@@ -451,45 +452,45 @@ export function TeamTab() {
                 }}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
-                Adicionar Acesso
+                {t('Adicionar Acesso')}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               {!createdMember ? (
                 <>
                   <DialogHeader>
-                    <DialogTitle>Adicionar Novo Acesso</DialogTitle>
+                    <DialogTitle>{t('Adicionar Novo Acesso')}</DialogTitle>
                     <DialogDescription>
-                      Crie credenciais de acesso para um novo colaborador.
+                      {t('Crie credenciais de acesso para um novo colaborador.')}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="full-name">Nome Completo</Label>
+                      <Label htmlFor="full-name">{t('Nome Completo')}</Label>
                       <Input
                         id="full-name"
-                        placeholder="João Silva"
+                        placeholder={t('João Silva')}
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">{t('Email')}</Label>
                       <Input
                         id="email"
                         type="email"
-                        placeholder="joao@exemplo.com"
+                        placeholder={t('joao@exemplo.com')}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Palavra-passe</Label>
+                      <Label htmlFor="password">{t('Palavra-passe')}</Label>
                       <div className="relative">
                         <Input
                           id="password"
                           type={showPassword ? 'text' : 'password'}
-                          placeholder="Mínimo 6 caracteres"
+                          placeholder={t('Mínimo 6 caracteres')}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                         />
@@ -505,28 +506,28 @@ export function TeamTab() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirmar Palavra-passe</Label>
+                      <Label htmlFor="confirm-password">{t('Confirmar Palavra-passe')}</Label>
                       <Input
                         id="confirm-password"
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Repetir palavra-passe"
+                        placeholder={t('Repetir palavra-passe')}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label>Perfil</Label>
+                      <Label>{t('Perfil')}</Label>
                       {profiles.length > 0 ? (
                         <Select value={role} onValueChange={(v) => setRole(v)}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecionar perfil..." />
+                            <SelectValue placeholder={t('Selecionar perfil...')} />
                           </SelectTrigger>
                           <SelectContent>
                             {profiles.map(p => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.name}
                                 <span className="text-muted-foreground text-xs ml-2">
-                                  ({ROLE_LABELS[p.base_role] || p.base_role})
+                                  ({ROLE_LABELS[p.base_role] ? t(ROLE_LABELS[p.base_role], { context: 'role' }) : p.base_role})
                                 </span>
                               </SelectItem>
                             ))}
@@ -537,22 +538,22 @@ export function TeamTab() {
                           <div className="flex items-start space-x-3 rounded-lg border p-3">
                             <RadioGroupItem value="salesperson" id="role-salesperson" className="mt-1" />
                             <div className="flex-1">
-                              <Label htmlFor="role-salesperson" className="font-medium cursor-pointer">Comercial</Label>
-                              <p className="text-sm text-muted-foreground">Vê apenas os leads atribuídos.</p>
+                              <Label htmlFor="role-salesperson" className="font-medium cursor-pointer">{t('Comercial', { context: 'role' })}</Label>
+                              <p className="text-sm text-muted-foreground">{t('Vê apenas os leads atribuídos.')}</p>
                             </div>
                           </div>
                           <div className="flex items-start space-x-3 rounded-lg border p-3">
                             <RadioGroupItem value="viewer" id="role-viewer" className="mt-1" />
                             <div className="flex-1">
-                              <Label htmlFor="role-viewer" className="font-medium cursor-pointer">Visualizador</Label>
-                              <p className="text-sm text-muted-foreground">Vê todos os leads. Não pode eliminar.</p>
+                              <Label htmlFor="role-viewer" className="font-medium cursor-pointer">{t('Visualizador')}</Label>
+                              <p className="text-sm text-muted-foreground">{t('Vê todos os leads. Não pode eliminar.')}</p>
                             </div>
                           </div>
                           <div className="flex items-start space-x-3 rounded-lg border p-3">
                             <RadioGroupItem value="admin" id="role-admin" className="mt-1" />
                             <div className="flex-1">
-                              <Label htmlFor="role-admin" className="font-medium cursor-pointer">Administrador</Label>
-                              <p className="text-sm text-muted-foreground">Acesso total.</p>
+                              <Label htmlFor="role-admin" className="font-medium cursor-pointer">{t('Administrador')}</Label>
+                              <p className="text-sm text-muted-foreground">{t('Acesso total.')}</p>
                             </div>
                           </div>
                         </RadioGroup>
@@ -561,14 +562,14 @@ export function TeamTab() {
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={handleCloseDialog}>
-                      Cancelar
+                      {t('Cancelar')}
                     </Button>
                     <Button
                       onClick={handleCreateMember}
                       disabled={!fullName.trim() || !email.trim() || !password || !confirmPassword || createTeamMember.isPending}
                     >
                       {createTeamMember.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Criar Acesso
+                      {t('Criar Acesso')}
                     </Button>
                   </DialogFooter>
                 </>
@@ -577,15 +578,15 @@ export function TeamTab() {
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-green-600">
                       <Check className="h-5 w-5" />
-                      Acesso Criado com Sucesso!
+                      {t('Acesso Criado com Sucesso!')}
                     </DialogTitle>
                     <DialogDescription>
-                      Envie estas informações ao colaborador por WhatsApp ou email.
+                      {t('Envie estas informações ao colaborador por WhatsApp ou email.')}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">Link de Acesso</Label>
+                      <Label className="text-muted-foreground">{t('Link de Acesso')}</Label>
                       <div className="flex gap-2">
                         <Input value={loginUrl} readOnly className="font-mono text-sm" />
                         <Button 
@@ -598,7 +599,7 @@ export function TeamTab() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">Código da Empresa</Label>
+                      <Label className="text-muted-foreground">{t('Código da Empresa')}</Label>
                       <div className="flex gap-2">
                         <Input value={organization?.slug || ''} readOnly className="font-mono text-sm" />
                         <Button 
@@ -611,7 +612,7 @@ export function TeamTab() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">Email</Label>
+                      <Label className="text-muted-foreground">{t('Email')}</Label>
                       <div className="flex gap-2">
                         <Input value={createdMember.email} readOnly className="font-mono text-sm" />
                         <Button 
@@ -624,7 +625,7 @@ export function TeamTab() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">Palavra-passe</Label>
+                      <Label className="text-muted-foreground">{t('Palavra-passe')}</Label>
                       <div className="flex gap-2">
                         <Input 
                           value={showPassword ? createdMember.password : '••••••••'} 
@@ -649,7 +650,7 @@ export function TeamTab() {
                     </div>
                     <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
                       <Clock className="h-4 w-4 mt-0.5 shrink-0" />
-                      <p>Guarde estas informações - a palavra-passe não poderá ser recuperada por si.</p>
+                      <p>{t('Guarde estas informações - a palavra-passe não poderá ser recuperada por si.')}</p>
                     </div>
                   </div>
                   <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -667,10 +668,10 @@ export function TeamTab() {
                         ) : (
                           <Mail className="mr-2 h-4 w-4" />
                         )}
-                        {emailSent ? 'Email Enviado' : 'Enviar Acesso por Email'}
+                        {emailSent ? t('Email Enviado') : t('Enviar Acesso por Email')}
                       </Button>
                     </EmailTemplateGate>
-                    <Button onClick={handleCloseDialog}>Fechar</Button>
+                    <Button onClick={handleCloseDialog}>{t('Fechar')}</Button>
                   </DialogFooter>
                 </>
               )}
@@ -687,10 +688,10 @@ export function TeamTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>{t('Nome')}</TableHead>
+                  <TableHead>{t('Perfil')}</TableHead>
+                  <TableHead>{t('Estado')}</TableHead>
+                  <TableHead className="text-right">{t('Ações')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -701,7 +702,7 @@ export function TeamTab() {
                         <span className="font-medium">
                           {member.full_name}
                           {isCurrentUser(member) && (
-                            <span className="ml-2 text-xs text-muted-foreground">(você)</span>
+                            <span className="ml-2 text-xs text-muted-foreground">{t('(você)')}</span>
                           )}
                         </span>
                         {(member.email || member.phone) && (
@@ -721,17 +722,17 @@ export function TeamTab() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={ROLE_VARIANTS[member.role] || 'secondary'}>
-                        {member.profile_name || ROLE_LABELS[member.role] || member.role}
+                        {member.profile_name || (ROLE_LABELS[member.role] ? t(ROLE_LABELS[member.role], { context: 'role' }) : member.role)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {member.is_banned ? (
                         <Badge variant="outline" className="text-destructive border-destructive">
-                          Inativo
+                          {t('Inativo')}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-success border-success">
-                          Ativo
+                          {t('Ativo')}
                         </Badge>
                       )}
                     </TableCell>
@@ -745,11 +746,11 @@ export function TeamTab() {
                         <DropdownMenuContent align="end">
                           {isCurrentUser(member) && <DropdownMenuItem onClick={() => openEditProfileModal(member)}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Editar Dados
+                            {t('Editar Dados')}
                           </DropdownMenuItem>}
                           <DropdownMenuItem onClick={() => openChangePasswordModal(member)}>
                             <Key className="mr-2 h-4 w-4" />
-                            Recuperar acesso
+                            {t('Recuperar acesso')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             aria-disabled={teamAccessTemplate.isLoading || !teamAccessTemplate.isConfigured}
@@ -763,7 +764,7 @@ export function TeamTab() {
                             }}
                           >
                             <Mail className="mr-2 h-4 w-4" />
-                            Enviar Email de Acesso
+                            {t('Enviar Email de Acesso')}
                             {!teamAccessTemplate.isLoading && !teamAccessTemplate.isConfigured && (
                               <span className="ml-auto" title={teamAccessTemplateMessage} aria-label={teamAccessTemplateMessage}>
                                 <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
@@ -774,7 +775,7 @@ export function TeamTab() {
                             <>
                               <DropdownMenuItem onClick={() => openChangeRoleModal(member)}>
                                 <UserCog className="mr-2 h-4 w-4" />
-                                Alterar Perfil
+                                {t('Alterar Perfil')}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
@@ -785,12 +786,12 @@ export function TeamTab() {
                                 {member.is_banned ? (
                                   <>
                                     <CheckCircle className="mr-2 h-4 w-4" />
-                                    Reativar Acesso
+                                    {t('Reativar Acesso')}
                                   </>
                                 ) : (
                                   <>
                                     <Ban className="mr-2 h-4 w-4" />
-                                    Desativar Acesso
+                                    {t('Desativar Acesso')}
                                   </>
                                 )}
                               </DropdownMenuItem>
@@ -800,7 +801,7 @@ export function TeamTab() {
                                 disabled={manageTeamMember.isPending}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar Acesso
+                                {t('Eliminar Acesso')}
                               </DropdownMenuItem>
                             </>
                           )}
@@ -812,7 +813,7 @@ export function TeamTab() {
                 {(!members || members.length === 0) && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      Nenhum colaborador encontrado.
+                      {t('Nenhum colaborador encontrado.')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -825,14 +826,13 @@ export function TeamTab() {
       <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Recuperar acesso</DialogTitle>
+            <DialogTitle>{t('Recuperar acesso')}</DialogTitle>
             <DialogDescription>
-              O próprio colaborador deve usar “Esqueceu a palavra-passe?” na página de entrada.
-              O link de recuperação será enviado para o email da conta.
+              {t('O próprio colaborador deve usar “Esqueceu a palavra-passe?” na página de entrada. O link de recuperação será enviado para o email da conta.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setChangePasswordOpen(false)}>Entendido</Button>
+            <Button onClick={() => setChangePasswordOpen(false)}>{t('Entendido')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -843,15 +843,15 @@ export function TeamTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5" />
-              Enviar Email de Acesso
+              {t('Enviar Email de Acesso')}
             </DialogTitle>
             <DialogDescription>
-              Enviar os dados de acesso (link, código da empresa e email) para <strong>{selectedMember?.full_name}</strong>? A palavra-passe atual não será alterada.
+              {t('Enviar os dados de acesso (link, código da empresa e email) para {{name}}? A palavra-passe atual não será alterada.', { name: selectedMember?.full_name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSendAccessOpen(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <EmailTemplateGate triggerType={EMAIL_TEMPLATE_TRIGGERS.teamAccess}>
               <Button
@@ -859,7 +859,7 @@ export function TeamTab() {
                 disabled={sendingAccessEmail}
               >
                 {sendingAccessEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Enviar Email
+                {t('Enviar Email')}
               </Button>
             </EmailTemplateGate>
           </DialogFooter>
@@ -871,34 +871,34 @@ export function TeamTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5" />
-              Editar Dados
+              {t('Editar Dados')}
             </DialogTitle>
             <DialogDescription>
-              Edite os dados de contacto de {selectedMember?.full_name}.
+              {t('Edite os dados de contacto de {{name}}.', { name: selectedMember?.full_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-full-name">Nome Completo</Label>
+              <Label htmlFor="edit-full-name">{t('Nome Completo')}</Label>
               <Input
                 id="edit-full-name"
-                placeholder="Nome completo"
+                placeholder={t('Nome completo')}
                 value={editFullName}
                 onChange={(e) => setEditFullName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-email">Email de Contacto</Label>
+              <Label htmlFor="edit-email">{t('Email de Contacto')}</Label>
               <Input
                 id="edit-email"
                 type="email"
-                placeholder="email@exemplo.com"
+                placeholder={t('email@exemplo.com')}
                 value={editEmail}
                 onChange={(e) => setEditEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-phone">Telefone</Label>
+              <Label htmlFor="edit-phone">{t('Telefone')}</Label>
               <Input
                 id="edit-phone"
                 type="tel"
@@ -909,34 +909,34 @@ export function TeamTab() {
             </div>
             {showIndividualCommission && (
               <div className="space-y-2">
-                <Label htmlFor="edit-commission-rate">Comissão (%)</Label>
+                <Label htmlFor="edit-commission-rate">{t('Comissão (%)')}</Label>
                 <Input
                   id="edit-commission-rate"
                   type="number"
                   min="0"
                   max="100"
                   step="0.5"
-                  placeholder="Ex: 10"
+                  placeholder={t('Ex: 10')}
                   value={editCommissionRate}
                   onChange={(e) => setEditCommissionRate(e.target.value)}
                   className="w-32"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Percentagem de comissão individual sobre o valor total das vendas.
+                  {t('Percentagem de comissão individual sobre o valor total das vendas.')}
                 </p>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditProfileOpen(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button
               onClick={handleEditProfile}
               disabled={!editFullName.trim() || manageTeamMember.isPending}
             >
               {manageTeamMember.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar
+              {t('Guardar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -948,22 +948,22 @@ export function TeamTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCog className="h-5 w-5" />
-              Alterar Perfil
+              {t('Alterar Perfil')}
             </DialogTitle>
             <DialogDescription>
-              Altere o perfil de {selectedMember?.full_name}.
+              {t('Altere o perfil de {{name}}.', { name: selectedMember?.full_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-2 mb-4">
-              <Label className="text-muted-foreground">Perfil Atual</Label>
+              <Label className="text-muted-foreground">{t('Perfil Atual')}</Label>
               <Badge variant={selectedMember ? ROLE_VARIANTS[selectedMember.role] : 'secondary'}>
-                {selectedMember?.profile_name || (selectedMember ? ROLE_LABELS[selectedMember.role] : '')}
+                {selectedMember?.profile_name || (selectedMember ? t(ROLE_LABELS[selectedMember.role] ?? selectedMember.role, { context: 'role' }) : '')}
               </Badge>
             </div>
             {profiles.length > 0 ? (
               <div className="space-y-2">
-                <Label>Novo Perfil</Label>
+                <Label>{t('Novo Perfil')}</Label>
                 <Select value={newRole} onValueChange={(v) => setNewRole(v)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -982,22 +982,22 @@ export function TeamTab() {
                 <div className="flex items-start space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="admin" id="new-role-admin" className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor="new-role-admin" className="font-medium cursor-pointer">Administrador</Label>
-                    <p className="text-sm text-muted-foreground">Acesso total.</p>
+                    <Label htmlFor="new-role-admin" className="font-medium cursor-pointer">{t('Administrador')}</Label>
+                    <p className="text-sm text-muted-foreground">{t('Acesso total.')}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="salesperson" id="new-role-salesperson" className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor="new-role-salesperson" className="font-medium cursor-pointer">Comercial</Label>
-                    <p className="text-sm text-muted-foreground">Vê leads atribuídos.</p>
+                    <Label htmlFor="new-role-salesperson" className="font-medium cursor-pointer">{t('Comercial', { context: 'role' })}</Label>
+                    <p className="text-sm text-muted-foreground">{t('Vê leads atribuídos.')}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="viewer" id="new-role-viewer" className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor="new-role-viewer" className="font-medium cursor-pointer">Visualizador</Label>
-                    <p className="text-sm text-muted-foreground">Apenas visualização.</p>
+                    <Label htmlFor="new-role-viewer" className="font-medium cursor-pointer">{t('Visualizador')}</Label>
+                    <p className="text-sm text-muted-foreground">{t('Apenas visualização.')}</p>
                   </div>
                 </div>
               </RadioGroup>
@@ -1005,14 +1005,14 @@ export function TeamTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangeRoleOpen(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button
               onClick={handleChangeRole}
               disabled={manageTeamMember.isPending}
             >
               {manageTeamMember.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar
+              {t('Guardar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1024,7 +1024,7 @@ export function TeamTab() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Convites Pendentes ({invites.length})
+              {t('Convites Pendentes ({{n}})', { n: invites.length })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1034,10 +1034,10 @@ export function TeamTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Perfil</TableHead>
-                    <TableHead>Expira</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead>{t('Email')}</TableHead>
+                    <TableHead>{t('Perfil')}</TableHead>
+                    <TableHead>{t('Expira')}</TableHead>
+                    <TableHead className="text-right">{t('Ações')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1046,13 +1046,13 @@ export function TeamTab() {
                       <TableCell className="font-medium">{invite.email}</TableCell>
                       <TableCell>
                         <Badge variant={ROLE_VARIANTS[invite.role] || 'secondary'}>
-                          {ROLE_LABELS[invite.role] || invite.role}
+                          {ROLE_LABELS[invite.role] ? t(ROLE_LABELS[invite.role], { context: 'role' }) : invite.role}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatDistanceToNow(new Date(invite.expires_at), { 
                           addSuffix: true, 
-                          locale: pt 
+                          locale: dateLocale() 
                         })}
                       </TableCell>
                       <TableCell className="text-right">
@@ -1061,7 +1061,7 @@ export function TeamTab() {
                             variant="ghost"
                             size="icon-sm"
                             onClick={() => copyInviteLink(invite)}
-                            title="Copiar link de convite"
+                            title={t('Copiar link de convite')}
                           >
                             {copiedInviteId === invite.id ? (
                               <Check className="h-4 w-4 text-green-500" />
@@ -1074,7 +1074,7 @@ export function TeamTab() {
                             size="icon-sm"
                             onClick={() => handleResendInvite(invite)}
                             disabled={resendInvite.isPending}
-                            title="Reenviar convite (renova expiração)"
+                            title={t('Reenviar convite (renova expiração)')}
                           >
                             <RefreshCw className={`h-4 w-4 ${resendInvite.isPending ? 'animate-spin' : ''}`} />
                           </Button>
@@ -1083,7 +1083,7 @@ export function TeamTab() {
                             size="icon-sm"
                             onClick={() => handleCancelInvite(invite)}
                             disabled={cancelInvite.isPending}
-                            title="Cancelar convite"
+                            title={t('Cancelar convite')}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -1103,11 +1103,10 @@ export function TeamTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Limite de Utilizadores Atingido
+              {t('Limite de Utilizadores Atingido')}
             </DialogTitle>
             <DialogDescription>
-              A sua organização tem {memberCount} utilizadores ativos e o limite do plano é {maxUsers}.
-              Escolha a opção que compensa mais para o seu negócio.
+              {t('A sua organização tem {{n}} utilizadores ativos e o limite do plano é {{max}}. Escolha a opção que compensa mais para o seu negócio.', { n: memberCount, max: maxUsers })}
             </DialogDescription>
           </DialogHeader>
 
@@ -1117,12 +1116,12 @@ export function TeamTab() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">Utilizador Extra</span>
+                  <span className="font-medium text-sm">{t('Utilizador Extra')}</span>
                 </div>
-                <Badge variant="secondary">5€/mês</Badge>
+                <Badge variant="secondary">{t('5€/mês')}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Adiciona um utilizador extra ao plano atual. Pode cancelar quando quiser.
+                {t('Adiciona um utilizador extra ao plano atual. Pode cancelar quando quiser.')}
               </p>
               <Button
                 size="sm"
@@ -1142,15 +1141,15 @@ export function TeamTab() {
                     }
                   } catch (err: any) {
                     toast({
-                      title: 'Erro',
-                      description: err.message || 'Erro ao adquirir utilizador extra',
+                      title: t('Erro'),
+                      description: err.message || t('Erro ao adquirir utilizador extra'),
                       variant: 'destructive',
                     });
                   }
                 }}
               >
                 <Plus className="h-4 w-4" />
-                Adicionar 1 Utilizador Extra (5€/mês)
+                {t('Adicionar 1 Utilizador Extra (5€/mês)')}
               </Button>
             </div>
 
@@ -1161,17 +1160,17 @@ export function TeamTab() {
                   <div className="flex items-center gap-2">
                     <Crown className="h-4 w-4 text-amber-500" />
                     <span className="font-medium text-sm">
-                      Upgrade para {upgradeRecommendation.nextPlan.name}
+                      {t('Upgrade para {{plan}}', { plan: upgradeRecommendation.nextPlan.name })}
                     </span>
                   </div>
-                  <Badge>+{upgradeRecommendation.upgradeCost}€/mês</Badge>
+                  <Badge>{t('+{{cost}}€/mês', { cost: upgradeRecommendation.upgradeCost })}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Até {upgradeRecommendation.nextPlanUsers} utilizadores incluídos.
+                  {t('Até {{n}} utilizadores incluídos.', { n: upgradeRecommendation.nextPlanUsers })}
                   {upgradeRecommendation.upgradeCheaper
-                    ? ' Compensa mais que adicionar utilizadores extra avulso.'
+                    ? ` ${t('Compensa mais que adicionar utilizadores extra avulso.')}`
                     : upgradeRecommendation.seatsNeededToCover > 5
-                      ? ' Ótimo se precisar de crescer a equipa.'
+                      ? ` ${t('Ótimo se precisar de crescer a equipa.')}`
                       : ''}
                 </p>
                 <Button
@@ -1184,7 +1183,7 @@ export function TeamTab() {
                   }}
                 >
                   <ArrowRight className="h-4 w-4" />
-                  Fazer Upgrade para {upgradeRecommendation.nextPlan.name}
+                  {t('Fazer Upgrade para {{plan}}', { plan: upgradeRecommendation.nextPlan.name })}
                 </Button>
               </div>
             )}
@@ -1195,12 +1194,9 @@ export function TeamTab() {
                 <div className="flex items-start gap-2">
                   <Lightbulb className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-emerald-700">Recomendação inteligente</p>
+                    <p className="text-xs font-medium text-emerald-700">{t('Recomendação inteligente')}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Fazer upgrade para {upgradeRecommendation.nextPlan.name} (+{upgradeRecommendation.upgradeCost}€/mês)
-                      fica mais barato que adicionar {upgradeRecommendation.seatsNeededToCover} utilizadores extra
-                      ({upgradeRecommendation.seatsNeededToCover} × 5€ = {upgradeRecommendation.extraCostForSameUsers}€/mês).
-                      E ainda ganha mais funcionalidades.
+                      {t('Fazer upgrade para {{plan}} (+{{cost}}€/mês) fica mais barato que adicionar {{n}} utilizadores extra ({{n}} × 5€ = {{total}}€/mês). E ainda ganha mais funcionalidades.', { plan: upgradeRecommendation.nextPlan.name, cost: upgradeRecommendation.upgradeCost, n: upgradeRecommendation.seatsNeededToCover, total: upgradeRecommendation.extraCostForSameUsers })}
                     </p>
                   </div>
                 </div>
@@ -1210,20 +1206,20 @@ export function TeamTab() {
             {/* Current usage summary */}
             <div className="text-xs text-muted-foreground border-t pt-3">
               <p>
-                <span className="font-medium">Plano atual:</span>{' '}
+                <span className="font-medium">{t('Plano atual:')}</span>{' '}
                 {subscriptionStatus?.plan_id ? STRIPE_PLANS.find(p => p.id === subscriptionStatus.plan_id)?.name ?? subscriptionStatus.plan_id : '—'}{' '}
-                ({baseUsers} utilizadores incluídos
-                {extraSeats > 0 ? ` + ${extraSeats} extra` : ''})
+                ({t('{{n}} utilizadores incluídos', { n: baseUsers })}
+                {extraSeats > 0 ? ` + ${t('{{n}} extra', { n: extraSeats })}` : ''})
               </p>
               <p className="mt-0.5">
-                <span className="font-medium">Utilizadores ativos:</span> {memberCount} de {maxUsers}
+                <span className="font-medium">{t('Utilizadores ativos:')}</span> {t('{{n}} de {{max}}', { n: memberCount, max: maxUsers })}
               </p>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1233,20 +1229,19 @@ export function TeamTab() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar acesso</AlertDialogTitle>
+            <AlertDialogTitle>{t('Eliminar acesso')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar o acesso de <strong>{memberToDelete?.full_name}</strong>? 
-              Esta ação é irreversível. O colaborador será removido da organização e não poderá mais iniciar sessão.
+              {t('Tem a certeza que deseja eliminar o acesso de {{name}}? Esta ação é irreversível. O colaborador será removido da organização e não poderá mais iniciar sessão.', { name: memberToDelete?.full_name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmDeleteMember}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {manageTeamMember.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Eliminar
+              {t('Eliminar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

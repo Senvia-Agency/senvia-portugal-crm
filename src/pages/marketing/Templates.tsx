@@ -20,6 +20,7 @@ import { usePersistedState } from "@/hooks/usePersistedState";
 import { useEmailTemplateCategories } from "@/hooks/useEmailTemplateCategories";
 import { normalizeString } from "@/lib/utils";
 import type { EmailTemplate } from "@/types/marketing";
+import { useLanguage } from "@/i18n";
 
 const ALL_CATEGORIES = "__all__";
 
@@ -29,6 +30,7 @@ export default function Templates() {
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [sendingTemplate, setSendingTemplate] = useState<EmailTemplate | null>(null);
   const { data: templates, isLoading } = useEmailTemplates();
+  const { t } = useLanguage();
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = usePersistedState("templates-category-v1", ALL_CATEGORIES);
@@ -55,17 +57,17 @@ export default function Templates() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Link to="/marketing">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="back" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <Mail className="h-5 w-5 shrink-0 text-primary" />
-                Templates de Email
+                {t("Templates de Email")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Crie templates reutilizáveis para as suas campanhas
+                {t("Crie templates reutilizáveis para as suas campanhas")}
               </p>
             </div>
           </div>
@@ -73,11 +75,11 @@ export default function Templates() {
             {/* Categories are managed here, beside the templates they sort. */}
             <Button variant="outline" onClick={() => setCategoriesOpen(true)}>
               <Tags className="mr-2 h-4 w-4" />
-              Categorias
+              {t("Categorias")}
             </Button>
             <Button onClick={() => setCreateModalOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Novo Template
+              {t("Novo Template")}
             </Button>
           </div>
         </div>
@@ -89,18 +91,18 @@ export default function Templates() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Pesquisar por nome ou assunto..."
+              placeholder={t("Pesquisar por nome ou assunto...")}
               className="pl-9"
-              aria-label="Pesquisar templates"
+              aria-label={t("Pesquisar templates")}
             />
           </div>
 
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="sm:w-56" aria-label="Filtrar por categoria">
+            <SelectTrigger className="sm:w-56" aria-label={t("Filtrar por categoria")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_CATEGORIES}>Todas as categorias</SelectItem>
+              <SelectItem value={ALL_CATEGORIES}>{t("Todas as categorias")}</SelectItem>
               {(categories ?? []).map((item) => (
                 <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
               ))}
@@ -114,14 +116,14 @@ export default function Templates() {
               className="shrink-0"
             >
               <X className="mr-2 h-4 w-4" />
-              Limpar
+              {t("Limpar")}
             </Button>
           )}
         </div>
 
         {filtering && !isLoading && (
           <p className="-mt-3 text-sm text-muted-foreground">
-            {filtered.length} de {templates?.length ?? 0} templates
+            {t("{{n}} de {{total}} templates", { n: filtered.length, total: templates?.length ?? 0 })}
           </p>
         )}
 
@@ -137,9 +139,9 @@ export default function Templates() {
         <Dialog open={categoriesOpen} onOpenChange={setCategoriesOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Categorias de templates</DialogTitle>
+              <DialogTitle>{t("Categorias de templates")}</DialogTitle>
               <DialogDescription>
-                Crie, renomeie ou remova categorias. Apagar uma nunca apaga templates.
+                {t("Crie, renomeie ou remova categorias. Apagar uma nunca apaga templates.")}
               </DialogDescription>
             </DialogHeader>
             <TemplateCategoriesManager />

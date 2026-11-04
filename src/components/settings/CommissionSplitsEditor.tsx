@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CommissionSplitRow } from './CommissionSplitRow';
 import type { CommissionSplit, TelecomTechnology } from '@/types/proposals';
+import { useLanguage } from '@/i18n';
 
 interface Member {
   user_id: string;
@@ -40,6 +41,7 @@ export function CommissionSplitsEditor({
   technologies,
   extraCards,
 }: CommissionSplitsEditorProps) {
+  const { t } = useLanguage();
   const addLine = () => {
     onCommit([...splits, { kind: 'user', type: 'fixed', value: 0 }]);
   };
@@ -57,16 +59,16 @@ export function CommissionSplitsEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">Quem recebe</Label>
+        <Label className="text-xs text-muted-foreground">{t('Quem recebe')}</Label>
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addLine}>
           <Plus className="h-3 w-3 mr-1" />
-          Adicionar
+          {t('Adicionar')}
         </Button>
       </div>
 
       {splits.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Sem comissão configurada para este produto.
+          {t('Sem comissão configurada para este produto.')}
         </p>
       ) : (
         <div className="space-y-2">
@@ -85,8 +87,7 @@ export function CommissionSplitsEditor({
           ))}
 
           <p className="text-[11px] text-muted-foreground">
-            Uma linha de perfil paga a uma pessoa só, o comercial que fez a venda, e apenas se ele
-            tiver esse perfil.
+            {t('Uma linha de perfil paga a uma pessoa só, o comercial que fez a venda, e apenas se ele tiver esse perfil.')}
           </p>
         </div>
       )}

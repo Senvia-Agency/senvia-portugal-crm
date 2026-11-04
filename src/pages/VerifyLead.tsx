@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2, MailCheck, MessageCircle, ShieldAlert } from 'lu
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/i18n';
 
 interface VerificationStatus {
   email_verified: boolean;
@@ -12,6 +13,7 @@ interface VerificationStatus {
 }
 
 export default function VerifyLead() {
+  const { t } = useLanguage();
   const [token, setToken] = useState('');
   const [status, setStatus] = useState<VerificationStatus | null>(null);
   const [error, setError] = useState('');
@@ -77,51 +79,51 @@ export default function VerifyLead() {
                 : error ? <ShieldAlert className="h-7 w-7 text-destructive" />
                   : <MailCheck className="h-7 w-7 text-primary" />}
           </div>
-          <CardTitle>{completed ? 'Contacto confirmado' : 'Confirmação de contacto'}</CardTitle>
+          <CardTitle>{completed ? t('Contacto confirmado') : t('Confirmação de contacto')}</CardTitle>
           <CardDescription>
             {completed
-              ? 'Obrigado. A sua mensagem foi recebida e entraremos em contacto.'
-              : 'Confirmamos o email e o número de WhatsApp antes de registar o pedido.'}
+              ? t('Obrigado. A sua mensagem foi recebida e entraremos em contacto.')
+              : t('Confirmamos o email e o número de WhatsApp antes de registar o pedido.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error && <p className="text-center text-sm text-destructive" role="alert">{error}</p>}
+          {error && <p className="text-center text-sm text-destructive" role="alert">{t(error)}</p>}
           {!completed && status && (
             <div className="space-y-3 rounded-lg border p-4">
               <p className="flex items-center gap-2 text-sm">
                 <MailCheck className={`h-4 w-4 ${emailVerified ? 'text-emerald-600' : 'text-muted-foreground'}`} />
-                Email {emailVerified ? 'confirmado' : 'por confirmar'}
+                {emailVerified ? t('Email confirmado') : t('Email por confirmar')}
               </p>
               <p className="flex items-center gap-2 text-sm">
                 <MessageCircle className={`h-4 w-4 ${whatsappVerified ? 'text-emerald-600' : 'text-muted-foreground'}`} />
-                WhatsApp {whatsappVerified ? 'confirmado' : 'por confirmar'}
+                {whatsappVerified ? t('WhatsApp confirmado') : t('WhatsApp por confirmar')}
               </p>
             </div>
           )}
           {!completed && !emailVerified && status && (
             <Button className="w-full" onClick={confirmEmail} disabled={isLoading || !token}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirmar o meu email
+              {t('Confirmar o meu email')}
             </Button>
           )}
           {!completed && emailVerified && status?.whatsapp_url && (
             <Button asChild className="w-full bg-[#25D366] text-white hover:bg-[#1fb85a]">
               <a href={status.whatsapp_url} target="_blank" rel="noreferrer">
-                <MessageCircle className="mr-2 h-4 w-4" /> Confirmar número no WhatsApp
+                <MessageCircle className="mr-2 h-4 w-4" /> {t('Confirmar número no WhatsApp')}
               </a>
             </Button>
           )}
           {!completed && emailVerified && (!whatsappVerified || !status?.completed) && (
             <Button variant="outline" className="w-full" onClick={refresh} disabled={isLoading || !token}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {whatsappVerified ? 'Concluir registo' : 'Já enviei a mensagem, verificar'}
+              {whatsappVerified ? t('Concluir registo') : t('Já enviei a mensagem, verificar')}
             </Button>
           )}
           {!completed && emailVerified && !whatsappVerified && !status?.whatsapp_url && !isLoading && !error && (
-            <p className="text-center text-sm text-muted-foreground">O WhatsApp de confirmação está temporariamente indisponível. Tenta novamente mais tarde.</p>
+            <p className="text-center text-sm text-muted-foreground">{t('O WhatsApp de confirmação está temporariamente indisponível. Tente novamente mais tarde.')}</p>
           )}
           {!emailVerified && !error && !isLoading && (
-            <p className="text-center text-sm text-muted-foreground">Clica no botão acima para confirmar que este email te pertence.</p>
+            <p className="text-center text-sm text-muted-foreground">{t('Clique no botão acima para confirmar que este email lhe pertence.')}</p>
           )}
         </CardContent>
       </Card>

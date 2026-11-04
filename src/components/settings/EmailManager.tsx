@@ -17,6 +17,7 @@ import {
 import { useUpdateChannelAssignment } from '@/hooks/useMessagingChannels';
 import { CollaboratorPicker } from './CollaboratorPicker';
 import { SignaturesTab, VacationTab } from './EmailExtrasTabs';
+import { useLanguage } from '@/i18n';
 
 // --- Form state ---
 
@@ -88,6 +89,7 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
   form: EmailFormState; setForm: (f: EmailFormState) => void; isEdit?: boolean; error?: string | null;
 }) {
   const update = (patch: Partial<EmailFormState>) => setForm({ ...form, ...patch });
+  const { t } = useLanguage();
 
   // 465 = SSL implícito (SMTPS), sempre. 587 = STARTTLS, e aí o valor é escolha.
   // O que se mostra tem de ser o que vai acontecer, não o que está gravado.
@@ -101,17 +103,17 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full bg-slate-400" />
-          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Identificação</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t('Identificação')}</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="em-label" className="text-sm font-medium">Nome da caixa</Label>
-            <Input id="em-label" placeholder="Ex: Suporte, Vendas" value={form.label}
+            <Label htmlFor="em-label" className="text-sm font-medium">{t('Nome da caixa')}</Label>
+            <Input id="em-label" placeholder={t('Ex: Suporte, Vendas')} value={form.label}
               onChange={(e) => update({ label: e.target.value })} autoComplete="new-password" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="em-email" className="text-sm font-medium">Endereço de email</Label>
-            <Input id="em-email" type="email" placeholder="suporte@empresa.com" value={form.email_address}
+            <Label htmlFor="em-email" className="text-sm font-medium">{t('Endereço de email')}</Label>
+            <Input id="em-email" type="email" placeholder={t('suporte@empresa.com')} value={form.email_address}
               onChange={(e) => update({ email_address: e.target.value, imap_login: e.target.value, smtp_login: e.target.value })}
               autoComplete="new-password" />
           </div>
@@ -122,19 +124,19 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full bg-blue-500" />
-          <span className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">IMAP — Receção de email</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">{t('IMAP — Receção de email')}</span>
         </div>
         <div className="rounded-xl bg-blue-500/5 border border-blue-500/20 p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 items-end">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Server className="h-3.5 w-3.5 text-blue-500" /> Servidor
+                <Server className="h-3.5 w-3.5 text-blue-500" /> {t('Servidor')}
               </Label>
-              <Input placeholder="imap.seudominio.com" value={form.imap_server}
+              <Input placeholder={t('imap.seudominio.com')} value={form.imap_server}
                 onChange={(e) => update({ imap_server: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Porta</Label>
+              <Label className="text-sm font-medium">{t('Porta')}</Label>
               <Input type="number" value={form.imap_port} onChange={(e) => update({ imap_port: e.target.value })} />
             </div>
             <div className="flex flex-col items-center gap-1 pb-1">
@@ -145,17 +147,17 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-blue-500" /> Utilizador
+                <Lock className="h-3.5 w-3.5 text-blue-500" /> {t('Utilizador', { context: 'settings' })}
               </Label>
-              <Input placeholder={form.email_address || 'utilizador@email.com'} value={form.imap_login}
+              <Input placeholder={form.email_address || t('utilizador@email.com')} value={form.imap_login}
                 onChange={(e) => update({ imap_login: e.target.value })} autoComplete="new-password" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-blue-500" /> Password
+                <Lock className="h-3.5 w-3.5 text-blue-500" /> {t('Password')}
               </Label>
               <PasswordInput value={form.imap_password} onChange={(v) => update({ imap_password: v })}
-                placeholder={isEdit ? '(manter a atual)' : 'App Password ou password de email'} />
+                placeholder={isEdit ? t('(manter a atual)') : t('App Password ou password de email')} />
             </div>
           </div>
         </div>
@@ -165,19 +167,19 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full bg-green-500" />
-          <span className="text-xs font-bold uppercase tracking-widest text-green-600 dark:text-green-400">SMTP — Envio de email</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-green-600 dark:text-green-400">{t('SMTP — Envio de email')}</span>
         </div>
         <div className="rounded-xl bg-green-500/5 border border-green-500/20 p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 items-end">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Server className="h-3.5 w-3.5 text-green-500" /> Servidor
+                <Server className="h-3.5 w-3.5 text-green-500" /> {t('Servidor')}
               </Label>
-              <Input placeholder="smtp.seudominio.com" value={form.smtp_server}
+              <Input placeholder={t('smtp.seudominio.com')} value={form.smtp_server}
                 onChange={(e) => update({ smtp_server: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Porta</Label>
+              <Label className="text-sm font-medium">{t('Porta')}</Label>
               <Input type="number" value={form.smtp_port} onChange={(e) => update({ smtp_port: e.target.value })} />
             </div>
             {/* A porta 465 é SSL implícito: não existe 465 sem SSL. O
@@ -198,23 +200,23 @@ function EmailForm({ form, setForm, isEdit = false, error }: {
           </div>
           {portaSmtpImplicita && (
             <p className="text-[11px] text-muted-foreground">
-              A porta 465 usa sempre SSL. Para escolher, muda para a porta 587 (STARTTLS).
+              {t('A porta 465 usa sempre SSL. Para escolher, muda para a porta 587 (STARTTLS).')}
             </p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-green-500" /> Utilizador
+                <Lock className="h-3.5 w-3.5 text-green-500" /> {t('Utilizador', { context: 'settings' })}
               </Label>
-              <Input placeholder={form.email_address || 'utilizador@email.com'} value={form.smtp_login}
+              <Input placeholder={form.email_address || t('utilizador@email.com')} value={form.smtp_login}
                 onChange={(e) => update({ smtp_login: e.target.value })} autoComplete="new-password" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-green-500" /> Password
+                <Lock className="h-3.5 w-3.5 text-green-500" /> {t('Password')}
               </Label>
               <PasswordInput value={form.smtp_password} onChange={(v) => update({ smtp_password: v })}
-                placeholder={isEdit ? '(manter a atual)' : 'App Password ou password de email'} />
+                placeholder={isEdit ? t('(manter a atual)') : t('App Password ou password de email')} />
             </div>
           </div>
         </div>
@@ -252,6 +254,7 @@ function EmailFullScreenEditor({
   const createChannel = useCreateEmailChannel();
   const updateChannel = useUpdateEmailChannel();
   const updateAssign = useUpdateChannelAssignment();
+  const { t } = useLanguage();
 
   const [form, setForm] = useState<EmailFormState>(() => isEdit ? formFromChannel(channel!) : emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
@@ -327,14 +330,14 @@ function EmailFullScreenEditor({
   };
 
   const TABS: TabDef[] = [
-    { key: 'config',     label: 'Configuração da conta', icon: Settings2,  desc: 'Servidor de email, credenciais IMAP e SMTP.' },
-    { key: 'team',       label: 'Colaboradores',          icon: UsersRound, desc: 'Quem vê e atende esta caixa no Inbox.' },
-    { key: 'signatures', label: 'Assinaturas',            icon: PenLine,    desc: 'Assinaturas incluídas no final das mensagens enviadas.' },
-    { key: 'vacation',   label: 'Resposta de férias',     icon: Plane,      desc: 'Resposta automática às mensagens recebidas durante um período.' },
+    { key: 'config',     label: t('Configuração da conta'), icon: Settings2,  desc: t('Servidor de email, credenciais IMAP e SMTP.') },
+    { key: 'team',       label: t('Colaboradores'),          icon: UsersRound, desc: t('Quem vê e atende esta caixa no Inbox.') },
+    { key: 'signatures', label: t('Assinaturas'),            icon: PenLine,    desc: t('Assinaturas incluídas no final das mensagens enviadas.') },
+    { key: 'vacation',   label: t('Resposta de férias'),     icon: Plane,      desc: t('Resposta automática às mensagens recebidas durante um período.') },
   ];
 
   const currentTab = TABS.find((t) => t.key === activeTab)!;
-  const displayName = form.label.trim() || (isEdit ? (channel!.label ?? 'Caixa de Email') : 'Nova Caixa');
+  const displayName = form.label.trim() || (isEdit ? (channel!.label ?? t('Caixa de Email')) : t('Nova Caixa'));
   const displayEmail = form.email_address.trim() || (isEdit ? (channel!.metadata?.email_address ?? '') : '');
 
   return (
@@ -342,12 +345,12 @@ function EmailFullScreenEditor({
 
       {/* Top bar */}
       <div className="flex items-center gap-3 px-6 h-14 border-b shrink-0 bg-muted/30">
-        <Button variant="ghost" size="sm" onClick={onDone} className="gap-1.5 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Voltar
+        <Button variant="back" size="sm" onClick={onDone} className="gap-1.5">
+          <ArrowLeft className="h-4 w-4" /> {t('Voltar')}
         </Button>
         <div className="h-5 w-px bg-border mx-1" />
         <span className="text-sm font-semibold">
-          {isEdit ? 'Editar caixa de email' : 'Nova caixa de email'}
+          {isEdit ? t('Editar caixa de email') : t('Nova caixa de email')}
         </span>
       </div>
 
@@ -364,12 +367,12 @@ function EmailFullScreenEditor({
               <p className="font-bold text-sm truncate">{displayName}</p>
               {displayEmail
                 ? <p className="text-xs text-muted-foreground mt-0.5 truncate">{displayEmail}</p>
-                : <p className="text-xs text-muted-foreground/50 mt-0.5 italic">email@empresa.com</p>
+                : <p className="text-xs text-muted-foreground/50 mt-0.5 italic">{t('email@empresa.com')}</p>
               }
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-0.5">
-            <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Secções</p>
+            <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('Secções')}</p>
             {TABS.map((t) => {
               const Icon = t.icon;
               return (
@@ -400,14 +403,14 @@ function EmailFullScreenEditor({
               <>
                 {isEdit && (
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Cor da caixa</Label>
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t('Cor da caixa')}</Label>
                     <div className="flex flex-wrap items-center gap-2">
                       {['#ef4444','#f97316','#f59e0b','#22c55e','#14b8a6','#3b82f6','#6366f1','#a855f7','#ec4899','#64748b'].map((c) => (
                         <button key={c} type="button"
                           onClick={() => { const next = localColor === c ? null : c; setLocalColor(next); updateAssign.mutate({ channelId: channel!.id, color: next }); }}
                           className={cn('h-6 w-6 rounded-full transition-transform hover:scale-110 ring-offset-background ring-offset-2',
                             localColor === c ? 'ring-2 ring-foreground scale-110' : '')}
-                          style={{ background: c }} title={localColor === c ? 'Remover cor' : c} />
+                          style={{ background: c }} title={localColor === c ? t('Remover cor') : c} />
                       ))}
                     </div>
                   </div>
@@ -425,19 +428,19 @@ function EmailFullScreenEditor({
                       value={localAttendants}
                       onChange={(next) => { setLocalAttendants(next); updateAssign.mutate({ channelId: channel!.id, assigned_user_ids: next }); }}
                       mode="multi"
-                      emptyHint="Vazio = todos os colaboradores vêem esta caixa." />
+                      emptyHint={t('Vazio = todos os colaboradores veem esta caixa.')} />
                   ) : (
                     <div className="rounded-xl border border-dashed p-8 text-center bg-muted/10">
                       <UsersRound className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-muted-foreground">Nenhum colaborador disponível</p>
-                      <p className="text-xs text-muted-foreground mt-1">Adiciona colaboradores na página de Equipa primeiro.</p>
+                      <p className="text-sm font-medium text-muted-foreground">{t('Nenhum colaborador disponível')}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t('Adiciona colaboradores na página de Equipa primeiro.')}</p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed p-8 text-center bg-muted/10">
                   <UsersRound className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Cria a caixa primeiro para poder atribuir colaboradores.</p>
+                  <p className="text-sm text-muted-foreground">{t('Cria a caixa primeiro para poder atribuir colaboradores.')}</p>
                 </div>
               )
             )}
@@ -448,7 +451,7 @@ function EmailFullScreenEditor({
               ) : (
                 <div className="rounded-xl border border-dashed p-8 text-center bg-muted/10">
                   <PenLine className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Cria a caixa primeiro para configurar assinaturas.</p>
+                  <p className="text-sm text-muted-foreground">{t('Cria a caixa primeiro para configurar assinaturas.')}</p>
                 </div>
               )
             )}
@@ -459,7 +462,7 @@ function EmailFullScreenEditor({
               ) : (
                 <div className="rounded-xl border border-dashed p-8 text-center bg-muted/10">
                   <Plane className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Cria a caixa primeiro para configurar a resposta de férias.</p>
+                  <p className="text-sm text-muted-foreground">{t('Cria a caixa primeiro para configurar a resposta de férias.')}</p>
                 </div>
               )
             )}
@@ -469,9 +472,9 @@ function EmailFullScreenEditor({
             <div className="border-t bg-muted/10 px-8 py-4 flex items-center gap-3 shrink-0">
               <Button onClick={handleSave} disabled={!canSubmit}>
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEdit ? 'Guardar alterações' : 'Criar caixa de email'}
+                {isEdit ? t('Guardar alterações') : t('Criar caixa de email')}
               </Button>
-              <Button variant="ghost" onClick={onDone}>Cancelar</Button>
+              <Button variant="ghost" onClick={onDone}>{t('Cancelar')}</Button>
             </div>
           )}
         </div>
@@ -520,6 +523,7 @@ export function EditEmailModal({
 export function EmailManager() {
   const { data: channels = [], isLoading } = useEmailChannels();
   const deleteChannel = useDeleteEmailChannel();
+  const { t } = useLanguage();
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [editingChannel, setEditingChannel] = useState<EmailChannel | null>(null);
 
@@ -531,7 +535,7 @@ export function EmailManager() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">A carregar...</span>
+        <span className="text-sm">{t('A carregar...')}</span>
       </div>
     );
   }
@@ -548,11 +552,10 @@ export function EmailManager() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Ligue caixas de email (IMAP/SMTP) para receber e responder emails diretamente no CRM.
-          Cada caixa é uma conta de email separada.
+          {t('Ligue caixas de email (IMAP/SMTP) para receber e responder emails diretamente no CRM. Cada caixa é uma conta de email separada.')}
         </p>
         <Button size="sm" onClick={openAdd} className="shrink-0 gap-1.5">
-          <Plus className="h-4 w-4" /> Adicionar Email
+          <Plus className="h-4 w-4" /> {t('Adicionar Email')}
         </Button>
       </div>
 
@@ -565,7 +568,7 @@ export function EmailManager() {
                   <Mail className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate">{ch.label ?? 'Email'}</p>
+                  <p className="font-bold text-sm truncate">{ch.label ?? t('Email')}</p>
                   <p className="text-xs text-muted-foreground truncate">{ch.metadata?.email_address ?? '—'}</p>
                 </div>
               </div>
@@ -575,7 +578,7 @@ export function EmailManager() {
               </div>
               <div className="flex items-center gap-2 px-4 py-3 mt-auto">
                 <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8" onClick={() => openEdit(ch)}>
-                  <Settings2 className="h-3.5 w-3.5" /> Editar
+                  <Settings2 className="h-3.5 w-3.5" /> {t('Editar')}
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -585,17 +588,16 @@ export function EmailManager() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Eliminar esta caixa?</AlertDialogTitle>
+                      <AlertDialogTitle>{t('Eliminar esta caixa?')}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        A caixa será removida do CRM. Os emails já recebidos ficam no histórico.
-                        Esta ação não pode ser anulada.
+                        {t('A caixa será removida do CRM. Os emails já recebidos ficam no histórico. Esta ação não pode ser anulada.')}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                       <AlertDialogAction onClick={() => deleteChannel.mutate(ch.id)}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        {deleteChannel.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Eliminar'}
+                        {deleteChannel.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('Eliminar')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -609,22 +611,21 @@ export function EmailManager() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 mx-auto mb-3">
             <Mail className="h-7 w-7 text-blue-500/60" />
           </div>
-          <p className="text-sm font-medium text-muted-foreground">Nenhuma caixa de email configurada</p>
-          <p className="text-xs text-muted-foreground mt-1">Clica em "Adicionar Email" para ligar a tua primeira caixa</p>
+          <p className="text-sm font-medium text-muted-foreground">{t('Nenhuma caixa de email configurada')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('Clica em "Adicionar Email" para ligar a tua primeira caixa')}</p>
         </div>
       )}
 
       <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compatibilidade</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Compatibilidade')}</p>
         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-          <li><strong>Gmail</strong> — requer Palavra-passe de App (não a password normal)</li>
-          <li><strong>Outlook / Office 365</strong> — requer IMAP ativado nas definições do Microsoft 365</li>
-          <li><strong>Exchange (local)</strong> — requer IMAP/SMTP ativado pelo administrador do servidor</li>
-          <li><strong>Zoho, Mailgun, Postmark, etc.</strong> — qualquer servidor IMAP/SMTP padrão</li>
+          <li><strong>Gmail</strong> — {t('requer Palavra-passe de App (não a password normal)')}</li>
+          <li><strong>Outlook / Office 365</strong> — {t('requer IMAP ativado nas definições do Microsoft 365')}</li>
+          <li><strong>{t('Exchange (local)')}</strong> — {t('requer IMAP/SMTP ativado pelo administrador do servidor')}</li>
+          <li><strong>{t('Zoho, Mailgun, Postmark, etc.')}</strong> — {t('qualquer servidor IMAP/SMTP padrão')}</li>
         </ul>
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          As credenciais são guardadas de forma segura e utilizadas pelo servidor para fazer polling IMAP.
-          Cada conta criada aqui equivale a uma caixa independente.
+          {t('As credenciais são guardadas de forma segura e utilizadas pelo servidor para fazer polling IMAP. Cada conta criada aqui equivale a uma caixa independente.')}
         </p>
       </div>
     </div>

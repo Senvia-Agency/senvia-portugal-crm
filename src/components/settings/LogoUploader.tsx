@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 interface LogoUploaderProps {
   value: string | null;
@@ -17,6 +18,7 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 export function LogoUploader({ value, onChange }: LogoUploaderProps) {
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -24,10 +26,10 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      return 'Tipo de ficheiro não suportado. Use PNG, JPG, WEBP, SVG ou GIF.';
+      return t('Tipo de ficheiro não suportado. Use PNG, JPG, WEBP, SVG ou GIF.');
     }
     if (file.size > MAX_SIZE) {
-      return 'Ficheiro demasiado grande. Máximo 50MB.';
+      return t('Ficheiro demasiado grande. Máximo 50MB.');
     }
     return null;
   };
@@ -52,8 +54,8 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
   const uploadFile = async (file: File) => {
     if (!organization?.id) {
       toast({
-        title: 'Erro',
-        description: 'Organização não encontrada.',
+        title: t('Erro'),
+        description: t('Organização não encontrada.'),
         variant: 'destructive',
       });
       return;
@@ -62,7 +64,7 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
     const error = validateFile(file);
     if (error) {
       toast({
-        title: 'Ficheiro inválido',
+        title: t('Ficheiro inválido'),
         description: error,
         variant: 'destructive',
       });
@@ -105,14 +107,14 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
       onChange(urlData.publicUrl);
 
       toast({
-        title: 'Logo carregado',
-        description: 'O logo foi carregado com sucesso.',
+        title: t('Logo carregado'),
+        description: t('O logo foi carregado com sucesso.'),
       });
     } catch (err) {
       console.error('Upload error:', err);
       toast({
-        title: 'Erro no upload',
-        description: 'Não foi possível carregar o ficheiro. Tente novamente.',
+        title: t('Erro no upload'),
+        description: t('Não foi possível carregar o ficheiro. Tente novamente.'),
         variant: 'destructive',
       });
     } finally {
@@ -159,8 +161,8 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
     await deleteOldLogo();
     onChange(null);
     toast({
-      title: 'Logo removido',
-      description: 'O logo foi removido com sucesso.',
+      title: t('Logo removido'),
+      description: t('O logo foi removido com sucesso.'),
     });
   };
 
@@ -185,9 +187,9 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Logo atual</p>
+              <p className="text-sm font-medium truncate">{t('Logo atual')}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Clique em substituir para carregar um novo
+                {t('Clique em substituir para carregar um novo')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -201,7 +203,7 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
                 {isUploading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  'Substituir'
+                  t('Substituir')
                 )}
               </Button>
               <Button
@@ -234,7 +236,7 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
           {isUploading ? (
             <>
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-              <p className="text-sm font-medium">A carregar...</p>
+              <p className="text-sm font-medium">{t('A carregar...')}</p>
               <div className="w-full max-w-[200px] mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-primary transition-all duration-300"
@@ -252,13 +254,13 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
                 )}
               </div>
               <p className="text-sm font-medium">
-                {isDragging ? 'Largue aqui' : 'Arraste uma imagem'}
+                {isDragging ? t('Largue aqui') : t('Arraste uma imagem')}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                ou clique para selecionar
+                {t('ou clique para selecionar')}
               </p>
               <p className="text-xs text-muted-foreground/70 mt-3">
-                PNG, JPG, WEBP, SVG, GIF • Máx. 50MB
+                {t('PNG, JPG, WEBP, SVG, GIF • Máx. 50MB')}
               </p>
             </>
           )}

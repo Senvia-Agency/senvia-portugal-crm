@@ -77,6 +77,8 @@ No test suite exists. Verify changes with `npx tsc --noEmit --skipLibCheck` befo
 
 **Hooks pattern:** Each hook file exports query hooks (`useExpenses`) and mutation hooks (`useCreateExpense`, `useUpdateExpense`, `useDeleteExpense`). Queries use `useQuery`, mutations use `useMutation` with `queryClient.invalidateQueries` on success.
 
+**Languages (i18n):** `src/i18n` (i18next). The key is the pt-PT text itself: write UI text in pt-PT as before, wrap it with `t("…")` (`useLanguage()` in components, `tr()` outside React) and add the PT-BR and English versions to `src/i18n/pt-BR.ts` and `src/i18n/en.ts`. A missing key shows the pt-PT text. Dates use `dateLocale()` / `intlLocale()`. Dictionaries live in `src/i18n/modules/<module>.ts` (settings, finance, sales, leads, workplace, shared), merged automatically; check coverage with a script that compares every `t("…")` literal with the dictionaries. Whole system translated (pt-PT, pt-BR, en) except text sent to customers (emails, PDFs, WhatsApp) and text saved in the database.
+
 **Filter persistence:** UI filters use `usePersistedState` hook (localStorage wrapper) with versioned keys like `payments-status-v1`.
 
 **Commit convention:** Portuguese, prefixed: `Fix:`, `Refactor:`, `Hotfix vX.Y.Z:`. Always include `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`.

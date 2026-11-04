@@ -170,3 +170,48 @@ test('a missing binding for a known SENVIA subscription requests a retry instead
  await assert.rejects(handleReferralEvent(f.db,f.stripe,f.event('invoice.paid')),/Billing binding missing/);
  assert.equal(f.calls.filter(c=>c[0]==='qualify_referral').length,0);
 });
+// Annual plans: a ledger whose rows the queries really read and write.
+function annualFixture(subPatch:any={}){
+ const calls:any[]=[];
+ const rows:any[]=[{id:'22222222-2222-4222-8222-222222222222',organization_id:'org1',referred_organization_id:'org2',qualified_at:'2026-11-01T00:00:00Z',redemption_invoice_id:null,redeemed_at:null,revoked_at:null,stripe_coupon_id:'senvia-referral-month-22222222-2222-4222-8222-222222222222'}];
+ const periodEnd=Date.UTC(2027,0,31)/1000;
+ const sub:any={id:'sub1',customer:'cus1',status:'active',metadata:{},discounts:[],items:{data:[{current_period_end:periodEnd,price:{product:'prod_U0wAc7Tuy8w6gA',recurring:{interval:'year',interval_count:1}}}]},...subPatch};
+ const db:any={rpc:async()=>({data:null}),from:(table:string)=>{
+  const filters:any[]=[];let patch:any=null;
+  const match=(r:any)=>filters.every(([k,v])=>r[k]===v);
+  const q:any={select:()=>q,update:(v:any)=>{patch=v;return q;},eq:(k:string,v:any)=>{filters.push([k,v]);return q;},is:(k:string,v:any)=>{filters.push([k,v]);return q;},
+   single:async()=>({data:{id:'org1',billing_exempt:false}}),
+   maybeSingle:async()=>({data:table==='organization_billing_accounts'?{stripe_customer_id:'cus1',stripe_subscription_id:'sub1'}:null}),
+   then:(resolve:any)=>{
+    if(table!=='organization_referrals'){if(patch)calls.push([table,patch]);return Promise.resolve({data:[],error:null}).then(resolve);}
+    const hit=rows.filter(match);if(patch){hit.forEach(r=>Object.assign(r,patch));calls.push(['ledger',patch]);}
+    return Promise.resolve({data:hit.map(r=>({...r})),error:null}).then(resolve);
+   }};return q;
+ }};
+ const stripe:any={prices:{retrieve:async()=>({product:'prod_seats'})},coupons:{retrieve:async()=>({})},subscriptions:{retrieve:async()=>sub,update:async(_:string,v:any)=>{
+  calls.push(['sub_update',v]);Object.assign(sub,{status:'trialing',trial_end:v.trial_end,metadata:{...sub.metadata,...v.metadata}});return sub;
+ }}};
+ return {db,stripe,calls,rows,sub};
+}
+test('annual plan: an earned month pushes the renewal one month later and is spent at once',async()=>{
+ const f=annualFixture();await prepareReferralMonths(f.db,f.stripe,'org1');
+ const updates=f.calls.filter(c=>c[0]==='sub_update');assert.equal(updates.length,1);
+ assert.equal(updates[0][1].trial_end,Date.UTC(2027,1,28)/1000);assert.equal(updates[0][1].proration_behavior,'none');
+ assert.equal(f.rows[0].redemption_invoice_id,'annual-extension:'+f.rows[0].id);assert.ok(f.rows[0].redeemed_at);
+ await prepareReferralMonths(f.db,f.stripe,'org1');assert.equal(f.calls.filter(c=>c[0]==='sub_update').length,1);
+});
+test('annual plan: a second month extends from the already-pushed renewal',async()=>{
+ const f=annualFixture({status:'trialing',trial_end:Date.UTC(2027,1,28)/1000,metadata:{senvia_annual_reward:'older'}});
+ await prepareReferralMonths(f.db,f.stripe,'org1');
+ assert.equal(f.calls.find(c=>c[0]==='sub_update')[1].trial_end,Date.UTC(2027,2,28)/1000);
+});
+test('annual plan: a run that died after Stripe finishes the ledger without a second month',async()=>{
+ const f=annualFixture({metadata:{senvia_annual_reward:'22222222-2222-4222-8222-222222222222'}});
+ f.rows[0].redemption_invoice_id='annual-extension:'+f.rows[0].id;
+ await prepareReferralMonths(f.db,f.stripe,'org1');
+ assert.equal(f.calls.filter(c=>c[0]==='sub_update').length,0);assert.ok(f.rows[0].redeemed_at);
+});
+test('annual plan: a cancelling subscription keeps the month for later',async()=>{
+ const f=annualFixture({cancel_at_period_end:true});await prepareReferralMonths(f.db,f.stripe,'org1');
+ assert.equal(f.calls.filter(c=>c[0]==='sub_update').length,0);assert.equal(f.rows[0].redeemed_at,null);assert.equal(f.rows[0].redemption_invoice_id,null);
+});

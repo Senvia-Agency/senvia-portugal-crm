@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCreateBankAccount } from '@/hooks/useBankAccounts';
 import { parseLocalizedNumber, formatIban, cleanIban } from '@/lib/format';
+import { useLanguage } from '@/i18n';
 
 interface Props {
   open: boolean;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function CreateBankAccountModal({ open, onOpenChange }: Props) {
+  const { t } = useLanguage();
   const create = useCreateBankAccount();
   const [name, setName] = useState('');
   const [bankName, setBankName] = useState('');
@@ -48,22 +50,22 @@ export function CreateBankAccountModal({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova Conta Corrente</DialogTitle>
+          <DialogTitle>{t("Nova Conta Corrente")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Nome da Conta *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Conta Principal" required />
+            <Label>{t("Nome da Conta *")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Ex: Conta Principal")} required />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Banco</Label>
+              <Label>{t("Banco")}</Label>
               <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Ex: Millennium BCP" />
             </div>
             <div className="space-y-2">
-              <Label>Nome do Titular</Label>
-              <Input value={holderName} onChange={(e) => setHolderName(e.target.value)} placeholder="Nome do titular" />
+              <Label>{t("Nome do Titular")}</Label>
+              <Input value={holderName} onChange={(e) => setHolderName(e.target.value)} placeholder={t("Nome do titular")} />
             </div>
           </div>
 
@@ -74,21 +76,21 @@ export function CreateBankAccountModal({ open, onOpenChange }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Saldo Inicial (€)</Label>
+              <Label>{t("Saldo Inicial (€)")}</Label>
               <Input value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} placeholder="0,00" />
             </div>
             <div className="flex items-end pb-2">
               <div className="flex items-center gap-2">
                 <Checkbox id="is-default" checked={isDefault} onCheckedChange={(c) => setIsDefault(c === true)} />
-                <Label htmlFor="is-default" className="cursor-pointer">Conta por defeito</Label>
+                <Label htmlFor="is-default" className="cursor-pointer">{t("Conta por defeito")}</Label>
               </div>
             </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("Cancelar")}</Button>
             <Button type="submit" disabled={create.isPending || !name.trim()}>
-              {create.isPending ? 'A criar...' : 'Criar Conta'}
+              {create.isPending ? t('A criar...') : t('Criar Conta')}
             </Button>
           </DialogFooter>
         </form>

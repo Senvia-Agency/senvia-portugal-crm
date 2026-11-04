@@ -1,6 +1,7 @@
 import { CircleDot, Pause, PencilLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AutomationFlowStatus } from '@/types/automations';
+import { useLanguage } from '@/i18n';
 
 const STATUS_META: Record<AutomationFlowStatus, { label: string; className: string; icon: typeof CircleDot }> = {
   draft: { label: 'Rascunho', className: 'bg-muted text-muted-foreground', icon: PencilLine },
@@ -15,6 +16,7 @@ export function FlowStatusPill({
   status: AutomationFlowStatus;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   const Icon = meta.icon;
 
@@ -27,7 +29,7 @@ export function FlowStatusPill({
       )}
     >
       <Icon className="h-3.5 w-3.5" />
-      {meta.label}
+      {t(meta.label)}
     </span>
   );
 }

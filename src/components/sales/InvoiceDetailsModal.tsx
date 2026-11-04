@@ -31,6 +31,7 @@ import { openPdfInNewTab } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmailTemplateGate } from "@/components/marketing/EmailTemplateGate";
 import { getFiscalEmailTrigger } from "@/lib/email-template-triggers";
+import { useLanguage } from "@/i18n";
 
 interface InvoiceDetailsModalProps {
   open: boolean;
@@ -76,6 +77,7 @@ export function InvoiceDetailsModal({
   creditNoteId,
   initialDetails,
 }: InvoiceDetailsModalProps) {
+  const { t } = useLanguage();
   const { organization } = useAuth();
   const { data: details, isLoading, error } = useInvoiceDetails(
     { documentId, invoiceId, documentType, organizationId },
@@ -104,7 +106,7 @@ export function InvoiceDetailsModal({
             include_pdf: true,
           },
         });
-        if (response.error) throw new Error(response.error.message || "Erro ao obter PDF");
+        if (response.error) throw new Error(response.error.message || t("Erro ao obter PDF"));
         if (response.data?.error) throw new Error(response.data.error);
         pdfUrl = response.data?.pdf_signed_url || null;
         pdfPath = response.data?.pdf_url || null;
@@ -112,9 +114,9 @@ export function InvoiceDetailsModal({
 
       if (pdfUrl) window.open(pdfUrl, '_blank');
       else if (pdfPath) await openPdfInNewTab(pdfPath);
-      else toast.error("PDF não disponível");
+      else toast.error(t("PDF não disponível"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao abrir PDF");
+      toast.error(error instanceof Error ? error.message : t("Erro ao abrir PDF"));
     }
     finally { setViewingPdf(false); }
   };
@@ -136,8 +138,8 @@ export function InvoiceDetailsModal({
     && !isVendus && documentId != null;
   const canSendFiscalEmail = documentId != null || !!invoiceId;
   const typeLabel = documentType === 'receipt' && isVendus
-    ? 'Recibo (RG)'
-    : TYPE_LABELS[documentType] || 'Documento';
+    ? t("Recibo (RG)")
+    : t(TYPE_LABELS[documentType]) || t("Documento");
 
   return (
     <>
@@ -145,11 +147,11 @@ export function InvoiceDetailsModal({
          <DialogContent className="max-w-2xl max-h-[95dvh] p-0 gap-0">
           <DialogHeader className="px-6 py-4 border-b border-border/50">
             <DialogTitle className="flex items-center gap-2 flex-wrap">
-              <span>{typeLabel} n.º {ref}</span>
-              {isVendus && <Badge variant="outline">Vendus</Badge>}
+              <span>{t("{{type}} n.º {{ref}}", { type: typeLabel, ref })}</span>
+              {isVendus && <Badge variant="outline">{t("Vendus")}</Badge>}
               {statusInfo && (
                 <Badge variant="outline" className={statusInfo.className}>
-                  {isKeyInvoice && isCancelled ? 'Com nota de crédito' : isKeyInvoice && details.status === 'final' ? 'Emitida' : statusInfo.label}
+                  {isKeyInvoice && isCancelled ? t("Com nota de crédito") : isKeyInvoice && details.status === 'final' ? t("Emitida") : t(statusInfo.label)}
                 </Badge>
               )}
             </DialogTitle>
@@ -166,7 +168,7 @@ export function InvoiceDetailsModal({
             </div>
           ) : error ? (
             <div className="text-center py-8 px-6">
-              <p className="text-sm text-destructive mb-2">Erro ao carregar detalhes</p>
+              <p className="text-sm text-destructive mb-2">{t("Erro ao carregar detalhes")}</p>
               <p className="text-xs text-muted-foreground">{(error as Error).message}</p>
             </div>
           ) : details ? (
@@ -176,7 +178,7 @@ export function InvoiceDetailsModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {details.owner && (
                       <div className="space-y-1 p-3 rounded-lg bg-muted/30">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Emitente</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("Emitente")}</p>
                         <p className="text-sm font-medium">{details.owner.name}</p>
                         {details.owner.address && <p className="text-xs text-muted-foreground">{details.owner.address}</p>}
                         {(details.owner.postal_code || details.owner.city) && (
@@ -184,13 +186,13 @@ export function InvoiceDetailsModal({
                             {[details.owner.postal_code, details.owner.city].filter(Boolean).join(', ')}
                           </p>
                         )}
-                        {details.owner.fiscal_id && <p className="text-xs text-muted-foreground">NIF: {details.owner.fiscal_id}</p>}
+                        {details.owner.fiscal_id && <p className="text-xs text-muted-foreground">{t("NIF:")} {details.owner.fiscal_id}</p>}
                         {details.owner.email && <p className="text-xs text-muted-foreground">{details.owner.email}</p>}
                       </div>
                     )}
                     {details.client && (
                       <div className="space-y-1 p-3 rounded-lg bg-muted/30">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("Cliente")}</p>
                         <p className="text-sm font-medium">{details.client.name}</p>
                         {details.client.address && <p className="text-xs text-muted-foreground">{details.client.address}</p>}
                         {(details.client.postal_code || details.client.city) && (
@@ -198,7 +200,7 @@ export function InvoiceDetailsModal({
                             {[details.client.postal_code, details.client.city].filter(Boolean).join(', ')}
                           </p>
                         )}
-                        {details.client.fiscal_id && <p className="text-xs text-muted-foreground">NIF: {details.client.fiscal_id}</p>}
+                        {details.client.fiscal_id && <p className="text-xs text-muted-foreground">{t("NIF:")} {details.client.fiscal_id}</p>}
                         {details.client.country && <p className="text-xs text-muted-foreground">{details.client.country}</p>}
                       </div>
                     )}
@@ -210,25 +212,25 @@ export function InvoiceDetailsModal({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                     {details.date && (
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Data</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t("Data")}</p>
                         <p className="font-medium text-xs">{details.date}</p>
                       </div>
                     )}
                     {details.due_date && details.due_date !== details.date && (
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Vencimento</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t("Vencimento")}</p>
                         <p className="font-medium text-xs">{details.due_date}</p>
                       </div>
                     )}
                     {details.client?.fiscal_id && (
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Contribuinte</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t("Contribuinte")}</p>
                         <p className="font-mono font-medium text-xs">{details.client.fiscal_id}</p>
                       </div>
                     )}
                     {details.atcud && (
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">ATCUD</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{t("ATCUD")}</p>
                         <p className="font-mono font-medium text-xs">{details.atcud}</p>
                       </div>
                     )}
@@ -239,17 +241,17 @@ export function InvoiceDetailsModal({
                   {/* Items Table */}
                   {details.items.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Itens</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("Itens")}</p>
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="text-xs">Descrição</TableHead>
-                              <TableHead className="text-xs text-right">Preço</TableHead>
-                              <TableHead className="text-xs text-right">Qtd</TableHead>
-                              <TableHead className="text-xs text-right">IVA</TableHead>
-                              <TableHead className="text-xs text-right">Dsc</TableHead>
-                              <TableHead className="text-xs text-right">Total</TableHead>
+                              <TableHead className="text-xs">{t("Descrição")}</TableHead>
+                              <TableHead className="text-xs text-right">{t("Preço")}</TableHead>
+                              <TableHead className="text-xs text-right">{t("Qtd")}</TableHead>
+                              <TableHead className="text-xs text-right">{t("IVA")}</TableHead>
+                              <TableHead className="text-xs text-right">{t("Dsc")}</TableHead>
+                              <TableHead className="text-xs text-right">{t("Total")}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -279,14 +281,14 @@ export function InvoiceDetailsModal({
                   {/* Tax Summary */}
                   {details.tax_summary && details.tax_summary.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Impostos</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("Impostos")}</p>
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="text-xs">Imposto</TableHead>
-                            <TableHead className="text-xs text-right">Taxa</TableHead>
-                            <TableHead className="text-xs text-right">Incidência</TableHead>
-                            <TableHead className="text-xs text-right">Valor</TableHead>
+                            <TableHead className="text-xs">{t("Imposto")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("Taxa")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("Incidência")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("Valor")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -307,40 +309,40 @@ export function InvoiceDetailsModal({
 
                   {/* Financial Summary */}
                   <div className="space-y-1.5 p-4 rounded-lg bg-muted/30">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Sumário</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t("Sumário")}</p>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Soma</span>
+                      <span className="text-muted-foreground">{t("Soma")}</span>
                       <span>{formatCurrency(details.sum)}</span>
                     </div>
                     {details.discount > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Desconto</span>
+                        <span className="text-muted-foreground">{t("Desconto")}</span>
                         <span>-{formatCurrency(details.discount)}</span>
                       </div>
                     )}
                     {(details.retention || 0) > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Retenção</span>
+                        <span className="text-muted-foreground">{t("Retenção")}</span>
                         <span>-{formatCurrency(details.retention)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">S/ IVA</span>
+                      <span className="text-muted-foreground">{t("S/ IVA")}</span>
                       <span>{formatCurrency(details.before_taxes)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">IVA</span>
+                      <span className="text-muted-foreground">{t("IVA")}</span>
                       <span>{formatCurrency(details.taxes)}</span>
                     </div>
                     {details.tax_exemption && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Isenção</span>
+                        <span className="text-muted-foreground">{t("Isenção")}</span>
                         <span className="text-xs text-right max-w-[60%]">{details.tax_exemption}</span>
                       </div>
                     )}
                     <Separator className="my-2" />
                     <div className="flex justify-between font-semibold text-base">
-                      <span>Total</span>
+                      <span>{t("Total")}</span>
                       <span className="text-primary">{formatCurrency(details.total)}</span>
                     </div>
                   </div>
@@ -348,7 +350,7 @@ export function InvoiceDetailsModal({
                   {/* Observations */}
                   {details.observations && (
                     <div className="space-y-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observações</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("Observações")}</p>
                       <p className="text-xs text-muted-foreground whitespace-pre-wrap">{details.observations}</p>
                     </div>
                   )}
@@ -356,7 +358,7 @@ export function InvoiceDetailsModal({
                   {/* Cancel reason */}
                   {details.cancel_reason && (
                     <div className="space-y-1 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Razão de cancelamento</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">{t("Razão de cancelamento")}</p>
                       <p className="text-xs text-destructive/80">{details.cancel_reason}</p>
                     </div>
                   )}
@@ -364,7 +366,7 @@ export function InvoiceDetailsModal({
                   {/* QR Code */}
                   {details.qr_code_url && (
                     <div className="flex justify-center">
-                      <img src={details.qr_code_url} alt="QR Code" className="h-24 w-24 rounded" />
+                      <img src={details.qr_code_url} alt={t("QR Code")} className="h-24 w-24 rounded" />
                     </div>
                   )}
 
@@ -378,13 +380,13 @@ export function InvoiceDetailsModal({
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" onClick={handleViewPdf} disabled={viewingPdf}>
                   {viewingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
-                  Ver PDF
+                  {t("Ver PDF")}
                 </Button>
                 {canSendFiscalEmail && (
           <EmailTemplateGate triggerType={getFiscalEmailTrigger(documentType)} className="w-full">
             <Button variant="outline" size="sm" className="w-full" onClick={() => setEmailOpen(true)}>
                       <Mail className="h-3.5 w-3.5 mr-1.5" />
-                      Enviar
+                      {t("Enviar")}
                     </Button>
                   </EmailTemplateGate>
                 )}
@@ -393,12 +395,12 @@ export function InvoiceDetailsModal({
                     {!isKeyInvoice && !creditNoteId && (
                       <Button variant="outline" size="sm" onClick={() => setCreditNoteOpen(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
-                        Nota Crédito
+                        {t("Nota Crédito")}
                       </Button>
                     )}
                     <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}>
                       <Ban className="h-3.5 w-3.5 mr-1.5" />
-                      {isKeyInvoice ? 'Nota de Crédito' : 'Anular'}
+                      {isKeyInvoice ? t("Nota de Crédito") : t("Anular")}
                     </Button>
                   </>
                 )}

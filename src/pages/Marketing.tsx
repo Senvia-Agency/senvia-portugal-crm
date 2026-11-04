@@ -2,6 +2,7 @@ import { Mail, Send, BarChart3, ArrowRight, Users, Megaphone } from "lucide-reac
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { useLanguage } from "@/i18n";
 
 const modules = [
   {
@@ -51,9 +52,10 @@ const modules = [
 ];
 
 export default function Marketing() {
+  const { t } = useLanguage();
   return (
     <div className="space-y-6 p-4 md:p-6 pb-nav-safe md:pb-6">
-      <PageHeader icon={Megaphone} title="Marketing" subtitle="Gestão de templates de email e campanhas de marketing" />
+      <PageHeader icon={Megaphone} title={t("Marketing")} subtitle={t("Gestão de templates de email e campanhas de marketing")} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => (
@@ -71,12 +73,12 @@ export default function Marketing() {
                   <module.icon className={cn("h-6 w-6", module.iconColor)} />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
-                  <h3 className="font-bold text-sm">{module.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{module.description}</p>
+                  <h3 className="font-bold text-sm">{t(module.title)}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t(module.description)}</p>
                 </div>
               </div>
               <div className="flex items-center justify-end gap-1 px-5 py-3 border-t text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                Abrir <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                {t("Abrir")} <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </Link>
           ) : (
@@ -89,12 +91,12 @@ export default function Marketing() {
                   <module.icon className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
-                  <h3 className="font-bold text-sm">{module.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{module.description}</p>
+                  <h3 className="font-bold text-sm">{t(module.title)}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t(module.description)}</p>
                 </div>
               </div>
               <div className="flex items-center justify-end px-5 py-3 border-t">
-                <span className="text-[11px] font-semibold text-muted-foreground bg-muted rounded-full px-2.5 py-0.5">Em breve</span>
+                <span className="text-[11px] font-semibold text-muted-foreground bg-muted rounded-full px-2.5 py-0.5">{t("Em breve")}</span>
               </div>
             </div>
           )

@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTeamMembers } from '@/hooks/useTeam';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useLanguage } from "@/i18n";
 
 interface SellerSelectProps {
   /** Persisted seller. A null value means the sale has no seller assigned. */
@@ -19,6 +20,7 @@ interface SellerSelectProps {
  * admin instead. Only admins see the selector; everyone else sees the name.
  */
 export function SellerSelect({ value, onChange, createdByName, className }: SellerSelectProps) {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { isAdmin } = usePermissions();
   const { data: members = [], isLoading } = useTeamMembers();
@@ -30,9 +32,9 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
   if (!isAdmin) {
     return (
       <div className={className}>
-        <Label>Vendedor</Label>
+        <Label>{t("Vendedor")}</Label>
         <p className="mt-2 text-sm text-muted-foreground">
-          {selected?.full_name || createdByName || 'Sem vendedor'}
+          {selected?.full_name || createdByName || t("Sem vendedor")}
         </p>
       </div>
     );
@@ -40,7 +42,7 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
 
   return (
     <div className={className}>
-      <Label htmlFor="seller-select">Vendedor</Label>
+      <Label htmlFor="seller-select">{t("Vendedor")}</Label>
       <Select
         // The member list loads asynchronously; if the Select first mounts with
         // a value before its matching item exists, Radix shows a blank trigger
@@ -52,19 +54,19 @@ export function SellerSelect({ value, onChange, createdByName, className }: Sell
         disabled={isLoading}
       >
         <SelectTrigger id="seller-select">
-          <SelectValue placeholder={isLoading ? 'A carregar…' : 'Selecionar vendedor'} />
+          <SelectValue placeholder={isLoading ? t("A carregar…") : t("Selecionar vendedor")} />
         </SelectTrigger>
         <SelectContent>
           {activeMembers.map((m) => (
             <SelectItem key={m.user_id} value={m.user_id}>
               {m.full_name}
-              {m.user_id === user?.id ? ' (eu)' : ''}
+              {m.user_id === user?.id ? t(" (eu)") : ''}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {value ? 'A comissão desta venda é paga a quem estiver aqui selecionado.' : 'Selecione um vendedor para atribuir a comissão.'}
+        {value ? t("A comissão desta venda é paga a quem estiver aqui selecionado.") : t("Selecione um vendedor para atribuir a comissão.")}
       </p>
     </div>
   );

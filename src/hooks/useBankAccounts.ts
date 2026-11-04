@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { tr } from '@/i18n';
 import type { BankAccount, BankAccountTransaction } from '@/types/bank-accounts';
 
 export function useBankAccounts() {
@@ -87,10 +88,10 @@ export function useCreateBankAccount() {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['bank-accounts-active'] });
       queryClient.invalidateQueries({ queryKey: ['bank-transactions'] });
-      toast({ title: 'Conta corrente criada com sucesso!' });
+      toast({ title: tr('Conta corrente criada com sucesso!') });
     },
     onError: () => {
-      toast({ title: 'Erro ao criar conta corrente', variant: 'destructive' });
+      toast({ title: tr('Erro ao criar conta corrente'), variant: 'destructive' });
     },
   });
 }
@@ -127,10 +128,10 @@ export function useUpdateBankAccount() {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts-active'] });
       queryClient.invalidateQueries({ queryKey: ['bank-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['bank-balance'] });
-      toast({ title: 'Conta corrente atualizada!' });
+      toast({ title: tr('Conta corrente atualizada!') });
     },
     onError: () => {
-      toast({ title: 'Erro ao atualizar conta', variant: 'destructive' });
+      toast({ title: tr('Erro ao atualizar conta'), variant: 'destructive' });
     },
   });
 }
@@ -218,10 +219,10 @@ export function useCreateBankTransaction() {
       queryClient.invalidateQueries({ queryKey: ['bank-balance'] });
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['bank-accounts-active'] });
-      toast({ title: 'Receita registada com sucesso!' });
+      toast({ title: tr('Receita registada com sucesso!') });
     },
     onError: () => {
-      toast({ title: 'Erro ao registar receita', variant: 'destructive' });
+      toast({ title: tr('Erro ao registar receita'), variant: 'destructive' });
     },
   });
 }

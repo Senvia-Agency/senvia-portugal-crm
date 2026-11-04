@@ -15,6 +15,7 @@ import { EMAIL_SEND_STATUS_LABELS, EMAIL_SEND_STATUS_STYLES, type EmailSendStatu
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLanguage } from "@/i18n";
 
 type Period = '7d' | '30d' | '90d';
 type SourceFilter = 'all' | 'campaign' | 'automation';
@@ -28,6 +29,7 @@ export default function Reports() {
   const { data: campaigns } = useCampaigns();
   const { data: templates } = useEmailTemplates();
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
 
   const handleSourceChange = (v: SourceFilter) => {
     setSource(v);
@@ -44,7 +46,7 @@ export default function Reports() {
       return (
         <div className="flex items-center gap-1.5">
           <Megaphone className="h-3 w-3 text-blue-500" />
-          <span className="truncate max-w-[120px]">{camp?.name || 'Campanha'}</span>
+          <span className="truncate max-w-[120px]">{camp?.name || t('Campanha')}</span>
         </div>
       );
     }
@@ -53,18 +55,18 @@ export default function Reports() {
       return (
         <div className="flex items-center gap-1.5">
           <Bot className="h-3 w-3 text-purple-500" />
-          <span className="truncate max-w-[120px]">{tpl?.name || 'Automação'}</span>
+          <span className="truncate max-w-[120px]">{tpl?.name || t('Automação')}</span>
         </div>
       );
     }
-    return <span className="text-muted-foreground">Manual</span>;
+    return <span className="text-muted-foreground">{t('Manual')}</span>;
   };
 
   const metrics = stats ? [
-    { label: "Enviados", value: stats.sent, icon: Send, color: "text-foreground", sub: `${stats.total} totais` },
-    { label: "Entregues", value: stats.delivered, icon: CheckCircle, color: "text-emerald-500", sub: `${stats.deliveredRate}% taxa de entrega` },
-    { label: "Abertos", value: stats.opened, icon: Eye, color: "text-blue-500", sub: `${stats.openRate}% taxa de abertura` },
-    { label: "Clicados", value: stats.clicked, icon: MousePointer, color: "text-purple-500", sub: `${stats.clickRate}% taxa de clique` },
+    { label: "Enviados", value: stats.sent, icon: Send, color: "text-foreground", sub: t("{{n}} totais", { n: stats.total }) },
+    { label: "Entregues", value: stats.delivered, icon: CheckCircle, color: "text-emerald-500", sub: t("{{rate}}% taxa de entrega", { rate: stats.deliveredRate }) },
+    { label: "Abertos", value: stats.opened, icon: Eye, color: "text-blue-500", sub: t("{{rate}}% taxa de abertura", { rate: stats.openRate }) },
+    { label: "Clicados", value: stats.clicked, icon: MousePointer, color: "text-purple-500", sub: t("{{rate}}% taxa de clique", { rate: stats.clickRate }) },
     { label: "Bounces", value: stats.bounced, icon: AlertTriangle, color: "text-yellow-500", sub: stats.sent > 0 ? `${Math.round((stats.bounced / stats.sent) * 100)}%` : '0%' },
     { label: "Spam", value: stats.spam, icon: ShieldAlert, color: "text-destructive", sub: stats.sent > 0 ? `${Math.round((stats.spam / stats.sent) * 100)}%` : '0%' },
     { label: "Bloqueados", value: stats.blocked, icon: Ban, color: "text-muted-foreground", sub: stats.sent > 0 ? `${Math.round((stats.blocked / stats.sent) * 100)}%` : '0%' },
@@ -78,7 +80,7 @@ export default function Reports() {
   const getStatusBadge = (status: string) => {
     const s = status as EmailSendStatus;
     const style = EMAIL_SEND_STATUS_STYLES[s] || EMAIL_SEND_STATUS_STYLES.sent;
-    const label = EMAIL_SEND_STATUS_LABELS[s] || status;
+    const label = EMAIL_SEND_STATUS_LABELS[s] ? t(EMAIL_SEND_STATUS_LABELS[s]) : status;
     return (
       <Badge variant="outline" style={{ backgroundColor: style.bg, color: style.text, borderColor: 'transparent' }}>
         {label}
@@ -92,16 +94,16 @@ export default function Reports() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Link to="/marketing">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="back" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
-                Relatórios
+                {t("Relatórios")}
               </h1>
-              <p className="text-muted-foreground text-sm">Métricas de envio de emails</p>
+              <p className="text-muted-foreground text-sm">{t("Métricas de envio de emails")}</p>
             </div>
           </div>
         </div>
@@ -110,22 +112,22 @@ export default function Reports() {
         <div className="flex items-center gap-3 flex-wrap">
           <Select value={source} onValueChange={(v) => handleSourceChange(v as SourceFilter)}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Fonte" />
+              <SelectValue placeholder={t("Fonte")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="campaign">Campanhas</SelectItem>
-              <SelectItem value="automation">Automações</SelectItem>
+              <SelectItem value="all">{t("Todos")}</SelectItem>
+              <SelectItem value="campaign">{t("Campanhas")}</SelectItem>
+              <SelectItem value="automation">{t("Automações")}</SelectItem>
             </SelectContent>
           </Select>
 
           {source === 'campaign' && (
             <Select value={sourceId || 'all'} onValueChange={(v) => setSourceId(v === 'all' ? null : v)}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Todas as campanhas" />
+                <SelectValue placeholder={t("Todas as campanhas")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as campanhas</SelectItem>
+                <SelectItem value="all">{t("Todas as campanhas")}</SelectItem>
                 {campaigns?.map((c: any) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
@@ -136,10 +138,10 @@ export default function Reports() {
           {source === 'automation' && (
             <Select value={sourceId || 'all'} onValueChange={(v) => setSourceId(v === 'all' ? null : v)}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Todas as automações" />
+                <SelectValue placeholder={t("Todas as automações")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as automações</SelectItem>
+                <SelectItem value="all">{t("Todas as automações")}</SelectItem>
                 {templates?.filter((t: any) => t.automation_enabled).map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
@@ -149,12 +151,12 @@ export default function Reports() {
 
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
-              <TabsTrigger value="7d">7 dias</TabsTrigger>
-              <TabsTrigger value="30d">30 dias</TabsTrigger>
-              <TabsTrigger value="90d">90 dias</TabsTrigger>
+              <TabsTrigger value="7d">{t("7 dias")}</TabsTrigger>
+              <TabsTrigger value="30d">{t("30 dias")}</TabsTrigger>
+              <TabsTrigger value="90d">{t("90 dias")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="outline" size="icon" onClick={handleRefresh} className="h-9 w-9">
+          <Button variant="outline" size="icon" onClick={handleRefresh} className="h-9 w-9" aria-label={t("Atualizar")}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
@@ -170,11 +172,11 @@ export default function Reports() {
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Tracking de entregas não configurado</p>
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">{t("Tracking de entregas não configurado")}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Existem {stats.sent} emails enviados mas 0 entregas registadas. Configure o webhook do Brevo em{' '}
-                    <Link to="/settings" className="underline text-primary">Definições → Integrações → Brevo</Link>{' '}
-                    para ativar o tracking de entregas, aberturas e cliques.
+                    {t("Existem {{n}} emails enviados mas 0 entregas registadas. Configure o webhook do Brevo em", { n: stats.sent })}{' '}
+                    <Link to="/settings" className="underline text-primary">{t("Definições → Integrações → Brevo")}</Link>{' '}
+                    {t("para ativar o tracking de entregas, aberturas e cliques.")}
                   </p>
                 </div>
               </div>
@@ -187,7 +189,7 @@ export default function Reports() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <m.icon className={`h-4 w-4 ${m.color}`} />
-                      <span className="text-sm text-muted-foreground">{m.label}</span>
+                      <span className="text-sm text-muted-foreground">{t(m.label)}</span>
                     </div>
                     <p className="text-xl md:text-2xl font-bold">{m.value}</p>
                     <p className="text-xs text-muted-foreground mt-1">{m.sub}</p>
@@ -201,7 +203,7 @@ export default function Reports() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Envios e Entregas</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("Envios e Entregas")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[180px] sm:h-[250px]">
@@ -211,9 +213,9 @@ export default function Reports() {
                           <XAxis dataKey="label" className="text-xs" tick={{ fontSize: 11 }} />
                           <YAxis className="text-xs" tick={{ fontSize: 11 }} />
                           <Tooltip />
-                          <Area type="monotone" dataKey="sent" stackId="1" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" name="Enviados" />
-                          <Area type="monotone" dataKey="delivered" stackId="2" stroke="hsl(142 76% 45%)" fill="hsl(142 76% 45% / 0.2)" name="Entregues" />
-                          <Area type="monotone" dataKey="failed" stackId="3" stroke="hsl(var(--destructive))" fill="hsl(var(--destructive) / 0.2)" name="Erros" />
+                          <Area type="monotone" dataKey="sent" stackId="1" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" name={t("Enviados")} />
+                          <Area type="monotone" dataKey="delivered" stackId="2" stroke="hsl(142 76% 45%)" fill="hsl(142 76% 45% / 0.2)" name={t("Entregues")} />
+                          <Area type="monotone" dataKey="failed" stackId="3" stroke="hsl(var(--destructive))" fill="hsl(var(--destructive) / 0.2)" name={t("Erros")} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -222,7 +224,7 @@ export default function Reports() {
 
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Aberturas e Cliques</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("Aberturas e Cliques")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[180px] sm:h-[250px]">
@@ -232,8 +234,8 @@ export default function Reports() {
                           <XAxis dataKey="label" className="text-xs" tick={{ fontSize: 11 }} />
                           <YAxis className="text-xs" tick={{ fontSize: 11 }} />
                           <Tooltip />
-                          <Bar dataKey="opened" fill="hsl(210 80% 55%)" name="Abertos" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="clicked" fill="hsl(270 70% 55%)" name="Clicados" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="opened" fill="hsl(210 80% 55%)" name={t("Abertos")} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="clicked" fill="hsl(270 70% 55%)" name={t("Clicados")} radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -246,20 +248,20 @@ export default function Reports() {
             {stats.events && stats.events.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Eventos Detalhados</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Eventos Detalhados")}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-auto max-h-[400px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Destinatário</TableHead>
-                          <TableHead className="hidden md:table-cell">Email</TableHead>
-                          <TableHead>Origem</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead className="hidden md:table-cell">Enviado</TableHead>
-                          <TableHead className="hidden lg:table-cell">Aberto</TableHead>
-                          <TableHead className="hidden lg:table-cell">Clicado</TableHead>
+                          <TableHead>{t("Destinatário")}</TableHead>
+                          <TableHead className="hidden md:table-cell">{t("Email")}</TableHead>
+                          <TableHead>{t("Origem")}</TableHead>
+                          <TableHead>{t("Estado")}</TableHead>
+                          <TableHead className="hidden md:table-cell">{t("Enviado")}</TableHead>
+                          <TableHead className="hidden lg:table-cell">{t("Aberto")}</TableHead>
+                          <TableHead className="hidden lg:table-cell">{t("Clicado")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -294,7 +296,7 @@ export default function Reports() {
             {chartData.length === 0 && (!stats.events || stats.events.length === 0) && (
               <div className="text-center py-12 text-muted-foreground">
                 <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Sem dados de envio neste período</p>
+                <p>{t("Sem dados de envio neste período")}</p>
               </div>
             )}
           </>

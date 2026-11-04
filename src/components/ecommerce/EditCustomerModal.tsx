@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useUpdateCustomer } from "@/hooks/ecommerce";
 import { Customer } from "@/types/ecommerce";
+import { useLanguage } from "@/i18n";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -42,6 +43,7 @@ interface EditCustomerModalProps {
 
 export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomerModalProps) {
   const updateCustomer = useUpdateCustomer();
+  const { t } = useLanguage();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -79,7 +81,7 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Cliente</DialogTitle>
+          <DialogTitle>{t("Editar Cliente")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -89,9 +91,9 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome *</FormLabel>
+                  <FormLabel>{t("Nome *")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome completo" {...field} />
+                    <Input placeholder={t("Nome completo")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -117,7 +119,7 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefone</FormLabel>
+                  <FormLabel>{t("Telefone")}</FormLabel>
                   <FormControl>
                     <Input placeholder="+351 912 345 678" {...field} />
                   </FormControl>
@@ -131,9 +133,9 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas</FormLabel>
+                  <FormLabel>{t("Notas")}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Notas sobre o cliente..." {...field} />
+                    <Textarea placeholder={t("Notas sobre o cliente...")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -146,8 +148,8 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <FormLabel>Aceita Marketing</FormLabel>
-                    <FormDescription>Receber emails e promoções</FormDescription>
+                    <FormLabel>{t("Aceita Marketing")}</FormLabel>
+                    <FormDescription>{t("Receber emails e promoções")}</FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -158,10 +160,10 @@ export function EditCustomerModal({ customer, open, onOpenChange }: EditCustomer
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t("Cancelar")}
               </Button>
               <Button type="submit" disabled={updateCustomer.isPending}>
-                {updateCustomer.isPending ? "A guardar..." : "Guardar Alterações"}
+                {updateCustomer.isPending ? t("A guardar...") : t("Guardar Alterações")}
               </Button>
             </div>
           </form>

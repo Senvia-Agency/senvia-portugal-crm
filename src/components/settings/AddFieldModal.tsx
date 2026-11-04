@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { CustomField, FieldType, FIELD_TYPE_LABELS, FormSettings } from '@/types';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/i18n';
 
 type FixedFieldKey = 'name' | 'email' | 'phone' | 'message';
 
@@ -71,6 +72,7 @@ export function AddFieldModal({
   const [placeholder, setPlaceholder] = useState('');
   const [required, setRequired] = useState(false);
   const [options, setOptions] = useState<string[]>(['']);
+  const { t } = useLanguage();
 
   // Reset form when opening/closing or when initialField changes
   useEffect(() => {
@@ -143,16 +145,16 @@ export function AddFieldModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[480px] max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Campo</DialogTitle>
+            <DialogTitle>{t('Editar Campo')}</DialogTitle>
             <DialogDescription>
-              Altere as propriedades do campo personalizado.
+              {t('Altere as propriedades do campo personalizado.')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
             {/* Field Type Selection */}
             <div className="space-y-3">
-              <Label>Tipo de Campo</Label>
+              <Label>{t('Tipo de Campo')}</Label>
               <div className="grid grid-cols-5 gap-2">
                 {FIELD_TYPES.map(({ type: fieldType, icon: Icon, description }) => (
                   <button
@@ -163,7 +165,7 @@ export function AddFieldModal({
                       "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all hover:bg-muted/50",
                       type === fieldType && "border-primary bg-primary/5 ring-1 ring-primary"
                     )}
-                    title={description}
+                    title={t(description)}
                   >
                     <Icon className={cn(
                       "h-5 w-5",
@@ -173,7 +175,7 @@ export function AddFieldModal({
                       "text-[10px] font-medium",
                       type === fieldType ? "text-primary" : "text-muted-foreground"
                     )}>
-                      {FIELD_TYPE_LABELS[fieldType]}
+                      {t(FIELD_TYPE_LABELS[fieldType])}
                     </span>
                   </button>
                 ))}
@@ -182,12 +184,12 @@ export function AddFieldModal({
 
             {/* Label */}
             <div className="space-y-2">
-              <Label htmlFor="field-label">Label *</Label>
+              <Label htmlFor="field-label">{t('Label *')}</Label>
               <Input
                 id="field-label"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Ex: Empresa, Orçamento..."
+                placeholder={t('Ex: Empresa, Orçamento...')}
                 maxLength={50}
               />
             </div>
@@ -195,12 +197,12 @@ export function AddFieldModal({
             {/* Placeholder */}
             {showPlaceholder && (
               <div className="space-y-2">
-                <Label htmlFor="field-placeholder">Placeholder</Label>
+                <Label htmlFor="field-placeholder">{t('Placeholder')}</Label>
                 <Input
                   id="field-placeholder"
                   value={placeholder}
                   onChange={(e) => setPlaceholder(e.target.value)}
-                  placeholder="Texto de exemplo"
+                  placeholder={t('Texto de exemplo')}
                   maxLength={100}
                 />
               </div>
@@ -209,7 +211,7 @@ export function AddFieldModal({
             {/* Options for Select */}
             {showOptions && (
               <div className="space-y-3">
-                <Label>Opções *</Label>
+                <Label>{t('Opções *')}</Label>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
                   {options.map((option, idx) => (
                     <div key={idx} className="flex items-center gap-2">
@@ -217,7 +219,7 @@ export function AddFieldModal({
                       <Input
                         value={option}
                         onChange={(e) => updateOption(idx, e.target.value)}
-                        placeholder={`Opção ${idx + 1}`}
+                        placeholder={t('Opção {{n}}', { n: idx + 1 })}
                         maxLength={100}
                         className="flex-1"
                       />
@@ -242,7 +244,7 @@ export function AddFieldModal({
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Opção
+                  {t('Adicionar Opção')}
                 </Button>
               </div>
             )}
@@ -251,10 +253,10 @@ export function AddFieldModal({
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
                 <Label htmlFor="field-required" className="font-medium cursor-pointer">
-                  Campo Obrigatório
+                  {t('Campo Obrigatório')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  O visitante terá de preencher este campo
+                  {t('O visitante terá de preencher este campo')}
                 </p>
               </div>
               <Switch
@@ -267,13 +269,13 @@ export function AddFieldModal({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t('Cancelar')}
             </Button>
             <Button 
               onClick={handleSubmitCustom}
               disabled={!label.trim() || (showOptions && options.filter(o => o.trim()).length === 0)}
             >
-              Guardar Alterações
+              {t('Guardar Alterações')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -285,22 +287,22 @@ export function AddFieldModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Adicionar Campo</DialogTitle>
+          <DialogTitle>{t('Adicionar Campo')}</DialogTitle>
           <DialogDescription>
-            Escolha um campo base ou crie um personalizado.
+            {t('Escolha um campo base ou crie um personalizado.')}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'base' | 'custom')} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="base">Campos Base</TabsTrigger>
-            <TabsTrigger value="custom">Personalizado</TabsTrigger>
+            <TabsTrigger value="base">{t('Campos Base')}</TabsTrigger>
+            <TabsTrigger value="custom">{t('Personalizado')}</TabsTrigger>
           </TabsList>
 
           {/* Base Fields Tab */}
           <TabsContent value="base" className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Campos pré-definidos com validação automática.
+              {t('Campos pré-definidos com validação automática.')}
             </p>
             <div className="grid grid-cols-2 gap-3">
               {FIXED_FIELDS.map(({ key, icon: Icon, label: fieldLabel, description }) => {
@@ -337,10 +339,10 @@ export function AddFieldModal({
                         "text-sm font-medium",
                         isAdded && "text-muted-foreground"
                       )}>
-                        {fieldLabel}
+                        {t(fieldLabel)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {isAdded ? 'Já adicionado' : description}
+                        {isAdded ? t('Já adicionado') : t(description)}
                       </p>
                     </div>
                   </button>
@@ -353,7 +355,7 @@ export function AddFieldModal({
           <TabsContent value="custom" className="space-y-6 py-4">
             {/* Field Type Selection */}
             <div className="space-y-3">
-              <Label>Tipo de Campo</Label>
+              <Label>{t('Tipo de Campo')}</Label>
               <div className="grid grid-cols-5 gap-2">
                 {FIELD_TYPES.map(({ type: fieldType, icon: Icon, description }) => (
                   <button
@@ -364,7 +366,7 @@ export function AddFieldModal({
                       "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all hover:bg-muted/50",
                       type === fieldType && "border-primary bg-primary/5 ring-1 ring-primary"
                     )}
-                    title={description}
+                    title={t(description)}
                   >
                     <Icon className={cn(
                       "h-5 w-5",
@@ -374,7 +376,7 @@ export function AddFieldModal({
                       "text-[10px] font-medium",
                       type === fieldType ? "text-primary" : "text-muted-foreground"
                     )}>
-                      {FIELD_TYPE_LABELS[fieldType]}
+                      {t(FIELD_TYPE_LABELS[fieldType])}
                     </span>
                   </button>
                 ))}
@@ -383,12 +385,12 @@ export function AddFieldModal({
 
             {/* Label */}
             <div className="space-y-2">
-              <Label htmlFor="field-label-custom">Label *</Label>
+              <Label htmlFor="field-label-custom">{t('Label *')}</Label>
               <Input
                 id="field-label-custom"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Ex: Empresa, Orçamento..."
+                placeholder={t('Ex: Empresa, Orçamento...')}
                 maxLength={50}
               />
             </div>
@@ -396,12 +398,12 @@ export function AddFieldModal({
             {/* Placeholder */}
             {showPlaceholder && (
               <div className="space-y-2">
-                <Label htmlFor="field-placeholder-custom">Placeholder</Label>
+                <Label htmlFor="field-placeholder-custom">{t('Placeholder')}</Label>
                 <Input
                   id="field-placeholder-custom"
                   value={placeholder}
                   onChange={(e) => setPlaceholder(e.target.value)}
-                  placeholder="Texto de exemplo"
+                  placeholder={t('Texto de exemplo')}
                   maxLength={100}
                 />
               </div>
@@ -410,7 +412,7 @@ export function AddFieldModal({
             {/* Options for Select */}
             {showOptions && (
               <div className="space-y-3">
-                <Label>Opções *</Label>
+                <Label>{t('Opções *')}</Label>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
                   {options.map((option, idx) => (
                     <div key={idx} className="flex items-center gap-2">
@@ -418,7 +420,7 @@ export function AddFieldModal({
                       <Input
                         value={option}
                         onChange={(e) => updateOption(idx, e.target.value)}
-                        placeholder={`Opção ${idx + 1}`}
+                        placeholder={t('Opção {{n}}', { n: idx + 1 })}
                         maxLength={100}
                         className="flex-1"
                       />
@@ -443,7 +445,7 @@ export function AddFieldModal({
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Opção
+                  {t('Adicionar Opção')}
                 </Button>
               </div>
             )}
@@ -452,10 +454,10 @@ export function AddFieldModal({
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
                 <Label htmlFor="field-required-custom" className="font-medium cursor-pointer">
-                  Campo Obrigatório
+                  {t('Campo Obrigatório')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  O visitante terá de preencher este campo
+                  {t('O visitante terá de preencher este campo')}
                 </p>
               </div>
               <Switch
@@ -467,13 +469,13 @@ export function AddFieldModal({
 
             <DialogFooter className="pt-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {t('Cancelar')}
               </Button>
               <Button 
                 onClick={handleSubmitCustom}
                 disabled={!label.trim() || (showOptions && options.filter(o => o.trim()).length === 0)}
               >
-                Adicionar Campo
+                {t('Adicionar Campo')}
               </Button>
             </DialogFooter>
           </TabsContent>

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { NO_OPERATOR, NO_TYPE, type CommissionFilters } from '@/lib/commission-filters';
 import { TELECOM_STATUSES, TELECOM_STATUS_LABELS, type TelecomStatus } from '@/types/sales';
 import type { ReactNode } from 'react';
+import { useLanguage } from '@/i18n';
 
 /**
  * Every switch carries its own colour, so a glance at the bar says which
@@ -53,16 +54,17 @@ const OFF_TONE = 'border-dashed border-border bg-transparent text-muted-foregrou
  */
 /** One short label per active commission filter, for a pinned bar's chips. */
 export function useCommissionFilterChips(value: CommissionFilters | undefined): string[] {
+  const { t: translate } = useLanguage();
   const { data: operators = [] } = useOperators();
   const { data: members = [] } = useTeamMembers();
   const { byId: typeById } = useProductTypes();
   if (!value) return [];
   const chips: string[] = [];
   const opName = new Map(operators.map((o) => [o.id, o.name]));
-  for (const id of value.excludedOperators) chips.push(`− ${id === NO_OPERATOR ? 'Sem operadora' : (opName.get(id) ?? id)}`);
-  for (const st of value.excludedStatuses ?? []) chips.push(`− ${TELECOM_STATUS_LABELS[st as TelecomStatus] ?? st}`);
-  for (const t of value.excludedTypes ?? []) chips.push(`− ${t === NO_TYPE ? 'Sem tipo' : (typeById.get(t)?.name ?? t)}`);
-  if (value.userId) chips.push(members.find((m) => m.user_id === value.userId)?.full_name ?? 'vendedor');
+  for (const id of value.excludedOperators) chips.push(`− ${id === NO_OPERATOR ? translate('Sem operadora') : (opName.get(id) ?? id)}`);
+  for (const st of value.excludedStatuses ?? []) chips.push(`− ${TELECOM_STATUS_LABELS[st as TelecomStatus] ? translate(TELECOM_STATUS_LABELS[st as TelecomStatus]) : st}`);
+  for (const t of value.excludedTypes ?? []) chips.push(`− ${t === NO_TYPE ? translate('Sem tipo') : (typeById.get(t)?.name ?? t)}`);
+  if (value.userId) chips.push(members.find((m) => m.user_id === value.userId)?.full_name ?? translate('vendedor'));
   return chips;
 }
 
@@ -79,6 +81,7 @@ export function CommissionFiltersBar({
   periodFilter?: ReactNode;
   sidebar?: boolean;
 }) {
+  const { t } = useLanguage();
   const { data: operators = [] } = useOperators();
   const { data: members = [] } = useTeamMembers();
   const { active: productTypes } = useProductTypes();
@@ -106,7 +109,7 @@ export function CommissionFiltersBar({
   // not the old Energia / Outros Serviços pair.
   const typeSwitches = [
     ...productTypes.map((t, i) => ({ key: t.id, label: t.name, tone: OPERATOR_TONES[(i + 3) % OPERATOR_TONES.length] })),
-    { key: NO_TYPE, label: 'Sem tipo', tone: NO_OPERATOR_TONE },
+    { key: NO_TYPE, label: t('Sem tipo'), tone: NO_OPERATOR_TONE },
   ];
 
   // The sidebar is a narrow column (Financeiro, Vendas): smaller chips and
@@ -125,7 +128,7 @@ export function CommissionFiltersBar({
 
   const operatorSwitches = [
     ...operators.map((o, i) => ({ key: o.id, label: o.name, tone: OPERATOR_TONES[i % OPERATOR_TONES.length] })),
-    { key: NO_OPERATOR, label: 'Sem operadora', tone: NO_OPERATOR_TONE },
+    { key: NO_OPERATOR, label: t('Sem operadora'), tone: NO_OPERATOR_TONE },
   ];
 
   const sellerFilter = (
@@ -141,10 +144,10 @@ export function CommissionFiltersBar({
         )}
       >
         <Users className="mr-2 h-4 w-4 shrink-0" />
-        <SelectValue placeholder="Todos os vendedores" />
+        <SelectValue placeholder={t("Todos os vendedores")} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">Todos os vendedores</SelectItem>
+        <SelectItem value="all">{t("Todos os vendedores")}</SelectItem>
         {members.map((m) => (
           <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
         ))}
@@ -161,20 +164,20 @@ export function CommissionFiltersBar({
       <div className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center', sidebar && 'sm:flex-col sm:flex-nowrap sm:items-stretch sm:gap-3')}>
         {sidebar && periodFilter && (
           <div className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">Período</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("Período")}</span>
             {periodFilter}
           </div>
         )}
         {sidebar && (
           <div className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">Vendedor</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("Vendedor")}</span>
             {sellerFilter}
           </div>
         )}
         <div className={sidebar ? 'space-y-1' : 'contents'}>
         <span className={labelClass}>
           <Radio className={labelIconClass} />
-          Operadoras:
+          {t("Operadoras:")}
         </span>
         <div className="flex flex-wrap items-center gap-1">
           {operatorSwitches.map((s) => {
@@ -186,7 +189,7 @@ export function CommissionFiltersBar({
                 variant="outline"
                 pressed={on}
                 onPressedChange={() => toggleOperator(s.key)}
-                aria-label={`${on ? 'Esconder' : 'Mostrar'} ${s.label}`}
+                aria-label={on ? t('Esconder {{name}}', { name: s.label }) : t('Mostrar {{name}}', { name: s.label })}
                 className={switchClass(on, s.tone)}
               >
                 {s.label}
@@ -201,7 +204,7 @@ export function CommissionFiltersBar({
               className="h-8 px-2 text-xs"
               onClick={() => onChange({ ...value, excludedOperators: [] })}
             >
-              Todas
+              {t("Todas")}
             </Button>
           )}
         </div>
@@ -213,7 +216,7 @@ export function CommissionFiltersBar({
       <div className={cn('flex flex-col gap-2 2xl:flex-row 2xl:flex-wrap 2xl:items-center 2xl:gap-x-6', sidebar && '2xl:flex-col 2xl:flex-nowrap 2xl:items-stretch 2xl:gap-3')}>
         <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col flex-nowrap items-stretch')}>
           <span className={labelClass}>
-            <Activity className={labelIconClass} />Estado:
+            <Activity className={labelIconClass} />{t("Estado:")}
           </span>
           <div className="flex flex-wrap items-center gap-1">
           {TELECOM_STATUSES.map((st) => {
@@ -225,10 +228,10 @@ export function CommissionFiltersBar({
                 variant="outline"
                 pressed={on}
                 onPressedChange={() => toggleStatus(st)}
-                aria-label={`${on ? 'Esconder' : 'Mostrar'} ${TELECOM_STATUS_LABELS[st]}`}
+                aria-label={on ? t('Esconder {{name}}', { name: t(TELECOM_STATUS_LABELS[st]) }) : t('Mostrar {{name}}', { name: t(TELECOM_STATUS_LABELS[st]) })}
                 className={switchClass(on, STATUS_TONES[st])}
               >
-                {TELECOM_STATUS_LABELS[st]}
+                {t(TELECOM_STATUS_LABELS[st])}
               </Toggle>
             );
           })}
@@ -240,7 +243,7 @@ export function CommissionFiltersBar({
               className="h-7 px-2 text-[11px]"
               onClick={() => onChange({ ...value, excludedStatuses: [] })}
             >
-              Todos
+              {t("Todos")}
             </Button>
           )}
           </div>
@@ -248,7 +251,7 @@ export function CommissionFiltersBar({
 
         <div className={cn('flex flex-wrap items-center gap-1', sidebar && 'flex-col flex-nowrap items-stretch')}>
           <span className={labelClass}>
-            <Tags className={labelIconClass} />Tipos:
+            <Tags className={labelIconClass} />{t("Tipos:")}
           </span>
           <div className="flex flex-wrap items-center gap-1">
           {typeSwitches.map((s) => {
@@ -260,7 +263,7 @@ export function CommissionFiltersBar({
                 variant="outline"
                 pressed={on}
                 onPressedChange={() => toggleType(s.key)}
-                aria-label={`${on ? 'Esconder' : 'Mostrar'} ${s.label}`}
+                aria-label={on ? t('Esconder {{name}}', { name: s.label }) : t('Mostrar {{name}}', { name: s.label })}
                 className={switchClass(on, s.tone)}
               >
                 {s.label}
@@ -275,7 +278,7 @@ export function CommissionFiltersBar({
               className="h-7 px-2 text-[11px]"
               onClick={() => onChange({ ...value, excludedTypes: [] })}
             >
-              Todos
+              {t("Todos")}
             </Button>
           )}
           </div>

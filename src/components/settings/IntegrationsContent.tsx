@@ -35,6 +35,7 @@ import { AssignmentSelector, deriveAssignmentMode, assignmentToFields, type Assi
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useToast } from "@/hooks/use-toast";
+import { tr, useLanguage } from "@/i18n";
 
 interface IntegrationsContentProps {
   isLoadingIntegrations: boolean;
@@ -155,6 +156,7 @@ function IntegrationCard({
 
 export const IntegrationsContent = (props: IntegrationsContentProps) => {
   const [active, setActive] = useState<IntegrationKey | null>(null);
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
 
   // Deep link from the empty inbox (?addInbox=1): jump straight into the Caixas de
@@ -210,27 +212,27 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     // Caixas de Entrada has no on/off toggle: show how many channels are connected.
     if (key === 'inboxes') {
       if (connectedChannels > 0) {
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{connectedChannels} {connectedChannels === 1 ? 'ligada' : 'ligadas'}</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t(connectedChannels === 1 ? '{{n}} ligada' : '{{n}} ligadas', { n: connectedChannels })}</Badge>;
       }
-      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">Nenhuma ligada</Badge>;
+      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Nenhuma ligada')}</Badge>;
     }
     // Stripe não tem interruptor: ou há uma conta ligada, ou não há.
     if (key === 'stripe') {
       if (stripeConnection.status === 'restricted') {
-        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">Com restrições</Badge>;
+        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">{t('Com restrições')}</Badge>;
       }
       if (stripeConnection.connected) {
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">Ligado</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t('Ligado')}</Badge>;
       }
-      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">Não ligado</Badge>;
+      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Não ligado')}</Badge>;
     }
     if (integrationsEnabled[key] === false) {
-      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">Desativado</Badge>;
+      return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Desativado')}</Badge>;
     }
     if (configured) {
-      return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">Configurado</Badge>;
+      return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t('Configurado')}</Badge>;
     }
-    return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px]">Não configurado</Badge>;
+    return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px]">{t('Não configurado')}</Badge>;
   };
 
   const activeIntegration = integrations.find(i => i.key === active);
@@ -244,15 +246,15 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
             return (
               <div key={group}>
                 {showGroupHeaders && (
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">{group}</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">{t(group)}</h3>
                 )}
                 <div className="grid grid-cols-1 gap-3">
                   {items.map((item) => (
                     <IntegrationCard
                       key={item.key}
                       icon={item.icon}
-                      title={item.title}
-                      description={item.description}
+                      title={t(item.title)}
+                      description={t(item.description)}
                       badge={getBadge(item.toggleKey, isConfigured(item.key))}
                       onClick={() => setActive(item.key)}
                     />
@@ -273,7 +275,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
       >
         <ArrowLeft className="h-4 w-4" />
-        Voltar
+        {t('Voltar')}
       </button>
 
       <div className="flex items-center justify-between mb-6">
@@ -284,8 +286,8 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
             </div>
           )}
           <div>
-            <h3 className="font-medium">{activeIntegration?.title}</h3>
-            <p className="text-xs text-muted-foreground">{activeIntegration?.description}</p>
+            <h3 className="font-medium">{activeIntegration ? t(activeIntegration.title) : null}</h3>
+            <p className="text-xs text-muted-foreground">{activeIntegration ? t(activeIntegration.description) : null}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -302,7 +304,7 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
       {isLoadingIntegrations ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">A carregar...</span>
+          <span className="text-sm">{t('A carregar...')}</span>
         </div>
       ) : (
         <div className="space-y-4">
@@ -332,6 +334,7 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
   testWebhook: ReturnType<typeof useTestWebhook>;
   testingId: string | null;
 }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const handleCopy = () => { navigator.clipboard.writeText(wh.url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   return (
@@ -348,12 +351,12 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
           <span className={cn("flex items-center gap-1 text-[10px] font-semibold rounded-full px-2.5 py-1 border shrink-0",
             wh.is_active ? "text-green-700 bg-green-500/20 border-green-500/30" : "text-muted-foreground bg-muted border-border")}>
             <span className={cn("h-1.5 w-1.5 rounded-full", wh.is_active ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50")} />
-            {wh.is_active ? 'Ativo' : 'Inativo'}
+            {wh.is_active ? t('Ativo') : t('Inativo')}
           </span>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">URL de destino</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('URL de destino')}</Label>
             <div className="flex gap-2">
               <Input readOnly value={wh.url} className="text-xs font-mono bg-muted text-muted-foreground h-9" />
               <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="shrink-0 h-9">
@@ -368,8 +371,8 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
                   <Zap className="h-4 w-4 text-violet-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Webhook ativo</p>
-                  <p className="text-[11px] text-muted-foreground">Envia eventos quando ativo</p>
+                  <p className="text-sm font-medium">{t('Webhook ativo')}</p>
+                  <p className="text-[11px] text-muted-foreground">{t('Envia eventos quando ativo')}</p>
                 </div>
               </div>
               <Switch checked={wh.is_active} onCheckedChange={(c) => toggleWebhook.mutate({ id: wh.id, is_active: c })} />
@@ -378,23 +381,23 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
           <div className="flex gap-2 pt-1">
             <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => testWebhook.mutate(wh.url)} disabled={testingId === wh.id || !wh.is_active}>
               {testingId === wh.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Testar
+              {t('Testar')}
             </Button>
             {!wh.is_system && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive hover:text-destructive border-destructive/30 gap-1.5">
-                    <Trash2 className="h-4 w-4" /> Eliminar
+                    <Trash2 className="h-4 w-4" /> {t('Eliminar')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Eliminar "{wh.name}"?</AlertDialogTitle>
-                    <AlertDialogDescription>O destino deixa de receber eventos. Esta ação não pode ser anulada.</AlertDialogDescription>
+                    <AlertDialogTitle>{t('Eliminar "{{name}}"?', { name: wh.name })}</AlertDialogTitle>
+                    <AlertDialogDescription>{t('O destino deixa de receber eventos. Esta ação não pode ser anulada.')}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { deleteWebhook.mutate(wh.id); onOpenChange(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { deleteWebhook.mutate(wh.id); onOpenChange(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t('Eliminar')}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -412,6 +415,7 @@ function WebhooksManager() {
   const toggleWebhook = useToggleWebhook();
   const deleteWebhook = useDeleteWebhook();
   const testWebhook = useTestWebhook();
+  const { t } = useLanguage();
 
   const [editWh, setEditWh] = useState<OrganizationWebhook | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -433,14 +437,14 @@ function WebhooksManager() {
     testWebhook.mutate(wh.url, { onSettled: () => setTestingId(null) });
   };
 
-  if (isLoading) return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">A carregar webhooks...</span></div>;
+  if (isLoading) return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">{t('A carregar webhooks...')}</span></div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Envia um POST com os dados de cada novo lead para sistemas externos (Make, Zapier, n8n…).</p>
+        <p className="text-sm text-muted-foreground">{t('Envia um POST com os dados de cada novo lead para sistemas externos (Make, Zapier, n8n…).')}</p>
         <Button size="sm" onClick={() => setNewOpen(true)} className="shrink-0 gap-1.5">
-          <Plus className="h-4 w-4" /> Adicionar Webhook
+          <Plus className="h-4 w-4" /> {t('Adicionar Webhook')}
         </Button>
       </div>
 
@@ -458,21 +462,21 @@ function WebhooksManager() {
                 </div>
                 {wh.is_active ? (
                   <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Ativo
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ativo')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border rounded-full px-2 py-0.5 shrink-0">
-                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" /> Inativo
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" /> {t('Inativo')}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-3 px-4 py-2.5 border-t border-b text-xs text-muted-foreground bg-muted/10">
-                {wh.is_system && <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Predefinido</span>}
-                <span className="flex items-center gap-1"><Zap className="h-3.5 w-3.5" /> Webhook de saída</span>
+                {wh.is_system && <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> {t('Predefinido')}</span>}
+                <span className="flex items-center gap-1"><Zap className="h-3.5 w-3.5" /> {t('Webhook de saída')}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-3 mt-auto">
                 <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8" onClick={() => setEditWh(wh)}>
-                  <Settings2 className="h-3.5 w-3.5" /> Editar
+                  <Settings2 className="h-3.5 w-3.5" /> {t('Editar')}
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => handleTest(wh)} disabled={testingId === wh.id || !wh.is_active}>
                   {testingId === wh.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
@@ -486,8 +490,8 @@ function WebhooksManager() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 mx-auto mb-3">
             <Webhook className="h-7 w-7 text-violet-500/60" />
           </div>
-          <p className="text-sm font-medium text-muted-foreground">Nenhum webhook configurado</p>
-          <p className="text-xs text-muted-foreground mt-1">Clica em "Adicionar Webhook" para começar</p>
+          <p className="text-sm font-medium text-muted-foreground">{t('Nenhum webhook configurado')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('Clica em "Adicionar Webhook" para começar')}</p>
         </div>
       )}
 
@@ -501,24 +505,24 @@ function WebhooksManager() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Novo Webhook de Saída</DialogTitle>
-            <DialogDescription>Envia eventos para um URL externo (Zapier, Make, n8n…).</DialogDescription>
+            <DialogTitle>{t('Novo Webhook de Saída')}</DialogTitle>
+            <DialogDescription>{t('Envia eventos para um URL externo (Zapier, Make, n8n…).')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-1">
             <div className="space-y-2">
-              <Label htmlFor="wh-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</Label>
-              <Input id="wh-name" placeholder="Ex: Notificação CRM" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <Label htmlFor="wh-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Nome')}</Label>
+              <Input id="wh-name" placeholder={t('Ex: Notificação CRM')} value={newName} onChange={(e) => setNewName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="wh-url" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">URL de destino</Label>
+              <Label htmlFor="wh-url" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('URL de destino')}</Label>
               <Input id="wh-url" type="url" placeholder="https://..." value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className={newUrl && !isValidUrl(newUrl) ? 'border-destructive' : ''} />
-              {newUrl && !isValidUrl(newUrl) && <p className="text-xs text-destructive">URL inválido</p>}
+              {newUrl && !isValidUrl(newUrl) && <p className="text-xs text-destructive">{t('URL inválido')}</p>}
             </div>
             <div className="flex gap-2 pt-1">
               <Button onClick={handleAdd} disabled={!newName.trim() || !isValidUrl(newUrl) || createWebhook.isPending} className="flex-1">
-                {createWebhook.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar
+                {createWebhook.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('Guardar')}
               </Button>
-              <Button variant="ghost" onClick={() => { setNewOpen(false); setNewName(''); setNewUrl(''); }}>Cancelar</Button>
+              <Button variant="ghost" onClick={() => { setNewOpen(false); setNewName(''); setNewUrl(''); }}>{t('Cancelar')}</Button>
             </div>
           </div>
         </DialogContent>
@@ -526,14 +530,14 @@ function WebhooksManager() {
 
       {/* Help box */}
       <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">📋 Como ligar ao Zapier / Make</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('📋 Como ligar ao Zapier / Make')}</p>
         <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-          <li>No Zapier ou Make, copia o URL gerado pela ferramenta.</li>
-          <li>Aqui, clica <strong>Adicionar Webhook</strong> e cola esse URL.</li>
-          <li>Usa o botão <Send className="inline h-3 w-3" /> para disparar um lead de exemplo.</li>
-          <li>Cada novo lead é enviado como <strong>POST JSON</strong> com <code className="bg-muted px-1 rounded text-xs">lead.name</code>, <code className="bg-muted px-1 rounded text-xs">lead.email</code>, <code className="bg-muted px-1 rounded text-xs">lead.phone</code>, etc.</li>
+          <li>{t('No Zapier ou Make, copia o URL gerado pela ferramenta.')}</li>
+          <li>{t('Aqui, clica em Adicionar Webhook e cola esse URL.')}</li>
+          <li>{t('Usa o botão')} <Send className="inline h-3 w-3" /> {t('para disparar um lead de exemplo.')}</li>
+          <li>{t('Cada novo lead é enviado como POST JSON com')} <code className="bg-muted px-1 rounded text-xs">lead.name</code>, <code className="bg-muted px-1 rounded text-xs">lead.email</code>, <code className="bg-muted px-1 rounded text-xs">lead.phone</code>, {t('etc.')}</li>
         </ol>
-        <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ O POST não é assinado — trata o endpoint como público.</p>
+        <p className="text-xs text-amber-600 dark:text-amber-400">{t('⚠️ O POST não é assinado — trata o endpoint como público.')}</p>
       </div>
     </div>
   );
@@ -569,10 +573,10 @@ function MemberSelector({
 // Resumo curto para o cabeçalho recolhido do cartão
 function assigneeSummary(webhook: LeadIntakeWebhook, members: MemberOption[]): string {
   const ids = webhook.assigned_user_ids || [];
-  if (ids.length === 0) return 'Sem responsável';
-  if (webhook.rotate_enabled) return `Rotativa · ${ids.length} ${ids.length === 1 ? 'pessoa' : 'pessoas'}`;
+  if (ids.length === 0) return tr('Sem responsável');
+  if (webhook.rotate_enabled) return tr(ids.length === 1 ? 'Rotativa · {{n}} pessoa' : 'Rotativa · {{n}} pessoas', { n: ids.length });
   const first = members.find((m) => m.user_id === ids[0]);
-  return `Fixo · ${first?.full_name || '1 pessoa'}`;
+  return tr('Fixo · {{name}}', { name: first?.full_name || tr('1 pessoa') });
 }
 
 function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
@@ -580,6 +584,7 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
 }) {
   const updateWebhook = useUpdateLeadIntakeWebhook();
   const deleteWebhook = useDeleteLeadIntakeWebhook();
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [nameDraft, setNameDraft] = useState(webhook.name);
   useEffect(() => { setNameDraft(webhook.name); }, [webhook.name, open]);
@@ -619,20 +624,20 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
           <span className={cn("flex items-center gap-1 text-[10px] font-semibold rounded-full px-2.5 py-1 border shrink-0",
             webhook.is_active ? "text-green-700 bg-green-500/20 border-green-500/30" : "text-muted-foreground bg-muted border-border")}>
             <span className={cn("h-1.5 w-1.5 rounded-full", webhook.is_active ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50")} />
-            {webhook.is_active ? 'Ativo' : 'Inativo'}
+            {webhook.is_active ? t('Ativo') : t('Inativo')}
           </span>
         </div>
         <div className="px-6 py-5 space-y-4 overflow-y-auto max-h-[70dvh]">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Nome')}</Label>
             <div className="flex gap-2">
               <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} className="h-9" />
               <Button size="sm" className="h-9" disabled={!nameDraft.trim() || nameDraft.trim() === webhook.name}
-                onClick={() => updateWebhook.mutate({ id: webhook.id, name: nameDraft.trim() })}>Guardar</Button>
+                onClick={() => updateWebhook.mutate({ id: webhook.id, name: nameDraft.trim() })}>{t('Guardar')}</Button>
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">URL do Webhook</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('URL do Webhook')}</Label>
             <div className="flex gap-2">
               <Input readOnly value={url} className="text-xs font-mono bg-muted text-muted-foreground h-9" />
               <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="shrink-0 h-9">
@@ -646,7 +651,7 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10">
                   <Zap className="h-4 w-4 text-teal-600" />
                 </div>
-                <div><p className="text-sm font-medium">Webhook ativo</p><p className="text-[11px] text-muted-foreground">Recebe leads quando ativo</p></div>
+                <div><p className="text-sm font-medium">{t('Webhook ativo')}</p><p className="text-[11px] text-muted-foreground">{t('Recebe leads quando ativo')}</p></div>
               </div>
               <Switch checked={webhook.is_active} onCheckedChange={(c) => updateWebhook.mutate({ id: webhook.id, is_active: c })} />
             </div>
@@ -655,14 +660,14 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
                   <Mail className="h-4 w-4 text-amber-600" />
                 </div>
-                <div><p className="text-sm font-medium">Avisar administradores</p><p className="text-[11px] text-muted-foreground">Notifica todos os admins por push/email</p></div>
+                <div><p className="text-sm font-medium">{t('Avisar administradores')}</p><p className="text-[11px] text-muted-foreground">{t('Notifica todos os admins por push/email')}</p></div>
               </div>
               <Switch checked={webhook.notify_all_admins} onCheckedChange={(c) => updateWebhook.mutate({ id: webhook.id, notify_all_admins: c })} />
             </div>
           </div>
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <UsersRound className="h-3.5 w-3.5" /> Atribuição de leads
+              <UsersRound className="h-3.5 w-3.5" /> {t('Atribuição de leads')}
             </Label>
             <AssignmentSelector
               members={members}
@@ -677,17 +682,17 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive gap-1.5">
-                    <Trash2 className="h-3.5 w-3.5" /> Eliminar webhook
+                    <Trash2 className="h-3.5 w-3.5" /> {t('Eliminar webhook')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Eliminar "{webhook.name}"?</AlertDialogTitle>
-                    <AlertDialogDescription>O link deixa de funcionar e qualquer integração que o use para de enviar leads. Esta ação não pode ser anulada.</AlertDialogDescription>
+                    <AlertDialogTitle>{t('Eliminar "{{name}}"?', { name: webhook.name })}</AlertDialogTitle>
+                    <AlertDialogDescription>{t('O link deixa de funcionar e qualquer integração que o use para de enviar leads. Esta ação não pode ser anulada.')}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { deleteWebhook.mutate(webhook.id); onOpenChange(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { deleteWebhook.mutate(webhook.id); onOpenChange(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t('Eliminar')}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -703,6 +708,7 @@ function InboundWebhookSection() {
   const { data: webhooks = [], isLoading } = useLeadIntakeWebhooks();
   const { data: members = [], isLoading: loadingMembers } = useTeamMembers();
   const createWebhook = useCreateLeadIntakeWebhook();
+  const { t } = useLanguage();
 
   const [newOpen, setNewOpen] = useState(false);
   const [editWh, setEditWh] = useState<LeadIntakeWebhook | null>(null);
@@ -710,7 +716,7 @@ function InboundWebhookSection() {
   const [newMode, setNewMode] = useState<AssignmentMode>('rotate');
   const [newUsers, setNewUsers] = useState<string[]>([]);
 
-  const memberOptions: MemberOption[] = members.map((m) => ({ user_id: m.user_id, full_name: m.full_name || m.email || 'Sem nome' }));
+  const memberOptions: MemberOption[] = members.map((m) => ({ user_id: m.user_id, full_name: m.full_name || m.email || t('Sem nome') }));
   const resetForm = () => { setNewName(''); setNewMode('rotate'); setNewUsers([]); setNewOpen(false); };
   const usersValid = newMode === 'none' ? true : newMode === 'rotate' ? newUsers.length >= 2 : newUsers.length === 1;
   const canCreate = !!newName.trim() && usersValid && !createWebhook.isPending;
@@ -721,14 +727,14 @@ function InboundWebhookSection() {
     createWebhook.mutate({ name: newName.trim(), assigned_user_ids: f.assigned_user_ids, rotate_enabled: f.rotate_enabled }, { onSuccess: resetForm });
   };
 
-  if (isLoading || loadingMembers) return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">A carregar...</span></div>;
+  if (isLoading || loadingMembers) return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">{t('A carregar...')}</span></div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Um link por origem de leads (campanha, parceiro…). Cada um escolhe quem da equipa recebe os contactos.</p>
+        <p className="text-sm text-muted-foreground">{t('Um link por origem de leads (campanha, parceiro…). Cada um escolhe quem da equipa recebe os contactos.')}</p>
         <Button size="sm" onClick={() => setNewOpen(true)} className="shrink-0 gap-1.5">
-          <Plus className="h-4 w-4" /> Adicionar Webhook
+          <Plus className="h-4 w-4" /> {t('Adicionar Webhook')}
         </Button>
       </div>
 
@@ -748,22 +754,22 @@ function InboundWebhookSection() {
                   </div>
                   {wh.is_active ? (
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Ativo
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ativo')}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border rounded-full px-2 py-0.5 shrink-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" /> Inativo
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" /> {t('Inativo')}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 px-4 py-2.5 border-t border-b text-xs text-muted-foreground bg-muted/10">
-                  {wh.rotate_enabled && <span className="flex items-center gap-1 text-blue-600"><RefreshCw className="h-3 w-3" /> Rotação</span>}
-                  {wh.notify_all_admins && <span className="flex items-center gap-1 text-amber-600"><Mail className="h-3 w-3" /> Admins</span>}
-                  {needsAttention && <span className="flex items-center gap-1 text-amber-600">⚠️ Configurar</span>}
+                  {wh.rotate_enabled && <span className="flex items-center gap-1 text-blue-600"><RefreshCw className="h-3 w-3" /> {t('Rotação')}</span>}
+                  {wh.notify_all_admins && <span className="flex items-center gap-1 text-amber-600"><Mail className="h-3 w-3" /> {t('Admins')}</span>}
+                  {needsAttention && <span className="flex items-center gap-1 text-amber-600">{t('⚠️ Configurar')}</span>}
                 </div>
                 <div className="flex items-center gap-2 px-4 py-3 mt-auto">
                   <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8" onClick={() => setEditWh(wh)}>
-                    <Settings2 className="h-3.5 w-3.5" /> Editar
+                    <Settings2 className="h-3.5 w-3.5" /> {t('Editar')}
                   </Button>
                 </div>
               </div>
@@ -775,8 +781,8 @@ function InboundWebhookSection() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-500/10 mx-auto mb-3">
             <Link2 className="h-7 w-7 text-teal-500/60" />
           </div>
-          <p className="text-sm font-medium text-muted-foreground">Ainda não tens webhooks de entrada</p>
-          <p className="text-xs text-muted-foreground mt-1">Clica em "Adicionar Webhook" para começar</p>
+          <p className="text-sm font-medium text-muted-foreground">{t('Ainda não tens webhooks de entrada')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('Clica em "Adicionar Webhook" para começar')}</p>
         </div>
       )}
 
@@ -787,16 +793,16 @@ function InboundWebhookSection() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Novo Webhook de Entrada</DialogTitle>
-            <DialogDescription>Recebe leads de fontes externas (Facebook, Google, Zapier…).</DialogDescription>
+            <DialogTitle>{t('Novo Webhook de Entrada')}</DialogTitle>
+            <DialogDescription>{t('Recebe leads de fontes externas (Facebook, Google, Zapier…).')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-1">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</Label>
-              <Input autoFocus placeholder="Ex: Facebook Ads — Campanha Verão" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Nome')}</Label>
+              <Input autoFocus placeholder={t('Ex: Facebook Ads — Campanha Verão')} value={newName} onChange={(e) => setNewName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Atribuição de leads</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Atribuição de leads')}</Label>
               <AssignmentSelector
                 members={memberOptions}
                 mode={newMode}
@@ -807,27 +813,27 @@ function InboundWebhookSection() {
             </div>
             <div className="flex gap-2 pt-1">
               <Button onClick={handleAdd} disabled={!canCreate} className="flex-1">
-                {createWebhook.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Criar webhook
+                {createWebhook.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('Criar webhook')}
               </Button>
-              <Button variant="ghost" onClick={resetForm}>Cancelar</Button>
+              <Button variant="ghost" onClick={resetForm}>{t('Cancelar')}</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">📋 Como ligar ao Zapier / Make</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('📋 Como ligar ao Zapier / Make')}</p>
         <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-          <li>Cria um cenário/zap com o trigger (Facebook Lead Ads, Google Forms, etc.)</li>
-          <li>Adiciona uma ação HTTP <strong>POST</strong> com o URL do webhook (botão Copiar)</li>
-          <li>Body type: <strong>JSON</strong> — mapeia <code className="bg-muted px-1 rounded text-xs">name</code>, <code className="bg-muted px-1 rounded text-xs">email</code>, <code className="bg-muted px-1 rounded text-xs">phone</code>, <code className="bg-muted px-1 rounded text-xs">company</code></li>
+          <li>{t('Cria um cenário/zap com o trigger (Facebook Lead Ads, Google Forms, etc.)')}</li>
+          <li>{t('Adiciona uma ação HTTP POST com o URL do webhook (botão Copiar)')}</li>
+          <li>{t('Body type: JSON — mapeia')} <code className="bg-muted px-1 rounded text-xs">name</code>, <code className="bg-muted px-1 rounded text-xs">email</code>, <code className="bg-muted px-1 rounded text-xs">phone</code>, <code className="bg-muted px-1 rounded text-xs">company</code></li>
         </ol>
-        <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ Não partilhes estes URLs publicamente.</p>
+        <p className="text-xs text-amber-600 dark:text-amber-400">{t('⚠️ Não partilhes estes URLs publicamente.')}</p>
         <Link
           to="/tutoriais/make"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:underline"
         >
-          <GraduationCap className="h-3.5 w-3.5" /> Ver tutorial passo a passo (Facebook Lead Ads + Make)
+          <GraduationCap className="h-3.5 w-3.5" /> {t('Ver tutorial passo a passo (Facebook Lead Ads + Make)')}
         </Link>
       </div>
     </div>
@@ -877,6 +883,7 @@ function EditCaixaModal({
   onReconnect: () => void;
   onDisconnect: () => void;
 }) {
+  const { t } = useLanguage();
   const meta = channelMeta(ch.channel_type);
   const Icon = meta.icon;
   const connected = ch.status === 'connected';
@@ -900,18 +907,18 @@ function EditCaixaModal({
             <Icon className={cn('h-7 w-7', meta.color)} />
           </div>
           <div className="flex-1 min-w-0">
-            <DialogTitle className="text-base font-bold">{ch.label || meta.label}</DialogTitle>
+            <DialogTitle className="text-base font-bold">{ch.label || t(meta.label)}</DialogTitle>
             <DialogDescription className="text-xs mt-0.5">
-              {meta.label}{ch.phone_number ? ` · +${ch.phone_number}` : ''}
+              {t(meta.label)}{ch.phone_number ? ` · +${ch.phone_number}` : ''}
             </DialogDescription>
           </div>
           {connected ? (
             <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-700 dark:text-green-400 bg-green-500/15 border border-green-500/30 rounded-full px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Ligada
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ligada')}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Por ligar
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {t('Por ligar')}
             </span>
           )}
         </div>
@@ -919,12 +926,12 @@ function EditCaixaModal({
         <div className="px-6 py-5 space-y-5 overflow-y-auto max-h-[70dvh]">
           {/* Nome */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome da caixa</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Nome da caixa')}</Label>
             <div className="flex gap-2">
               <Input
                 value={labelDraft}
                 onChange={(e) => setLabelDraft(e.target.value)}
-                placeholder="Ex: Vendas, Suporte"
+                placeholder={t('Ex: Vendas, Suporte')}
                 className="h-9"
               />
               <Button
@@ -938,14 +945,14 @@ function EditCaixaModal({
                   { onSuccess: () => onOpenChange(false) },
                 )}
               >
-                Guardar
+                {t('Guardar')}
               </Button>
             </div>
           </div>
 
           {/* Cor da caixa */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cor da caixa</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Cor da caixa')}</Label>
             <div className="flex flex-wrap items-center gap-2">
               {['#ef4444','#f97316','#f59e0b','#22c55e','#14b8a6','#3b82f6','#6366f1','#a855f7','#ec4899','#64748b'].map((c) => (
                 <button
@@ -957,7 +964,7 @@ function EditCaixaModal({
                     localColor === c ? 'ring-2 ring-foreground scale-110' : '',
                   )}
                   style={{ background: c }}
-                  title={ch.color === c ? 'Remover cor' : c}
+                  title={ch.color === c ? t('Remover cor') : c}
                 />
               ))}
             </div>
@@ -967,16 +974,16 @@ function EditCaixaModal({
               e desligam-se pela conta da Meta, não por uma sessão. */}
           {ch.channel_type === 'whatsapp' && isNativeEvolution(ch) && (
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ligação</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Ligação')}</Label>
               {connected ? (
                 <Button variant="outline" size="sm" onClick={onDisconnect} 
                   className="w-full text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5">
-                  <PowerOff className="h-4 w-4 mr-1.5" /> Desconectar WhatsApp
+                  <PowerOff className="h-4 w-4 mr-1.5" /> {t('Desconectar WhatsApp')}
                 </Button>
               ) : (
                 <Button variant="outline" size="sm" onClick={onReconnect} className="w-full">
                   <MessageCircle className="h-4 w-4 mr-1.5" />
-                  {ch.evolution_instance ? 'Reconectar WhatsApp' : 'Ligar WhatsApp'}
+                  {ch.evolution_instance ? t('Reconectar WhatsApp') : t('Ligar WhatsApp')}
                 </Button>
               )}
             </div>
@@ -985,17 +992,17 @@ function EditCaixaModal({
           {/* Quem atende */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <UsersRound className="h-3.5 w-3.5" /> Quem atende esta caixa
+              <UsersRound className="h-3.5 w-3.5" /> {t('Quem atende esta caixa')}
             </Label>
             <p className="text-[11px] text-muted-foreground">
-              Vazio = todos veem esta caixa no Inbox. Com pessoas selecionadas, só elas (e os administradores) a veem.
+              {t('Vazio = todos veem esta caixa no Inbox. Com pessoas selecionadas, só elas (e os administradores) a veem.')}
             </p>
             <CollaboratorPicker
               members={members.map((m) => ({ user_id: m.user_id ?? m.id, full_name: m.full_name || m.user_id || m.id }))}
               value={localAttendants}
               onChange={(next) => { setLocalAttendants(next); updateAssign.mutate({ channelId: ch.id, assigned_user_ids: next }); }}
               mode="multi"
-              emptyHint="Vazio = todos os colaboradores veem esta caixa."
+              emptyHint={t('Vazio = todos os colaboradores veem esta caixa.')}
             />
           </div>
 
@@ -1007,8 +1014,8 @@ function EditCaixaModal({
                   <RefreshCw className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Rotação automática</p>
-                  <p className="text-[11px] text-muted-foreground">Distribui contactos novos pelos colaboradores</p>
+                  <p className="text-sm font-medium">{t('Rotação automática')}</p>
+                  <p className="text-[11px] text-muted-foreground">{t('Distribui contactos novos pelos colaboradores')}</p>
                 </div>
               </div>
               <Switch
@@ -1026,8 +1033,8 @@ function EditCaixaModal({
                     <UsersRound className="h-4 w-4 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Mensagens de grupo</p>
-                    <p className="text-[11px] text-muted-foreground">Grupos WhatsApp aparecem na Caixa de Entrada</p>
+                    <p className="text-sm font-medium">{t('Mensagens de grupo')}</p>
+                    <p className="text-[11px] text-muted-foreground">{t('Grupos WhatsApp aparecem na Caixa de Entrada')}</p>
                   </div>
                 </div>
                 <Switch
@@ -1059,6 +1066,7 @@ function InboxesManager() {
   const { limits, planName } = useSubscription();
   const { organization } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const deleteEmailChannel = useDeleteEmailChannel();
   const deleteChannel = useDeleteChannel();
   const updateAssign = useUpdateChannelAssignment();
@@ -1113,8 +1121,8 @@ function InboxesManager() {
   const blockIfAtLimit = () => {
     if (!atInboxLimit) return false;
     toast({
-      title: `Limite de ${maxInboxes} caixas atingido`,
-      description: `O plano ${planName} permite ${maxInboxes} caixas de entrada. Faz upgrade para adicionares mais canais.`,
+      title: t('Limite de {{n}} caixas atingido', { n: maxInboxes }),
+      description: t('O plano {{plan}} permite {{n}} caixas de entrada. Faz upgrade para adicionares mais canais.', { plan: planName, n: maxInboxes }),
       variant: 'destructive',
     });
     return true;
@@ -1160,12 +1168,12 @@ function InboxesManager() {
       { phoneNumberId: meta.phone_number_id, wabaId: meta.waba_id },
       {
         onSuccess: (r) => toast({
-          title: r.registado ? 'Número registado' : 'Ainda por registar',
+          title: r.registado ? t('Número registado') : t('Ainda por registar'),
           description: r.mensagem,
           variant: r.registado ? undefined : 'destructive',
         }),
         onError: (err) => toast({
-          title: 'Não foi possível concluir',
+          title: t('Não foi possível concluir'),
           description: (err as Error).message,
           variant: 'destructive',
         }),
@@ -1207,12 +1215,12 @@ function InboxesManager() {
 
           const nome = { instagram: 'Instagram', messenger: 'Messenger', whatsapp: 'WhatsApp' }[connect];
           toast({
-            title: `${nome} ligado`,
-            description: data.ig_username ? `@${data.ig_username} conectado` : `${data.label} conectado`,
+            title: t('{{name}} ligado', { name: nome }),
+            description: data.ig_username ? t('@{{name}} conectado', { name: data.ig_username }) : t('{{name}} conectado', { name: data.label }),
           });
         },
         onError: (err) => toast({
-          title: 'Não foi possível ligar',
+          title: t('Não foi possível ligar'),
           description: (err as Error).message,
           variant: 'destructive',
         }),
@@ -1226,12 +1234,12 @@ function InboxesManager() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">
-            Liga as tuas contas para receber e responder mensagens de todos os canais num só lugar.
+            {t('Liga as tuas contas para receber e responder mensagens de todos os canais num só lugar.')}
           </p>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
             <span className={cn(atInboxLimit && 'text-destructive')}>{inboxCount}</span>
-            {maxInboxes != null ? ` / ${maxInboxes}` : ''} caixa{inboxCount !== 1 ? 's' : ''}
-            {maxInboxes != null && ` · plano ${planName}`}
+            {maxInboxes != null ? ` / ${maxInboxes}` : ''} {t(inboxCount !== 1 ? 'caixas' : 'caixa')}
+            {maxInboxes != null && ` · ${t('plano {{plan}}', { plan: planName })}`}
           </p>
         </div>
         <Button
@@ -1240,7 +1248,7 @@ function InboxesManager() {
           size="sm"
           className="shrink-0 gap-1.5"
         >
-          <Plus className="h-4 w-4" /> Nova caixa
+          <Plus className="h-4 w-4" /> {t('Nova caixa')}
         </Button>
       </div>
 
@@ -1254,17 +1262,17 @@ function InboxesManager() {
               onClick={() => setFilterType(null)}
               className={`${filterType === null ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'} rounded-full px-3 py-1 text-xs font-semibold transition-colors`}
             >
-              Todas
+              {t('Todas')}
             </button>
-            {types.map((t) => {
-              const meta = channelMeta(t);
+            {types.map((ty) => {
+              const meta = channelMeta(ty);
               return (
                 <button
-                  key={t}
-                  onClick={() => setFilterType(filterType === t ? null : t)}
-                  className={`${filterType === t ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'} rounded-full px-3 py-1 text-xs font-semibold transition-colors`}
+                  key={ty}
+                  onClick={() => setFilterType(filterType === ty ? null : ty)}
+                  className={`${filterType === ty ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'} rounded-full px-3 py-1 text-xs font-semibold transition-colors`}
                 >
-                  {meta.label}
+                  {t(meta.label)}
                 </button>
               );
             })}
@@ -1294,18 +1302,18 @@ function InboxesManager() {
                     <Icon className={cn('h-6 w-6', meta.color)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm truncate">{ch.label || meta.label}</p>
+                    <p className="font-bold text-sm truncate">{ch.label || t(meta.label)}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {emailAddr ?? (ch.phone_number ? `+${ch.phone_number}` : meta.label)}
+                      {emailAddr ?? (ch.phone_number ? `+${ch.phone_number}` : t(meta.label))}
                     </p>
                   </div>
                   {connected ? (
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 dark:text-green-400 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Ligada
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ligada')}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 shrink-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {CHANNEL_STATUS_LABEL[ch.status] || 'Por ligar'}
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {CHANNEL_STATUS_LABEL[ch.status] ? t(CHANNEL_STATUS_LABEL[ch.status]) : t('Por ligar')}
                     </span>
                   )}
                 </div>
@@ -1314,7 +1322,7 @@ function InboxesManager() {
                 <div className="flex items-center gap-3 px-4 py-2.5 border-t border-b text-xs text-muted-foreground bg-muted/10">
                   <span className="flex items-center gap-1">
                     <UsersRound className="h-3.5 w-3.5" />
-                    {attendants.length > 0 ? `${attendants.length} atendente${attendants.length !== 1 ? 's' : ''}` : 'Todos'}
+                    {attendants.length > 0 ? t(attendants.length !== 1 ? '{{n}} atendentes' : '{{n}} atendente', { n: attendants.length }) : t('Todos')}
                   </span>
                   {ch.rotate_enabled && (
                     <span className="flex items-center gap-1 text-blue-600">
@@ -1327,7 +1335,7 @@ function InboxesManager() {
                       grupos nem existem, e o interruptor nem é mostrado. */}
                   {groupsOn && ch.channel_type === 'whatsapp' && (
                     <span className="flex items-center gap-1 text-green-600">
-                      <UsersRound className="h-3 w-3" /> Grupos
+                      <UsersRound className="h-3 w-3" /> {t('Grupos')}
                     </span>
                   )}
                 </div>
@@ -1357,7 +1365,7 @@ function InboxesManager() {
                       className="w-full gap-1.5 h-8"
                       onClick={() => setConnectModal({ open: true, channelId: ch.id })}
                     >
-                      <QrCode className="h-3.5 w-3.5" /> Ler QR code
+                      <QrCode className="h-3.5 w-3.5" /> {t('Ler QR code')}
                     </Button>
                   )}
                   {ch.channel_type === 'whatsapp' && ch.provider === 'meta' && (
@@ -1371,7 +1379,7 @@ function InboxesManager() {
                       onClick={() => concluirEmparelhamento(ch)}
                     >
                       <RefreshCw className={cn('h-3.5 w-3.5', pairing.isPending && 'animate-spin')} />
-                      {pairing.isPending ? 'A verificar…' : 'Concluir ligação'}
+                      {pairing.isPending ? t('A verificar…') : t('Concluir ligação')}
                     </Button>
                   )}
                   {/* `min-w-0`: sem isto o botão recusa-se a encolher abaixo do
@@ -1380,7 +1388,7 @@ function InboxesManager() {
                     if (isEmail) setEditEmailCh(ch as unknown as EmailChannel);
                     else setEditCh(ch);
                   }}>
-                    <Settings2 className="h-3.5 w-3.5" /> Editar
+                    <Settings2 className="h-3.5 w-3.5" /> {t('Editar')}
                   </Button>
                   {/* O diagnóstico só lê — não altera nada — e é o que
                       distingue "a Meta não nos deixa" de "o CRM tem um bug".
@@ -1390,7 +1398,7 @@ function InboxesManager() {
                       type="button"
                       onClick={correrDiagnostico}
                       className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                      title="Diagnóstico: porque é que não chegam mensagens?"
+                      title={t('Diagnóstico: porque é que não chegam mensagens?')}
                     >
                       <Stethoscope className="h-4 w-4" />
                     </button>
@@ -1398,14 +1406,14 @@ function InboxesManager() {
                   {/* Uma caixa arquivada também se pode excluir de vez. */}
                   {ch.archived_at && (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Arquivada
+                      {t('Arquivada')}
                     </span>
                   )}
                   <button
                     type="button"
                     onClick={() => setToDelete({ id: ch.id, type: ch.channel_type, provider: ch.provider, metadata: ch.metadata })}
                     className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-                    title="Excluir caixa"
+                    title={t('Excluir caixa')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -1419,8 +1427,8 @@ function InboxesManager() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mx-auto mb-3">
             <Inbox className="h-7 w-7 text-muted-foreground/50" />
           </div>
-          <p className="text-sm font-medium text-muted-foreground">Ainda não tens nenhuma caixa ligada</p>
-          <p className="text-xs text-muted-foreground mt-1">Clica em "Nova caixa" para começar</p>
+          <p className="text-sm font-medium text-muted-foreground">{t('Ainda não tens nenhuma caixa ligada')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('Clica em "Nova caixa" para começar')}</p>
         </div>
       )}
 
@@ -1473,14 +1481,13 @@ function InboxesManager() {
           <DialogHeader>
             <DialogTitle>
               {escolha?.connect === 'whatsapp'
-                ? 'Qual número queres ligar?'
-                : 'Qual Página queres ligar?'}
+                ? t('Qual número queres ligar?')
+                : t('Qual Página queres ligar?')}
             </DialogTitle>
             <DialogDescription>
-              A tua autorização dá acesso a {escolha?.opcoes.length}
-              {escolha?.connect === 'whatsapp' ? ' números' : ' Páginas'}. Escolhe
-              {escolha?.connect === 'whatsapp' ? ' o' : ' a'} que vai receber e responder
-              no Senvia OS.
+              {escolha?.connect === 'whatsapp'
+                ? t('A tua autorização dá acesso a {{n}} números. Escolhe o que vai receber e responder no Senvia OS.', { n: escolha?.opcoes.length })
+                : t('A tua autorização dá acesso a {{n}} Páginas. Escolhe a que vai receber e responder no Senvia OS.', { n: escolha?.opcoes.length })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -1493,7 +1500,7 @@ function InboxesManager() {
                 ? (o.ig_username ? `@${o.ig_username}` : (o.page_name ?? o.page_id))
                 : (o.verified_name || o.display_phone_number || o.phone_number_id);
               const subtitulo = pagina
-                ? (o.ig_username ? o.page_name ?? '' : 'Página do Facebook')
+                ? (o.ig_username ? o.page_name ?? '' : t('Página do Facebook'))
                 : `${o.display_phone_number ?? ''}${o.waba_name ? ` · ${o.waba_name}` : ''}`;
               const Icon = pagina
                 ? (escolha.connect === 'instagram' ? InstagramIcon : MessengerIcon)
@@ -1517,16 +1524,16 @@ function InboxesManager() {
                       onSuccess: (d) => {
                         setEscolha(null);
                         toast({
-                          title: `${{
+                          title: t('{{name}} ligado', { name: {
                             whatsapp: 'WhatsApp',
                             instagram: 'Instagram',
                             facebook: 'Messenger',
-                          }[escolha.connect] ?? 'Caixa'} ligado`,
-                          description: `${d.label} conectado`,
+                          }[escolha.connect] ?? t('Caixa') }),
+                          description: t('{{name}} conectado', { name: d.label }),
                         });
                       },
                       onError: (e) => toast({
-                        title: 'Não foi possível ligar',
+                        title: t('Não foi possível ligar'),
                         description: (e as Error).message,
                         variant: 'destructive',
                       }),
@@ -1556,8 +1563,8 @@ function InboxesManager() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Nova caixa de entrada</DialogTitle>
-            <DialogDescription>Escolhe o canal. O nome vem da conta que ligares — podes mudá-lo depois.</DialogDescription>
+            <DialogTitle>{t('Nova caixa de entrada')}</DialogTitle>
+            <DialogDescription>{t('Escolhe o canal. O nome vem da conta que ligares — podes mudá-lo depois.')}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 mt-1">
             {CHANNEL_CATALOG.map((c) => {
@@ -1591,9 +1598,9 @@ function InboxesManager() {
                     <Icon className={cn('h-5 w-5', c.color)} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{c.label}</p>
+                    <p className="text-sm font-medium">{t(c.label)}</p>
                     {!c.available && (
-                      <p className="text-[10px] text-muted-foreground">{CHANNEL_COMING_SOON_LABEL}</p>
+                      <p className="text-[10px] text-muted-foreground">{t(CHANNEL_COMING_SOON_LABEL)}</p>
                     )}
                   </div>
                 </button>
@@ -1610,14 +1617,11 @@ function InboxesManager() {
               mão que ninguém volta a ler. */}
           {CHANNEL_CATALOG.some((c) => !c.available) ? (
             <p className="border-t pt-4 text-xs text-muted-foreground">
-              {CHANNEL_CATALOG.filter((c) => !c.available).map((c) => c.label).join(', ')}
-              {' '}ainda {CHANNEL_CATALOG.filter((c) => !c.available).length === 1 ? 'está' : 'estão'} a caminho.
+              {t(CHANNEL_CATALOG.filter((c) => !c.available).length === 1 ? '{{names}} ainda está a caminho.' : '{{names}} ainda estão a caminho.', { names: CHANNEL_CATALOG.filter((c) => !c.available).map((c) => c.label).join(', ') })}
             </p>
           ) : (
             <p className="border-t pt-4 text-xs text-muted-foreground">
-              O WhatsApp liga-se lendo um QR code com o telemóvel. Instagram e Messenger
-              abrem uma janela da Meta: escolhe lá a Página que queres ligar — se tiveres
-              mais do que uma, perguntamos qual a seguir.
+              {t('O WhatsApp liga-se lendo um QR code com o telemóvel. Instagram e Messenger abrem uma janela da Meta: escolhe lá a Página que queres ligar — se tiveres mais do que uma, perguntamos qual a seguir.')}
             </p>
           )}
         </DialogContent>
@@ -1627,23 +1631,22 @@ function InboxesManager() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {toDelete?.type === 'email' ? 'Remover esta caixa?' : 'Excluir esta caixa?'}
+              {toDelete?.type === 'email' ? t('Remover esta caixa?') : t('Eliminar esta caixa?')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {toDelete?.type === 'email'
-                ? 'A caixa deixa de aparecer no CRM e as mensagens desse canal deixam de ser geridas aqui. Esta ação não pode ser anulada.'
+                ? t('A caixa deixa de aparecer no CRM e as mensagens desse canal deixam de ser geridas aqui. Esta ação não pode ser anulada.')
                 // Excluir apaga a caixa E, por cascata, as conversas dela. Quem
                 // confirma tem de saber quantas, antes — não depois.
                 : aContarConversas
-                  ? 'A verificar quantas conversas tem esta caixa…'
+                  ? t('A verificar quantas conversas tem esta caixa…')
                   : conversasAApagar
-                    ? `A caixa é desligada e apagada, com as ${conversasAApagar} conversa${conversasAApagar === 1 ? '' : 's'} dela. `
-                      + 'Esta ação não pode ser anulada: o histórico desaparece da Caixa de Entrada.'
-                    : 'A caixa é desligada e apagada. Não tem conversas guardadas. Esta ação não pode ser anulada.'}
+                    ? t(conversasAApagar === 1 ? 'A caixa é desligada e apagada, com a {{n}} conversa dela. Esta ação não pode ser anulada: o histórico desaparece da Caixa de Entrada.' : 'A caixa é desligada e apagada, com as {{n}} conversas dela. Esta ação não pode ser anulada: o histórico desaparece da Caixa de Entrada.', { n: conversasAApagar })
+                    : t('A caixa é desligada e apagada. Não tem conversas guardadas. Esta ação não pode ser anulada.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!toDelete) return;
@@ -1658,7 +1661,7 @@ function InboxesManager() {
               disabled={toDelete?.type !== 'email' && aContarConversas}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {toDelete?.type === 'email' ? 'Remover' : 'Excluir'}
+              {toDelete?.type === 'email' ? t('Remover') : t('Eliminar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1667,13 +1670,13 @@ function InboxesManager() {
       <AlertDialog open={!!toDisconnect} onOpenChange={(o) => !o && setToDisconnect(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Desconectar este WhatsApp?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Desconectar este WhatsApp?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              A sessão de WhatsApp termina e deixas de receber/enviar mensagens por esta caixa. A caixa mantém-se: podes voltar a ligar quando quiseres.
+              {t('A sessão de WhatsApp termina e deixas de receber/enviar mensagens por esta caixa. A caixa mantém-se: podes voltar a ligar quando quiseres.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (toDisconnect) logoutChannel.mutate(toDisconnect);
@@ -1681,7 +1684,7 @@ function InboxesManager() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Desconectar
+              {t('Desconectar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1691,61 +1694,62 @@ function InboxesManager() {
 }
 
 function BrevoForm({ chavesGuardadas, brevoApiKey, setBrevoApiKey, brevoSenderEmail, setBrevoSenderEmail, showBrevoApiKey, setShowBrevoApiKey, handleSaveBrevo, updateOrganizationIsPending, profileSenderEmail, setProfileSenderEmail, emailSignature, setEmailSignature, handleSaveProfile, updateProfileIsPending }: IntegrationsContentProps) {
+  const { t } = useLanguage();
   return (
     <>
       <div className="rounded-lg bg-muted/50 border p-3 space-y-1">
-        <p className="text-sm font-medium flex items-center gap-2"><Megaphone className="h-4 w-4 text-muted-foreground" />Envio de campanhas e automações de email</p>
-        <p className="text-xs text-muted-foreground">Atualmente só suportamos o <strong>Brevo</strong> como provedor de email marketing. O email remetente deve estar verificado na tua conta Brevo para o envio funcionar.</p>
+        <p className="text-sm font-medium flex items-center gap-2"><Megaphone className="h-4 w-4 text-muted-foreground" />{t('Envio de campanhas e automações de email')}</p>
+        <p className="text-xs text-muted-foreground">{t('Atualmente só suportamos o Brevo como provedor de email marketing. O email remetente deve estar verificado na tua conta Brevo para o envio funcionar.')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="brevo-sender-email">Email Remetente</Label>
-        <Input id="brevo-sender-email" type="email" placeholder="comercial@minhaempresa.pt" value={brevoSenderEmail} onChange={(e) => setBrevoSenderEmail(e.target.value)} />
-        <p className="text-xs text-muted-foreground">Email verificado no Brevo que aparecerá como remetente.</p>
+        <Label htmlFor="brevo-sender-email">{t('Email Remetente')}</Label>
+        <Input id="brevo-sender-email" type="email" placeholder={t("comercial@minhaempresa.pt")} value={brevoSenderEmail} onChange={(e) => setBrevoSenderEmail(e.target.value)} />
+        <p className="text-xs text-muted-foreground">{t('Email verificado no Brevo que aparecerá como remetente.')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="brevo-api-key">API Key do Brevo</Label>
+        <Label htmlFor="brevo-api-key">{t('API Key do Brevo')}</Label>
         <div className="relative">
-          <Input id="brevo-api-key" data-otto-target="settings-brevo-api" type={showBrevoApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.brevo ? "Guardada — escreve uma nova para substituir" : "xkeysib-..."} value={brevoApiKey} onChange={(e) => setBrevoApiKey(e.target.value)} />
+          <Input id="brevo-api-key" data-otto-target="settings-brevo-api" type={showBrevoApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.brevo ? t("Guardada — escreve uma nova para substituir") : "xkeysib-..."} value={brevoApiKey} onChange={(e) => setBrevoApiKey(e.target.value)} />
           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowBrevoApiKey(!showBrevoApiKey)}>
             {showBrevoApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Encontre a sua API Key em Brevo → Definições → API Keys.</p>
+        <p className="text-xs text-muted-foreground">{t('Encontre a sua API Key em Brevo → Definições → API Keys.')}</p>
       </div>
       <div className="space-y-2">
-        <Label>Webhook URL (Tracking)</Label>
+        <Label>{t('Webhook URL (Tracking)')}</Label>
         <div className="flex items-center gap-2">
           <Input readOnly value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brevo-webhook`} className="text-xs font-mono bg-muted" />
           <Button type="button" variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brevo-webhook`); }}>
-            Copiar
+            {t('Copiar')}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Cole este URL no painel do Brevo → Definições → Webhooks para ativar tracking de entregas, aberturas e cliques.</p>
+        <p className="text-xs text-muted-foreground">{t('Cole este URL no painel do Brevo → Definições → Webhooks para ativar tracking de entregas, aberturas e cliques.')}</p>
       </div>
       <Button onClick={handleSaveBrevo} disabled={updateOrganizationIsPending}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar
+        {t('Guardar')}
       </Button>
 
       {/* Personal email-sending config (per-user) — moved here from the profile. */}
       <div className="rounded-lg border p-4 space-y-4 mt-2">
         <div>
-          <h4 className="font-medium text-sm flex items-center gap-2"><Mail className="h-4 w-4" />O teu envio de email</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">Aplica-se apenas aos emails que <strong>tu</strong> envias. Sobrepõe-se ao remetente da organização.</p>
+          <h4 className="font-medium text-sm flex items-center gap-2"><Mail className="h-4 w-4" />{t('O teu envio de email')}</h4>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('Aplica-se apenas aos emails que tu envias. Sobrepõe-se ao remetente da organização.')}</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-brevo-sender">O teu email de envio</Label>
-          <Input id="profile-brevo-sender" type="email" placeholder="o-seu-email@dominio.com" value={profileSenderEmail} onChange={(e) => setProfileSenderEmail(e.target.value)} />
-          <p className="text-xs text-muted-foreground">Deve estar verificado na Brevo. Se vazio, é usado o email da organização acima.</p>
+          <Label htmlFor="profile-brevo-sender">{t('O teu email de envio')}</Label>
+          <Input id="profile-brevo-sender" type="email" placeholder={t("o-seu-email@dominio.com")} value={profileSenderEmail} onChange={(e) => setProfileSenderEmail(e.target.value)} />
+          <p className="text-xs text-muted-foreground">{t('Deve estar verificado na Brevo. Se vazio, é usado o email da organização acima.')}</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-signature">A tua assinatura de email</Label>
-          <Textarea id="profile-signature" value={emailSignature} onChange={(e) => setEmailSignature(e.target.value)} placeholder="Cole aqui a sua assinatura HTML (nome, cargo, telefone, logo...)" rows={6} className="font-mono text-xs" />
-          <p className="text-xs text-muted-foreground">Anexada automaticamente a todos os emails que enviar (templates, marketing, leads).</p>
+          <Label htmlFor="profile-signature">{t('A tua assinatura de email')}</Label>
+          <Textarea id="profile-signature" value={emailSignature} onChange={(e) => setEmailSignature(e.target.value)} placeholder={t("Cole aqui a sua assinatura HTML (nome, cargo, telefone, logo...)")} rows={6} className="font-mono text-xs" />
+          <p className="text-xs text-muted-foreground">{t('Anexada automaticamente a todos os emails que enviar (templates, marketing, leads).')}</p>
         </div>
         <Button onClick={handleSaveProfile} disabled={updateProfileIsPending}>
           {updateProfileIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Guardar
+          {t('Guardar')}
         </Button>
       </div>
     </>
@@ -1753,74 +1757,77 @@ function BrevoForm({ chavesGuardadas, brevoApiKey, setBrevoApiKey, brevoSenderEm
 }
 
 function InvoiceXpressForm({ chavesGuardadas, invoiceXpressAccountName, setInvoiceXpressAccountName, invoiceXpressApiKey, setInvoiceXpressApiKey, showInvoiceXpressApiKey, setShowInvoiceXpressApiKey, handleSaveInvoiceXpress, updateOrganizationIsPending }: IntegrationsContentProps) {
+  const { t } = useLanguage();
   return (
     <>
       <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-        <p className="text-sm text-amber-600 dark:text-amber-400">Encontre estas credenciais em InvoiceXpress → Conta → Integrações → API.</p>
+        <p className="text-sm text-amber-600 dark:text-amber-400">{t('Encontre estas credenciais em InvoiceXpress → Conta → Integrações → API.')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ix-account-name">Account Name</Label>
-        <Input id="ix-account-name" placeholder="minhaempresa" value={invoiceXpressAccountName} onChange={(e) => setInvoiceXpressAccountName(e.target.value)} />
-        <p className="text-xs text-muted-foreground">Subdomínio da sua conta InvoiceXpress (ex: minhaempresa.app.invoicexpress.com).</p>
+        <Label htmlFor="ix-account-name">{t('Account Name')}</Label>
+        <Input id="ix-account-name" placeholder={t("minhaempresa")} value={invoiceXpressAccountName} onChange={(e) => setInvoiceXpressAccountName(e.target.value)} />
+        <p className="text-xs text-muted-foreground">{t('Subdomínio da sua conta InvoiceXpress (ex: minhaempresa.app.invoicexpress.com).')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ix-api-key">API Key</Label>
+        <Label htmlFor="ix-api-key">{t('API Key')}</Label>
         <div className="relative">
-          <Input id="ix-api-key" data-otto-target="settings-invoicexpress-api" type={showInvoiceXpressApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.invoicexpress ? "Guardada — escreve uma nova para substituir" : "Chave de autenticação"} value={invoiceXpressApiKey} onChange={(e) => setInvoiceXpressApiKey(e.target.value)} />
+          <Input id="ix-api-key" data-otto-target="settings-invoicexpress-api" type={showInvoiceXpressApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.invoicexpress ? t("Guardada — escreve uma nova para substituir") : t("Chave de autenticação")} value={invoiceXpressApiKey} onChange={(e) => setInvoiceXpressApiKey(e.target.value)} />
           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowInvoiceXpressApiKey(!showInvoiceXpressApiKey)}>
             {showInvoiceXpressApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Chave de autenticação da API InvoiceXpress.</p>
+        <p className="text-xs text-muted-foreground">{t('Chave de autenticação da API InvoiceXpress.')}</p>
       </div>
       <Button onClick={handleSaveInvoiceXpress} disabled={updateOrganizationIsPending}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar
+        {t('Guardar')}
       </Button>
     </>
   );
 }
 
 function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendusApiKey, setShowVendusApiKey, vendusOptionsLoaded, vendusRegisterReady, vendusReadinessError, vendusOptionsLoading, handleLoadVendusOptions, handleSaveVendus, updateOrganizationIsPending }: IntegrationsContentProps) {
+  const { t } = useLanguage();
   return (
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-        <p className="text-sm text-blue-600 dark:text-blue-400">Liga a Vendus com a chave API. O Senvia usa automaticamente a caixa existente quando há uma única caixa ativa do tipo API e envia as faturas em modo Normal. Nas faturas-recibo e recibos, o método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.</p>
+        <p className="text-sm text-blue-600 dark:text-blue-400">{t('Liga a Vendus com a chave API. O Senvia usa automaticamente a caixa existente quando há uma única caixa ativa do tipo API e envia as faturas em modo Normal. Nas faturas-recibo e recibos, o método de pagamento vem da venda e precisa de ter um equivalente ativo na Vendus.')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="vendus-api-key">Chave de API</Label>
+        <Label htmlFor="vendus-api-key">{t('Chave de API')}</Label>
         <div className="relative">
           <Input
             id="vendus-api-key"
             type={showVendusApiKey ? 'text' : 'password'}
             autoComplete="off"
-            placeholder={chavesGuardadas?.vendus ? 'Guardada — escreve uma nova para substituir' : 'Chave da API Vendus'}
+            placeholder={chavesGuardadas?.vendus ? t('Guardada — escreve uma nova para substituir') : t('Chave da API Vendus')}
             value={vendusApiKey}
             onChange={(event) => setVendusApiKey(event.target.value)}
           />
-          <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" aria-label={showVendusApiKey ? 'Ocultar chave Vendus' : 'Mostrar chave Vendus'} onClick={() => setShowVendusApiKey(!showVendusApiKey)}>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" aria-label={showVendusApiKey ? t('Ocultar chave Vendus') : t('Mostrar chave Vendus')} onClick={() => setShowVendusApiKey(!showVendusApiKey)}>
             {showVendusApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Deixa em branco para manter a chave guardada.</p>
+        <p className="text-xs text-muted-foreground">{t('Deixa em branco para manter a chave guardada.')}</p>
       </div>
       <Button type="button" variant="outline" onClick={handleLoadVendusOptions}
         disabled={vendusOptionsLoading || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {vendusOptionsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {vendusOptionsLoading ? 'A validar a chave...' : 'Validar chave'}
+        {vendusOptionsLoading ? t('A validar a chave...') : t('Validar chave')}
       </Button>
       {vendusOptionsLoaded && (vendusRegisterReady
-        ? <p className="text-xs text-green-600">Chave validada e caixa API pronta para faturação.</p>
+        ? <p className="text-xs text-green-600">{t('Chave validada e caixa API pronta para faturação.')}</p>
         : <p className="text-xs text-amber-700">{vendusReadinessError}</p>)}
       <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar
+        {t('Guardar')}
       </Button>
     </>
   );
 }
 
 function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey, keyinvoiceApiUrl, setKeyinvoiceApiUrl, showKeyinvoiceApiKey, setShowKeyinvoiceApiKey, handleSaveKeyInvoice, updateOrganizationIsPending }: IntegrationsContentProps) {
+  const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
   const save = async () => {
     setSaving(true);
@@ -1835,23 +1842,23 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
     <>
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
         <p className="text-sm text-blue-600 dark:text-blue-400">
-          Introduza a chave <strong>Apikey</strong> da API 5.0. A chave guardada nunca volta a ser mostrada no browser.
+          {t('Introduza a chave Apikey da API 5.0. A chave guardada nunca volta a ser mostrada no browser.')}
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ki-api-key">Apikey</Label>
+        <Label htmlFor="ki-api-key">{t('Apikey')}</Label>
         <div className="relative">
-          <Input id="ki-api-key" type={showKeyinvoiceApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.keyinvoice ? "Guardada — escreve uma nova para substituir" : "Chave da API KeyInvoice"} value={keyinvoiceApiKey} onChange={(e) => setKeyinvoiceApiKey(e.target.value)} />
+          <Input id="ki-api-key" type={showKeyinvoiceApiKey ? 'text' : 'password'} placeholder={chavesGuardadas?.keyinvoice ? t("Guardada — escreve uma nova para substituir") : t("Chave da API KeyInvoice")} value={keyinvoiceApiKey} onChange={(e) => setKeyinvoiceApiKey(e.target.value)} />
           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowKeyinvoiceApiKey(!showKeyinvoiceApiKey)}>
             {showKeyinvoiceApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Encontre a Apikey em KeyInvoice → Configurações → API KEYINVOICE. Se gerar uma nova chave, substitua-a aqui e guarde.</p>
+        <p className="text-xs text-muted-foreground">{t('Encontre a Apikey em KeyInvoice → Configurações → API KEYINVOICE. Se gerar uma nova chave, substitua-a aqui e guarde.')}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ki-api-url">URL da API</Label>
+        <Label htmlFor="ki-api-url">{t('URL da API')}</Label>
         <Input id="ki-api-url" type="url" placeholder="https://login.keyinvoice.com/API5.php" value={keyinvoiceApiUrl} onChange={(e) => setKeyinvoiceApiUrl(e.target.value)} />
-        <p className="text-xs text-muted-foreground">Endereço base da API KeyInvoice. Deixe em branco para usar o valor padrão.</p>
+        <p className="text-xs text-muted-foreground">{t('Endereço base da API KeyInvoice. Deixe em branco para usar o valor padrão.')}</p>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -1859,7 +1866,7 @@ function KeyInvoiceForm({ chavesGuardadas, keyinvoiceApiKey, setKeyinvoiceApiKey
       </p>
       <Button onClick={save} disabled={updateOrganizationIsPending || saving}>
         {(updateOrganizationIsPending || saving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {saving ? 'A validar ligação…' : 'Guardar e validar'}
+        {saving ? t('A validar ligação…') : t('Guardar e validar')}
       </Button>
     </>
   );
