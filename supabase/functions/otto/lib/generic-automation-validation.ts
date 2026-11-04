@@ -27,7 +27,7 @@ const graphEdgeSchema = z.object({
   id: identifierSchema,
   source: identifierSchema,
   target: identifierSchema,
-  branch: identifierSchema.nullable(),
+  branch: identifierSchema.nullable().default(null),
 }).strict();
 const automationGraphSchema = z.object({
   nodes: z.array(graphNodeSchema).max(AUTOMATION_GRAPH_LIMITS.maxNodes),

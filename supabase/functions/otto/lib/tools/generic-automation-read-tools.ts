@@ -158,7 +158,32 @@ export const genericAutomationReadTools = [
         requireComplete: true,
       });
       const referenceFailure = await validateAutomationReferences(ctx, state.flow.graph, state.flow.folder_id);
+      const whatsappNodes = state.flow.graph.nodes.filter((node) => node.type === "send_whatsapp");
+      const channelIds = [...new Set(whatsappNodes.flatMap((node) =>
+        typeof node.config.channel_id === "string" ? [node.config.channel_id] : []
+      ))];
+      const channelResult = channelIds.length
+        ? await ctx.supabaseUser.from("messaging_channels")
+          .select("id,label,phone_number,status,channel_type,provider,archived_at,metadata_public")
+          .eq("organization_id", ctx.orgId).in("id", channelIds)
+        : { data: [], error: null };
+      const accessibleChannels = channelResult.error ? [] : (channelResult.data ?? []).filter((channel) =>
+        channel.channel_type === "whatsapp" && channel.provider === "evolution" &&
+        channel.archived_at === null && channel.metadata_public?.native_inbox === true
+      );
+      const delivery = whatsappNodes.map((node) => {
+        const channelId = typeof node.config.channel_id === "string" ? node.config.channel_id : null;
+        const channel = accessibleChannels.find((item) => item.id === channelId);
+        return {
+          node_id: node.id,
+          sender: channel ? { label: channel.label, phone_number: channel.phone_number, status: channel.status } : null,
+          sender_status: channel ? "identified" : channelId ? "unavailable_or_not_authorized" : "default_resolved_at_send_time",
+          recipient_source: ["sale_renewal_due_today", "sale_renewal_due_in_2_days", "sale_renewal_overdue", "sale_payment_overdue_10d"].includes(state.flow.trigger_type)
+            ? "Telefone do cliente associado à venda, obtido no evento de cobrança" : "Telefone do contacto do evento",
+        };
+      });
       return {
+        whatsapp_delivery: delivery,
         flow: state.flow,
         native_graph: true,
         editable_by_otto: true,
