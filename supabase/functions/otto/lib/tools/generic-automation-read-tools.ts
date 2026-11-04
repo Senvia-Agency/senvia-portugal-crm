@@ -81,7 +81,7 @@ export const genericAutomationReadTools = [
       reentry_policies: AUTOMATION_REENTRY_POLICIES,
       creatable_triggers: CREATABLE_AUTOMATION_TRIGGERS.map((type) => ({
         type, label: AUTOMATION_NODE_LABELS[type],
-        ...(type === "sale_payment_overdue_10d" ? { coverage: "Ciclos recorrentes pendentes e pagamentos de venda autónomos pendentes há mais de 10 dias completos, associados a vendas não canceladas; exclui pagamento já representado pelo ciclo e exige contacto do cliente.", recipient_source: "Email e telefone do cliente associado à venda, quando disponíveis." } : {}),
+        ...(type === "sale_payment_overdue_10d" ? { coverage: "Ciclos recorrentes pendentes e pagamentos de venda autónomos pendentes há mais de 10 dias completos, associados a vendas não canceladas; exclui pagamentos ligados a ciclos e também pagamentos autónomos que coincidam com a venda e a data de um ciclo; exige contacto do cliente.", recipient_source: "Email e telefone do cliente associado à venda, quando disponíveis." } : {}),
       })),
       legacy_editable_triggers: LEGACY_AUTOMATION_TRIGGERS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type], creatable: false })),
       creatable_actions: CREATABLE_AUTOMATION_ACTIONS.map((type) => ({ type, label: AUTOMATION_NODE_LABELS[type] })),
