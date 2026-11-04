@@ -119,6 +119,7 @@ verify_jwt = false
 
 [functions.otto]
 verify_jwt = false
+import_map = "./functions/automation-workflow-import-map.json"
 
 [functions.stripe-webhook]
 verify_jwt = false
@@ -136,6 +137,11 @@ verify_jwt = false
 # x-automation-secret (Vault) dentro da própria função — ver isAuthorized.
 [functions.automation-engine]
 verify_jwt = false
+import_map = "./functions/automation-workflow-import-map.json"
+
+[functions.configured-workflow-activation]
+verify_jwt = true
+import_map = "./functions/automation-workflow-import-map.json"
 
 [functions.backfill-stripe-net]
 verify_jwt = false
