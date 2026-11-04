@@ -4,7 +4,7 @@ Texto pronto a usar nas Novidades (Administração → Anúncios) e em email, re
 Cada notícia tem **título**, **resumo** (1 linha, para o pop-up e redes sociais) e **texto** (para a página da novidade).
 Tudo em pt-PT, a tratar o cliente por "você".
 
-> Antes de publicar: Feed, Tarefas e Email (WebMail) ainda só estão ligados no 2.0 local. Confirme que estão ativos em produção antes de anunciar essas três.
+> Publicado a 4 de novembro de 2026 (v26.12.0): a notícia principal (0) está nas Novidades, com pop-up até 18/11. Todos os módulos estão ligados em produção.
 
 ---
 
