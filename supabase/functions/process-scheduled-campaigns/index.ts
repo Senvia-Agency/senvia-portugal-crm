@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
+import { campaignContentDigest } from "../otto/lib/tools/marketing-shared.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -7,6 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function campaignClient(url: string, key: string) { return createClient(url, key); }
 const BATCH_SIZE = 10;
 const APP_BASE_URL = "https://app.senvia.pt";
 
@@ -27,7 +29,7 @@ function buildUnsubscribeUrl(token: string): string {
 }
 
 async function ensureMarketingContact(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof campaignClient>,
   organizationId: string,
   email: string,
   name: string | null | undefined,
@@ -73,7 +75,7 @@ async function ensureMarketingContact(
 }
 
 async function createUnsubscribeUrl(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof campaignClient>,
   organizationId: string,
   contactId: string,
   emailSendId: string,
@@ -135,10 +137,12 @@ serve(async (req: Request): Promise<Response> => {
       try {
         console.log(`Processing scheduled campaign: ${campaign.id} - ${campaign.name}`);
 
-        await supabase
-          .from("email_campaigns")
-          .update({ status: "sending" })
-          .eq("id", campaign.id);
+        const { data: claimed, error: claimError } = await supabase
+          .from("email_campaigns").update({ status: "sending" })
+          .eq("id", campaign.id).eq("organization_id", campaign.organization_id)
+          .eq("status", "scheduled").eq("updated_at", campaign.updated_at)
+          .select("id").maybeSingle();
+        if (claimError || !claimed) continue;
 
         const { data: queuedSends, error: queuedError } = await supabase
           .from("email_sends")
@@ -187,7 +191,7 @@ serve(async (req: Request): Promise<Response> => {
         let emailSubject = campaign.subject || "";
         let emailHtml = campaign.html_content || "";
 
-        if (campaign.template_id) {
+        if (campaign.template_id && !campaign.approved_content_digest) {
           const { data: template, error: templateError } = await supabase
             .from("email_templates")
             .select("subject, html_content")
@@ -206,6 +210,19 @@ serve(async (req: Request): Promise<Response> => {
           }
         }
 
+        if (campaign.approved_content_digest) {
+          emailSubject = campaign.approved_subject || "";
+          emailHtml = campaign.approved_html_content || "";
+          const digest = await campaignContentDigest({
+            subject: emailSubject, htmlContent: emailHtml,
+            settings: campaign.approved_settings || {}, settingsData: campaign.approved_settings_data || {},
+          });
+          if (digest !== campaign.approved_content_digest) {
+            await supabase.from("email_campaigns").update({ status: "failed" }).eq("id", campaign.id);
+            results.push({ campaignId: campaign.id, status: "failed", sent: 0, failed: 0 });
+            continue;
+          }
+        }
         if (!emailSubject.trim() || !emailHtml.trim()) {
           console.error(`Campaign ${campaign.id} is missing subject or HTML content.`, {
             hasSubject: Boolean(emailSubject.trim()),
@@ -220,6 +237,8 @@ serve(async (req: Request): Promise<Response> => {
           continue;
         }
 
+        const organizationName = org.name;
+        const brevoApiKey = org.brevo_api_key;
         let senderEmail = org.brevo_sender_email;
         let senderName = org.name;
 
@@ -235,15 +254,21 @@ serve(async (req: Request): Promise<Response> => {
           }
         }
 
-        const campaignSettings = (campaign.settings as Record<string, boolean>) || {};
-        const campaignSettingsData = (campaign.settings_data as Record<string, string>) || {};
+        const campaignSettings = ((campaign.approved_content_digest ? campaign.approved_settings : campaign.settings) as Record<string, boolean>) || {};
+        const campaignSettingsData = ((campaign.approved_content_digest ? campaign.approved_settings_data : campaign.settings_data) as Record<string, string>) || {};
 
-        async function processSend(send: typeof queuedSends[0]): Promise<{ sent: boolean }> {
+        async function processSend(send: NonNullable<typeof queuedSends>[number]): Promise<{ sent: boolean }> {
           try {
+            const { data: claimedSend, error: sendClaimError } = await supabase
+              .from("email_sends").update({ status: "sending" })
+              .eq("id", send.id).eq("organization_id", campaign.organization_id)
+              .eq("campaign_id", campaign.id).eq("status", "queued")
+              .select("id").maybeSingle();
+            if (sendClaimError || !claimedSend) return { sent: false };
             const variables: Record<string, string> = {
               nome: send.recipient_name || "",
               email: send.recipient_email || "",
-              organizacao: org.name || "",
+              organizacao: organizationName || "",
               data: new Date().toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" }),
             };
 
@@ -312,14 +337,26 @@ serve(async (req: Request): Promise<Response> => {
               brevoPayload.tags = [campaignSettingsData.tag];
             }
 
+            const consentQuery = supabase.from("marketing_contacts")
+              .select("id, email, subscribed").eq("organization_id", campaign.organization_id);
+            const { data: contact, error: consentError } = send.marketing_contact_id
+              ? await consentQuery.eq("id", send.marketing_contact_id).maybeSingle()
+              : await consentQuery.eq("email", send.recipient_email.trim().toLowerCase()).maybeSingle();
+            if (consentError || !contact || contact.subscribed !== true
+              || contact.email.trim().toLowerCase() !== send.recipient_email.trim().toLowerCase()
+              || (campaign.approved_content_digest && !send.marketing_contact_id)) {
+              await supabase.from("email_sends").update({ status: "failed", error_message: "Marketing consent unavailable or changed" }).eq("id", send.id);
+              return { sent: false };
+            }
             const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
               method: "POST",
               headers: {
                 accept: "application/json",
-                "api-key": org.brevo_api_key,
+                "api-key": brevoApiKey,
                 "content-type": "application/json",
               },
               body: JSON.stringify(brevoPayload),
+              signal: AbortSignal.timeout(30000),
             });
 
             if (brevoResponse.ok) {
@@ -370,17 +407,18 @@ serve(async (req: Request): Promise<Response> => {
           }
         }
 
+        const finalStatus = failedCount === queuedSends.length ? "failed" : "sent";
         await supabase
           .from("email_campaigns")
           .update({
-            status: failedCount === queuedSends.length ? "failed" : "sent",
+            status: finalStatus,
             sent_count: sentCount,
             failed_count: failedCount,
             sent_at: new Date().toISOString(),
           })
           .eq("id", campaign.id);
 
-        results.push({ campaignId: campaign.id, status: "sent", sent: sentCount, failed: failedCount });
+        results.push({ campaignId: campaign.id, status: finalStatus, sent: sentCount, failed: failedCount });
         console.log(`Campaign ${campaign.id}: ${sentCount} sent, ${failedCount} failed`);
       } catch (campaignError) {
         console.error(`Error processing campaign ${campaign.id}:`, campaignError);

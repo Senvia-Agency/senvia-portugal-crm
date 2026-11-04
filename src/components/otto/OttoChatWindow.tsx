@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOttoChat } from "@/hooks/useOttoChat";
 import { OttoMessageComponent } from "./OttoMessage";
+import { OttoActionCard } from "./OttoActionCard";
 import { OttoQuickActions } from "./OttoQuickActions";
 import { OttoOnboardingKickoff } from "./OttoOnboardingKickoff";
 import { useOttoOnboarding } from "@/hooks/useOttoOnboarding";
@@ -33,7 +34,17 @@ function AttachmentThumbnail({ file }: { file: File }) {
 }
 
 export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
-  const { messages, isLoading, sendMessage, clearMessages } = useOttoChat();
+  const {
+    messages,
+    isLoading,
+    pendingAction,
+    actionResult,
+    actionDecision,
+    sendMessage,
+    confirmAction,
+    cancelAction,
+    clearMessages,
+  } = useOttoChat();
   const { pendingAttachments, addAttachment, removeAttachment, clearAttachments } = useOttoStore();
   const { showBadge: onboardingPending } = useOttoOnboarding();
   const [input, setInput] = useState("");
@@ -57,7 +68,7 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
         viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
       }, 50);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, pendingAction, actionResult]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -211,6 +222,18 @@ export function OttoChatWindow({ onClose }: OttoChatWindowProps) {
               isStreaming={isLoading && i === messages.length - 1 && msg.role === "assistant"}
             />
           ))}
+          {pendingAction && (
+            <OttoActionCard
+              kind="preview"
+              action={pendingAction}
+              decision={actionDecision}
+              onConfirm={confirmAction}
+              onCancel={cancelAction}
+            />
+          )}
+          {actionResult && (
+            <OttoActionCard kind="result" result={actionResult} onOpenResource={onClose} />
+          )}
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div className="flex gap-2.5">
               <div className="flex-shrink-0 w-7 h-7 rounded-full overflow-hidden">

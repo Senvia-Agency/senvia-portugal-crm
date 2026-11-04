@@ -21,12 +21,14 @@ interface Recipient {
   email: string;
   name: string;
   clientId?: string;
+  marketingContactId?: string;
   variables?: Record<string, string>;
 }
 
 interface SendTemplateRequest {
   organizationId: string;
   templateId?: string;
+  sourceTemplateId?: string;
   recipients: Recipient[];
   campaignId?: string;
   automationId?: string;
@@ -35,6 +37,13 @@ interface SendTemplateRequest {
   subject?: string;
   htmlContent?: string;
   requiredTriggerType?: string;
+}
+
+class MarketingConsentChangedError extends Error {
+  constructor() {
+    super("Marketing consent changed before send");
+    this.name = "MarketingConsentChangedError";
+  }
 }
 
 function sanitizeVariableTags(html: string): string {
@@ -155,6 +164,24 @@ async function ensureMarketingContact(
   return fallback?.id ?? null;
 }
 
+async function hasCurrentMarketingConsent(
+  supabase: SupabaseClient<any>,
+  organizationId: string,
+  contactId: string,
+  email: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("marketing_contacts")
+    .select("id, email, subscribed")
+    .eq("organization_id", organizationId)
+    .eq("id", contactId)
+    .maybeSingle();
+  return !error
+    && data?.subscribed === true
+    && typeof data.email === "string"
+    && data.email.trim().toLowerCase() === email.trim().toLowerCase();
+}
+
 async function createUnsubscribeToken(
   supabase: SupabaseClient<any>,
   organizationId: string,
@@ -222,7 +249,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
-      organizationId, templateId, recipients, campaignId, automationId,
+      organizationId, templateId, sourceTemplateId, recipients, campaignId, automationId,
       settings = {}, settingsData = {},
       subject: customSubject, htmlContent: customHtmlContent, requiredTriggerType,
     }: SendTemplateRequest = await req.json();
@@ -238,6 +265,13 @@ serve(async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ error: "Missing template or custom content" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (templateId && sourceTemplateId) {
+      return new Response(
+        JSON.stringify({ error: "Choose template content or a frozen source template, not both" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -322,6 +356,21 @@ serve(async (req: Request): Promise<Response> => {
       }
       templateSubject = template.subject;
       templateHtmlContent = template.html_content;
+    }
+
+    if (sourceTemplateId) {
+      const { data: sourceTemplate, error: sourceTemplateError } = await supabase
+        .from("email_templates")
+        .select("id, is_active")
+        .eq("id", sourceTemplateId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (sourceTemplateError || sourceTemplate?.is_active !== true) {
+        return new Response(
+          JSON.stringify({ error: "Source template not found or inactive" }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     const { data: org, error: orgError } = await supabase
@@ -443,13 +492,13 @@ serve(async (req: Request): Promise<Response> => {
         htmlContent = applyHtmlSettings(htmlContent, settings, settingsData);
 
         if (/\{\{\s*unsubscribe\s*\}\}/i.test(htmlContent)) {
-          const contactId = await ensureMarketingContact(
-            supabase,
-            organizationId,
-            recipient.email,
-            recipient.name,
-            campaignId ? "campaign" : automationId ? "automation" : "manual_email",
-          );
+          const contactId = recipient.marketingContactId ?? await ensureMarketingContact(
+              supabase,
+              organizationId,
+              recipient.email,
+              recipient.name,
+              campaignId ? "campaign" : automationId ? "automation" : "manual_email",
+            );
 
           if (contactId) {
             const unsubscribeData = await createUnsubscribeToken(supabase, organizationId, contactId, null);
@@ -478,6 +527,16 @@ serve(async (req: Request): Promise<Response> => {
           brevoPayload.tags = [settingsData.tag];
         }
 
+        if (
+          recipient.marketingContactId
+          && !await hasCurrentMarketingConsent(
+            supabase,
+            organizationId,
+            recipient.marketingContactId,
+            recipient.email,
+          )
+        ) throw new MarketingConsentChangedError();
+
         const brevoResponse = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
@@ -503,10 +562,11 @@ serve(async (req: Request): Promise<Response> => {
 
         const emailSendRecord = {
           organization_id: organizationId,
-          template_id: templateId || null,
+          template_id: templateId || sourceTemplateId || null,
           campaign_id: campaignId || null,
           automation_id: automationId || null,
           client_id: recipient.clientId || null,
+          marketing_contact_id: recipient.marketingContactId || null,
           recipient_email: recipient.email,
           recipient_name: recipient.name,
           subject,
@@ -532,10 +592,11 @@ serve(async (req: Request): Promise<Response> => {
 
         const failRecord = {
           organization_id: organizationId,
-          template_id: templateId || null,
+          template_id: templateId || sourceTemplateId || null,
           campaign_id: campaignId || null,
           automation_id: automationId || null,
           client_id: recipient.clientId || null,
+          marketing_contact_id: recipient.marketingContactId || null,
           recipient_email: recipient.email,
           recipient_name: recipient.name,
           subject: templateSubject,

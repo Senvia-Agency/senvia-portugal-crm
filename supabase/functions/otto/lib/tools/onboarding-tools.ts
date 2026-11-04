@@ -5,7 +5,8 @@ import { STAGE_LABELS } from "../onboarding.ts";
 
 const VALID_MODULES = [
   "proposals", "calendar", "sales", "ecommerce", "clients",
-  "marketing", "finance", "energy", "prospects", "inbox",
+  "marketing", "finance", "energy", "prospects", "inbox", "leads",
+  "automations",
 ];
 
 // kebab/ascii slug for a pipeline stage key derived from its label.
@@ -20,6 +21,7 @@ function slugify(s: string): string {
 export const onboardingTools: Tool[] = [
   {
     name: "get_onboarding_status",
+    module: "settings",
     description: "Verificar em que ponto da configuração e ativação está a organização (dados da empresa, pipeline, importar leads, primeiro cliente, primeira venda, primeira proposta, faturação, integrações, equipa). Usa para saber o próximo passo a sugerir.",
     parameters: { type: "object", properties: {}, required: [] },
     execute: async (_args, ctx) => {
@@ -51,6 +53,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "set_company_info",
+    module: "settings",
     description: "Definir os dados da empresa: nome, telefone de contacto, email financeiro, nicho de negócio e/ou logótipo (URL). Só preenche os campos fornecidos pelo utilizador.",
     parameters: {
       type: "object",
@@ -80,6 +83,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "setup_pipeline_stages",
+    module: "settings",
     description: "Criar as etapas do pipeline de leads pela ordem dada. Usa APENAS quando a organização ainda não tem pipeline configurado (caso contrário, encaminha para Definições > Pipeline para evitar perder dados).",
     parameters: {
       type: "object",
@@ -129,6 +133,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "configure_invoicing",
+    module: "settings",
     description: "Configurar a faturação da organização. provider deve ser 'invoicexpress' ou 'keyinvoice'. Para InvoiceXpress são precisos api_key e account_name.",
     parameters: {
       type: "object",
@@ -170,6 +175,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "configure_brevo",
+    module: "settings",
     description: "Configurar a integração Brevo para email marketing. Precisa da api_key; o sender_email é opcional.",
     parameters: {
       type: "object",
@@ -192,6 +198,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "setup_lead_autoreply",
+    module: "settings",
     description: "Configura a RESPOSTA AUTOMÁTICA de WhatsApp aos leads novos: cria/atualiza o formulário de captação com perguntas de qualificação + as regras de IA + as mensagens por temperatura (quente/morno/frio). Usa APENAS depois de mostrares as perguntas, regras e mensagens ao utilizador e ele confirmar. Para a MESMA resposta a todos, põe o mesmo texto nos 3 templates. NOTA: o WhatsApp tem de estar LIGADO à parte para as mensagens saírem.",
     parameters: {
       type: "object",
@@ -304,6 +311,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "set_modules",
+    module: "settings",
     description: `Ativar ou desativar módulos da organização. Módulos válidos: ${VALID_MODULES.join(", ")}.`,
     parameters: {
       type: "object",
@@ -333,6 +341,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "configure_whatsapp",
+    module: "settings",
     description: "Iniciar a ligação do WhatsApp. Não liga sozinho (o utilizador tem de ler o QR no telemóvel); abre o guia visual que o leva à caixa e mostra onde carregar.",
     parameters: { type: "object", properties: {}, required: [] },
     adminOnly: true,
@@ -343,6 +352,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "invite_member",
+    module: "settings",
     description: "Ajudar a convidar um membro da equipa. Abre o guia visual que leva ao botão de adicionar acesso em Definições > Equipa.",
     parameters: { type: "object", properties: {}, required: [] },
     adminOnly: true,
@@ -353,6 +363,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "import_leads",
+    module: "leads",
     description: "Ajudar a importar leads de um ficheiro CSV/Excel. Abre o guia visual que leva ao botão Importar na página de Leads.",
     parameters: { type: "object", properties: {}, required: [] },
     adminOnly: true,
@@ -363,6 +374,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: "complete_onboarding",
+    module: "settings",
     description: "Marcar a configuração inicial (onboarding) como concluída. Usa quando os passos essenciais estiverem feitos e o utilizador confirmar que quer terminar.",
     parameters: { type: "object", properties: {}, required: [] },
     adminOnly: true,

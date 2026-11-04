@@ -63,6 +63,7 @@ export type AutomationTriggerType =
   | 'sale_renewal_due_today'
   | 'sale_renewal_due_in_2_days'
   | 'sale_renewal_overdue'
+  | 'sale_payment_overdue_10d'
   // Referral programme: the organization that referred a customer earns a
   // free month the moment that customer makes their first payment. Dispatched
   // by the Stripe referral ledger, to the agency, with the rewarded admin as

@@ -2,6 +2,7 @@
 // admin flag, profile permissions, org info, and the computed onboarding state.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import type { ToolContext, OrgInfo } from "./types.ts";
+import { loadAuthorizationSnapshot } from "./authorization.ts";
 import { computeOnboardingState, resolveMode } from "./onboarding.ts";
 import { meetsMfaPolicy } from "../../_shared/user-authorization.ts";
 
@@ -26,18 +27,20 @@ export async function loadContext(
 
   // Validate the user token (anon-key calls count as unauthenticated).
   let userId: string | null = null;
+  let supabaseUser: ToolContext["supabaseUser"] | null = null;
   if (authHeader.startsWith("Bearer ") && authHeader !== `Bearer ${SUPABASE_ANON_KEY}`) {
     const token = authHeader.replace("Bearer ", "");
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const candidateUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
     try {
-      const { data, error } = await supabaseAuth.auth.getUser(token);
+      const { data, error } = await candidateUser.auth.getUser(token);
       if (!error && data?.user) {
         userId = data.user.id;
-        if (!await meetsMfaPolicy(supabaseAuth, userId)) {
+        if (!await meetsMfaPolicy(candidateUser, userId)) {
           return { ctx: null, userId, hasDataAccess: false, blockedReason: 'MFA_REQUIRED' };
         }
+        supabaseUser = candidateUser;
       }
     } catch {
       return { ctx: null, userId: null, hasDataAccess: false, blockedReason: 'AUTH_UNAVAILABLE' };
@@ -46,78 +49,37 @@ export async function loadContext(
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Validate org membership (or super_admin).
-  let isSuperAdmin = false;
-  if (userId && orgId) {
-    const { data: membership } = await admin
-      .from("organization_members")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("organization_id", orgId)
-      .eq("is_active", true)
-      .maybeSingle();
-    const { data: superRole } = await admin
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("role", "super_admin")
-        .maybeSingle();
-    if (superRole) isSuperAdmin = true;
-    else if (!membership) orgId = null;
-  }
-
-  const hasDataAccess = !!userId && !!orgId;
-  if (!hasDataAccess) {
+  if (!userId || !orgId || !supabaseUser) {
     return { ctx: null, userId, hasDataAccess: false };
   }
-
-  // Resolve admin role + profile permissions.
-  let isAdmin = isSuperAdmin;
-  let permissions: Record<string, any> | null = null;
-  if (!isAdmin) {
-    const { data: adminRole, error } = await admin.rpc('is_org_admin', {
-      _user_id: userId, _org_id: orgId,
-    });
-    isAdmin = !error && adminRole === true;
-  }
-  if (!isAdmin) {
-    const { data: member } = await admin
-      .from("organization_members")
-      .select("profile_id")
-      .eq("user_id", userId!)
-      .eq("organization_id", orgId!)
-      .maybeSingle();
-    if (member?.profile_id) {
-      const { data: profile } = await admin
-        .from("organization_profiles")
-        .select("module_permissions")
-        .eq("id", member.profile_id)
-        .eq("organization_id", orgId!)
-        .maybeSingle();
-      permissions = profile?.module_permissions || null;
-    }
+  const validatedOrgId = orgId;
+  const authorization = await loadAuthorizationSnapshot(admin, userId, validatedOrgId);
+  if (!authorization.ok) {
+    return {
+      ctx: null,
+      userId,
+      hasDataAccess: false,
+      blockedReason: authorization.reason,
+    };
   }
 
   // Load org info.
-  const { data: orgRow } = await admin
+  const { data: orgRow, error: orgError } = await admin
     .from("organizations")
     .select("id, name, niche, trial_ends_at, plan, enabled_modules")
-    .eq("id", orgId!)
+    .eq("id", validatedOrgId)
     .maybeSingle();
-
-  const enabledModules = Array.isArray(orgRow?.enabled_modules)
-    ? (orgRow!.enabled_modules as string[])
-    : (orgRow?.enabled_modules && typeof orgRow.enabled_modules === "object"
-        ? Object.keys(orgRow.enabled_modules).filter((k) => (orgRow!.enabled_modules as any)[k])
-        : []);
+  if (orgError || !orgRow) {
+    return { ctx: null, userId, hasDataAccess: false, blockedReason: "organization_unavailable" };
+  }
 
   const org: OrgInfo = {
-    id: orgId!,
+    id: validatedOrgId,
     name: orgRow?.name ?? "",
     niche: orgRow?.niche ?? null,
     trial_ends_at: orgRow?.trial_ends_at ?? null,
     plan: orgRow?.plan ?? null,
-    enabled_modules: enabledModules,
+    enabled_modules: [...authorization.snapshot.enabledModules],
   };
 
   const onboarding = await computeOnboardingState(admin, org);
@@ -125,11 +87,11 @@ export async function loadContext(
 
   return {
     ctx: {
-      orgId: orgId!,
+      orgId: validatedOrgId,
       userId,
+      supabaseUser,
       supabaseAdmin: admin,
-      isAdmin,
-      permissions,
+      ...authorization.snapshot,
       org,
       onboarding,
       mode,

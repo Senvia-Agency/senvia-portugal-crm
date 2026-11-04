@@ -33,6 +33,7 @@ const PortalTotalLinkRh = lazy(() => import("./pages/portal-total-link/Rh"));
 const Clients = lazy(() => import("./pages/Clients"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Settings = lazy(() => import("./pages/Settings"));
+const OttoWriteAccess = lazy(() => import("./pages/OttoWriteAccess"));
 const Proposals = lazy(() => import("./pages/Proposals"));
 const Sales = lazy(() => import("./pages/Sales"));
 const Finance = lazy(() => import("./pages/Finance"));
@@ -155,6 +156,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                   <Route path="/financeiro/despesas" element={<FinanceExpenses />} />
                   <Route path="/ecommerce/*" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/settings/otto" element={<OttoWriteAccess />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/templates" element={<MarketingTemplates />} />
                   <Route path="/marketing/campaigns" element={<MarketingCampaigns />} />

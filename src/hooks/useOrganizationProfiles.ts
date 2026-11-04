@@ -83,6 +83,35 @@ export const MODULE_SCHEMA: Record<string, ModuleSchema> = {
     label: 'Marketing',
     subareas: {
       templates: { label: 'Templates', actions: ['view', 'create', 'edit', 'delete', 'send'] },
+      lists: { label: 'Listas', actions: ['view', 'create', 'edit', 'delete'] },
+      campaigns: { label: 'Campanhas', actions: ['view', 'create', 'edit', 'delete', 'send'] },
+      reports: { label: 'Relatórios', actions: ['view'] },
+    },
+  },
+  inbox: {
+    label: 'Caixa de Entrada',
+    subareas: {
+      tasks: { label: 'Tarefas', actions: ['view', 'create', 'edit'] },
+      messages: { label: 'Mensagens', actions: ['view', 'send'] },
+      email: { label: 'Email', actions: ['view', 'create', 'edit', 'send'] },
+    },
+  },
+  prospects: {
+    label: 'Prospects',
+    subareas: {
+      prospects: { label: 'Prospects', actions: ['view', 'import', 'assign'] },
+    },
+  },
+  energy: {
+    label: 'Portal Total Link',
+    subareas: {
+      portal: { label: 'Portal', actions: ['view'] },
+    },
+  },
+  automations: {
+    label: 'Automações',
+    subareas: {
+      flows: { label: 'Fluxos', actions: ['view', 'create', 'edit', 'delete', 'manage'] },
     },
   },
   ecommerce: {
@@ -106,6 +135,22 @@ export const MODULE_SCHEMA: Record<string, ModuleSchema> = {
     },
   },
 };
+
+const EXPLICIT_GRANT_SUBAREAS: ReadonlySet<string> = new Set([
+  'marketing.lists',
+  'marketing.campaigns',
+  'marketing.reports',
+  'inbox.tasks',
+  'inbox.messages',
+  'inbox.email',
+  'prospects.prospects',
+  'energy.portal',
+  'automations.flows',
+]);
+
+export function requiresExplicitProfileGrant(moduleKey: string, subarea: string): boolean {
+  return EXPLICIT_GRANT_SUBAREAS.has(`${moduleKey}.${subarea}`);
+}
 
 // ── Types ──
 export type SubareaPermissions = Record<string, boolean>;
@@ -180,7 +225,8 @@ export function convertLegacyToGranular(legacy: any): GranularPermissions {
     for (const [subKey, subSchema] of Object.entries(schema.subareas)) {
       const actions: SubareaPermissions = {};
       for (const action of subSchema.actions) {
-        if (action === 'view') actions[action] = canView;
+        if (requiresExplicitProfileGrant(moduleKey, subKey)) actions[action] = false;
+        else if (action === 'view') actions[action] = canView;
         else if (action === 'delete') actions[action] = canDelete;
         else actions[action] = canEdit;
       }
@@ -227,7 +273,7 @@ export function buildDefaultPermissions(role: string): GranularPermissions {
       for (const [subKey, subSchema] of Object.entries(schema.subareas)) {
         const actions: SubareaPermissions = {};
         for (const action of subSchema.actions) {
-          actions[action] = action === 'view';
+          actions[action] = !requiresExplicitProfileGrant(moduleKey, subKey) && action === 'view';
         }
         subareas[subKey] = actions;
       }
@@ -242,7 +288,9 @@ export function buildDefaultPermissions(role: string): GranularPermissions {
     for (const [subKey, subSchema] of Object.entries(schema.subareas)) {
       const actions: SubareaPermissions = {};
       for (const action of subSchema.actions) {
-        if (['finance', 'marketing', 'ecommerce', 'settings'].includes(moduleKey)) {
+        if (requiresExplicitProfileGrant(moduleKey, subKey)) {
+          actions[action] = false;
+        } else if (['finance', 'marketing', 'ecommerce', 'settings'].includes(moduleKey)) {
           actions[action] = false;
         } else if (action === 'delete') {
           actions[action] = false;

@@ -2,7 +2,8 @@
 // switch executor into the registry pattern. Behaviour is intentionally
 // identical — same RPCs, same shapes, same anti-hallucination _instruction
 // strings — so migrating carries no regression risk.
-import type { Tool } from "../types.ts";
+import { canAccessRecord, filterAccessibleRecords } from "../record-scope.ts";
+import type { Tool, ToolContext } from "../types.ts";
 
 const ERR = (msg: string) => ({
   error: msg,
@@ -38,7 +39,54 @@ function normalizeLookup(value: string): string {
     .trim();
 }
 
-async function resolveSaleId(ctx: any, reference: string): Promise<{ saleId: string | null; error?: string; candidates?: any[] }> {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function filterByLinkedSaleScope<T extends object & { sale_id?: unknown }>(
+  ctx: ToolContext,
+  rows: readonly T[],
+): Promise<T[]> {
+  if (ctx.dataScope === "all") return [...rows];
+  const saleIds = rows
+    .map((row) => row.sale_id)
+    .filter((saleId): saleId is string => typeof saleId === "string");
+  if (saleIds.length === 0) return [];
+  const { data, error } = await ctx.supabaseAdmin.from("sales")
+    .select("id, seller_id, created_by")
+    .eq("organization_id", ctx.orgId)
+    .in("id", [...new Set(saleIds)]);
+  if (error) return [];
+  const accessible = new Set(
+    filterAccessibleRecords(ctx, data ?? []).map(({ id }) => id),
+  );
+  return rows.filter((row) => typeof row.sale_id === "string" && accessible.has(row.sale_id));
+}
+
+type SaleCandidate = {
+  readonly id: string;
+  readonly code: string | null;
+  readonly total_value: unknown;
+  readonly status: unknown;
+  readonly payment_status: unknown;
+};
+
+function publicSaleCandidate(record: Readonly<Record<string, unknown>>): SaleCandidate | null {
+  return typeof record.id === "string"
+    ? {
+      id: record.id,
+      code: typeof record.code === "string" ? record.code : null,
+      total_value: record.total_value,
+      status: record.status,
+      payment_status: record.payment_status,
+    }
+    : null;
+}
+
+async function resolveSaleId(
+  ctx: ToolContext,
+  reference: string,
+): Promise<{ saleId: string | null; error?: string; candidates?: readonly SaleCandidate[] }> {
   const trimmed = reference.trim();
   if (!trimmed) return { saleId: null, error: "Referência da venda em falta" };
   if (UUID_RE.test(trimmed)) return { saleId: trimmed };
@@ -46,19 +94,39 @@ async function resolveSaleId(ctx: any, reference: string): Promise<{ saleId: str
   const candidates = saleReferenceCandidates(trimmed);
   const { data, error } = await ctx.supabaseAdmin
     .from("sales")
-    .select("id, code, total_value, status, payment_status")
+    .select("id, code, total_value, status, payment_status, seller_id, created_by")
     .eq("organization_id", ctx.orgId)
     .in("code", candidates)
     .limit(10);
   if (error) return { saleId: null, error: error.message };
-  if ((data || []).length === 1) return { saleId: data![0].id };
-  if ((data || []).length > 1) return { saleId: null, candidates: data || [] };
+  const scopedCandidates = filterAccessibleRecords(ctx, data ?? []);
+  if (scopedCandidates.length === 1) return { saleId: scopedCandidates[0].id };
+  if (scopedCandidates.length > 1) {
+    return {
+      saleId: null,
+      candidates: scopedCandidates.flatMap((candidate) => {
+        const safe = publicSaleCandidate(candidate);
+        return safe ? [safe] : [];
+      }),
+    };
+  }
 
   const { data: searched, error: searchError } = await ctx.supabaseAdmin
     .rpc("search_sales_unaccent", { org_id: ctx.orgId, search_term: trimmed, pay_status: null, max_results: 10 });
   if (searchError) return { saleId: null, error: searchError.message };
-  if ((searched || []).length === 1) return { saleId: searched![0].id };
-  if ((searched || []).length > 1) return { saleId: null, candidates: searched || [] };
+  const searchedRows = Array.isArray(searched) ? searched.filter(isRecord) : [];
+  const scopedSearched = filterAccessibleRecords(ctx, searchedRows)
+    .flatMap((candidate) => {
+      const safe = publicSaleCandidate(candidate);
+      return safe ? [safe] : [];
+    });
+  if (scopedSearched.length === 1) return { saleId: scopedSearched[0].id };
+  if (scopedSearched.length > 1) {
+    return {
+      saleId: null,
+      candidates: scopedSearched,
+    };
+  }
 
   return { saleId: null };
 }
@@ -123,6 +191,7 @@ async function getLatestSaleAssignmentAudit(ctx: any, sale: any): Promise<Record
 export const readTools: Tool[] = [
   {
     name: "list_team_members",
+    module: "settings",
     description: "Listar membros ativos da equipa da organização para resolver nomes de comerciais/responsáveis antes de atribuir registos.",
     parameters: {
       type: "object",
@@ -152,6 +221,7 @@ export const readTools: Tool[] = [
       const normalizedQuery = typeof args.query === "string" ? normalizeLookup(args.query) : "";
       const normalizedRole = typeof args.role === "string" ? args.role.trim().toLowerCase() : "";
       const results = members
+        .filter((member) => ctx.dataScope === "all" || ctx.scopeUserIds.has(member.user_id))
         .map((m: any) => {
           const profile = profileById.get(m.user_id) || {};
           return {
@@ -178,6 +248,7 @@ export const readTools: Tool[] = [
   },
   {
     name: "prepare_sale_creation",
+    module: "sales",
     description: "Preparar registo de uma ou várias vendas: procura clientes/leads pelo nome, resolve comercial por nome/email e identifica que dados ainda faltam antes de pedir confirmação.",
     parameters: {
       type: "object",
@@ -208,7 +279,12 @@ export const readTools: Tool[] = [
           .select("user_id, role, is_active")
           .eq("organization_id", ctx.orgId)
           .eq("is_active", true);
-        const memberIds = (members || []).map((m: any) => m.user_id).filter(Boolean);
+        const memberIds = (members || [])
+          .map((m: any) => m.user_id)
+          .filter((userId: unknown): userId is string => (
+            typeof userId === "string"
+            && (ctx.dataScope === "all" || ctx.scopeUserIds.has(userId))
+          ));
         if (memberIds.length > 0) {
           const { data: profiles } = await ctx.supabaseAdmin
             .from("profiles")
@@ -243,8 +319,8 @@ export const readTools: Tool[] = [
           continue;
         }
 
-        const clients = (clientsResult.data || []).map((c: any) => ({
-          type: "client",
+        const clients = filterAccessibleRecords(ctx, clientsResult.data || []).map((c: any) => ({
+          type: "client" as const,
           id: c.id,
           name: c.name,
           email: c.email,
@@ -253,8 +329,8 @@ export const readTools: Tool[] = [
           total_sales: c.total_sales,
           historical_total_value: c.total_value,
         }));
-        const leads = (leadsResult.data || []).map((l: any) => ({
-          type: "lead",
+        const leads = filterAccessibleRecords(ctx, leadsResult.data || []).map((l: any) => ({
+          type: "lead" as const,
           id: l.id,
           name: l.name,
           email: l.email,
@@ -263,12 +339,14 @@ export const readTools: Tool[] = [
           assigned_to: l.assigned_to,
           estimated_value: l.value,
         }));
-        const bestMatch = clients[0] || leads[0] || null;
+        const clientMatch = clients.length > 0 ? clients[0] : null;
+        const leadMatch = clientMatch === null && leads.length > 0 ? leads[0] : null;
+        const bestMatch = clientMatch ?? leadMatch;
         let existingSales: any[] = [];
         if (bestMatch) {
           let salesQuery = ctx.supabaseAdmin
             .from("sales")
-            .select("id, code, total_value, status, payment_status, sale_date, created_at, client_id, lead_id, created_by")
+            .select("id, code, total_value, status, payment_status, sale_date, created_at, client_id, lead_id, seller_id, created_by")
             .eq("organization_id", ctx.orgId)
             .order("created_at", { ascending: false })
             .limit(5);
@@ -276,7 +354,7 @@ export const readTools: Tool[] = [
           else salesQuery = salesQuery.eq("lead_id", bestMatch.id);
 
           const { data: sales } = await salesQuery;
-          existingSales = (sales || []).map((s: any) => ({
+          existingSales = filterAccessibleRecords(ctx, sales || []).map((s: any) => ({
             id: s.id,
             code: s.code,
             total_value: s.total_value,
@@ -295,15 +373,15 @@ export const readTools: Tool[] = [
           lead_matches: leads,
           existing_sales: existingSales,
           already_has_sales: existingSales.length > 0,
-          suggested_total_value: bestMatch?.type === "lead" && typeof bestMatch.estimated_value === "number" && bestMatch.estimated_value > 0 ? bestMatch.estimated_value : null,
+          suggested_total_value: leadMatch && typeof leadMatch.estimated_value === "number" && leadMatch.estimated_value > 0 ? leadMatch.estimated_value : null,
           needs: [
             ...(bestMatch ? [] : ["resolver cliente/lead"]),
-            ...(existingSales.length > 0 || (bestMatch?.type === "lead" && typeof bestMatch.estimated_value === "number" && bestMatch.estimated_value > 0) ? [] : ["valor da venda"]),
+            ...(existingSales.length > 0 || (leadMatch && typeof leadMatch.estimated_value === "number" && leadMatch.estimated_value > 0) ? [] : ["valor da venda"]),
           ],
           recommended_action: existingSales.length > 0
             ? "confirmar com o utilizador se quer criar uma nova venda duplicada ou apenas confirmar/ajustar a venda existente"
             : "pedir confirmação e valor antes de criar a venda",
-          note: bestMatch?.type === "client" && Number(bestMatch.historical_total_value || 0) > 0
+          note: clientMatch && Number(clientMatch.historical_total_value || 0) > 0
             ? "historical_total_value é histórico do cliente, não deve ser usado automaticamente como valor da nova venda."
             : undefined,
         });
@@ -319,6 +397,7 @@ export const readTools: Tool[] = [
   },
   {
     name: "search_clients",
+    module: "clients",
     description: "Procurar clientes por nome, email, NIF ou empresa. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -330,7 +409,7 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_clients_unaccent", { org_id: ctx.orgId, search_term: args.query, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((c: any) => ({
+      const results = filterAccessibleRecords(ctx, data || []).map((c: any) => ({
         id: c.id, code: c.code, name: c.name, email: c.email, phone: c.phone,
         nif: c.nif, company: c.company, status: c.status, total_sales: c.total_sales, total_value: c.total_value,
       }));
@@ -340,6 +419,7 @@ export const readTools: Tool[] = [
   },
   {
     name: "search_leads",
+    module: "leads",
     description: "Procurar leads por nome, email ou telefone. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -354,7 +434,7 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_leads_unaccent", { org_id: ctx.orgId, search_term: args.query, lead_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((l: any) => ({
+      const results = filterAccessibleRecords(ctx, data || []).map((l: any) => ({
         id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status,
         source: l.source, assigned_to: l.assigned_to, created_at: l.created_at, value: l.value,
       }));
@@ -364,6 +444,7 @@ export const readTools: Tool[] = [
   },
   {
     name: "search_invoices",
+    module: "finance",
     description: "Procurar faturas por referência ou nome do cliente. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -378,7 +459,8 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_invoices_unaccent", { org_id: ctx.orgId, search_term: args.query, inv_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((i: any) => ({
+      const scopedInvoices = await filterByLinkedSaleScope(ctx, data || []);
+      const results = scopedInvoices.map((i: any) => ({
         id: i.id, invoicexpress_id: i.invoicexpress_id, reference: i.reference,
         client_name: i.client_name, total: i.total, status: i.status,
         date: i.date, due_date: i.due_date, document_type: i.document_type, pdf_path: i.pdf_path,
@@ -389,6 +471,7 @@ export const readTools: Tool[] = [
   },
   {
     name: "search_sales",
+    module: "sales",
     description: "Procurar vendas por código ou nome do cliente. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -403,27 +486,29 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_sales_unaccent", { org_id: ctx.orgId, search_term: args.query, pay_status: args.payment_status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      if (!data || data.length === 0) return EMPTY("vendas");
-      const clientIds = [...new Set(data.filter((s: any) => s.client_id).map((s: any) => s.client_id))];
+      const scopedSales = filterAccessibleRecords(ctx, data || []);
+      if (scopedSales.length === 0) return EMPTY("vendas");
+      const clientIds = [...new Set(scopedSales.filter((s: any) => s.client_id).map((s: any) => s.client_id))];
       if (clientIds.length > 0) {
         const { data: clients } = await ctx.supabaseAdmin.from("crm_clients").select("id, name").in("id", clientIds);
         const clientMap = Object.fromEntries((clients || []).map((c: any) => [c.id, c.name]));
-        data.forEach((s: any) => { s.client_name = clientMap[s.client_id] || null; });
+        scopedSales.forEach((s: any) => { s.client_name = clientMap[s.client_id] || null; });
       }
-      const userIds = [...new Set(data.flatMap((s: any) => [s.seller_id, s.created_by]).filter(Boolean))];
+      const userIds = [...new Set(scopedSales.flatMap((s: any) => [s.seller_id, s.created_by]).filter(Boolean))];
       if (userIds.length > 0) {
         const { data: profiles } = await ctx.supabaseAdmin.from("profiles").select("id, full_name, email").in("id", userIds);
         const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p.full_name || p.email]));
-        data.forEach((s: any) => {
+        scopedSales.forEach((s: any) => {
           s.seller_name = s.seller_id ? profileMap[s.seller_id] || null : null;
           s.created_by_name = s.created_by ? profileMap[s.created_by] || null : null;
         });
       }
-      return { results: data, count: data.length };
+      return { results: scopedSales, count: scopedSales.length };
     },
   },
   {
     name: "search_proposals",
+    module: "proposals",
     description: "Procurar propostas por código ou nome do cliente. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -438,18 +523,20 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_proposals_unaccent", { org_id: ctx.orgId, search_term: args.query, prop_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      if (!data || data.length === 0) return EMPTY("propostas");
-      const propClientIds = [...new Set(data.filter((p: any) => p.client_id).map((p: any) => p.client_id))];
+      const scopedProposals = filterAccessibleRecords(ctx, data || []);
+      if (scopedProposals.length === 0) return EMPTY("propostas");
+      const propClientIds = [...new Set(scopedProposals.filter((p: any) => p.client_id).map((p: any) => p.client_id))];
       if (propClientIds.length > 0) {
         const { data: clients } = await ctx.supabaseAdmin.from("crm_clients").select("id, name").in("id", propClientIds);
         const clientMap = Object.fromEntries((clients || []).map((c: any) => [c.id, c.name]));
-        data.forEach((p: any) => { p.client_name = clientMap[p.client_id] || null; });
+        scopedProposals.forEach((p: any) => { p.client_name = clientMap[p.client_id] || null; });
       }
-      return { results: data, count: data.length };
+      return { results: scopedProposals, count: scopedProposals.length };
     },
   },
   {
     name: "get_client_details",
+    module: "clients",
     description: "Obter detalhes completos de um cliente específico por ID.",
     parameters: {
       type: "object",
@@ -460,17 +547,19 @@ export const readTools: Tool[] = [
     execute: async (args, ctx) => {
       const { data, error } = await ctx.supabaseAdmin
         .from("crm_clients")
-        .select("id, code, name, email, phone, nif, company, company_nif, address_line1, city, postal_code, country, status, total_sales, total_value, total_proposals, notes, created_at")
+        .select("id, code, name, email, phone, nif, company, company_nif, address_line1, city, postal_code, country, status, total_sales, total_value, total_proposals, notes, assigned_to, created_at")
         .eq("organization_id", ctx.orgId)
         .eq("id", args.client_id)
         .maybeSingle();
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
       if (!data) return { error: "Cliente não encontrado", _instruction: "Cliente não existe na base de dados. Informa o utilizador. NÃO INVENTES DADOS." };
+      if (!canAccessRecord(ctx, data)) return { error: "Cliente não encontrado", _instruction: "Cliente não está disponível no âmbito de dados deste utilizador. NÃO INVENTES DADOS." };
       return data;
     },
   },
   {
     name: "get_sale_details",
+    module: "sales",
     description: "Obter detalhes de uma venda específica incluindo pagamentos. Aceita UUID interno ou código/referência visível da venda, ex: 0002.",
     parameters: {
       type: "object",
@@ -498,6 +587,7 @@ export const readTools: Tool[] = [
         .maybeSingle();
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
       if (!sale) return { error: "Venda não encontrada", _instruction: "Venda não existe na base de dados. Informa o utilizador. NÃO INVENTES DADOS." };
+      if (!canAccessRecord(ctx, sale)) return { error: "Venda não encontrada", _instruction: "Venda não está disponível no âmbito de dados deste utilizador. NÃO INVENTES DADOS." };
       const { data: payments } = await ctx.supabaseAdmin
         .from("sale_payments")
         .select("id, amount, payment_date, payment_method, status, invoice_reference")
@@ -527,21 +617,24 @@ export const readTools: Tool[] = [
   },
   {
     name: "get_pipeline_summary",
+    module: "leads",
     description: "Obter resumo do pipeline de leads: contagem por etapa e total.",
     parameters: { type: "object", properties: {}, required: [] },
     permission: { module: "leads", subarea: "kanban", action: "view" },
     execute: async (_args, ctx) => {
       const { data: stages } = await ctx.supabaseAdmin
         .from("pipeline_stages").select("key, label:name").eq("organization_id", ctx.orgId).order("position");
-      const { data: leads } = await ctx.supabaseAdmin.from("leads").select("status").eq("organization_id", ctx.orgId);
+      const { data: leads } = await ctx.supabaseAdmin.from("leads").select("status, assigned_to").eq("organization_id", ctx.orgId);
+      const scopedLeads = filterAccessibleRecords(ctx, leads || []);
       const counts: Record<string, number> = {};
-      (leads || []).forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+      scopedLeads.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
       const summary = (stages || []).map((s: any) => ({ stage: s.label, key: s.key, count: counts[s.key] || 0 }));
-      return { stages: summary, total_leads: leads?.length || 0 };
+      return { stages: summary, total_leads: scopedLeads.length };
     },
   },
   {
     name: "get_finance_summary",
+    module: "finance",
     description: "Obter resumo financeiro de um período: total faturado, recebido, pendente, despesas e balanço. Se não forem fornecidas datas, usa o mês atual.",
     parameters: {
       type: "object",
@@ -558,26 +651,30 @@ export const readTools: Tool[] = [
       const endDateDefault = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const endDate = args.end_date || `${endDateDefault.getFullYear()}-${String(endDateDefault.getMonth() + 1).padStart(2, "0")}-${String(endDateDefault.getDate()).padStart(2, "0")}`;
       const { data: sales } = await ctx.supabaseAdmin
-        .from("sales").select("id, total_value, sale_date, operational_units").eq("organization_id", ctx.orgId).gte("sale_date", startDate).lte("sale_date", endDate);
-      const totalBilled = (sales || []).reduce((s: number, r: any) => s + Number(r.total_value || 0), 0);
+        .from("sales").select("id, total_value, sale_date, operational_units, seller_id, created_by").eq("organization_id", ctx.orgId).gte("sale_date", startDate).lte("sale_date", endDate);
+      const scopedSales = filterAccessibleRecords(ctx, sales || []);
+      const accessibleSaleIds = scopedSales.map(({ id }) => id);
+      const totalBilled = scopedSales.reduce((s: number, r: any) => s + Number(r.total_value || 0), 0);
       const { data: payments } = await ctx.supabaseAdmin
-        .from("sale_payments").select("amount, status").eq("organization_id", ctx.orgId).gte("payment_date", startDate).lte("payment_date", endDate);
+        .from("sale_payments").select("amount, status, sale_id").eq("organization_id", ctx.orgId).gte("payment_date", startDate).lte("payment_date", endDate)
+        .in("sale_id", accessibleSaleIds.length > 0 ? accessibleSaleIds : ["00000000-0000-0000-0000-000000000000"]);
       const totalReceived = (payments || []).filter((p: any) => p.status === "paid").reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
       const totalPending = (payments || []).filter((p: any) => p.status === "pending").reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
       const { data: expenses } = await ctx.supabaseAdmin
-        .from("expenses").select("amount").eq("organization_id", ctx.orgId).gte("expense_date", startDate).lte("expense_date", endDate);
-      const totalExpenses = (expenses || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+        .from("expenses").select("amount, created_by").eq("organization_id", ctx.orgId).gte("expense_date", startDate).lte("expense_date", endDate);
+      const totalExpenses = filterAccessibleRecords(ctx, expenses || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
       return {
         period: { start: startDate, end: endDate },
         total_billed: totalBilled, total_received: totalReceived, total_pending: totalPending,
         total_expenses: totalExpenses,
         balance: totalReceived - totalExpenses,
-        total_sales_count: (sales || []).reduce((sum, sale) => sum + Number(sale.operational_units || 1), 0),
+        total_sales_count: scopedSales.reduce((sum, sale) => sum + Number(sale.operational_units || 1), 0),
       };
     },
   },
   {
     name: "get_upcoming_events",
+    module: "calendar",
     description: "Obter próximos eventos da agenda nos próximos N dias.",
     parameters: {
       type: "object",
@@ -591,15 +688,17 @@ export const readTools: Tool[] = [
       const future = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await ctx.supabaseAdmin
         .from("calendar_events")
-        .select("id, title, event_type, start_time, end_time, description, status")
+        .select("id, title, event_type, start_time, end_time, description, status, user_id")
         .eq("organization_id", ctx.orgId).gte("start_time", now).lte("start_time", future).order("start_time").limit(10);
       if (error) return { error: error.message, _instruction: "ERRO NA PESQUISA. NÃO INVENTES DADOS." };
-      if (!data || data.length === 0) return { events: [], count: 0, _instruction: "ZERO eventos encontrados no período. Informa o utilizador. NÃO INVENTES DADOS." };
-      return { events: data, count: data.length };
+      const events = filterAccessibleRecords(ctx, data || []);
+      if (events.length === 0) return { events: [], count: 0, _instruction: "ZERO eventos encontrados no período. Informa o utilizador. NÃO INVENTES DADOS." };
+      return { events, count: events.length };
     },
   },
   {
     name: "search_credit_notes",
+    module: "finance",
     description: "Procurar notas de crédito por referência ou nome do cliente. Retorna até 10 resultados.",
     parameters: {
       type: "object",
@@ -614,7 +713,8 @@ export const readTools: Tool[] = [
       const { data, error } = await ctx.supabaseAdmin
         .rpc("search_credit_notes_unaccent", { org_id: ctx.orgId, search_term: args.query, cn_status: args.status || null, max_results: 10 });
       if (error) return ERR(error.message);
-      const results = (data || []).map((cn: any) => ({
+      const scopedNotes = await filterByLinkedSaleScope(ctx, data || []);
+      const results = scopedNotes.map((cn: any) => ({
         id: cn.id, reference: cn.reference, client_name: cn.client_name,
         total: cn.total, status: cn.status, date: cn.date, pdf_path: cn.pdf_path,
       }));

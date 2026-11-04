@@ -6,6 +6,7 @@ import {
   buildAllPermissions,
   convertLegacyToGranular,
   MODULE_SCHEMA,
+  requiresExplicitProfileGrant,
 } from '@/hooks/useOrganizationProfiles';
 
 const FULL_PERMISSIONS = buildAllPermissions(true);
@@ -106,7 +107,9 @@ function buildDefaultFallback(isViewer: boolean): GranularPermissions {
     for (const [subKey, subSchema] of Object.entries(schema.subareas)) {
       const actions: Record<string, boolean> = {};
       for (const action of subSchema.actions) {
-        if (moduleKey === 'settings') {
+        if (requiresExplicitProfileGrant(moduleKey, subKey)) {
+          actions[action] = false;
+        } else if (moduleKey === 'settings') {
           actions[action] = false;
         } else if (action === 'view') {
           actions[action] = true;
