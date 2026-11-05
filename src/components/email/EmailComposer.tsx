@@ -932,7 +932,9 @@ export function EmailComposer({
             role="textbox"
             aria-label={t("Corpo da mensagem")}
             aria-multiline="true"
-            className={cn("flex-1 overflow-y-auto px-4 py-3 text-base md:text-sm outline-none [&_a]:text-primary [&_a]:underline [&_table_img]:max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5", webmail ? "min-h-[240px]" : "min-h-[120px] max-h-[40dvh] md:max-h-[400px]")}
+            // [&_img]:inline undoes Tailwind's img { display: block }, which stacked a
+            // signature's side-by-side icons one per line (they arrive inline in the email).
+            className={cn("flex-1 overflow-y-auto px-4 py-3 text-base md:text-sm outline-none [&_a]:text-primary [&_a]:underline [&_img]:inline [&_table_img]:max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5", webmail ? "min-h-[240px]" : "min-h-[120px] max-h-[40dvh] md:max-h-[400px]")}
             style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif", lineHeight: '1.6' }}
           />
 
