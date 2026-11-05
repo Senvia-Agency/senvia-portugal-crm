@@ -313,3 +313,17 @@ The editor follows n8n's structure; no small dialogs anywhere in the module.
 - **Configure step**: `NodeDetailsView` — full-screen dialog with three columns: Entrada (variables with sample values from the latest run, trigger record), Parâmetros (`NodeInspector`, now form-only; the trigger node shows `TriggerPicker`), Saída (node stats + last 10 steps of this node across runs, via `useAutomationNodeSteps`). Edits apply to the in-memory graph; "Guardar" in the editor persists.
 - **Test**: `TestFlowDialog` is full screen, with the ordered step list and which contact field the flow needs.
 - The engine and the graph document are unchanged: data still flows through `run.context` and `{{variavel}}` rendering, not n8n's item/`$json` model.
+
+### Correlated email retries and ambiguous outcomes
+
+New flow email sends reserve a durable delivery by organization, run and node before contacting Brevo. A confirmed send is replayed from that delivery ledger without contacting the provider again. Explicit HTTP 408, 429 and 500–599 responses may be retried under the configured attempt policy, using the same provider idempotency key.
+
+A transport timeout or missing provider response is different: the provider may already have accepted the message. Likewise, a successful provider response followed by failure to confirm the local email ledger remains uncertain. Those cases stop for manual review and never automatically resend, even after the provider's finite idempotency window expires. A duplicate-parameter response without confirmed local delivery also requires review; it is not reported as success. An unfinished processing claim remains blocked after a worker crash.
+
+UI help: «No email, respostas HTTP 408, 429 e 5xx podem ser repetidas. Se não houver resposta do fornecedor, ou o envio tiver sido aceite sem confirmação local, o percurso para e exige revisão manual para evitar mensagens duplicadas.»
+
+### Registo de entrada e registo das ações
+
+A execução conserva o tipo e o ID do registo que iniciou o percurso. Reentrada, deduplicação de entrada e objetivo continuam associados a esse registo original. Criar uma lead, converter uma lead em cliente ou criar uma venda a partir de proposta guarda um alvo de ação separado no contexto. As ações seguintes usam esse novo registo, depois de confirmar que pertence à mesma organização. Assim, criar lead → atribuir responsável → mover etapa → criar tarefa opera sobre a lead criada; converter em cliente → alterar campo opera sobre o cliente; criar venda → solicitar alteração opera sobre a venda, mantendo revisão humana.
+
+Antes de usar dados de um registo numa ação, o motor relê o estado atual e os dados de contacto. Alterar nome, email ou telefone passa a refletir-se nas variáveis dos passos seguintes. Nenhuma destas operações troca a identidade de entrada guardada no percurso. Os blocos de controlo sem efeitos dispensam esta leitura; os filtros de entrada usam os dados do evento recebido.
