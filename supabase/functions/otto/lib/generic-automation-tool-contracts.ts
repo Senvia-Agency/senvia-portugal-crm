@@ -68,6 +68,7 @@ export const automationConcurrencyArgsSchema = z.object({
 
 export const confirmedAutomationActivationArgsSchema = automationConcurrencyArgsSchema.extend({
   activation_snapshot_digest: z.string().regex(/^[0-9a-f]{64}$/),
+  activation_preview_id: uuid.optional(),
 }).strict();
 
 export type CreateAutomationDraftArgs = z.infer<typeof createAutomationDraftArgsSchema>;

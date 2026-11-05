@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { useState } from "react";
 import { useModules } from "@/hooks/useModules";
 import { COUNTRIES } from "@/lib/countries";
@@ -160,6 +161,7 @@ export function ClientDetailsDrawer({
               <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
+                <AutomationRecordActions subjectType="client" subjectIds={[client.id]} />
               {client.phone && (
                 <>
                   <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400">

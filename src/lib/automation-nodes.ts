@@ -114,8 +114,52 @@ export interface NodeDefinition {
   defaultConfig: AutomationNodeConfig;
 }
 
+export const DEFAULT_PROVIDER_RETRY = { max_attempts: 3, interval_minutes: 5 } as const;
+
 export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   // ── Triggers ──
+  configured_workflow: {
+    type: 'configured_workflow',
+    label: 'Fluxo configurável',
+    description: 'Agenda, consulta registos e executa etapas com regras próprias',
+    icon: GitBranch,
+    category: 'trigger',
+    isTrigger: true,
+    branching: false,
+    defaultConfig: {},
+  },
+  email_opened: { type: 'email_opened', label: 'Email aberto', description: 'Quando o provedor confirma este evento de email', icon: Mail, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  email_clicked: { type: 'email_clicked', label: 'Clique no email', description: 'Quando o provedor confirma este evento de email', icon: Mail, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  email_bounced: { type: 'email_bounced', label: 'Email devolvido', description: 'Quando o provedor confirma este evento de email', icon: Mail, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  email_unsubscribed: { type: 'email_unsubscribed', label: 'Subscrição de email cancelada', description: 'Quando o provedor confirma este evento de email', icon: Mail, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  lead_inactive: { type: 'lead_inactive', label: 'Lead sem atividade', description: 'Quando a lead permanece sem atividade comercial', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  proposal_unanswered: { type: 'proposal_unanswered', label: 'Proposta sem resposta', description: 'Quando a proposta enviada permanece sem resposta', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  proposal_expiring: { type: 'proposal_expiring', label: 'Proposta a expirar', description: 'Antes de terminar a validade da proposta', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  sale_fidelization_ending: { type: 'sale_fidelization_ending', label: 'Fidelização a terminar', description: 'Antes do fim da fidelização da venda', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  payment_recorded: { type: 'payment_recorded', label: 'Pagamento registado', description: 'Quando um pagamento é confirmado no registo', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  fiscal_document_issued: { type: 'fiscal_document_issued', label: 'Documento fiscal emitido', description: 'Quando a emissão fiscal é confirmada', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  lead_updated: { type: 'lead_updated', label: 'Campo da lead mudou', description: 'Quando um campo da lead passa a ter o valor escolhido', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  task_overdue: { type: 'task_overdue', label: 'Tarefa em atraso', description: 'Quando uma tarefa pendente ultrapassa o prazo', icon: AlarmClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  meeting_upcoming: { type: 'meeting_upcoming', label: 'Evento próximo', description: 'Antes de um evento associado a uma lead ou cliente', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: { hours_before: 24 } },
+  task_created: { type: 'task_created', label: 'Tarefa criada', description: 'Quando uma tarefa associada a uma lead ou cliente é criada', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  task_completed: { type: 'task_completed', label: 'Tarefa concluída', description: 'Quando a equipa conclui uma tarefa', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  meeting_created: { type: 'meeting_created', label: 'Evento marcado', description: 'Quando um evento associado a uma lead ou cliente é marcado', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  meeting_status_changed: { type: 'meeting_status_changed', label: 'Estado do evento mudou', description: 'Quando um evento associado muda de estado', icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  inbound_webhook: {
+    type: 'inbound_webhook', label: 'Webhook de entrada', description: 'Recebe um evento de uma integração externa',
+    icon: Webhook, category: 'trigger', isTrigger: true, branching: false,
+    defaultConfig: { webhook_fields: { name: 'name', email: 'email', phone: 'phone' } },
+  },
+  scheduled: {
+    type: 'scheduled', label: 'Agendado', description: 'Inscreve os registos de um segmento nos dias e hora escolhidos',
+    icon: CalendarClock, category: 'trigger', isTrigger: true, branching: false,
+    defaultConfig: { entity: 'lead', schedule: { frequency: 'weekdays', time: '09:00' } },
+  },
+  record_date: {
+    type: 'record_date', label: 'Data de um registo', description: 'Começa antes ou depois da data de um campo',
+    icon: CalendarDays, category: 'trigger', isTrigger: true, branching: false,
+    defaultConfig: { entity: 'lead', offset_days: 0, time: '09:00' },
+  },
   lead_created: {
     type: 'lead_created',
     label: 'Lead criada',
@@ -179,6 +223,9 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     branching: false,
     defaultConfig: {},
   },
+  meta_message_received: { type: 'meta_message_received', label: 'Mensagem recebida na Meta', description: 'Quando chega uma mensagem a uma caixa oficial', icon: Inbox, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  email_received: { type: 'email_received', label: 'Email recebido', description: 'Quando chega um email à caixa IMAP', icon: Inbox, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  conversation_unanswered: { type: 'conversation_unanswered', label: 'Conversa sem resposta da equipa', description: 'Quando a mensagem aguarda resposta humana além do prazo', icon: Inbox, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
   message_received: {
     type: 'message_received',
     label: 'Mensagem recebida',
@@ -209,6 +256,9 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     branching: false,
     defaultConfig: {},
   },
+  expense_approval_requested: { type: 'expense_approval_requested', label: 'Despesa a aprovar', description: 'Quando este evento é confirmado no registo', icon: ListChecks, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  financial_request_created: { type: 'financial_request_created', label: 'Pedido financeiro pendente', description: 'Quando este evento é confirmado no registo', icon: ListChecks, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
+  list_left: { type: 'list_left', label: 'Saiu de uma lista', description: 'Quando este evento é confirmado no registo', icon: ListChecks, category: 'trigger', isTrigger: true, branching: false, defaultConfig: {} },
   list_joined: {
     type: 'list_joined',
     label: 'Entrou numa lista',
@@ -463,6 +513,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   },
 
   // ── Actions ──
+  meta_conversion: { type: 'meta_conversion', label: 'Registar conversão Meta', description: 'Regista um evento no píxel ativo da organização', icon: Webhook, category: 'crm', isTrigger: false, branching: false, defaultConfig: { event_name: 'Lead' } },
   send_whatsapp: {
     type: 'send_whatsapp',
     label: 'Enviar WhatsApp',
@@ -474,7 +525,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     // message stays linear. See `getNodeBranches`.
     branching: true,
     // A plain message is the default: waiting is opt-in in the inspector.
-    defaultConfig: { message: '' },
+    defaultConfig: { message: '', retry: { ...DEFAULT_PROVIDER_RETRY } },
   },
   send_email: {
     type: 'send_email',
@@ -484,7 +535,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     category: 'email',
     isTrigger: false,
     branching: false,
-    defaultConfig: {},
+    defaultConfig: { retry: { ...DEFAULT_PROVIDER_RETRY } },
   },
   wait: {
     type: 'wait',
@@ -499,6 +550,12 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
   // The everyday case (pergunta + espera) now lives inside `send_whatsapp`.
   // This node stays for flows that already use it and for the rarer case of
   // waiting on a question asked somewhere else.
+  wait_until: {
+    type: 'wait_until', label: 'Esperar até acontecer',
+    description: 'Aguarda uma condição com um prazo máximo',
+    icon: Clock, category: 'timing', isTrigger: false, branching: true,
+    defaultConfig: { conditions: [{ field: '', operator: 'equals', value: '' }], match: 'all', timeout_amount: 24, timeout_unit: 'hours' },
+  },
   wait_reply: {
     type: 'wait_reply',
     label: 'Esperar resposta',
@@ -524,6 +581,55 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     branching: true,
     defaultConfig: { field: 'status', operator: 'equals', value: '' },
   },
+  convert_to_client: { type: 'convert_to_client', label: 'Converter em cliente', description: 'Cria um cliente a partir da lead', icon: CalendarDays, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  send_proposal_email: { type: 'send_proposal_email', label: 'Enviar proposta por email', description: 'Envia a proposta ao contacto associado', icon: CalendarDays, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  create_event: { type: 'create_event', label: 'Criar reunião', description: 'Agenda uma reunião associada ao contacto', icon: CalendarDays, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  ai_draft: { type: 'ai_draft', label: 'Otto: redigir rascunho', description: 'Prepara uma resposta para revisão humana, sem enviar', icon: Rocket, category: 'logic', isTrigger: false, branching: true, defaultConfig: {} },
+  ai_classify: { type: 'ai_classify', label: 'Otto: classificar texto', description: 'Identifica intenção e temperatura do contacto', icon: Rocket, category: 'logic', isTrigger: false, branching: true, defaultConfig: {} },
+  ai_summarize: { type: 'ai_summarize', label: 'Otto: resumir', description: 'Resume o texto ou conversa', icon: Rocket, category: 'logic', isTrigger: false, branching: true, defaultConfig: {} },
+  ai_extract: { type: 'ai_extract', label: 'Otto: extrair dados', description: 'Extrai campos definidos a partir de texto', icon: Rocket, category: 'logic', isTrigger: false, branching: true, defaultConfig: {} },
+  assign_conversation: { type: 'assign_conversation', label: 'Atribuir conversa', description: 'Atribui a conversa ao membro escolhido', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  close_conversation: { type: 'close_conversation', label: 'Fechar conversa', description: 'Marca a conversa como fechada', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  send_meta_template: { type: 'send_meta_template', label: 'Enviar modelo WhatsApp oficial', description: 'Envia um modelo aprovado na caixa oficial', icon: MessageCircle, category: 'whatsapp', isTrigger: false, branching: false, defaultConfig: {} },
+  goto: { type: 'goto', label: 'Ir para passo', description: 'Repete um trecho com limite de passagens', icon: FileCheck, category: 'logic', isTrigger: false, branching: false, defaultConfig: { max_visits: 3 } },
+  create_sale_from_proposal: { type: 'create_sale_from_proposal', label: 'Criar venda da proposta', description: 'Cria venda pendente de aprovação a partir de proposta aceite', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  request_issue_invoice: { type: 'request_issue_invoice', label: 'Solicitar emissão de fatura', description: 'Cria um pedido para revisão e emissão por responsável', icon: FileCheck, category: 'crm', isTrigger: false, branching: true, defaultConfig: {} },
+  request_issue_receipt: { type: 'request_issue_receipt', label: 'Solicitar emissão de recibo', description: 'Cria um pedido para revisão e emissão por responsável', icon: FileCheck, category: 'crm', isTrigger: false, branching: true, defaultConfig: {} },
+  request_sale_status: { type: 'request_sale_status', label: 'Solicitar alteração de estado', description: 'Pede alteração de estado da venda para aprovação', icon: FileCheck, category: 'crm', isTrigger: false, branching: true, defaultConfig: {} },
+  request_billing_dispute: { type: 'request_billing_dispute', label: 'Solicitar revisão de contencioso', description: 'Encaminha a cobrança para revisão humana', icon: FileCheck, category: 'crm', isTrigger: false, branching: true, defaultConfig: {} },
+  request_service_suspension: { type: 'request_service_suspension', label: 'Solicitar revisão de suspensão', description: 'Pede avaliação da suspensão pelo responsável', icon: FileCheck, category: 'crm', isTrigger: false, branching: true, defaultConfig: {} },
+  create_lead: { type: 'create_lead', label: 'Criar lead', description: 'Cria uma lead com nome e contacto', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  mark_proposal_expired: { type: 'mark_proposal_expired', label: 'Marcar proposta como expirada', description: 'Expira uma proposta em rascunho ou enviada cuja validade terminou', icon: CalendarClock, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  mark_lead_lost: { type: 'mark_lead_lost', label: 'Marcar lead como perdida', description: 'Regista o motivo e a etapa de perda', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  complete_record_tasks: { type: 'complete_record_tasks', label: 'Concluir tarefas do registo', description: 'Conclui as tarefas abertas da lead ou cliente', icon: FileCheck, category: 'crm', isTrigger: false, branching: false, defaultConfig: {} },
+  filter: {
+    type: 'filter', label: 'Só continua se…', description: 'Encerra o percurso quando as condições não se verificam',
+    icon: GitBranch, category: 'logic', isTrigger: false, branching: false,
+    defaultConfig: { conditions: [{ field: '', operator: 'equals', value: '' }], match: 'all' },
+  },
+  split_ab: {
+    type: 'split_ab', label: 'Dividir A/B', description: 'Distribui contactos por caminhos com percentagens definidas',
+    icon: GitBranch, category: 'logic', isTrigger: false, branching: true,
+    defaultConfig: { variants: [{ id: 'a', label: 'A', weight: 50 }, { id: 'b', label: 'B', weight: 50 }] },
+  },
+  execute_flow: {
+    type: 'execute_flow', label: 'Iniciar outra automação', description: 'Inscreve este contacto noutra automação',
+    icon: RefreshCw, category: 'logic', isTrigger: false, branching: false, defaultConfig: {},
+  },
+  end_other_flow: {
+    type: 'end_other_flow', label: 'Terminar outra automação', description: 'Retira o contacto de outra automação',
+    icon: CircleStop, category: 'logic', isTrigger: false, branching: false, defaultConfig: {},
+  },
+  router: {
+    type: 'router',
+    label: 'Escolher caminho',
+    description: 'Segue pela primeira regra correspondente ou por Outros casos',
+    icon: GitBranch,
+    category: 'logic',
+    isTrigger: false,
+    branching: true,
+    defaultConfig: { routes: [] },
+  },
   move_stage: {
     type: 'move_stage',
     label: 'Mudar etapa',
@@ -543,6 +649,23 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     isTrigger: false,
     branching: false,
     defaultConfig: {},
+  },
+  update_field: {
+    type: 'update_field', label: 'Atualizar campo', description: 'Altera um campo do registo',
+    icon: FileText, category: 'crm', isTrigger: false, branching: false, defaultConfig: {},
+  },
+  remove_from_list: {
+    type: 'remove_from_list', label: 'Remover de lista', description: 'Retira o contacto de uma lista de marketing',
+    icon: ListChecks, category: 'crm', isTrigger: false, branching: false, defaultConfig: {},
+  },
+  notify_user: {
+    type: 'notify_user', label: 'Notificar utilizador', description: 'Envia uma notificação interna ao responsável escolhido',
+    icon: BellRing, category: 'crm', isTrigger: false, branching: false, defaultConfig: {},
+  },
+  publish_feed: {
+    type: 'publish_feed', label: 'Publicar no Feed', description: 'Publica no Feed da equipa da sua organização',
+    icon: MessageSquareText, category: 'crm', isTrigger: false, branching: false,
+    defaultConfig: { title: '', message: '' },
   },
   add_to_list: {
     type: 'add_to_list',
@@ -572,7 +695,7 @@ export const NODE_DEFINITIONS: Record<AutomationNodeType, NodeDefinition> = {
     category: 'crm',
     isTrigger: false,
     branching: false,
-    defaultConfig: { method: 'POST' },
+    defaultConfig: { method: 'POST', retry: { ...DEFAULT_PROVIDER_RETRY } },
   },
   end: {
     type: 'end',
@@ -599,15 +722,34 @@ export const MESSAGE_BUFFER_MAX_SECONDS = 60;
  * render fine on the canvas but are deliberately not offered here.
  */
 export const TRIGGER_TYPES: AutomationTriggerType[] = [
+  'configured_workflow',
+  'lead_inactive',
+  'proposal_unanswered',
+  'proposal_expiring',
+  'sale_fidelization_ending',
+  'payment_recorded',
+  'fiscal_document_issued',
+  'email_opened',
+  'email_clicked',
+  'email_bounced',
+  'email_unsubscribed',
+  'lead_updated',   'task_overdue', 'meeting_upcoming', 'task_created',   'task_completed',   'meeting_created',   'meeting_status_changed',
+  'inbound_webhook', 'scheduled', 'record_date', 'client_created', 'client_status_changed', 'proposal_created', 'proposal_status_changed', 'sale_created',
   'lead_created',
   'lead_created_hot',
   'lead_created_warm',
   'lead_created_cold',
   'lead_status_changed',
   'form_submitted',
+  'meta_message_received',
+  'email_received',
+  'conversation_unanswered',
   'message_received',
   'whatsapp_keyword',
   'sale_status_changed',
+  'expense_approval_requested',
+  'financial_request_created',
+  'list_left',
   'list_joined',
   'sale_renewal_due_today',
   'sale_renewal_due_in_2_days',
@@ -626,9 +768,16 @@ export const TRIGGER_TYPES: AutomationTriggerType[] = [
  * Every type offered in TRIGGER_TYPES must sit in exactly one group.
  */
 export const TRIGGER_GROUPS: ReadonlyArray<{ key: string; label: string; types: AutomationTriggerType[] }> = [
-  { key: 'leads', label: 'Leads', types: ['lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined'] },
-  { key: 'sales', label: 'Vendas', types: ['sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue', 'sale_payment_overdue_10d'] },
-  { key: 'whatsapp', label: 'WhatsApp', types: ['message_received', 'whatsapp_keyword'] },
+  { key: 'workflow', label: 'Fluxos', types: ['configured_workflow'] },
+  { key: 'leads', label: 'Leads', types: ['lead_updated', 'lead_created', 'lead_created_hot', 'lead_created_warm', 'lead_created_cold', 'lead_status_changed', 'form_submitted', 'list_joined', 'list_left'] },
+  { key: 'records', label: 'Registos', types: ['client_created', 'client_status_changed', 'proposal_created', 'proposal_status_changed'] },
+  { key: 'email', label: 'Email', types: ['email_received', 'email_opened', 'email_clicked', 'email_bounced', 'email_unsubscribed'] },
+  { key: 'lifecycle', label: 'Acompanhamento', types: ['lead_inactive', 'proposal_unanswered', 'proposal_expiring', 'sale_fidelization_ending'] },
+  { key: 'finance', label: 'Financeiro', types: ['payment_recorded', 'fiscal_document_issued', 'expense_approval_requested', 'financial_request_created'] },
+  { key: 'integrations', label: 'Integrações', types: ['inbound_webhook'] },
+  { key: 'schedule', label: 'Agenda', types: ['scheduled', 'record_date', 'task_overdue', 'meeting_upcoming', 'task_created', 'task_completed', 'meeting_created', 'meeting_status_changed'] },
+  { key: 'sales', label: 'Vendas', types: ['sale_created', 'sale_status_changed', 'sale_renewal_due_in_2_days', 'sale_renewal_due_today', 'sale_renewal_overdue', 'sale_payment_overdue_10d'] },
+  { key: 'whatsapp', label: 'WhatsApp', types: ['message_received', 'whatsapp_keyword', 'meta_message_received', 'conversation_unanswered'] },
   { key: 'referrals', label: 'Indicações', types: ['referral_month_earned', 'referral_month_started', 'referral_month_ending_2d'] },
   { key: 'billing', label: 'Subscrição', types: ['subscription_renewal_due_2d', 'stripe_subscription_past_due'] },
 ];
@@ -645,13 +794,45 @@ export function triggerGroupOf(type: AutomationTriggerType): string | null {
 // so an already-built flow that uses it — the question was asked by something
 // outside this flow — keeps rendering and editing correctly.
 export const ACTION_TYPES: AutomationNodeType[] = [
+  'publish_feed',
+  'meta_conversion',
   'send_whatsapp',
   'send_email',
   'wait',
+  'wait_until',
   'condition',
+  'router',
+  'convert_to_client',
+  'send_proposal_email',
+  'create_event',
+  'ai_draft',
+  'ai_classify',
+  'ai_summarize',
+  'ai_extract',
+  'assign_conversation',
+  'close_conversation',
+  'send_meta_template',
+  'goto',
+  'create_sale_from_proposal',
+  'request_issue_invoice',
+  'request_issue_receipt',
+  'request_sale_status',
+  'request_billing_dispute',
+  'request_service_suspension',
+  'create_lead',
+  'mark_proposal_expired',
+  'mark_lead_lost',
+  'complete_record_tasks',
+  'filter',
+  'split_ab',
+  'execute_flow',
+  'end_other_flow',
   'move_stage',
   'assign_user',
   'add_to_list',
+  'remove_from_list',
+  'update_field',
+  'notify_user',
   'create_task',
   'webhook',
   'end',
@@ -691,6 +872,7 @@ function replyBranches(node: AutomationGraphNode): NodeBranch[] {
       key: rule.id,
       label: rule.label?.trim() || tr('Regra {{n}}', { n: index + 1 }),
     })),
+    { key: 'fallback', label: tr('Outra resposta') },
     { key: 'timeout', label: tr('Sem resposta') },
   ];
 }
@@ -724,7 +906,35 @@ export function formatReplyOptions(
 }
 
 export function getNodeBranches(node: AutomationGraphNode | undefined): NodeBranch[] {
+  const branches = normalNodeBranches(node);
+  if (node?.config.on_error !== 'error_branch') return branches;
+  return [
+    ...(branches.length ? branches : [{ key: 'default', label: 'Continuar' }]),
+    { key: 'error', label: 'Erro' },
+  ];
+}
+
+function normalNodeBranches(node: AutomationGraphNode | undefined): NodeBranch[] {
   if (!node) return [];
+
+  if (node.type === 'ai_draft') return [{ key: 'review', label: 'Revisão humana' }];
+
+  if (node.type === 'ai_classify' || node.type === 'ai_summarize' || node.type === 'ai_extract') return [{ key: 'ready', label: 'Concluído' }, { key: 'review', label: 'Revisão humana' }];
+
+  if (node.type.startsWith('request_')) return [{ key: 'approval_required', label: 'Aprovação necessária' }];
+
+  if (node.type === 'split_ab') return (node.config.variants ?? []).map((variant) => ({ key: variant.id, label: `${variant.label} · ${variant.weight}%` }));
+
+  if (node.type === 'send_email' && node.config.wait_event) return [{ key: 'happened', label: node.config.wait_event === 'clicked' ? 'Clicou' : node.config.wait_event === 'replied' ? 'Respondeu' : 'Abriu' }, { key: 'timeout', label: 'Prazo esgotado' }];
+
+  if (node.type === 'wait_until') return [{ key: 'happened', label: 'Aconteceu' }, { key: 'timeout', label: 'Prazo esgotado' }];
+
+  if (node.type === 'router') {
+    return [
+      ...(node.config.routes ?? []).map((route, index) => ({ key: route.id, label: route.label.trim() || `Caminho ${index + 1}` })),
+      { key: 'fallback', label: 'Outros casos' },
+    ];
+  }
 
   if (node.type === 'condition') {
     return [
@@ -786,6 +996,12 @@ export const CONDITION_OPERATOR_OPTIONS = [
   { value: 'not_exists', label: 'Está vazio' },
   { value: 'greater_than', label: 'É maior que' },
   { value: 'less_than', label: 'É menor que' },
+  { value: 'greater_or_equal', label: 'É maior ou igual a' },
+  { value: 'less_or_equal', label: 'É menor ou igual a' },
+  { value: 'before', label: 'Data é anterior a' },
+  { value: 'after', label: 'Data é posterior a' },
+  { value: 'older_than_days', label: 'Data foi há mais de N dias' },
+  { value: 'contains_any', label: 'Lista contém algum de' },
   { value: 'in_clients', label: 'Existe nos clientes' },
   { value: 'in_leads', label: 'Existe nas leads' },
   { value: 'in_crm', label: 'Existe nos clientes ou leads' },
@@ -801,7 +1017,7 @@ export const LOOKUP_OPERATORS = ['in_clients', 'in_leads', 'in_crm'];
 export const VALUELESS_OPERATORS = ['exists', 'not_exists', ...LOOKUP_OPERATORS];
 
 /** Operators whose value is a number. */
-export const NUMERIC_OPERATORS = ['greater_than', 'less_than'];
+export const NUMERIC_OPERATORS = ['greater_than', 'less_than', 'greater_or_equal', 'less_or_equal', 'older_than_days'];
 
 /**
  * Graphs saved by older editors may carry `is_empty` / `is_not_empty`, which
@@ -846,7 +1062,10 @@ export function getNodeSubtitle(node: AutomationGraphNode): string {
       if (config.template_id) return tr('Modelo de email');
       return config.subject ? truncate(String(config.subject)) : tr('Sem assunto definido');
 
+    case 'wait_until': return 'Aguardar condição ou prazo';
     case 'wait': {
+      if (config.wait_mode === 'date') return `Até ${config.date_field || 'data por escolher'}`;
+      if (config.wait_mode === 'business') return `Próximo horário útil · ${config.business_start || '09:00'}–${config.business_end || '18:00'}`;
       const value = config.amount ?? config.duration ?? 0;
       const unitLabel = WAIT_UNIT_LABELS[config.unit ?? 'hours'];
       return tr('Espera {{value}} {{unit}}', { value, unit: unitLabel ? tr(unitLabel) : '' }).trim();
@@ -861,7 +1080,11 @@ export function getNodeSubtitle(node: AutomationGraphNode): string {
       return `${mode} · ${amount} ${WAIT_UNIT_LABELS[unit] ? tr(WAIT_UNIT_LABELS[unit]) : ''}`.trimEnd();
     }
 
+    case 'router':
+      return `${config.routes?.length ?? 0} caminhos · primeiro correspondente`;
+
     case 'condition': {
+      if (config.conditions) return `${config.conditions.length} condições · ${config.match === 'any' ? 'qualquer (OU)' : 'todas (E)'}`;
       const fieldLabel = CONDITION_FIELD_OPTIONS.find((o) => o.value === config.field)?.label;
       const field = fieldLabel ? tr(fieldLabel) : config.field;
       const operator = normalizeConditionOperator(config.operator);

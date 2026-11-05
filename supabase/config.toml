@@ -119,6 +119,7 @@ verify_jwt = false
 
 [functions.otto]
 verify_jwt = false
+import_map = "./functions/automation-workflow-import-map.json"
 
 [functions.stripe-webhook]
 verify_jwt = false
@@ -136,6 +137,11 @@ verify_jwt = false
 # x-automation-secret (Vault) dentro da própria função — ver isAuthorized.
 [functions.automation-engine]
 verify_jwt = false
+import_map = "./functions/automation-workflow-import-map.json"
+
+[functions.configured-workflow-activation]
+verify_jwt = true
+import_map = "./functions/automation-workflow-import-map.json"
 
 [functions.backfill-stripe-net]
 verify_jwt = false
@@ -268,3 +274,18 @@ verify_jwt = false
 # Validates the user JWT and reads the message through mailbox/MFA RLS.
 [functions.email-fetch-body]
 verify_jwt = false
+
+[functions.automation-schedule]
+verify_jwt = false
+
+[functions.automation-hook]
+verify_jwt = false
+
+[functions.automation-ai]
+verify_jwt = false
+
+[functions.automation-failure-summary]
+verify_jwt = false
+
+[functions.automation-activation-preview]
+verify_jwt = true

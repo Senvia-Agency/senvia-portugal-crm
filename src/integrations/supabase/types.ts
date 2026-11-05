@@ -14,6 +14,52 @@ export type Database = {
   }
   public: {
     Tables: {
+      organization_feed_posts: {
+        Row: {
+          id: string
+          organization_id: string
+          title: string | null
+          body: string
+          source_flow_id: string | null
+          source_run_id: string | null
+          source_node_id: string
+          source_flow_name: string
+          author_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          title?: string | null
+          body: string
+          source_flow_id?: string | null
+          source_run_id?: string | null
+          source_node_id: string
+          source_flow_name: string
+          author_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          title?: string | null
+          body?: string
+          source_flow_id?: string | null
+          source_run_id?: string | null
+          source_node_id?: string
+          source_flow_name?: string
+          author_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      automation_flow_versions: {
+        Row: { id: string; organization_id: string; flow_id: string; version: number; snapshot: Json; created_at: string }
+        Insert: { id?: string; organization_id: string; flow_id: string; version: number; snapshot: Json; created_at?: string }
+        Update: { id?: string; organization_id?: string; flow_id?: string; version?: number; snapshot?: Json; created_at?: string }
+        Relationships: []
+      }
+
       lead_reassignment_settings: {
         Row: {
           after_max: string
@@ -8901,6 +8947,15 @@ export type Database = {
       }
     }
     Views: {
+      automation_branch_metrics: {
+        Row: { organization_id: string | null; flow_id: string | null; flow_version: number | null; node_id: string | null; branch_id: string | null; branch_label: string | null; enrolled: number | null; converted: number | null }
+        Relationships: []
+      }
+      automation_flow_metrics: {
+        Row: { flow_id: string | null; organization_id: string | null; enrolled: number | null; active: number | null; completed: number | null; failed: number | null; converted: number | null; average_goal_seconds: number | null }
+        Relationships: []
+      }
+
       stripe_connection_summaries: {
         Row: {
           charges_enabled: boolean | null

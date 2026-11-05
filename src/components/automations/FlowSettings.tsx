@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Clock, Folder, RotateCcw, ShieldAlert } from 'lucide-react';
+import { GoalSettings, readExitGoal, exitGoalValid } from './GoalSettings';
+import { AutomationFailurePolicy } from './AutomationFailurePolicy';
+import { Clock, Folder, RotateCcw, ShieldAlert, BellRing } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -9,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { NO_AUTOMATION_FOLDER, automationFolderIdFromSelection } from '@/lib/automation-folder-selection';
-import type { AutomationFlow, AutomationFolder, AutomationReentryPolicy, QuietHours } from '@/types/automations';
+import type { AutomationFlow, AutomationFolder, AutomationNodeConfig, AutomationReentryPolicy, QuietHours } from '@/types/automations';
 import { useLanguage } from '@/i18n';
 
 interface FlowSettingsProps {
@@ -17,6 +19,7 @@ interface FlowSettingsProps {
   folders: AutomationFolder[];
   onFolderChange: (folderId: string | null) => void;
   onSave: (patch: {
+    trigger_config: AutomationNodeConfig;
     folder_id: string | null;
     quiet_hours: QuietHours | null;
     reentry_policy: AutomationReentryPolicy;
@@ -42,15 +45,31 @@ const REENTRY_LABELS: Record<AutomationReentryPolicy, { label: string; hint: str
 
 export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }: FlowSettingsProps) {
   const { t } = useLanguage();
+  const [failurePolicy, setFailurePolicy] = useState<unknown>(flow.trigger_config?.failure_policy ?? null);
+  const [failureAlertEnabled, setFailureAlertEnabled] = useState(flow.trigger_config?.failure_alert_enabled === true);
+  const [goal, setGoal] = useState(() => readExitGoal(flow.trigger_config?.goal));
   const [quietEnabled, setQuietEnabled] = useState(!!flow.quiet_hours?.start);
   const [start, setStart] = useState(flow.quiet_hours?.start ?? '21:00');
   const [end, setEnd] = useState(flow.quiet_hours?.end ?? '09:00');
   const [reentry, setReentry] = useState<AutomationReentryPolicy>(flow.reentry_policy);
+  const [cooldownDays, setCooldownDays] = useState(String(flow.trigger_config?.reentry_cooldown_days ?? 0));
+  const cooldownValid = reentry !== 'after_completion' || (cooldownDays.trim() !== '' && Number.isInteger(Number(cooldownDays)) && Number(cooldownDays) >= 0 && Number(cooldownDays) <= 3660);
   const [maxSteps, setMaxSteps] = useState(String(flow.max_steps_per_run ?? 100));
   const [folderId, setFolderId] = useState(flow.folder_id ?? NO_AUTOMATION_FOLDER);
 
+  const failurePolicyValid = !failurePolicy || (typeof failurePolicy === 'object' && [
+    { key: 'threshold_percent', min: 1, max: 100, fallback: 20 },
+    { key: 'min_runs', min: 2, max: 10000, fallback: 10 },
+    { key: 'window_minutes', min: 5, max: 1440, fallback: 60 },
+  ].every(({ key, min, max, fallback }) => {
+    const value = Reflect.get(failurePolicy, key) ?? fallback;
+    return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+  }));
+
   const handleSave = () => {
+    if (!failurePolicyValid || !cooldownValid) return;
     onSave({
+      trigger_config: { ...flow.trigger_config, goal: goal ?? null, failure_alert_enabled: failureAlertEnabled, failure_policy: failurePolicy, reentry_cooldown_days: reentry === 'after_completion' ? Number(cooldownDays) : flow.trigger_config?.reentry_cooldown_days ?? 0 },
       folder_id: automationFolderIdFromSelection(folderId),
       quiet_hours: quietEnabled ? { start, end } : null,
       reentry_policy: reentry,
@@ -165,6 +184,19 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">{t(REENTRY_LABELS[reentry].hint)}</p>
+          {reentry === 'after_completion' && (
+            <div className="mt-3 space-y-1.5">
+              <Label htmlFor="reentry-cooldown">Intervalo mínimo entre entradas (dias)</Label>
+              <Input id="reentry-cooldown" type="number" min={0} max={3660} step={1}
+                value={cooldownDays} onChange={(event) => setCooldownDays(event.target.value)}
+                aria-invalid={!cooldownValid} aria-describedby={cooldownValid ? 'reentry-cooldown-help' : 'reentry-cooldown-error'}
+                className="max-w-[140px]" />
+              <p id="reentry-cooldown-help" className="text-xs text-muted-foreground">
+                Conta a partir do fim do último percurso real. Use 0 para permitir nova entrada assim que terminar.
+              </p>
+              {!cooldownValid && <p id="reentry-cooldown-error" role="alert" className="text-sm text-destructive">Indique um número inteiro entre 0 e 3660 dias.</p>}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -190,8 +222,22 @@ export function FlowSettings({ flow, folders, onFolderChange, onSave, isSaving }
         </CardContent>
       </Card>
 
+      <GoalSettings goal={goal} onChange={setGoal} />
+      <AutomationFailurePolicy value={failurePolicy} onChange={setFailurePolicy} />
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base"><BellRing className="h-4 w-4 text-primary" />Avisos de falha</CardTitle>
+          <CardDescription>Avise o dono da automação quando um percurso terminar com erro, para que possa consultar o histórico e resolver a causa.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-3">
+          <Label htmlFor="failure-alert-toggle" className="font-normal">Avisar quando um percurso falhar</Label>
+          <Switch id="failure-alert-toggle" checked={failureAlertEnabled} onCheckedChange={setFailureAlertEnabled} />
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isSaving}>
+        <Button onClick={handleSave} disabled={isSaving || !failurePolicyValid || !cooldownValid}>
           {t('Guardar definições')}
         </Button>
       </div>

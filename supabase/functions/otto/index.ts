@@ -25,6 +25,7 @@ import {
   consumeActionConfirmation,
 } from "./lib/confirmations.ts";
 import { runPreparedAutomationActivation } from "./lib/automation-activation-runner.ts";
+import { runConfiguredManualConfirmation } from "./lib/generic-automation-manual-runner.ts";
 import { OVERDUE_PAYMENT_ACTIVATION_ACTION } from "./lib/automation-validation.ts";
 
 const MAX_ITERATIONS = 5;
@@ -196,6 +197,23 @@ async function handleConfirmationRequest(
   if (input.decision === "cancel") {
     const cancelled = await cancelActionConfirmation(ctx, input.confirmation_id);
     return streamActionEvent("action_result", cancelled);
+  }
+
+  const configuredManualGate = ALL_TOOLS.find((tool) =>
+    tool.name === "prepare_configured_workflow_manual_run"
+  );
+  if (configuredManualGate) {
+    const manualResult = await runConfiguredManualConfirmation(
+      ctx,
+      input.confirmation_id,
+      configuredManualGate,
+    );
+    if (manualResult) {
+      return streamToolActionResult(
+        manualResult,
+        "Execução manual da automação processada.",
+      );
+    }
   }
 
   const consumed = await consumeActionConfirmation(ctx, input.confirmation_id);

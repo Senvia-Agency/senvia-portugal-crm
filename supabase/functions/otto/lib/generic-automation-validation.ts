@@ -1,6 +1,13 @@
 import { z } from "https://esm.sh/zod@3.25.76";
 
 import {
+  parseAutomationWorkflowDefinition,
+  parseAutomationWorkflowDraft,
+  validateWorkflowStageNodeReferences,
+} from "../../_shared/automation-workflow-contract.ts";
+import { CONFIGURED_WORKFLOW_ACTION_TYPES } from "../../automation-engine/configured-workflow-runtime.ts";
+
+import {
   automationNodeBranches,
   validateAutomationNodeConfig,
 } from "./generic-automation-config.ts";
@@ -166,6 +173,67 @@ export function validateNativeAutomationGraph(
     const branches = automationNodeBranches(node);
     if (duplicateValues(branches).size > 0) issues.push(graphIssue("duplicate_rule_id", "As opções de resposta têm de usar identificadores únicos.", node.id));
   }
+  if (entryNode?.type === "configured_workflow") {
+    const parsedWorkflow = options.requireComplete
+      ? parseAutomationWorkflowDefinition(entryNode.config.workflow)
+      : parseAutomationWorkflowDraft(entryNode.config.workflow);
+    if (parsedWorkflow.ok) {
+      const selectedFields = new Set(parsedWorkflow.value.query.select);
+      for (const node of graph.nodes.filter(({ type }) => type === "condition")) {
+        const field = typeof node.config.field === "string" ? node.config.field : null;
+        if (field && !selectedFields.has(field)) {
+          issues.push(graphIssue(
+            "workflow_condition_field_unselected",
+            "O campo usado por uma condição do canvas deve estar selecionado na consulta do workflow.",
+            node.id,
+          ));
+        }
+      }
+      const actionNodeIds = new Set(graph.nodes
+        .filter(({ type }) => !TRIGGER_TYPES.has(type))
+        .map(({ id }) => id));
+      for (const workflowIssue of validateWorkflowStageNodeReferences(parsedWorkflow.value, actionNodeIds)) {
+        issues.push(graphIssue(
+          "workflow_stage_node_missing",
+          workflowIssue.message,
+          entryNode.id,
+        ));
+      }
+      if (options.requireComplete) {
+        const stageNodeIds = new Set(parsedWorkflow.value.stages.map(({ nodeId }) => nodeId));
+        const configuredActions = new Set<string>(CONFIGURED_WORKFLOW_ACTION_TYPES);
+        for (const stage of parsedWorkflow.value.stages) {
+          const node = nodeById.get(stage.nodeId);
+          if (!node || !configuredActions.has(node.type)) {
+            issues.push(graphIssue(
+              "workflow_stage_action_invalid",
+              "Cada etapa configurável deve referenciar uma ação suportada pelo motor.",
+              stage.nodeId,
+            ));
+          }
+        }
+        for (const node of graph.nodes.filter(({ id }) => id !== entryNode.id)) {
+          if (configuredActions.has(node.type) && !stageNodeIds.has(node.id)) {
+            issues.push(graphIssue(
+              "workflow_action_unreferenced",
+              "Cada ação externa do grafo configurável deve corresponder a uma etapa do workflow.",
+              node.id,
+            ));
+          }
+          const rules = node.config.rules;
+          if (node.type === "wait_reply"
+            || (node.type === "send_whatsapp"
+              && (node.config.wait_reply === true || Array.isArray(rules) && rules.length > 0))) {
+            issues.push(graphIssue(
+              "workflow_interactive_wait_unsupported",
+              "Fluxos configuráveis não suportam espera por resposta; usa uma espera temporal ou outro fluxo iniciado pelo evento de resposta.",
+              node.id,
+            ));
+          }
+        }
+      }
+    }
+  }
   issues.push(...validateEdges(graph, nodeById));
   if (graph.edges.every(({ source, target }) => nodeById.has(source) && nodeById.has(target)) && hasCycle(graph)) {
     issues.push(graphIssue("cycle_detected", "O grafo não pode conter ciclos."));
@@ -186,6 +254,7 @@ export function buildInitialAutomationGraph(triggerType: NativeAutomationTrigger
 }
 
 export function deriveAutomationTriggerConfig(entry: NativeAutomationGraphNode): Readonly<Record<string, unknown>> {
+  if (entry.type === "configured_workflow") return { workflow: entry.config.workflow };
   if (entry.type === "whatsapp_keyword") return { keywords: entry.config.keywords ?? [] };
   if (entry.type === "message_received") {
     return {

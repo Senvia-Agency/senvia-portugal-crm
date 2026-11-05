@@ -13,6 +13,7 @@ import { useLanguage } from '@/i18n';
 interface NodesPanelProps {
   onClose: () => void;
   onSelect: (type: AutomationNodeType) => void;
+  allowedTypes?: readonly AutomationNodeType[];
 }
 
 /** Action node types grouped into the panel's sections, in this order. */
@@ -23,7 +24,7 @@ const CATEGORY_ORDER: AutomationNodeCategory[] = ['whatsapp', 'email', 'timing',
  * of the canvas, with the flow still visible behind it. Search first, then
  * one chip per category; Enter takes the first match, Esc closes.
  */
-export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
+export function NodesPanel({ onClose, onSelect, allowedTypes }: NodesPanelProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<AutomationNodeCategory | null>(null);
@@ -40,6 +41,7 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
   const grouped = useMemo(() => {
     const groups = new Map<AutomationNodeCategory, AutomationNodeType[]>();
     for (const type of ACTION_TYPES) {
+      if (allowedTypes && !allowedTypes.includes(type)) continue;
       const definition = NODE_DEFINITIONS[type];
       if (category && definition.category !== category) continue;
       if (term
@@ -50,11 +52,13 @@ export function NodesPanel({ onClose, onSelect }: NodesPanelProps) {
     return CATEGORY_ORDER
       .filter((key) => groups.has(key))
       .map((key) => ({ category: key, types: groups.get(key) as AutomationNodeType[] }));
-  }, [term, category, t]);
+  }, [term, category, allowedTypes, t]);
 
   const categoriesPresent = useMemo(
-    () => CATEGORY_ORDER.filter((key) => ACTION_TYPES.some((type) => NODE_DEFINITIONS[type].category === key)),
-    [],
+    () => CATEGORY_ORDER.filter((key) => ACTION_TYPES.some((type) => (
+      (!allowedTypes || allowedTypes.includes(type)) && NODE_DEFINITIONS[type].category === key
+    ))),
+    [allowedTypes],
   );
   const first = grouped[0]?.types[0];
 

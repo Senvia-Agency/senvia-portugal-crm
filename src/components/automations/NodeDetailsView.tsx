@@ -1,3 +1,4 @@
+import { stepVisitNumber } from '@/lib/automation-step-identity';
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, Database, GitBranch, GripVertical, HelpCircle, RotateCcw, SlidersHorizontal, Trash2, Waypoints,
@@ -8,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import { NodeInspector } from '@/components/automations/NodeInspector';
+import { AutomationMessagePreview } from '@/components/automations/AutomationMessagePreview';
+import { StepSimulationDialog } from '@/components/automations/StepSimulationDialog';
 import { FlowIoProvider } from '@/components/automations/FlowIoContext';
 import { STEP_STATUS_META } from '@/components/automations/FlowActivity';
 import {
@@ -112,7 +115,8 @@ export function NodeDetailsView({
   // For the trigger node the input is its OWN record (so it changes as the
   // trigger is changed); for any other step, whatever the flow's trigger sends.
   const effectiveTrigger = isEntry ? node?.type ?? triggerType : triggerType;
-  const trigger = triggerInput(effectiveTrigger);
+  const triggerNode = isEntry ? node : graph.nodes.find((candidate) => candidate.type === effectiveTrigger);
+  const trigger = triggerInput(effectiveTrigger, triggerNode?.config);
   const inputFields = useMemo(
     () => (node ? inputFieldsFor(graph, node, effectiveTrigger) : []),
     [graph, node, effectiveTrigger],
@@ -147,6 +151,11 @@ export function NodeDetailsView({
               <StatChip label={t('falharam')} value={stats.failed} className={stats.failed > 0 ? 'text-destructive' : 'text-muted-foreground'} />
             </div>
           )}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap gap-2 border-b border-border px-4 py-2 sm:px-6">
+          <AutomationMessagePreview node={node} context={sampleRun?.context ?? {}} templates={templates ?? []} />
+          <StepSimulationDialog flowId={flowId} nodeId={node.id} sampleSubject={sampleRun?.subject_id && sampleRun.subject_type ? { type: sampleRun.subject_type, id: sampleRun.subject_id, name: sampleRun.contact_name ?? undefined } : undefined} />
         </div>
 
         {/* Mobile pane switcher — on desktop the three columns sit side by side. */}
@@ -264,9 +273,10 @@ export function NodeDetailsView({
                 below the top edge with the cards scrolling past above it. */}
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto max-w-2xl px-4 py-4 sm:px-6">
-                <FlowIoProvider fields={inputFields}>
+                <FlowIoProvider fields={inputFields} graph={graph} currentNodeId={node.id}>
                   <NodeInspector
                     node={node}
+                    graph={graph}
                     isEntry={isEntry}
                     onChange={onChange}
                     onChangeTrigger={isEntry ? onChangeTrigger : undefined}
@@ -360,6 +370,7 @@ export function NodeDetailsView({
                             {run?.contact_name || run?.contact_phone || run?.contact_email || t('Contacto')}
                           </span>
                           <span className={cn('text-[11px] font-medium', meta.className)}>{t(meta.label)}</span>
+                          {stepVisitNumber(step) > 1 && <span className="text-xs text-muted-foreground">Passagem {stepVisitNumber(step)}</span>}
                           <span className="ml-auto text-[11px] text-muted-foreground">{formatDateTime(step.created_at)}</span>
                         </div>
                         {/* The run broke on THIS step: run it again from here, as n8n's retry does. */}

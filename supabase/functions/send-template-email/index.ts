@@ -1,3 +1,6 @@
+import { deliverAutomationEmail, parseEmailDeliveryClaim } from "../_shared/automation-email-delivery.ts";
+import { resolveAutomationEmailCorrelation, AutomationEmailCorrelationError } from "../_shared/automation-email-correlation.ts";
+import { renderAutomationEmailTemplate } from "../_shared/automation-email-template.ts";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -32,6 +35,8 @@ interface SendTemplateRequest {
   recipients: Recipient[];
   campaignId?: string;
   automationId?: string;
+  automationRunId?: string;
+  automationNodeId?: string;
   settings?: Record<string, boolean>;
   settingsData?: Record<string, string>;
   subject?: string;
@@ -249,7 +254,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
-      organizationId, templateId, sourceTemplateId, recipients, campaignId, automationId,
+      organizationId, templateId, sourceTemplateId, recipients, campaignId, automationId, automationRunId, automationNodeId,
       settings = {}, settingsData = {},
       subject: customSubject, htmlContent: customHtmlContent, requiredTriggerType,
     }: SendTemplateRequest = await req.json();
@@ -311,6 +316,23 @@ serve(async (req: Request): Promise<Response> => {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+
+    let automationCorrelation: { automation_run_id: string; automation_node_id: string } | null = null;
+    try {
+      automationCorrelation = await resolveAutomationEmailCorrelation({
+        organizationId, automationRunId, automationNodeId, recipientCount: recipients.length,
+      }, isInternal, async (runId) => {
+        const { data, error } = await supabase.from("automation_runs")
+          .select("organization_id,status").eq("id", runId).eq("organization_id", organizationId).maybeSingle();
+        if (error) throw error;
+        return data;
+      });
+    } catch (error) {
+      if (!(error instanceof AutomationEmailCorrelationError)) throw error;
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: error.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     let templateSubject = customSubject || "";
@@ -427,13 +449,27 @@ serve(async (req: Request): Promise<Response> => {
     const vendorMap: Record<string, { name: string; email: string; phone: string }> = {};
 
     if (clientIds.length > 0) {
-      const { data: clientsData } = await supabase
+      const { data: clientsData, error: clientsError } = await supabase
         .from("crm_clients")
         .select("id, assigned_to")
+        .eq("organization_id", organizationId)
         .in("id", clientIds);
 
+      if (clientsError) throw clientsError;
+      const scopedClientIds = new Set((clientsData ?? []).map(client => client.id));
+      if (clientIds.some(clientId => !scopedClientIds.has(clientId))) {
+        return new Response(JSON.stringify({ error: "Destinatário sem acesso nesta organização." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       if (clientsData) {
-        const profileIds = [...new Set(clientsData.filter(c => c.assigned_to).map(c => c.assigned_to!))];
+        const assignedProfileIds = [...new Set(clientsData.filter(c => c.assigned_to).map(c => c.assigned_to!))];
+        const { data: activeAssignees, error: assigneeError } = assignedProfileIds.length
+          ? await supabase.from("organization_members").select("user_id")
+            .eq("organization_id", organizationId).eq("is_active", true).in("user_id", assignedProfileIds)
+          : { data: [], error: null };
+        if (assigneeError) throw assigneeError;
+        const profileIds = (activeAssignees ?? []).map(member => member.user_id);
         const profileMap: Record<string, any> = {};
 
         if (profileIds.length > 0) {
@@ -468,7 +504,7 @@ serve(async (req: Request): Promise<Response> => {
     const organizationName = org.name;
     const brevoApiKey = org.brevo_api_key;
 
-    async function processRecipient(recipient: Recipient): Promise<{ email: string; status: string; error?: string }> {
+    async function processRecipient(recipient: Recipient): Promise<{ email: string; status: string; error?: string; email_send_id?: string }> {
       let unsubscribeToken: string | null = null;
 
       try {
@@ -487,8 +523,12 @@ serve(async (req: Request): Promise<Response> => {
           email_suporte: finalSenderEmail,
         };
 
-        const subject = replaceVariables(templateSubject, variables);
-        let htmlContent = replaceVariables(templateHtmlContent, variables);
+        const subject = automationCorrelation
+          ? renderAutomationEmailTemplate(templateSubject, variables, false)
+          : replaceVariables(templateSubject, variables);
+        let htmlContent = automationCorrelation
+          ? renderAutomationEmailTemplate(templateHtmlContent, variables, true)
+          : replaceVariables(templateHtmlContent, variables);
         htmlContent = applyHtmlSettings(htmlContent, settings, settingsData);
 
         if (/\{\{\s*unsubscribe\s*\}\}/i.test(htmlContent)) {
@@ -536,6 +576,46 @@ serve(async (req: Request): Promise<Response> => {
             recipient.email,
           )
         ) throw new MarketingConsentChangedError();
+        if (automationCorrelation) {
+          const correlation = automationCorrelation;
+          const delivery = await deliverAutomationEmail({
+            claim: async () => {
+              const { data, error } = await supabase.rpc("claim_automation_email_delivery", {
+                p_organization_id: organizationId, p_run_id: correlation.automation_run_id,
+                p_node_id: correlation.automation_node_id, p_recipient_email: recipient.email,
+              });
+              if (error) throw error;
+              return parseEmailDeliveryClaim(data);
+            },
+            send: async (idempotencyKey) => {
+              const response = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
+                method: "POST", headers: { accept: "application/json", "api-key": brevoApiKey, "content-type": "application/json" },
+                body: JSON.stringify({ ...brevoPayload, headers: { idempotencyKey } }),
+              });
+              if (!response.ok) return { status: response.status };
+              const body: unknown = await response.json();
+              const messageId = body && typeof body === "object" && "messageId" in body && typeof body.messageId === "string" ? body.messageId : undefined;
+              return { status: response.status, messageId };
+            },
+            saveLedger: (messageId) => insertEmailSendRecord(supabase, {
+              organization_id: organizationId, template_id: templateId || null, campaign_id: campaignId || null,
+              automation_id: automationId || null, ...correlation, client_id: recipient.clientId || null,
+              recipient_email: recipient.email, recipient_name: recipient.name, subject, status: "sent",
+              error_message: null, sent_at: new Date().toISOString(), sent_by: userId, brevo_message_id: messageId,
+            }),
+            finalize: async (claim, status, emailSendId, message) => {
+              const { error } = await supabase.rpc("finalize_automation_email_delivery", {
+                p_delivery_id: claim.delivery_id, p_claim_token: claim.claim_token, p_status: status,
+                p_email_send_id: emailSendId, p_error: message,
+              });
+              if (error) throw error;
+            },
+          });
+          if (unsubscribeToken && delivery.email_send_id) {
+            await supabase.from("email_unsubscribe_tokens").update({ email_send_id: delivery.email_send_id }).eq("token", unsubscribeToken);
+          }
+          return { email: recipient.email, ...delivery };
+        }
 
         const brevoResponse = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
@@ -565,6 +645,7 @@ serve(async (req: Request): Promise<Response> => {
           template_id: templateId || sourceTemplateId || null,
           campaign_id: campaignId || null,
           automation_id: automationId || null,
+          ...(automationCorrelation ?? {}),
           client_id: recipient.clientId || null,
           marketing_contact_id: recipient.marketingContactId || null,
           recipient_email: recipient.email,
@@ -586,15 +667,17 @@ serve(async (req: Request): Promise<Response> => {
             .eq("token", unsubscribeToken);
         }
 
-        return { email: recipient.email, status, error: errorMessage || undefined };
+        return { email: recipient.email, status, error: errorMessage || undefined, email_send_id: emailSendId ?? undefined };
       } catch (recipientError) {
         const errorMsg = recipientError instanceof Error ? recipientError.message : "Unknown error";
+        if (automationCorrelation) return { email: recipient.email, status: "failed", error: errorMsg };
 
         const failRecord = {
           organization_id: organizationId,
           template_id: templateId || sourceTemplateId || null,
           campaign_id: campaignId || null,
           automation_id: automationId || null,
+          ...(automationCorrelation ?? {}),
           client_id: recipient.clientId || null,
           marketing_contact_id: recipient.marketingContactId || null,
           recipient_email: recipient.email,
@@ -614,11 +697,11 @@ serve(async (req: Request): Promise<Response> => {
             .eq("token", unsubscribeToken);
         }
 
-        return { email: recipient.email, status: "failed", error: errorMsg };
+        return { email: recipient.email, status: "failed", error: errorMsg, email_send_id: emailSendId ?? undefined };
       }
     }
 
-    const results: { email: string; status: string; error?: string }[] = [];
+    const results: { email: string; status: string; error?: string; email_send_id?: string }[] = [];
     const batches = chunk(recipients, BATCH_SIZE);
 
     for (const batch of batches) {
@@ -627,7 +710,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const successful = results.filter(r => r.status === "sent").length;
-    const failed = results.filter(r => r.status === "failed").length;
+    const failed = results.filter(r => r.status !== "sent").length;
 
     return new Response(
       JSON.stringify({

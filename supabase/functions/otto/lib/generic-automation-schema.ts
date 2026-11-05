@@ -15,6 +15,7 @@ export const AUTOMATION_CONDITION_OPERATORS = [
 ] as const;
 
 export const CREATABLE_AUTOMATION_TRIGGERS = [
+  "configured_workflow",
   "lead_created",
   "lead_created_hot",
   "lead_created_warm",
@@ -98,6 +99,7 @@ export const AUTOMATION_GRAPH_LIMITS = {
 } as const;
 
 export const AUTOMATION_NODE_LABELS: Readonly<Record<NativeAutomationNodeType, string>> = {
+  configured_workflow: "Fluxo configurável",
   lead_created: "Lead criada",
   lead_created_hot: "Lead criada · quente",
   lead_created_warm: "Lead criada · morna",
@@ -147,6 +149,7 @@ export const AUTOMATION_NODE_LABELS: Readonly<Record<NativeAutomationNodeType, s
 
 export const AUTOMATION_CONFIG_CONTRACT = {
   trigger: {
+    configured_workflow: "workflow completo no contrato publicado pelo construtor",
     lead_created: "source?",
     lead_status_changed: "from_stage_id?, to_stage_id?",
     form_submitted: "form_slug?",

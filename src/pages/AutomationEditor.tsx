@@ -1,8 +1,10 @@
+import { buildAutomationTriggerConfig } from '@/lib/automation-trigger-config';
+import { inputFieldsFor } from '@/lib/automation-io';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, Check, FlaskConical, LayoutGrid, Loader2, Pause, Play, Save,
-  SlidersHorizontal, Workflow,
+  SlidersHorizontal, Target, Workflow,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,6 +22,13 @@ import { FlowStatusPill } from '@/components/automations/FlowStatusPill';
 import { FlowSettings } from '@/components/automations/FlowSettings';
 import { TestFlowDialog } from '@/components/automations/TestFlowDialog';
 import { ExecutionBar } from '@/components/automations/ExecutionBar';
+import { ConfiguredWorkflowManualRun } from '@/components/automations/ConfiguredWorkflowManualRun';
+import { ConfiguredWorkflowActivation } from '@/components/automations/ConfiguredWorkflowActivation';
+import { ActivationPreviewDialog } from '@/components/automations/ActivationPreviewDialog';
+import { useAutomationActivationPreview, type AutomationActivationPreview } from '@/hooks/useAutomationActivationPreview';
+import { AutomationInsights } from '@/components/automations/AutomationInsights';
+import { FlowValidationDialog } from '@/components/automations/FlowValidationDialog';
+import { validateAutomationConfiguration } from '@/lib/automation-validation';
 import { buildExecutionView } from '@/lib/automation-execution';
 
 import {
@@ -28,6 +37,10 @@ import {
   setGhostOffset, updateNodeConfig, updateNodePositions, validateGraph,
 } from '@/lib/automation-graph';
 import { MESSAGE_BUFFER_DEFAULT_SECONDS } from '@/lib/automation-nodes';
+import {
+  CONFIGURED_WORKFLOW_ACTION_TYPES,
+  CONFIGURED_WORKFLOW_CANVAS_TYPES,
+} from '@/components/automations/workflow-editor-model';
 import {
   useAutomationFlow, useAutomationFlowNodeStats, useAutomationRuns, useAutomationRunSteps,
   useSetAutomationFlowStatus,
@@ -39,6 +52,14 @@ import type {
   AutomationTriggerType,
 } from '@/types/automations';
 import { tr, useLanguage } from '@/i18n';
+import {
+  parseAutomationWorkflowDefinition,
+  parseAutomationWorkflowDraft,
+  validateWorkflowStageNodeReferences,
+} from '../../supabase/functions/_shared/automation-workflow-contract.ts';
+
+const CONFIGURED_ACTION_TYPES = new Set<string>(CONFIGURED_WORKFLOW_ACTION_TYPES);
+const CONFIGURED_CANVAS_TYPES = new Set<string>(CONFIGURED_WORKFLOW_CANVAS_TYPES);
 
 type PickerTarget =
   // `position` is set when the "+" was dragged: the step lands exactly there
@@ -53,6 +74,8 @@ export default function AutomationEditor() {
   const { data: flow, isLoading } = useAutomationFlow(id ?? null);
   const updateFlow = useUpdateAutomationFlow();
   const setStatus = useSetAutomationFlowStatus();
+  const previewActivation = useAutomationActivationPreview();
+  const [activationPreview, setActivationPreview] = useState<AutomationActivationPreview | null>(null);
   const { data: folders = [] } = useAutomationFolders();
 
   const [graph, setGraph] = useState<AutomationGraph>({ nodes: [], edges: [] });
@@ -63,8 +86,9 @@ export default function AutomationEditor() {
   const [dirty, setDirty] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
-  const [tab, setTab] = useState<'canvas' | 'activity' | 'settings'>('canvas');
+  const [tab, setTab] = useState<'canvas' | 'activity' | 'settings' | 'insights'>('canvas');
   const [testOpen, setTestOpen] = useState(false);
+  const [validationOpen, setValidationOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Only polled while the canvas is on screen — the badges live on the circles.
@@ -74,7 +98,7 @@ export default function AutomationEditor() {
 
   // The execution drawn on the canvas, as in n8n. null follows the newest run,
   // so a run that starts while the flow is open lights the steps up as it goes.
-  const [execRunId, setExecRunId] = useState<string | null>(null);
+  const [execRunId, setExecRunId] = useState<string | null>(() => searchParams.get('run'));
   const [showExecution, setShowExecution] = useState(true);
   const { data: recentRuns = [] } = useAutomationRuns(tab === 'canvas' ? id ?? null : null, 20, 4000);
   const viewedRun = (execRunId && recentRuns.find((run) => run.id === execRunId)) || recentRuns[0] || null;
@@ -107,12 +131,64 @@ export default function AutomationEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow]);
 
-  const issues = useMemo(
-    () => validateGraph(graph, flow?.entry_node_id ?? null),
-    [graph, flow?.entry_node_id],
-  );
+  const issues = useMemo(() => {
+    const graphIssues = validateGraph(graph, flow?.entry_node_id ?? null).map(issue => ({ ...issue, severity: 'error' as const }));
+    const entry = findNode(graph, flow?.entry_node_id ?? null);
+    if (entry?.type === 'configured_workflow') {
+      const parsed = parseAutomationWorkflowDefinition(entry.config.workflow);
+      if (parsed.ok === false) {
+        return [
+          ...graphIssues,
+          ...parsed.issues.map((issue) => ({ nodeId: entry.id, message: issue.message, severity: 'error' as const })),
+        ];
+      }
+      const referenceIssues = validateWorkflowStageNodeReferences(
+        parsed.value,
+        new Set(graph.nodes.map((node) => node.id)),
+      ).map((issue) => ({ nodeId: entry.id, message: issue.message, severity: 'error' as const }));
+      const supportedNodeIds = new Set(
+        graph.nodes.filter((node) => CONFIGURED_ACTION_TYPES.has(node.type)).map((node) => node.id),
+      );
+      const actionIssues = parsed.value.stages
+        .filter((stage) => !supportedNodeIds.has(stage.nodeId))
+        .map(() => ({ nodeId: entry.id, message: 'Uma etapa aponta para uma ação incompatível.', severity: 'error' as const }));
+      const stageNodeIds = new Set(parsed.value.stages.map((stage) => stage.nodeId));
+      const unsupportedNodeIssues = graph.nodes
+        .filter((node) => node.id !== entry.id && !CONFIGURED_CANVAS_TYPES.has(node.type))
+        .map((node) => ({ nodeId: node.id, message: 'Este passo ainda não é suportado no motor de fluxos configuráveis.', severity: 'error' as const }));
+      const unreferencedActionIssues = graph.nodes
+        .filter((node) => node.id !== entry.id && CONFIGURED_ACTION_TYPES.has(node.type) && !stageNodeIds.has(node.id))
+        .map((node) => ({ nodeId: node.id, message: 'Adicione esta ação à lista de etapas antes de ativar.', severity: 'error' as const }));
+      const interactiveWaitIssues = graph.nodes
+        .filter((node) => node.type === 'send_whatsapp' && node.config?.wait_reply === true)
+        .map((node) => ({ nodeId: node.id, message: '“Esperar resposta” no WhatsApp ainda não é suportado neste modo.', severity: 'error' as const }));
+      return [
+        ...graphIssues,
+        ...referenceIssues,
+        ...actionIssues,
+        ...unsupportedNodeIssues,
+        ...unreferencedActionIssues,
+        ...interactiveWaitIssues,
+      ];
+    }
+    const triggerType = entry?.type ?? flow?.trigger_type ?? null;
+    const triggerConfig = buildAutomationTriggerConfig(flow?.trigger_config ?? {}, entry?.config ?? {}, !!entry && entry.type !== flow?.trigger_type, { graph, entryNodeId: flow?.entry_node_id });
+    return [
+      ...graphIssues,
+      ...validateAutomationConfiguration(graph, {
+        flowId: flow?.id, entryNodeId: flow?.entry_node_id, triggerConfig,
+        availableVariables: Object.fromEntries(graph.nodes.map(node => [node.id,
+          inputFieldsFor(graph, node, triggerType, triggerConfig).map(field => field.key),
+        ])),
+      }),
+    ];
+  }, [graph, flow?.entry_node_id, flow?.id, flow?.trigger_config, flow?.trigger_type]);
 
   const selectedNode = findNode(graph, selectedNodeId);
+  const entryNode = findNode(graph, flow?.entry_node_id ?? null);
+  const configuredDraft = entryNode?.type === 'configured_workflow'
+    ? parseAutomationWorkflowDraft(entryNode.config.workflow)
+    : null;
 
   const mutateGraph = useCallback((next: AutomationGraph) => {
     setGraph(next);
@@ -184,6 +260,13 @@ export default function AutomationEditor() {
   const handlePickNodeType = (type: AutomationNodeType) => {
     if (!pickerTarget) return;
 
+    const entry = findNode(graph, flow?.entry_node_id ?? null);
+    if (entry?.type === 'configured_workflow' && !CONFIGURED_CANVAS_TYPES.has(type)) {
+      toast.error('Passo incompatível', {
+        description: 'Neste modo, use ações, condições, Esperar ou Fim. “Esperar resposta” interativo ainda não é suportado.',
+      });
+      return;
+    }
     const built = pickerTarget.kind === 'append'
       ? appendNode(graph, pickerTarget.sourceId, pickerTarget.branch, type)
       : insertNodeOnEdge(graph, pickerTarget.edgeId, type);
@@ -236,14 +319,16 @@ export default function AutomationEditor() {
     // inspector shows. Editing keywords in the inspector silently did nothing at
     // the engine level before this, because nothing ever copied node.config
     // into this column.
-    const triggerConfig = triggerType === 'whatsapp_keyword'
+    const channelConfig = triggerType === 'whatsapp_keyword'
       ? { keywords: entryNode?.config?.keywords ?? [] }
       : triggerType === 'message_received'
         ? {
           channel_id: entryNode?.config?.channel_id ?? null,
           buffer_seconds: entryNode?.config?.buffer_seconds ?? MESSAGE_BUFFER_DEFAULT_SECONDS,
         }
-        : {};
+        : triggerType === 'configured_workflow'
+          ? { workflow: entryNode?.config?.workflow }
+          : {};
 
     await updateFlow.mutateAsync({
       id: flow.id,
@@ -251,7 +336,8 @@ export default function AutomationEditor() {
       graph,
       entry_node_id: flow.entry_node_id,
       trigger_type: triggerType,
-      trigger_config: triggerConfig,
+      trigger_config: { ...buildAutomationTriggerConfig(flow.trigger_config, entryNode?.config ?? {}, triggerType !== flow.trigger_type, { graph, entryNodeId: flow.entry_node_id }), ...channelConfig },
+      replace_trigger_config: true,
       reentry_policy: reentry,
     });
     setDirty(false);
@@ -264,6 +350,13 @@ export default function AutomationEditor() {
    */
   const handleOpenTest = async () => {
     if (!flow) return;
+    const entry = findNode(graph, flow.entry_node_id);
+    if (entry?.type === 'configured_workflow') {
+      toast.error('Prévia ainda indisponível', {
+        description: issues[0]?.message ?? 'A prévia segura no servidor tem de estar integrada antes de executar este rascunho.',
+      });
+      return;
+    }
     if (dirty) await handleSave();
     setTestOpen(true);
   };
@@ -271,13 +364,32 @@ export default function AutomationEditor() {
   const handleToggleStatus = async () => {
     if (!flow) return;
     const nextStatus = flow.status === 'active' ? 'paused' : 'active';
+    const entry = findNode(graph, flow.entry_node_id);
 
-    if (nextStatus === 'active' && issues.length) {
-      toast.error(t('Não é possível ativar'), { description: issues[0].message });
+    if (nextStatus === 'active' && entry?.type === 'configured_workflow') {
+      toast.error('Ativação ainda indisponível', {
+        description: 'A verificação administrativa e a prévia no servidor têm de estar integradas antes de ativar este fluxo.',
+      });
+      return;
+    }
+
+    const errors = issues.filter(issue => issue.severity === 'error');
+    if (nextStatus === 'active' && errors.length) {
+      setValidationOpen(true);
+      toast.error(t('Não é possível ativar'), { description: errors[0].message });
       return;
     }
     // Never activate a graph that differs from what is stored.
     if (dirty) await handleSave();
+    const trigger = findNode(graph, flow.entry_node_id)?.type ?? flow.trigger_type;
+    if (nextStatus === 'active' && (trigger === 'scheduled' || trigger === 'record_date')) {
+      try {
+        setActivationPreview(await previewActivation.mutateAsync(flow.id));
+      } catch (error) {
+        toast.error('Não foi possível preparar a ativação', { description: error instanceof Error ? error.message : 'Tente novamente.' });
+      }
+      return;
+    }
     setStatus.mutate({ id: flow.id, status: nextStatus, version: flow.version });
   };
 
@@ -339,7 +451,7 @@ export default function AutomationEditor() {
   }
 
   const isActive = flow.status === 'active';
-  const isBusy = updateFlow.isPending || setStatus.isPending;
+  const isBusy = updateFlow.isPending || setStatus.isPending || previewActivation.isPending;
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] min-h-[520px] flex-col overflow-hidden md:h-dvh">
@@ -381,6 +493,9 @@ export default function AutomationEditor() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setValidationOpen(true)}>
+            <Check className="mr-1.5 h-3.5 w-3.5" />Verificar
+          </Button>
           {tab === 'canvas' && (
             <Button
               variant="ghost"
@@ -393,16 +508,28 @@ export default function AutomationEditor() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenTest}
-            disabled={isBusy}
-            title={t('Correr o fluxo com os seus contactos')}
-          >
-            <FlaskConical className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">{t('Testar')}</span>
-          </Button>
+          {entryNode?.type !== 'configured_workflow' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenTest}
+              disabled={isBusy}
+              title={t('Correr o fluxo com os seus contactos')}
+            >
+              <FlaskConical className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">{t('Testar')}</span>
+            </Button>
+          )}
+
+          {isActive
+            && configuredDraft?.ok === true
+            && configuredDraft.value.trigger.kind === 'authenticated_manual' && (
+            <ConfiguredWorkflowManualRun
+              flowId={flow.id}
+              disabled={dirty || isBusy}
+              onReviewExecutions={() => setTab('activity')}
+            />
+          )}
 
           {/* As in n8n: "Guardado" when the canvas is what runs, a highlighted
               "Guardar" the moment it is not. */}
@@ -422,19 +549,26 @@ export default function AutomationEditor() {
             {dirty ? t('Guardar') : t('Guardado')}
           </Button>
 
-          <Button
-            size="sm"
-            variant={isActive ? 'outline' : 'default'}
-            onClick={handleToggleStatus}
-            disabled={isBusy}
-            className={cn(isActive && 'text-warning')}
-          >
-            {isActive ? (
-              <><Pause className="mr-1.5 h-3.5 w-3.5" /> {t('Pausar')}</>
-            ) : (
-              <><Play className="mr-1.5 h-3.5 w-3.5" /> {t('Ativar')}</>
-            )}
-          </Button>
+          {!isActive && entryNode?.type === 'configured_workflow' ? (
+            <ConfiguredWorkflowActivation
+              flow={flow}
+              disabled={dirty || isBusy || issues.length > 0}
+            />
+          ) : (
+            <Button
+              size="sm"
+              variant={isActive ? 'outline' : 'default'}
+              onClick={handleToggleStatus}
+              disabled={isBusy}
+              className={cn(isActive && 'text-warning')}
+            >
+              {isActive ? (
+                <><Pause className="mr-1.5 h-3.5 w-3.5" /> {t('Pausar')}</>
+              ) : (
+                <><Play className="mr-1.5 h-3.5 w-3.5" /> {t('Ativar')}</>
+              )}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -445,6 +579,9 @@ export default function AutomationEditor() {
         </TabButton>
         <TabButton active={tab === 'activity'} onClick={() => setTab('activity')} icon={Activity}>
           {t('Atividade')}
+        </TabButton>
+        <TabButton active={tab === 'insights'} onClick={() => setTab('insights')} icon={Target}>
+          Resultados e versões
         </TabButton>
         <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={SlidersHorizontal}>
           {t('Definições')}
@@ -460,6 +597,7 @@ export default function AutomationEditor() {
               entryNodeId={flow.entry_node_id}
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
+              onChangeGraph={mutateGraph}
               onAddAfter={handleAddAfter}
               onInsertOnEdge={handleInsertOnEdge}
               onMoveNodes={handleMoveNodes}
@@ -487,6 +625,9 @@ export default function AutomationEditor() {
               <NodesPanel
                 onClose={() => setPickerTarget(null)}
                 onSelect={handlePickNodeType}
+                allowedTypes={findNode(graph, flow.entry_node_id)?.type === 'configured_workflow'
+                  ? CONFIGURED_WORKFLOW_CANVAS_TYPES
+                  : undefined}
               />
             )}
 
@@ -514,6 +655,15 @@ export default function AutomationEditor() {
           <div className="h-full overflow-y-auto">
             <FlowActivity flowId={flow.id} graph={graph} />
           </div>
+        ) : tab === 'insights' ? (
+          <div className="h-full overflow-y-auto"><AutomationInsights flowId={flow.id} currentVersion={flow.version} disabled={dirty} onRestored={(restored) => {
+            setGraph(restored.graph);
+            setName(restored.name);
+            setReentry(restored.reentry_policy);
+            setSelectedNodeId(null);
+            setDirty(false);
+            setTab('canvas');
+          }} /></div>
         ) : (
           <div className="h-full overflow-y-auto">
             <FlowSettings
@@ -530,6 +680,15 @@ export default function AutomationEditor() {
           </div>
         )}
       </div>
+
+      <ActivationPreviewDialog preview={activationPreview} busy={isBusy}
+        onClose={() => setActivationPreview(null)} onConfirm={() => {
+          setActivationPreview(null);
+          setStatus.mutate({ id: flow.id, status: 'active', version: flow.version });
+        }} />
+
+      <FlowValidationDialog open={validationOpen} onOpenChange={setValidationOpen} issues={issues}
+        onSelectNode={(nodeId) => { setTab('canvas'); setSelectedNodeId(nodeId); }} />
 
       <TestFlowDialog
         open={testOpen}

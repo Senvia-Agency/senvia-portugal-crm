@@ -43,6 +43,11 @@ const FLOW_NOT_ACTIVE: ToolResult = {
   reason_code: "flow_not_active",
   _instruction: "A pausa NÃO foi aplicada. Volta a consultar o estado atual.",
 };
+const CONFIGURED_WORKFLOW_GRAPH_REQUIRED: ToolResult = {
+  error: "O fluxo configurável precisa do grafo completo e do nó de entrada.",
+  reason_code: "configured_workflow_graph_required",
+  _instruction: "A operação NÃO foi executada. Consulta o contrato do construtor e envia graph e entry_node_id com a definição workflow completa.",
+};
 
 function mutationResult(operation: string, flow: ReturnType<typeof parseAutomationFlowRow>) {
   if (!flow) return AUTOMATION_DATABASE_ERROR;
@@ -58,7 +63,7 @@ export const genericAutomationWriteTools = [
   {
     name: "create_automation_draft",
     module: "automations",
-    description: "Criar um rascunho de automação nativo e inativo. Aceita apenas gatilhos e passos publicados pelo construtor.",
+    description: "Criar um rascunho de automação nativo e inativo. Fluxos configuráveis exigem graph e entry_node_id explícitos no contrato publicado.",
     parameters: {
       type: "object",
       properties: {
@@ -81,6 +86,9 @@ export const genericAutomationWriteTools = [
     execute: async (args, ctx) => {
       const input = parseAutomationArgs(createAutomationDraftArgsSchema, args);
       if (!input) return automationInvalidArguments();
+      if (input.trigger_type === "configured_workflow" && (!input.graph || !input.entry_node_id)) {
+        return CONFIGURED_WORKFLOW_GRAPH_REQUIRED;
+      }
       const initial = buildInitialAutomationGraph(input.trigger_type);
       const graph = input.graph ?? initial.graph;
       const entryNodeId = input.graph ? input.entry_node_id : initial.entryNodeId;

@@ -1,3 +1,5 @@
+import { deliverProposalAutomationEmail } from "../_shared/proposal-email-delivery.ts";
+import { resolveAutomationEmailCorrelation } from "../_shared/automation-email-correlation.ts";
 import { requestMfaResponse } from "../_shared/user-authorization.ts";
 import { applySenviaEmailTemplate } from "../_shared/senvia-email-template.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -24,6 +26,8 @@ interface ProductItem {
 
 interface ProposalEmailRequest {
   organizationId: string;
+  automationRunId?: string;
+  automationNodeId?: string;
   to: string;
   clientName: string;
   proposalCode: string;
@@ -226,6 +230,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
+    const automationCorrelation = await resolveAutomationEmailCorrelation({
+      organizationId: data.organizationId, automationRunId: data.automationRunId,
+      automationNodeId: data.automationNodeId, recipientCount: 1,
+    }, isInternal, async (id) => {
+      const { data: run, error } = await supabaseClient.from('automation_runs').select('organization_id,status').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return run;
+    });
+
     const { data: proposalEmailTemplate, error: templateError } = await supabaseClient
       .from("email_templates")
       .select("id, subject, html_content")
@@ -306,6 +319,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       subject,
       htmlContent: htmlContent,
     };
+
+    if (automationCorrelation) {
+      const delivery = await deliverProposalAutomationEmail(supabaseClient, {
+        organizationId: data.organizationId, runId: automationCorrelation.automation_run_id,
+        nodeId: automationCorrelation.automation_node_id, recipientEmail: data.to,
+        recipientName: data.clientName, subject, templateId: proposalEmailTemplate.id,
+      }, async (idempotencyKey) => {
+        const response = await fetchWithTimeout('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST', headers: { accept: 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+          body: JSON.stringify({ ...brevoPayload, headers: { idempotencyKey } }),
+        });
+        if (!response.ok) return { status: response.status };
+        const result: unknown = await response.json();
+        const messageId = result && typeof result === 'object' && 'messageId' in result && typeof result.messageId === 'string' ? result.messageId : undefined;
+        return { status: response.status, messageId };
+      });
+      return new Response(JSON.stringify({ success: delivery.status === 'sent', ...delivery }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const brevoResponse = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
       method: "POST",

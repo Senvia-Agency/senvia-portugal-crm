@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { isOttoModuleKey, type OttoModuleKey } from "./modules.ts";
 import {
   digestPendingActionPayload,
@@ -17,12 +16,24 @@ type PendingActionFailureKind =
 
 type PendingActionFailure = { readonly kind: PendingActionFailureKind };
 
+type PendingActionRpcResponse = {
+  readonly data: unknown;
+  readonly error: { readonly message?: string } | null;
+};
+
+export interface PendingActionDatabase {
+  rpc(name: string, args: Readonly<Record<string, unknown>>): PromiseLike<PendingActionRpcResponse> & {
+    single(): PromiseLike<PendingActionRpcResponse>;
+    maybeSingle(): PromiseLike<PendingActionRpcResponse>;
+  };
+}
+
 export type PendingActionResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly failure: PendingActionFailure };
 
 type PendingActionIdentity = {
-  readonly supabaseAdmin: SupabaseClient;
+  readonly supabaseAdmin: PendingActionDatabase;
   readonly confirmationId: string;
   readonly userId: string;
   readonly organizationId: string;
@@ -52,7 +63,7 @@ function validIdentity(input: PendingActionIdentity): boolean {
 }
 
 export async function preparePendingAction(input: {
-  readonly supabaseAdmin: SupabaseClient;
+  readonly supabaseAdmin: PendingActionDatabase;
   readonly userId: string;
   readonly organizationId: string;
   readonly moduleKey: OttoModuleKey;

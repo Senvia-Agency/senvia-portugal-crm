@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -457,6 +458,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
+                <AutomationRecordActions subjectType="sale" subjectIds={[sale.id]} />
                 {(() => {
                 const canEmit = sale.status !== 'cancelled' && hasInvoiceXpress && !sale.invoicexpress_id && !!billingName && !!billingNif && hasCompanyFiscalAddress && !sale.credit_note_id;
                 if (canEmit) {

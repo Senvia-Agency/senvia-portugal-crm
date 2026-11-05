@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -461,6 +462,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                 <p className="truncate text-xs text-muted-foreground">{who} · {dateLabel}</p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
+                <AutomationRecordActions subjectType="proposal" subjectIds={[proposal.id]} />
                 <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={handlePrint} disabled={!canOutputProposal}>
                   <Printer className="h-4 w-4" />{t("Imprimir")}
                 </Button>

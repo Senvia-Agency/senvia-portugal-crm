@@ -38,6 +38,7 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
   { to: '/sales', label: 'Vendas', icon: ShoppingBag, group: 'Comercial', moduleKey: 'sales' },
   { to: '/financeiro', label: 'Financeiro', icon: Wallet, group: 'Gestão', moduleKey: 'finance' },
   { to: '/automacoes', label: 'Automações', icon: Workflow, group: 'Gestão', ottoTarget: 'guide-automations' },
+  { to: '/automacoes/feed', label: 'Feed das automações', icon: Newspaper, group: 'Gestão' },
   // Campaigns are occasional work: kept low in the menu, out of the daily Comunicação group.
   { to: '/marketing', label: 'Marketing', icon: Mail, group: 'Gestão', moduleKey: 'marketing' },
   { to: '/prospects', label: 'Prospects', icon: Search, group: 'Comercial', moduleKey: 'prospects' },
