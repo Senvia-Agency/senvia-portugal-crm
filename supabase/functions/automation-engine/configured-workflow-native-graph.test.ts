@@ -12,16 +12,20 @@ class Chain implements PromiseLike<Result> {
   ) {}
   select(): Chain {
     if (this.table === "automation_run_steps") this.result = { data: [], error: null };
+    if (this.table === "automation_runs") this.result = { data: { id: "run", status: "running" }, error: null };
+    if (this.table === "crm_clients") this.result = { data: { name: "Fixture", email: "fixture@example.invalid", status: this.database.clientStatus }, error: null };
     return this;
   }
   insert(value: unknown): Chain {
     if (this.table === "automation_run_steps") this.database.steps.push(value);
+    this.result = { data: value, error: null };
     return this;
   }
   update(value: unknown): Chain {
     if (this.table === "automation_runs") this.database.runUpdates.push(value);
     return this;
   }
+  maybeSingle(): Promise<Result> { return Promise.resolve(this.result); }
   eq(): Chain { return this; }
   neq(): Chain { return this; }
   in(): Chain { return this; }
@@ -34,6 +38,7 @@ class Chain implements PromiseLike<Result> {
 }
 
 class FakeDatabase {
+  constructor(readonly clientStatus = "eligible") {}
   readonly steps: unknown[] = [];
   readonly runUpdates: unknown[] = [];
   readonly sentEmails: unknown[] = [];
@@ -98,7 +103,7 @@ function branchFlow(): Flow {
 }
 
 Deno.test("a false native condition branch never reaches the email action", async () => {
-  const database = new FakeDatabase();
+  const database = new FakeDatabase("ineligible");
   await new Engine(database).advance(run("ineligible"), branchFlow(), "entry");
   assert.equal(database.sentEmails.length, 0);
 });

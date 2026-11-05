@@ -14,7 +14,7 @@ class Query implements PromiseLike<DbResult> {
   private value: unknown;
 
   constructor(private readonly db: FakeDatabase, private readonly table: string) {}
-  select(): Query { this.operation = "select"; return this; }
+  select(): Query { return this; }
   insert(value: unknown): Query { this.operation = "insert"; this.value = value; return this; }
   update(value: unknown): Query { this.operation = "update"; this.value = value; return this; }
   eq(): Query { return this; }
@@ -72,19 +72,20 @@ class FakeDatabase {
   resolve(table: string, operation: string, value: unknown, single: boolean): DbResult {
     if (operation === "insert" && table === "automation_run_steps") {
       this.steps.push(value as Record<string, unknown>);
-      return { data: null, error: null };
+      return { data: single ? value : [value], error: null };
     }
     if (operation === "update" && table === "automation_runs") {
       this.runUpdates.push(value as Record<string, unknown>);
-      return { data: null, error: null };
+      return { data: single ? { id: "run", status: "running" } : [], error: null };
     }
+    if (table === "automation_runs") return { data: single ? { id: "run", status: "running" } : [], error: null };
     if (table === "automation_run_steps") return { data: this.steps.map(({ node_id }) => ({ node_id })), error: null };
     if (table === "automation_flows") return { data: single ? configuredFlowRow() : [configuredFlowRow()], error: null };
     if (table === "organization_members") return { data: { user_id: ACTOR_ID }, error: null };
     if (table === "organizations") {
       return { data: { enabled_modules: { automations: true, clients: true, marketing: true } }, error: null };
     }
-    if (table === "crm_clients") return { data: [this.client], error: null };
+    if (table === "crm_clients") return { data: single ? this.client : [this.client], error: null };
     return { data: single ? null : [], error: null };
   }
 }
