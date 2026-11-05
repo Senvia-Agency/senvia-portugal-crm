@@ -1,7 +1,11 @@
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { copyAutomationFragment, pasteAutomationFragment } from '@/lib/automation-copy';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background, BackgroundVariant, Controls, ReactFlow, ReactFlowProvider,
-  useReactFlow, ViewportPortal, type Connection, type Edge, type FinalConnectionState,
+  useReactFlow, ViewportPortal, Panel, type Connection, type Edge, type FinalConnectionState,
   type Node, type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -10,7 +14,7 @@ import { AutomationFlowNode, GhostFlowNode } from './AutomationFlowNode';
 import { AutomationFlowEdge } from './AutomationFlowEdge';
 import {
   centreNodeOn, computeCanvasLayout, computeStepNumbers, findNode, getGhostSlots,
-  NODE_BOX_HEIGHT, NODE_BOX_WIDTH, validateGraph,
+  NODE_BOX_HEIGHT, NODE_BOX_WIDTH, validateGraph, insertNodeOnEdge,
 } from '@/lib/automation-graph';
 import { getBranchLabel, getNodeStyle } from '@/lib/automation-nodes';
 import { ghostTaken, type ExecutionView } from '@/lib/automation-execution';
@@ -26,7 +30,10 @@ const OUTPUT_DY = 33;
 /** Under this much movement the press on a "+" counts as a click. */
 const PULL_THRESHOLD = 4;
 
+let copiedFragment: AutomationGraph | null = null;
+
 interface AutomationCanvasProps {
+  onChangeGraph?: (graph: AutomationGraph) => void;
   graph: AutomationGraph;
   entryNodeId: string | null;
   selectedNodeId: string | null;
@@ -64,9 +71,30 @@ interface AutomationCanvasProps {
 
 function CanvasInner({
   graph, entryNodeId, selectedNodeId, onSelectNode, onAddAfter, onInsertOnEdge, onMoveNodes,
-  onAddAfterAt, onConnectNodes, onUnlinkEdges, nodeStats, execution, onMoveGhost,
+  onAddAfterAt, onConnectNodes, onUnlinkEdges, nodeStats, execution, onMoveGhost, onChangeGraph,
 }: AutomationCanvasProps) {
   const { fitView, getNodes, screenToFlowPosition } = useReactFlow();
+
+  const [actionNodeId, setActionNodeId] = useState<string | null>(null);
+  const [clipboardReady, setClipboardReady] = useState(!!copiedFragment);
+  const actionNode = graph.nodes.find(node => node.id === actionNodeId);
+  const graphWithPositions = () => {
+    const positions = new Map(getNodes().map(node => [node.id, node.position]));
+    return { ...graph, nodes: graph.nodes.map(node => ({ ...node, position: positions.get(node.id) ?? node.position })) };
+  };
+  const copyStep = (descendants: boolean) => {
+    if (!actionNode) return;
+    const fragment = copyAutomationFragment(graphWithPositions(), actionNode.id, descendants);
+    if (!fragment.nodes.length) { toast.info('O gatilho não pode ser copiado.'); return; }
+    copiedFragment = fragment;
+    setClipboardReady(true);
+    toast.success(descendants ? 'Ramo copiado' : 'Passo copiado');
+  };
+  const paste = () => {
+    if (!copiedFragment || !onChangeGraph) return;
+    onChangeGraph(pasteAutomationFragment(graphWithPositions(), copiedFragment));
+    toast.success('Passos colados', { description: 'Ligue os novos passos ao caminho pretendido.' });
+  };
 
   // Letting go of a dragged "+" must not also count as a click on it (which
   // would open the step picker).
@@ -143,6 +171,15 @@ function CanvasInner({
     window.addEventListener('pointerup', up);
   }, [graph, getNodes, screenToFlowPosition, stepAt, onInsertOnEdge, onConnectNodes, onAddAfterAt]);
 
+  const handleInsertFilter = useCallback((edgeId: string) => {
+    if (!onChangeGraph || !graph.edges.some(edge => edge.id === edgeId)) return;
+    const positions = new Map(getNodes().map(node => [node.id, node.position]));
+    const currentGraph = { ...graph, nodes: graph.nodes.map(node => ({ ...node, position: positions.get(node.id) ?? node.position })) };
+    const inserted = insertNodeOnEdge(currentGraph, edgeId, 'filter');
+    onChangeGraph(inserted.graph);
+    onSelectNode(inserted.node.id);
+  }, [graph, getNodes, onChangeGraph, onSelectNode]);
+
   const { nodes, edges, ghostAnchors } = useMemo(() => {
     const ghosts = getGhostSlots(graph);
     const { positions } = computeCanvasLayout(graph, ghosts);
@@ -168,6 +205,7 @@ function CanvasInner({
         selected: node.id === selectedNodeId,
         data: {
           graphNode: node,
+          onActions: onChangeGraph ? setActionNodeId : undefined,
           step: steps[node.id] ?? 0,
           hasIssue: issues.has(node.id),
           // A node nobody reached still shows a zero — that is the signal.
@@ -213,6 +251,7 @@ function CanvasInner({
             stroke: getNodeStyle(findNode(graph, edge.source)?.type ?? '').stroke,
             ghost: false,
             onPullStart: handleEdgePullStart,
+            onAddFilter: onChangeGraph ? handleInsertFilter : undefined,
             onUnlink: (edgeId: string) => onUnlinkEdges([edgeId]),
             inExecution: !!execution,
             taken: !!execution?.edges.has(edge.id),
@@ -242,7 +281,7 @@ function CanvasInner({
     const ghostAnchors = new Map(ghosts.map((ghost) => [ghost.id, ghost]));
 
     return { nodes: flowNodes, edges: flowEdges, ghostAnchors };
-  }, [graph, entryNodeId, selectedNodeId, handleGhostAdd, handleEdgePullStart, onUnlinkEdges, dragPositions, nodeStats, execution]);
+  }, [graph, entryNodeId, selectedNodeId, handleGhostAdd, handleEdgePullStart, handleInsertFilter, onUnlinkEdges, dragPositions, nodeStats, execution, onChangeGraph]);
 
   // Re-fit when the shape of the graph changes (not on mere config edits or drags).
   const shapeKey = `${graph.nodes.length}:${graph.edges.length}`;
@@ -345,12 +384,20 @@ function CanvasInner({
   }, [onUnlinkEdges]);
 
   return (
+    <div className="h-full w-full" tabIndex={0} aria-label="Canvas da automação" onKeyDown={(event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable)) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === 'c' && actionNode) { event.preventDefault(); copyStep(false); }
+      if (event.key.toLowerCase() === 'v' && copiedFragment) { event.preventDefault(); paste(); }
+    }}>
     <ReactFlow
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       onNodeClick={handleNodeClick}
+      onNodeContextMenu={(event, node) => { if (node.type !== 'automation') return; event.preventDefault(); setActionNodeId(node.id); }}
       onPaneClick={() => onSelectNode(null)}
       onNodesChange={handleNodesChange}
       onNodeDragStop={handleNodeDragStop}
@@ -377,6 +424,23 @@ function CanvasInner({
       proOptions={{ hideAttribution: false }}
       className="bg-background"
     >
+      {onChangeGraph && <Panel position="bottom-left" className="max-w-[calc(100%-2rem)] rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={!actionNode} onClick={() => copyStep(false)}>Copiar passo</Button>
+          <Button type="button" size="sm" variant="outline" disabled={!actionNode} onClick={() => copyStep(true)}>Copiar ramo</Button>
+          <Button type="button" size="sm" variant="outline" disabled={!actionNode} onClick={() => {
+            if (!actionNode) return;
+            const fragment = copyAutomationFragment(graphWithPositions(), actionNode.id, true);
+            if (!fragment.nodes.length) { toast.info('O gatilho não pode ser duplicado.'); return; }
+            onChangeGraph(pasteAutomationFragment(graphWithPositions(), fragment));
+          }}>Duplicar ramo</Button>
+          <Button type="button" size="sm" variant="outline" disabled={!clipboardReady} onClick={paste}>Colar</Button>
+        </div>
+        {actionNode ? <div className="mt-3 space-y-1">
+          <label htmlFor="canvas-node-note" className="text-sm text-muted-foreground">Nota do passo</label>
+          <Input id="canvas-node-note" maxLength={500} value={String(actionNode.config.note ?? '')} onChange={(event) => onChangeGraph({ ...graph, nodes: graph.nodes.map(node => node.id === actionNode.id ? { ...node, config: { ...node.config, note: event.target.value } } : node) })} placeholder="Explique esta parte do fluxo…" />
+        </div> : <p className="mt-2 text-sm text-muted-foreground">Abra as ações de um passo para copiar, duplicar ou anotar.</p>}
+      </Panel>}
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.5} className="!bg-background" color="hsl(var(--muted-foreground) / 0.25)" />
       <Controls showInteractive={false} position="bottom-right" />
 
@@ -400,6 +464,7 @@ function CanvasInner({
         </ViewportPortal>
       )}
     </ReactFlow>
+    </div>
   );
 }
 

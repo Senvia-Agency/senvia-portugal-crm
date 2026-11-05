@@ -1,6 +1,6 @@
 import { memo, useEffect } from 'react';
 import { Handle, Position, useUpdateNodeInternals, type NodeProps, type Node } from '@xyflow/react';
-import { AlertTriangle, Check, Clock, HelpCircle, Plus, SkipForward, X } from 'lucide-react';
+import { AlertTriangle, Check, Clock, HelpCircle, MoreHorizontal, Plus, SkipForward, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   getNodeBranches, getNodeDefinition, getNodeStyle, getNodeSubtitle, humanizeNodeType,
@@ -50,6 +50,7 @@ const centreOn = (x: number, y: number) => ({
 });
 
 export interface AutomationNodeData extends Record<string, unknown> {
+  onActions?: (nodeId: string) => void;
   graphNode: AutomationGraphNode;
   step: number;
   hasIssue: boolean;
@@ -110,6 +111,7 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
       style={{ width: NODE_BOX_WIDTH, height: NODE_BOX_HEIGHT }}
       title={runLook ? t('{{status}} nesta execução', { status: t(runLook.label) }) : notRun ? t('Não correu nesta execução') : undefined}
     >
+      {data.onActions && <button type="button" aria-label="Ações do passo" className="nodrag absolute right-0 top-0 z-10 rounded-md border border-border bg-card p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); data.onActions?.(id); }}><MoreHorizontal className="h-4 w-4" /></button>}
       {/* Triggers have no inbound edge. */}
       {!isTrigger && (
         <Handle
@@ -180,6 +182,13 @@ export const AutomationFlowNode = memo(({ id, data, selected }: NodeProps<Automa
           {subtitle}
         </p>
       </div>
+
+      {typeof graphNode.config.note === 'string' && graphNode.config.note.trim() && (
+        <div className="absolute left-full top-0 ml-3 w-48 rounded-lg border border-warning/30 bg-card p-3 text-sm text-foreground shadow-sm" title={graphNode.config.note}>
+          <div className="mb-1 text-xs font-semibold text-muted-foreground">Nota</div>
+          <p className="line-clamp-3 whitespace-pre-wrap break-words">{graphNode.config.note}</p>
+        </div>
+      )}
 
       {graphNode.type !== 'end' && (branches.length ? (
         branches.map((branch, index) => (

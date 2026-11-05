@@ -7,8 +7,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, normalizeString } from '@/lib/utils';
-import { NODE_CATEGORY_STYLES, NODE_DEFINITIONS, TRIGGER_GROUPS, triggerGroupOf } from '@/lib/automation-nodes';
+import { NODE_CATEGORY_STYLES, NODE_DEFINITIONS } from '@/lib/automation-nodes';
 import { AUTOMATION_RECIPES, type AutomationRecipe } from '@/lib/automation-recipes';
+import { RECIPE_OBJECTIVES, recipeObjective } from '@/lib/automation-recipe-library';
+import { validateAutomationConfiguration } from '@/lib/automation-validation';
+import { AutomationTemplateSharing } from '@/components/automations/AutomationTemplateSharing';
+import { AutomationStarter } from '@/components/automations/AutomationStarter';
 import { GroupChip } from '@/components/automations/TriggerPicker';
 import { useCreateAutomationFlow } from '@/hooks/useAutomationFlows';
 import { useLanguage } from '@/i18n';
@@ -30,11 +34,12 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<string | null>(null);
   const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [review, setReview] = useState<AutomationRecipe | null>(null);
   const term = normalizeString(search.trim());
 
   const visible = useMemo(
     () => AUTOMATION_RECIPES.filter((recipe) => {
-      if (group && triggerGroupOf(recipe.trigger_type) !== group) return false;
+      if (group && recipeObjective(recipe) !== group) return false;
       if (!term) return true;
       const haystack = [recipe.name, recipe.summary, ...recipe.outline, t(NODE_DEFINITIONS[recipe.trigger_type].label)]
         .map(normalizeString).join(' ');
@@ -44,7 +49,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
   );
 
   const groupsPresent = useMemo(
-    () => TRIGGER_GROUPS.filter((item) => AUTOMATION_RECIPES.some((r) => triggerGroupOf(r.trigger_type) === item.key)),
+    () => RECIPE_OBJECTIVES.filter((item) => AUTOMATION_RECIPES.some((r) => recipeObjective(r) === item.key)),
     [],
   );
 
@@ -77,7 +82,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
             {t('Modelos de automação')}
           </DialogTitle>
           <DialogDescription>
-            {t('Fluxos completos para os casos mais comuns. Escolhe um, ajustas os textos e ativas.')}
+            {t('Escolha um objetivo, reveja as escolhas necessárias e crie um rascunho para configurar.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -123,6 +128,22 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-6xl">
+            <div className="mb-5 space-y-3"><AutomationStarter onCreate={handleUse} busy={createFlow.isPending} /><AutomationTemplateSharing onImported={flowId => { onOpenChange(false); navigate(`/automacoes/${flowId}`); }} /></div>
+            {review && (
+              <section aria-label="Preparar modelo" className="mb-5 space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                <h2 className="text-base font-semibold">Preparar: {review.name}</h2>
+                <p className="text-sm text-muted-foreground">O modelo será criado como rascunho. Configure os passos indicados antes de ativar.</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {(review.configuration ?? [review.editHint]).map(item => <li key={item}>{item}</li>)}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => handleUse(review)} disabled={createFlow.isPending}>
+                    {creatingId === review.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar rascunho e configurar
+                  </Button>
+                  <Button variant="outline" onClick={() => setReview(null)}>Voltar aos modelos</Button>
+                </div>
+              </section>
+            )}
             {visible.length === 0 ? (
               <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
                 {t('Nenhum modelo corresponde à pesquisa.')}
@@ -132,7 +153,7 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
                 {visible.map((recipe) => {
                   const trigger = NODE_DEFINITIONS[recipe.trigger_type];
                   const TriggerIcon = trigger.icon;
-                  const busy = creatingId === recipe.id;
+                  const missing = new Set(validateAutomationConfiguration(recipe.graph, { triggerConfig: recipe.trigger_config }).filter(issue => issue.severity === 'error').map(issue => issue.nodeId)).size;
                   return (
                     <article
                       key={recipe.id}
@@ -155,7 +176,8 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
                         </div>
                       </div>
 
-                      <p className="text-xs leading-snug text-muted-foreground">{recipe.summary}</p>
+                      <p className="text-sm leading-snug text-muted-foreground">{recipe.summary}</p>
+                      <p className="text-xs font-medium text-warning">{missing > 0 ? `${missing} passo(s) por configurar` : 'Rever textos, responsáveis e condições'}</p>
 
                       <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                         {recipe.outline.map((step, i) => (
@@ -168,9 +190,8 @@ export function RecipeGalleryDialog({ open, onOpenChange }: RecipeGalleryDialogP
 
                       <div className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
                         <p className="text-[11px] text-muted-foreground">{recipe.editHint}</p>
-                        <Button size="sm" onClick={() => handleUse(recipe)} disabled={createFlow.isPending} className="shrink-0">
-                          {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                          {t('Usar este modelo')}
+                        <Button size="sm" onClick={() => setReview(recipe)} disabled={createFlow.isPending} className="shrink-0">
+                          {t('Preparar modelo')}
                         </Button>
                       </div>
                     </article>

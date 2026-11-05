@@ -1,3 +1,5 @@
+import { DEFAULT_PROVIDER_RETRY } from './automation-nodes';
+import { EXTENDED_AUTOMATION_RECIPES, type RecipeObjective } from './automation-recipe-library';
 import type {
   AutomationGraph, AutomationTriggerType, AutomationNodeConfig,
 } from '@/types/automations';
@@ -13,6 +15,8 @@ import type {
  */
 export interface AutomationRecipe {
   id: string;
+  objective?: RecipeObjective;
+  configuration?: string[];
   name: string;
   /** One line, written from the customer's side: what this does for them. */
   summary: string;
@@ -27,7 +31,7 @@ export interface AutomationRecipe {
   conversational?: boolean;
 }
 
-export const AUTOMATION_RECIPES: AutomationRecipe[] = [
+const LEGACY_AUTOMATION_RECIPES: AutomationRecipe[] = [
   {
     id: 'boas-vindas-lead',
     name: 'Boas-vindas a novo lead',
@@ -298,6 +302,22 @@ export const AUTOMATION_RECIPES: AutomationRecipe[] = [
     },
   },
 ];
+
+export function instantiateRecipeGraph(graph: AutomationGraph): AutomationGraph {
+  const fresh = structuredClone(graph);
+  return {
+    ...fresh,
+    nodes: fresh.nodes.map(node => {
+      const provider = node.type === 'send_whatsapp' || node.type === 'send_email' || node.type === 'webhook';
+      return provider && !Object.prototype.hasOwnProperty.call(node.config, 'retry')
+        ? { ...node, config: { ...node.config, retry: { ...DEFAULT_PROVIDER_RETRY } } }
+        : node;
+    }),
+  };
+}
+
+export const AUTOMATION_RECIPES: AutomationRecipe[] = [...LEGACY_AUTOMATION_RECIPES, ...EXTENDED_AUTOMATION_RECIPES]
+  .map(recipe => ({ ...recipe, graph: instantiateRecipeGraph(recipe.graph) }));
 
 export function getRecipe(id: string): AutomationRecipe | undefined {
   return AUTOMATION_RECIPES.find((r) => r.id === id);

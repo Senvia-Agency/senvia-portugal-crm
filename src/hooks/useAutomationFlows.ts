@@ -1,3 +1,5 @@
+import { countUniqueNodeRuns } from '@/lib/automation-node-stats';
+import { summarizeBulkRetry } from '@/lib/automation-bulk-result';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +33,7 @@ interface CreateAutomationFlowData {
 }
 
 interface UpdateAutomationFlowData {
+  replace_trigger_config?: boolean;
   id: string;
   name?: string;
   description?: string | null;
@@ -165,7 +168,18 @@ export function useUpdateAutomationFlow() {
       if (data.description !== undefined) updateData.description = data.description;
       if (data.status !== undefined) updateData.status = data.status;
       if (data.trigger_type !== undefined) updateData.trigger_type = data.trigger_type;
-      if (data.trigger_config !== undefined) updateData.trigger_config = data.trigger_config;
+      if (data.trigger_config !== undefined && data.replace_trigger_config) {
+        updateData.trigger_config = data.trigger_config;
+      } else if (data.trigger_config !== undefined) {
+        const { data: current, error: readError } = await supabase.from(FLOWS)
+          .select('trigger_config').eq('id', id).eq('organization_id', organization.id).single();
+        if (readError) throw readError;
+        const currentConfig = current.trigger_config;
+        updateData.trigger_config = {
+          ...(currentConfig && typeof currentConfig === 'object' && !Array.isArray(currentConfig) ? currentConfig : {}),
+          ...data.trigger_config,
+        };
+      }
       if (data.graph !== undefined) updateData.graph = data.graph;
       if (data.entry_node_id !== undefined) updateData.entry_node_id = data.entry_node_id;
       if (data.reentry_policy !== undefined) updateData.reentry_policy = data.reentry_policy;
@@ -187,6 +201,7 @@ export function useUpdateAutomationFlow() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['automation-flows'] });
       queryClient.invalidateQueries({ queryKey: ['automation-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['automation-versions'] });
     },
     onError: (error) => {
       console.error('Error updating automation flow:', error);
@@ -235,6 +250,7 @@ export function useSetAutomationFlowStatus() {
     onSuccess: (status) => {
       queryClient.invalidateQueries({ queryKey: ['automation-flows'] });
       queryClient.invalidateQueries({ queryKey: ['automation-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['automation-versions'] });
       if (status === 'active') toast.success('Automação ativada');
       else if (status === 'paused') toast.success('Automação em pausa');
       else toast.success('Automação guardada como rascunho');
@@ -540,7 +556,7 @@ export function useAutomationNodeSteps(flowId: string | null, nodeId: string | n
         .from(RUN_STEPS)
         .select('*')
         .eq('organization_id', organizationId)
-        .eq('node_id', nodeId)
+        .or(`node_id.eq.${JSON.stringify(nodeId)},detail->>canonical_node_id.eq.${JSON.stringify(nodeId)}`)
         .in('run_id', runRows.map((run) => run.id))
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -596,25 +612,35 @@ export function useAutomationFlowNodeStats(flowId: string | null) {
       >[]).filter((run) => !run.context?.__test);
 
       for (const run of runs) {
-        if (run.current_node_id && PARKED_RUN_STATUSES.includes(run.status)) {
-          bump(run.current_node_id, 'waiting');
+        if (!PARKED_RUN_STATUSES.includes(run.status)) continue;
+        const parkedNodes = new Set<string>();
+        const cursors = run.context?.__cursors;
+        if (Array.isArray(cursors)) {
+          for (const cursor of cursors) {
+            if (cursor && typeof cursor === 'object' && 'node' in cursor && typeof cursor.node === 'string') {
+              parkedNodes.add(cursor.node);
+            }
+          }
         }
+        if (!parkedNodes.size && run.current_node_id) parkedNodes.add(run.current_node_id);
+        for (const nodeId of parkedNodes) bump(nodeId, 'waiting');
       }
 
       const runIds = runs.map((run) => run.id);
       for (let index = 0; index < runIds.length; index += RUN_ID_CHUNK) {
         const { data: stepRows, error: stepsError } = await supabase
           .from(RUN_STEPS)
-          .select('node_id, status')
+          .select('run_id, node_id, status, detail')
           .eq('organization_id', organizationId)
           .in('run_id', runIds.slice(index, index + RUN_ID_CHUNK));
 
         if (stepsError) throw stepsError;
 
-        for (const step of (stepRows || []) as unknown as Pick<AutomationRunStep, 'node_id' | 'status'>[]) {
-          if (!step.node_id) continue;
-          if (step.status === 'ok') bump(step.node_id, 'passed');
-          else if (step.status === 'failed') bump(step.node_id, 'failed');
+        for (const [nodeId, count] of Object.entries(countUniqueNodeRuns(stepRows ?? []))) {
+          const entry = stats[nodeId] ?? { passed: 0, failed: 0, waiting: 0 };
+          entry.passed += count.passed;
+          entry.failed += count.failed;
+          stats[nodeId] = entry;
         }
       }
 
@@ -699,6 +725,97 @@ export function useCancelAutomationRun() {
     onError: (error) => {
       console.error('Error cancelling automation run:', error);
       toast.error('Erro ao cancelar a execução');
+    },
+  });
+}
+
+export function useAutomationVersions(flowId: string) {
+  const { organization } = useAuth();
+  return useQuery({
+    queryKey: ['automation-versions', organization?.id, flowId],
+    enabled: !!organization?.id && !!flowId,
+    queryFn: async () => {
+      if (!organization?.id) return [];
+      const { data, error } = await supabase.from('automation_flow_versions')
+        .select('id,flow_id,organization_id,version,snapshot,created_at')
+        .eq('organization_id', organization.id).eq('flow_id', flowId)
+        .order('version', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useRestoreAutomationVersion() {
+  const update = useUpdateAutomationFlow();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ flowId, snapshot }: { flowId: string; snapshot: Json }) => {
+      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) throw new Error('Versão inválida');
+      const flow = hydrateFlow(snapshot);
+      return update.mutateAsync({
+        id: flowId, graph: flow.graph, entry_node_id: flow.entry_node_id,
+        trigger_type: flow.trigger_type, trigger_config: flow.trigger_config, replace_trigger_config: true,
+        quiet_hours: flow.quiet_hours, reentry_policy: flow.reentry_policy,
+        max_steps_per_run: flow.max_steps_per_run, status: 'draft',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['automation-versions'] });
+      toast.success('Versão reposta como rascunho. Verifique o fluxo antes de ativar.');
+    },
+  });
+}
+
+export function useAutomationMetrics(flowId: string) {
+  const { organization } = useAuth();
+  return useQuery({
+    queryKey: ['automation-metrics', organization?.id, flowId],
+    enabled: !!organization?.id && !!flowId,
+    queryFn: async () => {
+      if (!organization?.id) return null;
+      const { data, error } = await supabase.from('automation_flow_metrics')
+        .select('flow_id,organization_id,enrolled,active,completed,failed,converted,average_goal_seconds')
+        .eq('organization_id', organization.id).eq('flow_id', flowId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+}
+
+export function useAutomationBranchMetrics(flowId: string) {
+  const { organization } = useAuth();
+  return useQuery({
+    queryKey: ['automation-branch-metrics', organization?.id, flowId],
+    enabled: !!organization?.id && !!flowId,
+    queryFn: async () => {
+      if (!organization?.id) return [];
+      const { data, error } = await supabase.from('automation_branch_metrics')
+        .select('organization_id,flow_id,flow_version,node_id,branch_id,branch_label,enrolled,converted')
+        .eq('organization_id', organization.id).eq('flow_id', flowId)
+        .order('flow_version', { ascending: false }).order('node_id').order('branch_id');
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+}
+
+export function useRetryFailedAutomationRuns() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (flowId: string) => {
+      const { data, error } = await supabase.functions.invoke('automation-engine', {
+        body: { action: 'retry_bulk', flow_id: flowId, limit: 100 },
+      });
+      if (error) throw new Error((await readFunctionError(error)) ?? error.message);
+      return summarizeBulkRetry(data);
+    },
+    onSuccess: () => {
+      for (const key of ['automation-runs', 'automation-run-counts', 'automation-metrics', 'automation-branch-metrics']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }

@@ -2,7 +2,7 @@ import { memo } from 'react';
 import {
   BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps, type Edge,
 } from '@xyflow/react';
-import { Plus, Unlink } from 'lucide-react';
+import { Filter, Plus, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n';
 
@@ -22,6 +22,7 @@ export interface AutomationEdgeData extends Record<string, unknown> {
   onPullStart?: (edgeId: string, event: React.PointerEvent) => void;
   /** Cuts this connection, leaving both steps on the canvas to be rewired. */
   onUnlink?: (edgeId: string) => void;
+  onAddFilter?: (edgeId: string) => void;
   /** An execution is on screen: lines it travelled are lit, the rest fade. */
   inExecution?: boolean;
   taken?: boolean;
@@ -93,6 +94,25 @@ export const AutomationFlowEdge = memo(({
               )}
             >
               <Plus className="h-3 w-3" />
+            </button>
+          )}
+
+          {!ghost && data?.onAddFilter && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                data.onAddFilter?.(id);
+              }}
+              title="Adicionar um filtro nesta ligação"
+              aria-label="Adicionar filtro nesta ligação"
+              className={cn(
+                'nopan nodrag pointer-events-auto flex h-5 w-5 items-center justify-center rounded-full',
+                'border border-border bg-card text-muted-foreground shadow-sm transition-all',
+                'hover:scale-125 hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              )}
+            >
+              <Filter className="h-3 w-3" />
             </button>
           )}
 

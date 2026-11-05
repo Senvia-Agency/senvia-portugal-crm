@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { useState, useEffect, useMemo } from "react";
 import { isPerfect2GetherOrg } from "@/lib/perfect2gether";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -684,6 +685,7 @@ export default function Leads() {
           <LeadsReportPanel />
         ) : (
           <div className="min-w-0 space-y-3">
+            {selectedIds.length > 0 && !showArchived && <AutomationRecordActions subjectType="lead" subjectIds={selectedIds} />}
             {effectiveViewMode === 'table' && (
               <BulkActionsBar
                 selectedCount={selectedIds.length}

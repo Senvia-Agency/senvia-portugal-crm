@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { useState, useMemo, useEffect, useRef } from "react";
 
 import { useSearchParams, useLocation } from "react-router-dom";
@@ -327,6 +328,8 @@ export default function Clients() {
                 hint={showEnergy ? `${stats.totalMwh.toFixed(1)} MWh · ${stats.totalKwp.toFixed(1)} kWp` : undefined} />
             )}
           </div>
+
+          {selectedIds.length > 0 && <AutomationRecordActions subjectType="client" subjectIds={selectedIds} />}
 
           <BulkActionsBar
             selectedCount={selectedIds.length}

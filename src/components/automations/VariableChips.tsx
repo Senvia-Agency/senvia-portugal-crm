@@ -1,3 +1,4 @@
+import { groupAutomationVariables } from '@/lib/automation-variable-groups';
 import type { RefObject } from 'react';
 import { cn } from '@/lib/utils';
 import { useFlowVariables } from '@/components/automations/FlowIoContext';
@@ -40,9 +41,7 @@ export function VariableChips({ targetRef, value, onChange, className }: Variabl
   // trigger's record, the last reply…); elsewhere, the contact basics.
   const { t } = useLanguage();
   const flowFields = useFlowVariables();
-  const variables = flowFields
-    ? flowFields.map((field) => ({ token: `{{${field.key}}}`, label: field.label }))
-    : VARIABLES;
+  const groups = groupAutomationVariables(flowFields ?? VARIABLES.map(variable => ({ key: variable.token.slice(2, -2), label: variable.label })));
   const insert = (token: string) => {
     const el = targetRef.current;
     const start = el?.selectionStart ?? value.length;
@@ -66,20 +65,14 @@ export function VariableChips({ targetRef, value, onChange, className }: Variabl
   return (
     <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
       <span className="text-[11px] text-muted-foreground">{t('Inserir variável:')}</span>
-      {variables.map((variable) => (
-        <button
-          key={variable.token}
-          type="button"
-          onClick={() => insert(variable.token)}
-          title={variable.token}
-          className={cn(
-            'rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium',
-            'text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary',
-          )}
-        >
+      {groups.map(group => <div key={group.key} className="flex flex-wrap items-center gap-1.5" role="group" aria-label={group.label}>
+        <span className="text-[11px] font-medium text-muted-foreground">{t(group.label)}</span>
+        {group.fields.map(variable => <button key={variable.key} type="button" onClick={() => insert('{{' + variable.key + '}}')}
+          title={'{{' + variable.key + '}}'} className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary">
           {t(variable.label)}
-        </button>
-      ))}
+        </button>)}
+      </div>)}
+      <span className="basis-full text-[11px] text-muted-foreground">Omissão: {'{{primeiro_nome | "olá"}}'} · Formatos: {'{{valor | moeda}}'} e {'{{data_vencimento | data}}'}</span>
     </div>
   );
 }

@@ -27,6 +27,26 @@ export type AutomationRunStepStatus = 'ok' | 'skipped' | 'failed' | 'waiting';
 
 export type AutomationTriggerType =
   | 'configured_workflow'
+  | 'email_opened'
+  | 'email_clicked'
+  | 'email_bounced'
+  | 'email_unsubscribed'
+  | 'lead_inactive'
+  | 'proposal_unanswered'
+  | 'proposal_expiring'
+  | 'sale_fidelization_ending'
+  | 'payment_recorded'
+  | 'fiscal_document_issued'
+  | 'lead_updated'
+  | 'task_overdue'
+  | 'meeting_upcoming'
+  | 'task_created'
+  | 'task_completed'
+  | 'meeting_created'
+  | 'meeting_status_changed'
+  | 'inbound_webhook'
+  | 'scheduled'
+  | 'record_date'
   | 'lead_created'
   // Same event as lead_created, filtered to one AI-classified temperature.
   // Dispatched directly by submit-lead once classification completes — see
@@ -41,8 +61,14 @@ export type AutomationTriggerType =
   // Any message that reaches a WhatsApp caixa (the one in trigger_config, or
   // any when none is set). Started by the engine's reply handler, one run per
   // conversation; a keyword flow that matched the same message takes priority.
+  | 'meta_message_received'
+  | 'email_received'
+  | 'conversation_unanswered'
   | 'message_received'
   | 'sale_status_changed'
+  | 'expense_approval_requested'
+  | 'financial_request_created'
+  | 'list_left'
   | 'list_joined'
   // Legacy triggers migrated from the old automation system. They are not
   // offered when creating a new flow, but existing flows still use them and
@@ -88,14 +114,46 @@ export type AutomationTriggerType =
   | 'subscription_renewal_due_2d';
 
 export type AutomationActionType =
+  | 'publish_feed'
+  | 'assign_conversation'
+  | 'close_conversation'
+  | 'send_meta_template'
+  | 'goto'
+  | 'create_sale_from_proposal'
+  | 'request_issue_invoice'
+  | 'request_issue_receipt'
+  | 'request_sale_status'
+  | 'request_billing_dispute'
+  | 'request_service_suspension'
+  | 'create_lead'
+  | 'mark_proposal_expired'
+  | 'mark_lead_lost'
+  | 'complete_record_tasks'
+  | 'meta_conversion'
   | 'send_whatsapp'
   | 'send_email'
   | 'wait'
   | 'wait_reply'
+  | 'wait_until'
   | 'condition'
+  | 'router'
+  | 'convert_to_client'
+  | 'send_proposal_email'
+  | 'create_event'
+  | 'ai_draft'
+  | 'ai_classify'
+  | 'ai_summarize'
+  | 'ai_extract'
+  | 'filter'
+  | 'split_ab'
+  | 'execute_flow'
+  | 'end_other_flow'
   | 'move_stage'
   | 'assign_user'
   | 'add_to_list'
+  | 'remove_from_list'
+  | 'update_field'
+  | 'notify_user'
   | 'create_task'
   | 'webhook'
   | 'end';
@@ -141,6 +199,12 @@ export type ConditionOperator =
   | 'not_exists'
   | 'greater_than'
   | 'less_than'
+  | 'greater_or_equal'
+  | 'less_or_equal'
+  | 'before'
+  | 'after'
+  | 'older_than_days'
+  | 'contains_any'
   // Look the field's value (a phone or an email) up in the organization's
   // records: Sim when it is there, Não when it is not.
   | 'in_clients'
@@ -166,6 +230,16 @@ export interface AutomationMediaAttachment {
  * v1 node types actually use rather than a strict per-type union. Keeps the
  * inspector forms simple and tolerates configs written by a newer engine.
  */
+export interface AutomationConditionGroup {
+  conditions: AutomationNodeConfig[];
+  match: 'all' | 'any';
+}
+
+export interface AutomationRoute extends AutomationConditionGroup {
+  id: string;
+  label: string;
+}
+
 export interface AutomationNodeConfig {
   workflow?: AutomationWorkflowDefinition | AutomationWorkflowDraft;
   // send_whatsapp
@@ -182,10 +256,19 @@ export interface AutomationNodeConfig {
    */
   wait_reply?: boolean;
   // send_email
+  recipient_mode?: 'contact' | 'owner' | 'user';
+  recipient_user_id?: string;
+  wait_event?: 'opened' | 'clicked' | 'replied';
   template_id?: string;
   subject?: string;
   html?: string;
   // wait (the engine reads `amount ?? duration`)
+  wait_mode?: 'duration' | 'date' | 'business';
+  date_field?: string;
+  offset_days?: number;
+  at_time?: string;
+  business_start?: string;
+  business_end?: string;
   duration?: number;
   amount?: number;
   unit?: AutomationWaitUnit;
@@ -206,6 +289,33 @@ export interface AutomationNodeConfig {
    */
   options_style?: 'emoji' | 'number' | 'none';
   // condition
+  conditions?: AutomationNodeConfig[];
+  routes?: AutomationRoute[];
+  pixel_id?: string;
+  event_name?: 'Lead' | 'CompleteRegistration' | 'ViewContent' | 'Purchase';
+  reason?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  source?: string;
+  target_status?: string;
+  target_node_id?: string;
+  max_visits?: number;
+  days?: number;
+  template_name?: string;
+  language?: string;
+  components?: { type: 'header' | 'body'; parameters: string[] }[];
+  text?: string;
+  fields?: { name: string; description: string }[];
+  start_time?: string;
+  end_time?: string;
+  meeting_link?: string;
+  variants?: { id: string; label: string; weight: number }[];
+  flow_id?: string;
+  retry?: { max_attempts: number; interval_minutes: number };
+  on_error?: 'stop' | 'continue' | 'error_branch';
+  filters?: AutomationConditionGroup;
+  match?: 'all' | 'any';
   field?: string;
   operator?: ConditionOperator;
   value?: string;
@@ -213,19 +323,37 @@ export interface AutomationNodeConfig {
   stage?: string;
   stage_id?: string;
   // assign_user / add_to_list
+  assignment_mode?: 'fixed' | 'round_robin' | 'least_loaded';
+  user_ids?: string[];
+  due_amount?: number;
+  due_unit?: AutomationWaitUnit;
   user_id?: string;
   list_id?: string;
   // create_task (the engine reads `user_id` for the assignee)
   title?: string;
   description?: string;
   due_in_days?: number;
+  priority?: 'low' | 'normal' | 'high';
   assigned_to?: string;
   // webhook
   url?: string;
   method?: 'POST' | 'GET' | 'PUT' | 'PATCH';
   headers?: string;
   body?: string;
+  reentry_cooldown_days?: number;
   // triggers
+  campaign_id?: string;
+  minutes?: number;
+  hours_before?: number;
+  changed_field?: string;
+  to_value?: string;
+  from_value?: string;
+  webhook_fields?: { name: string; email: string; phone: string };
+  entity?: 'lead' | 'client' | 'sale' | 'proposal';
+  schedule?: { frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly'; time: string; weekday?: number; day?: number };
+  time?: string;
+  from_stage?: string;
+  to_stage?: string;
   from_stage_id?: string;
   to_stage_id?: string;
   to_status?: string;

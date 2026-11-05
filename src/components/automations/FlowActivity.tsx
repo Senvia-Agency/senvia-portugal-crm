@@ -1,3 +1,6 @@
+import { ActivityFilters } from './ActivityFilters';
+import { EMPTY_ACTIVITY_FILTERS, matchesActivityFilters, type AutomationActivityFilters } from '@/lib/automation-activity-filters';
+import { stepVisitNumber } from '@/lib/automation-step-identity';
 import { useMemo, useState } from 'react';
 import {
   AlertCircle, Ban, CheckCircle2, ChevronDown, ChevronRight, Clock,
@@ -91,6 +94,7 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   // Like n8n's executions list: one click shows only the failed ones.
   const [filter, setFilter] = useState<RunFilter>('all');
+  const [activityFilters,setActivityFilters] = useState<AutomationActivityFilters>(EMPTY_ACTIVITY_FILTERS);
 
   // Run steps only ever store ids (template, user, list, stage) — resolve them
   // to names once here so the timeline reads like a sentence, not a database dump.
@@ -126,7 +130,7 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
   const failedCount = runs.filter((run) => run.status === 'failed').length;
   const activeCount = runs.filter((run) => ACTIVE_STATUSES.includes(run.status)).length;
   const completedCount = runs.filter((run) => run.status === 'completed').length;
-  const visibleRuns = runs.filter((run) => matchesFilter(run, filter));
+  const visibleRuns = runs.filter((run) => matchesFilter(run, filter) && matchesActivityFilters(run,activityFilters));
   const countFor = (key: RunFilter) => runs.filter((run) => matchesFilter(run, key)).length;
 
   return (
@@ -153,6 +157,8 @@ export function FlowActivity({ flowId, graph }: FlowActivityProps) {
           {t('Uma execução em curso para-se com «Parar»; uma parada ou falhada repete-se.')}
         </span>
       </div>
+
+      <ActivityFilters value={activityFilters} onChange={setActivityFilters} graph={graph} resultCount={visibleRuns.length} />
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="overflow-x-auto">
@@ -387,6 +393,7 @@ function RunStepsTimeline({ run, lookups }: { run: AutomationRun; lookups: StepD
                   <StepIcon className={cn('h-3.5 w-3.5 shrink-0', meta.className)} />
                   <span className="text-xs font-semibold text-foreground">
                     {step.node_type ? getNodeLabel(step.node_type) : t('Passo')}
+                    {stepVisitNumber(step) > 1 && <span className="ml-1 font-normal text-muted-foreground">· passagem {stepVisitNumber(step)}</span>}
                   </span>
                   <span className={cn('text-[11px] font-medium', meta.className)}>{t(meta.label)}</span>
                   <span className="text-[11px] text-muted-foreground">{formatDateTime(step.created_at)}</span>

@@ -1,3 +1,4 @@
+import { canonicalStepNodeId } from './automation-step-identity.ts';
 import type {
   AutomationGraph, AutomationRun, AutomationRunStep, AutomationRunStepStatus,
 } from '@/types/automations';
@@ -39,10 +40,11 @@ export function buildExecutionView(
   const branches: Record<string, string> = {};
   // Steps come oldest first; a step retried later ends with its newest result.
   for (const step of steps) {
-    if (!step.node_id) continue;
-    nodes[step.node_id] = step.status;
+    const nodeId = canonicalStepNodeId(step);
+    if (!nodeId) continue;
+    nodes[nodeId] = step.status;
     const branch = branchOf(step);
-    if (branch) branches[step.node_id] = branch;
+    if (branch) branches[nodeId] = branch;
   }
 
   // A run parked on a step may have no row for it yet: it is still there.

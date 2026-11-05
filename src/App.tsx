@@ -52,6 +52,7 @@ const MarketingCampaigns = lazy(() => import("./pages/marketing/Campaigns"));
 const MarketingReports = lazy(() => import("./pages/marketing/Reports"));
 
 const MarketingLists = lazy(() => import("./pages/marketing/Lists"));
+const TeamFeed = lazy(() => import("./pages/TeamFeed"));
 const Automations = lazy(() => import("./pages/Automations"));
 const AutomationEditor = lazy(() => import("./pages/AutomationEditor"));
 const PublicLeadForm = lazy(() => import("./pages/PublicLeadForm"));
@@ -174,6 +175,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
                   <Route path="/marketing/reports" element={<MarketingReports />} />
                   <Route path="/marketing/lists" element={<MarketingLists />} />
                   <Route path="/automacoes" element={<Automations />} />
+                  <Route path="/automacoes/feed" element={<TeamFeed />} />
                   <Route path="/automacoes/:id" element={<AutomationEditor />} />
 
                 </Route>

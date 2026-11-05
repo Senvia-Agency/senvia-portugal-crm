@@ -1,3 +1,4 @@
+import { AutomationRecordActions } from "@/components/automations/AutomationRecordActions";
 import { Lead, STATUS_LABELS, LeadStatus, LeadTemperature, LeadTipologia, TEMPERATURE_LABELS, TEMPERATURE_STYLES, TIPOLOGIA_LABELS, TIPOLOGIA_STYLES, FormSettings, CustomField, ROLE_LABELS } from "@/types";
 import { isPerfect2GetherOrg } from "@/lib/perfect2gether";
 import { LeadAttachments } from "@/components/leads/LeadAttachments";
@@ -471,6 +472,7 @@ export function LeadDetailsModal({
               <p className="truncate px-1.5 text-xs text-muted-foreground">{subtitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
+                <AutomationRecordActions subjectType="lead" subjectIds={[lead.id]} />
               <Button variant="outline" size="sm" className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400"
                 onClick={() => navigate(getInboxUrl(lead.phone))}>
                 <MessageCircle className="h-4 w-4" />WhatsApp
