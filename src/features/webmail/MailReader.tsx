@@ -27,6 +27,8 @@ interface ReaderProps {
   readonly onBack: () => void;
   readonly onClose: () => void;
   readonly onCompose: (mode: ComposeMode, message: EmailMessage, attachments: readonly EmailAttachment[]) => void;
+  /** A new email to an address clicked inside a message, from the same caixa. */
+  readonly onComposeTo?: (address: string, channelId: string) => void;
   readonly onDeleteForever: (messages: readonly EmailMessage[]) => void;
   readonly onOpened: (message: EmailMessage) => void;
 }
@@ -34,7 +36,7 @@ interface ReaderProps {
 const labelClass = 'webmail-tool-label';
 const toolClass = 'h-8 shrink-0 gap-1.5 rounded-full px-1.5 text-[13px] [&_svg]:mr-0';
 
-export function MailReader({ messageId, account, showAccount, folders, actions, onBack, onClose, onCompose, onDeleteForever, onOpened }: ReaderProps) {
+export function MailReader({ messageId, account, showAccount, folders, actions, onBack, onClose, onCompose, onComposeTo, onDeleteForever, onOpened }: ReaderProps) {
   const { t } = useLanguage();
   const opened = useQuery({ queryKey: ['email-message', messageId], queryFn: () => readMessage(messageId), staleTime: 30_000 });
   const message = opened.data?.message;
@@ -98,7 +100,7 @@ export function MailReader({ messageId, account, showAccount, folders, actions, 
         </div>
         {conversation.length > 1 && <p className="mb-3 text-xs font-medium text-muted-foreground">{t('Conversa com {{n}} mensagens', { n: conversation.length })}</p>}
         <div>
-          {conversation.map(item => <ThreadMessage key={item.id} id={item.id} preview={item} primary={item.id === message.id} actions={actions} />)}
+          {conversation.map(item => <ThreadMessage key={item.id} id={item.id} preview={item} primary={item.id === message.id} actions={actions} onComposeTo={onComposeTo} />)}
         </div>
       </article>
     </div>
@@ -106,7 +108,7 @@ export function MailReader({ messageId, account, showAccount, folders, actions, 
 }
 
 /** One message of the conversation: the opened one starts expanded; the others load their body when opened. */
-function ThreadMessage({ id, preview, primary, actions }: { id: string; preview: EmailMessage; primary: boolean; actions: MailboxActions }) {
+function ThreadMessage({ id, preview, primary, actions, onComposeTo }: { id: string; preview: EmailMessage; primary: boolean; actions: MailboxActions; onComposeTo?: (address: string, channelId: string) => void }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(primary);
   const ref = useRef<HTMLDivElement>(null);
@@ -158,7 +160,8 @@ function ThreadMessage({ id, preview, primary, actions }: { id: string; preview:
         : message.body_fetched ? <div className="rounded-xl bg-white p-1 dark:bg-card">
           <EmailBody key={message.id} title={primary ? t('Email') : t('Email da conversa')} fitWidth html={message.html_body} text={message.text_body}
             inlineAttachments={attachments.filter(attachment => attachment.inline)}
-            resolveAttachment={attachmentId => fetchCachedAttachment(message.channel_id, attachmentId, actions.fetchAttachment)} />
+            resolveAttachment={attachmentId => fetchCachedAttachment(message.channel_id, attachmentId, actions.fetchAttachment)}
+            onComposeTo={onComposeTo ? address => onComposeTo(address, message.channel_id) : undefined} />
         </div>
         : bodyError ? <p role="alert" className="py-6 text-sm text-destructive">{t('Não foi possível carregar o conteúdo.')} {bodyError}</p>
         : <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t('A carregar conteúdo…')}</div>}

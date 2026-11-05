@@ -201,6 +201,12 @@ export const en: Record<string, string> = {
   "Indique quando recebeu o pagamento e como.": "Tell us when and how you received the payment.",
   "Data de recebimento": "Date received",
   "{{value}}/mês": "{{value}}/month",
+  "Endereço copiado": "Address copied",
+  "Copiar endereço": "Copy address",
+  "Escrever email": "Write email",
+  "Escolha um objetivo, reveja as escolhas necessárias e crie um rascunho para configurar.": "Pick a goal, review the required choices and create a draft to set up.",
+  "Preparar modelo": "Prepare template",
+  "Outra resposta": "Other reply",
   "Utilizador": "User",
 
   // Dashboard

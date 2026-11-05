@@ -204,6 +204,12 @@ export const ptBR: Record<string, string> = {
   "Indique quando recebeu o pagamento e como.": "Indique quando recebeu o pagamento e como.",
   "Data de recebimento": "Data de recebimento",
   "{{value}}/mês": "{{value}}/mês",
+  "Endereço copiado": "Endereço copiado",
+  "Copiar endereço": "Copiar endereço",
+  "Escrever email": "Escrever email",
+  "Escolha um objetivo, reveja as escolhas necessárias e crie um rascunho para configurar.": "Escolha um objetivo, revise as escolhas necessárias e crie um rascunho para configurar.",
+  "Preparar modelo": "Preparar modelo",
+  "Outra resposta": "Outra resposta",
   "Utilizador": "Usuário",
 
   // Painel

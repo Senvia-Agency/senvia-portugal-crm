@@ -38,6 +38,7 @@ interface ComposeState {
   readonly draft: EmailDraft | null;
   readonly attachments: EmailAttachment[];
   readonly recovered?: EmailRecovery;
+  readonly to?: readonly { name: string; address: string }[];
 }
 
 const SCOPE_KEY = 'webmail-scope-v1';
@@ -196,7 +197,8 @@ export default function WebMail() {
           <section className="webmail-reader" aria-label={t('Leitura')}>
             {openId ? <MailReader key={openId} messageId={openId} account={openAccount} showAccount={scope === 'all'} folders={folders} actions={actions}
               onBack={() => setOpenId(null)} onClose={() => setOpenId(null)} onOpened={onOpened} onDeleteForever={setDeleteForever}
-              onCompose={(mode, message, attachments) => openComposer({ mode, channelId: message.channel_id, original: message, draft: null, attachments: mode === 'forward' ? [...attachments] : [] })} />
+              onCompose={(mode, message, attachments) => openComposer({ mode, channelId: message.channel_id, original: message, draft: null, attachments: mode === 'forward' ? [...attachments] : [] })}
+              onComposeTo={(address, channelId) => openComposer({ mode: 'new', channelId, original: null, draft: null, attachments: [], to: [{ name: '', address }] })} />
               : <ReaderEmpty />}
           </section>
         </>}
@@ -210,7 +212,7 @@ export default function WebMail() {
     </Sheet>
 
     {compose && <EmailComposer key={compose.key} onClose={() => { setCompose(null); void client.invalidateQueries({ queryKey: ['email-drafts'] }); }} channelId={compose.channelId} folderId={null} mode={compose.mode}
-      original={compose.original} initialDraft={compose.draft} recoveryId={compose.key} recovered={compose.recovered} stackIndex={0}
+      original={compose.original} initialDraft={compose.draft} recoveryId={compose.key} recovered={compose.recovered} stackIndex={0} initialTo={compose.to}
       selfAddress={accounts.find(account => account.id === compose.channelId)?.address}
       originalAttachments={compose.attachments}
       resolveAttachment={attachmentId => fetchCachedAttachment(compose.channelId, attachmentId, actions.fetchAttachment)}

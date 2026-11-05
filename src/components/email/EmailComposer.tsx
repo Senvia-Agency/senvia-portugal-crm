@@ -279,8 +279,10 @@ export interface WebmailComposerOptions {
 
 export function EmailComposer({
   onClose, channelId, folderId, mode, original, selfAddress, initialDraft, stackIndex, recoveryId, recovered,
-  originalAttachments, resolveAttachment, webmail,
+  originalAttachments, resolveAttachment, webmail, initialTo,
 }: {
+  /** A new message already addressed (an address clicked inside an email). */
+  initialTo?: readonly { name: string; address: string }[];
   recoveryId: string;
   recovered?: EmailRecovery;
   onClose: () => void;
@@ -436,7 +438,7 @@ export function EmailComposer({
       };
     }
     if (!original || mode === 'new') {
-      return { to: [], cc: [], bcc: [], subject: '', bodyHtml: signatureSlot, attachments: [] };
+      return { to: initialTo ? [...initialTo] : [], cc: [], bcc: [], subject: '', bodyHtml: signatureSlot, attachments: [] };
     }
     const from: EmailAddress = { name: original.from_name || '', address: original.from_address || '' };
     if (mode === 'forward') {
@@ -909,8 +911,9 @@ export function EmailComposer({
           {/* Assunto */}
           <div className="flex items-center border-b border-border px-4 py-1.5">
             <span className="w-12 shrink-0 text-xs text-muted-foreground">{t('Assunto')}</span>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t("Assunto")} autoComplete="off"
-              className="border-0 p-0 shadow-none focus-visible:ring-0 text-base md:text-sm bg-transparent" />
+            {/* A plain field like the address rows: the Input component brings its own border and focus ring. */}
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t("Assunto")} autoComplete="off" aria-label={t("Assunto")}
+              className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-sm" />
           </div>
 
           {/* Rich-text body */}
