@@ -120,17 +120,22 @@ const excludedFromShown = (shown: readonly string[], all: readonly string[]) =>
   shown.length === 0 ? [] : all.filter((key) => !shown.includes(key));
 
 /** One figure of the summary line under the filters. */
-function Figure({ label, value, hint, tone, onClick }: { label: string; value: string; hint?: string; tone?: string; onClick?: () => void }) {
+function Figure({ label, value, hint, tone, onClick, active }: { label: string; value: string; hint?: string; tone?: string; onClick?: () => void; active?: boolean }) {
   const Box = onClick ? 'button' : 'div';
   return (
-    <Box {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={cn("min-w-0 rounded-xl border border-border/70 bg-card px-4 py-2.5 text-left shadow-sm", onClick && "transition-colors hover:border-primary/40 hover:bg-primary/5")}>
-      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={cn("truncate text-lg font-semibold tabular-nums", tone)}>{value}</p>
-      {hint && <p className="truncate text-[11px] text-muted-foreground">{hint}</p>}
+    <Box {...(onClick ? { type: 'button' as const, onClick, 'aria-pressed': !!active } : {})}
+      className={cn("min-w-0 rounded-lg border border-border/70 bg-card px-3 py-1.5 text-left shadow-sm",
+        onClick && "transition-colors hover:border-primary/40 hover:bg-primary/5",
+        active && "border-primary/60 bg-primary/5 ring-1 ring-primary/30")}>
+      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className={cn("truncate text-base font-semibold leading-tight tabular-nums", tone)}>{value}</p>
+      {hint && <p className="truncate text-[10px] text-muted-foreground">{hint}</p>}
     </Box>
   );
 }
+
+const isActiveRecurring = (sale: { has_recurring?: boolean | null; recurring_status?: string | null }) =>
+  !!sale.has_recurring && sale.recurring_status === 'active';
 
 export default function Sales() {
   const { t } = useLanguage();
@@ -191,6 +196,7 @@ export default function Sales() {
   const [search, setSearch] = usePersistedState("sales-search-v1", "");
   // v2: several states can be picked at once (empty = all), as on the other pages.
   const [statusFilter, setStatusFilter] = usePersistedState<SaleStatus[]>("sales-status-v2", []);
+  const [recurringOnly, setRecurringOnly] = usePersistedState<boolean>("sales-recurring-only-v1", false);
   // Sale → product-type ids, for the "Tipos" switches.
   const saleTypeIds = useSaleTypeIds();
   // Telecom: operators, states, types and seller — the same filters and rules
@@ -284,7 +290,7 @@ export default function Sales() {
     }
   }, [sales]);
 
-  const filteredSales = useMemo(() => {
+  const scopeSales = useMemo(() => {
     if (!sales) return [];
 
     // Reference month for "próximo mês": the period the dashboard card was
@@ -308,7 +314,7 @@ export default function Sales() {
       // frozen lines; seller = who the sale is assigned to).
       const matchesStatus = isTelecom
         ? saleMatchesCommissionFilters(sale, commissionFilters, saleTypeIds)
-        : (statusFilter.length === 0 || statusFilter.includes(sale.status));
+        : true;
 
       const matchesDate = (() => {
         // A dashboard card brings its own window (checked above, by the
@@ -327,32 +333,46 @@ export default function Sales() {
       if (!search.trim()) return matchesStatus && matchesDate;
       return matchesSaleSearch(sale, search, isTelecom) && matchesStatus && matchesDate;
     });
-  }, [sales, search, statusFilter, commissionFilters, saleTypeIds, isTelecom, dateRange, isPerfect2Gether, telecomView, telecomFrom, telecomTo]);
+  }, [sales, search, commissionFilters, saleTypeIds, isTelecom, dateRange, isPerfect2Gether, telecomView, telecomFrom, telecomTo]);
+
+  const filteredSales = useMemo(() => isTelecom ? scopeSales : scopeSales.filter((sale) =>
+    (statusFilter.length === 0 || statusFilter.includes(sale.status)) && (!recurringOnly || isActiveRecurring(sale))),
+  [scopeSales, statusFilter, recurringOnly, isTelecom]);
 
   // Summary stats
   const stats = useMemo(() => {
-    if (!filteredSales.length) return { total: 0, totalValue: 0, delivered: 0, deliveredValue: 0, inProgress: 0, fulfilled: 0, fulfilledValue: 0 };
+    if (!scopeSales.length) return { total: 0, totalValue: 0, delivered: 0, deliveredValue: 0, inProgress: 0, fulfilled: 0, fulfilledValue: 0, recurring: 0, recurringValue: 0 };
 
-    const delivered = filteredSales.filter(s => s.status === 'delivered');
-    const inProgress = filteredSales.filter(s => s.status === 'in_progress');
-    const fulfilled = filteredSales.filter(s => s.status === 'fulfilled');
+    const delivered = scopeSales.filter(s => s.status === 'delivered');
+    const inProgress = scopeSales.filter(s => s.status === 'in_progress');
+    const fulfilled = scopeSales.filter(s => s.status === 'fulfilled');
+    const recurring = scopeSales.filter(isActiveRecurring);
 
     return {
-      total: sumOperationalSaleUnits(filteredSales),
-      totalValue: filteredSales.reduce((acc, s) => acc + (s.total_value || 0), 0),
+      total: sumOperationalSaleUnits(scopeSales),
+      totalValue: scopeSales.reduce((acc, s) => acc + (s.total_value || 0), 0),
       delivered: sumOperationalSaleUnits(delivered),
       deliveredValue: delivered.reduce((acc, s) => acc + (s.total_value || 0), 0),
       inProgress: sumOperationalSaleUnits(inProgress),
       fulfilled: sumOperationalSaleUnits(fulfilled),
       fulfilledValue: fulfilled.reduce((acc, s) => acc + (s.total_value || 0), 0),
+      recurring: recurring.length,
+      recurringValue: recurring.reduce((acc, s) => acc + (Number(s.recurring_value) || 0), 0),
     };
-  }, [filteredSales]);
+  }, [scopeSales]);
 
-  const filtering = !!search.trim() || !!dateRange?.from || (isTelecom ? hasCommissionFilters(commissionFilters) : statusFilter.length > 0);
+  const filtering = !!search.trim() || !!dateRange?.from || (isTelecom ? hasCommissionFilters(commissionFilters) : statusFilter.length > 0 || recurringOnly);
+  // A card click: the same card again clears it; "Vendas" shows everything.
+  const showOnly = (status: SaleStatus | null) => {
+    setRecurringOnly(false);
+    setStatusFilter((current) => !status || (current.length === 1 && current[0] === status) ? [] : [status]);
+  };
+  const onlyStatus = (status: SaleStatus) => !recurringOnly && statusFilter.length === 1 && statusFilter[0] === status;
   const clearFilters = () => {
     setSearch("");
     setDateRange(undefined);
     setStatusFilter([]);
+    setRecurringOnly(false);
     setCommissionFilters(DEFAULT_COMMISSION_FILTERS);
   };
 
@@ -566,13 +586,20 @@ export default function Sales() {
             )}
 
             {/* The figures that matter, in one compact row. */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
-              <Figure label={t("Vendas")} value={formatOperationalUnits(stats.total)} hint={isTelecom ? undefined : t("{{value}} em vendas", { value: formatCurrency(stats.totalValue) })} />
-              <Figure label={t("Em progresso")} value={formatOperationalUnits(stats.inProgress)} tone="text-blue-600 dark:text-blue-400" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]">
+              <Figure label={t("Vendas")} value={formatOperationalUnits(stats.total)} hint={isTelecom ? undefined : t("{{value}} em vendas", { value: formatCurrency(stats.totalValue) })}
+                onClick={isTelecom ? undefined : () => showOnly(null)} active={!isTelecom && statusFilter.length === 0 && !recurringOnly} />
+              <Figure label={t("Em progresso")} value={formatOperationalUnits(stats.inProgress)} tone="text-blue-600 dark:text-blue-400"
+                onClick={isTelecom ? undefined : () => showOnly('in_progress')} active={!isTelecom && onlyStatus('in_progress')} />
               <Figure label={isTelecom ? t("Ativas") : t("Entregues")} value={formatOperationalUnits(stats.fulfilled)} tone="text-violet-600 dark:text-violet-400"
-                hint={isTelecom ? undefined : formatCurrency(stats.fulfilledValue)} />
+                hint={isTelecom ? undefined : formatCurrency(stats.fulfilledValue)}
+                onClick={isTelecom ? undefined : () => showOnly('fulfilled')} active={!isTelecom && onlyStatus('fulfilled')} />
               <Figure label={isTelecom ? t("Instaladas") : t("Concluídas")} value={formatOperationalUnits(stats.delivered)} tone="text-emerald-600 dark:text-emerald-400"
-                hint={isTelecom ? undefined : formatCurrency(stats.deliveredValue)} />
+                hint={isTelecom ? undefined : formatCurrency(stats.deliveredValue)}
+                onClick={isTelecom ? undefined : () => showOnly('delivered')} active={!isTelecom && onlyStatus('delivered')} />
+              {!isTelecom && <Figure label={t("Recorrentes")} value={String(stats.recurring)} tone="text-amber-600 dark:text-amber-400"
+                hint={t("{{value}}/mês", { value: formatCurrency(stats.recurringValue) })}
+                onClick={() => { setStatusFilter([]); setRecurringOnly((on) => !on); }} active={recurringOnly} />}
               {showMyCommissions && <Figure label={t("As minhas comissões")} value={formatCurrency(myConfirmed)} tone="text-emerald-600 dark:text-emerald-400"
                 hint={myPending > 0 ? t("+ {{value}} por receber", { value: formatCurrency(myPending) }) : t("Ver detalhe")} onClick={() => setMyCommissionsOpen(true)} />}
             </div>
