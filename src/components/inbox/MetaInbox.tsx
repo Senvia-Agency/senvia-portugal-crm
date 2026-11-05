@@ -648,6 +648,14 @@ function MetaThread({
   const typingRef = useRef<number | null>(null);
 
   useEffect(() => { setReplyTo(null); }, [conversation.id]);
+  // Opening a conversation is usually to answer it: the cursor goes straight to
+  // the message box. Not on touch screens, where it would pop the keyboard up
+  // over the conversation the person wanted to read.
+  useEffect(() => {
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+    const timer = window.setTimeout(() => composerRef.current?.focus({ preventScroll: true }), 0);
+    return () => window.clearTimeout(timer);
+  }, [conversation.id]);
   useEffect(() => {
     nearBottomRef.current = true;
     scrollBeforeHistoryRef.current = null;

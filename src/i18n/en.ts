@@ -198,6 +198,8 @@ export const en: Record<string, string> = {
   "{{n}} atualização": "{{n}} update",
   "{{n}} atualizações": "{{n}} updates",
   "Permissões do Otto": "Otto permissions",
+  "Indique quando recebeu o pagamento e como.": "Tell us when and how you received the payment.",
+  "Data de recebimento": "Date received",
   "Utilizador": "User",
 
   // Dashboard

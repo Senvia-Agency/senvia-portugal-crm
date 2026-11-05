@@ -201,6 +201,8 @@ export const ptBR: Record<string, string> = {
   "{{n}} atualização": "{{n}} atualização",
   "{{n}} atualizações": "{{n}} atualizações",
   "Permissões do Otto": "Permissões do Otto",
+  "Indique quando recebeu o pagamento e como.": "Indique quando recebeu o pagamento e como.",
+  "Data de recebimento": "Data de recebimento",
   "Utilizador": "Usuário",
 
   // Painel

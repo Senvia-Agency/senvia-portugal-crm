@@ -10,6 +10,7 @@ import { AutomaticReceiptBadge } from "@/components/finance/AutomaticReceiptBadg
 import { InvoiceDraftModal, type DraftSaleItem } from "@/components/sales/InvoiceDraftModal";
 import { isBillingActive } from "@/components/sales/SaleFiscalInfo";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,6 +75,8 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
   const [methodFilter, setMethodFilter] = usePersistedState<string>("receivables-method-v1", "all");
   const [confirmPayment, setConfirmPayment] = useState<PaymentWithSale | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "">("");
+  // When the money actually came in: today by default, any past day if it is recorded late.
+  const [receivedDate, setReceivedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [draftPayment, setDraftPayment] = useState<PaymentWithSale | null>(null);
   const [draftMode, setDraftMode] = useState<"receipt" | "invoice_receipt">("receipt");
   const [revenueOpen, setRevenueOpen] = useState(false);
@@ -145,7 +148,7 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
 
   const handleMarkAsPaid = () => {
     if (!confirmPayment) return;
-    const updates: Record<string, unknown> = { status: "paid", payment_date: format(new Date(), "yyyy-MM-dd") };
+    const updates: Record<string, unknown> = { status: "paid", payment_date: receivedDate || format(new Date(), "yyyy-MM-dd") };
     if (selectedMethod) updates.payment_method = selectedMethod;
     updatePayment.mutate({ paymentId: confirmPayment.id, saleId: confirmPayment.sale_id, updates }, {
       onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["all-payments"] }); setConfirmPayment(null); },
@@ -286,7 +289,7 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
                       <div className="flex items-center justify-end gap-1.5">
                         {payment.status === "pending" && (
                           <Button size="sm" variant="outline" className="h-8 rounded-full"
-                            onClick={() => { setSelectedMethod(payment.payment_method || ""); setConfirmPayment(payment); }}>
+                            onClick={() => { setSelectedMethod(payment.payment_method || ""); setReceivedDate(format(new Date(), "yyyy-MM-dd")); setConfirmPayment(payment); }}>
                             <CheckCircle className="h-4 w-4" /><span className="hidden sm:inline">{t("Marcar pago")}</span>
                           </Button>
                         )}
@@ -311,7 +314,7 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
         <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">
           <DialogHeader className="border-b px-4 py-4 md:px-6">
             <DialogTitle>{t("Marcar como pago")}</DialogTitle>
-            <DialogDescription>{t("Fica registado como recebido hoje.")}</DialogDescription>
+            <DialogDescription>{t("Indique quando recebeu o pagamento e como.")}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6">
             {confirmPayment && (
@@ -321,6 +324,11 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
                   <div><p className="text-xs text-muted-foreground">{t("Venda")}</p><p className="font-medium">#{confirmPayment.sale.code}</p></div>
                   <div><p className="text-xs text-muted-foreground">{t("Valor")}</p><p className="text-lg font-semibold tabular-nums">{formatCurrency(confirmPayment.amount)}</p></div>
                   <div><p className="text-xs text-muted-foreground">{t("Previsto para")}</p><p className="font-medium">{formatDate(confirmPayment.payment_date)}</p></div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="receivable-date">{t("Data de recebimento")}</label>
+                  <Input id="receivable-date" type="date" value={receivedDate} max={format(new Date(), "yyyy-MM-dd")}
+                    onChange={(event) => setReceivedDate(event.target.value)} className="h-10 rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="receivable-method">{t("Método de pagamento")}</label>
