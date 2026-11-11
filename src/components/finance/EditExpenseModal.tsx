@@ -7,14 +7,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Pencil } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useLanguage, dateLocale } from '@/i18n';
-import { useUpdateExpense } from '@/hooks/useExpenses';
+import { useExpenses, useUpdateExpense } from '@/hooks/useExpenses';
 import { useExpenseCategories } from '@/hooks/useExpenseCategories';
 import { BankAccountSelect } from '@/components/finance/BankAccountSelect';
 import { ExpenseRecurrenceFields } from '@/components/finance/ExpenseRecurrenceFields';
-import { defaultSchedule, pausedScheduleOf, storedSchedule, type RecurrenceSchedule } from '@/lib/expense-recurrence';
+import { defaultSchedule, describeSchedule, pausedScheduleOf, relatedSchedules, storedSchedule, type RecurrenceSchedule } from '@/lib/expense-recurrence';
+import { formatCurrency } from '@/lib/format';
 import type { Expense } from '@/types/expenses';
 
 interface EditExpenseModalProps {
@@ -32,6 +33,9 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
   const { t } = useLanguage();
   const updateExpense = useUpdateExpense();
   const { data: categories } = useExpenseCategories();
+  const { data: allExpenses = [] } = useExpenses();
+  // A booked copy has no schedule of its own: the recurrence it came from is another row.
+  const related = storedSchedule(expense) ? [] : relatedSchedules(expense, allExpenses);
 
   const [description, setDescription] = useState(expense.description);
   const [amount, setAmount] = useState(expense.amount.toString());
@@ -188,6 +192,29 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
               </div>
             </section>
 
+            <div className="space-y-4">
+            {related.length > 0 && (
+              <div role={isRecurring ? 'alert' : 'note'} className="flex items-start gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 text-xs text-foreground">
+                  <p className="font-medium">
+                    {isRecurring
+                      ? t("Já existe uma recorrência com este nome. Se guardares assim, ficam duas a lançar.")
+                      : t("Esta despesa é um lançamento. A recorrência com este nome é outra despesa.")}
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {related.map((other) => (
+                      <li key={other.id}>
+                        {other.is_recurring ? t("Ativa") : t("Em pausa")} · {formatCurrency(other.amount)} · {describeSchedule(storedSchedule(other)!)}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-muted-foreground">
+                    {t("Para mudar o valor ou retomar, edita essa despesa na aba Recorrentes.")}
+                  </p>
+                </div>
+              </div>
+            )}
             <ExpenseRecurrenceFields
               enabled={isRecurring}
               onEnabledChange={setIsRecurring}
@@ -203,6 +230,7 @@ export function EditExpenseModal({ expense, open, onOpenChange }: EditExpenseMod
               forget={forgetPaused}
               onForgetChange={setForgetPaused}
             />
+            </div>
           </div>
         </form>
 

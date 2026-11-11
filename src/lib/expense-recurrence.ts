@@ -129,3 +129,22 @@ export function shortMonthNote(schedule: RecurrenceSchedule): string | null {
   if (schedule.day < 29) return null;
   return `Nos meses sem dia ${schedule.day}, vence no último dia do mês.`;
 }
+
+interface RelatedColumns extends ScheduleColumns {
+  id: string;
+  description: string;
+}
+
+function sameName(a: string, b: string): boolean {
+  const clean = (v: string) => v.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-PT');
+  return clean(a) === clean(b);
+}
+
+/**
+ * Other expenses with the same name that already carry a schedule, running or
+ * paused. A booked copy points to none of them, so turning "Recorrência" on in
+ * a copy would start a second schedule: the form uses this to say so first.
+ */
+export function relatedSchedules<T extends RelatedColumns>(expense: RelatedColumns, all: T[]): T[] {
+  return all.filter((other) => other.id !== expense.id && !!storedSchedule(other) && sameName(other.description, expense.description));
+}

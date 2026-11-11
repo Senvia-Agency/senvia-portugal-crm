@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useDeleteExpense, useExpenses } from "@/hooks/useExpenses";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { describeSchedule, scheduleOf } from "@/lib/expense-recurrence";
+import { describeSchedule, scheduleOf, storedSchedule } from "@/lib/expense-recurrence";
 import { exportToCsv, exportToExcel } from "@/lib/export";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { cn, matchesSearch } from "@/lib/utils";
@@ -175,6 +175,7 @@ export function ExpensesContent({ search, dateRange }: ExpensesContentProps) {
               <TableBody>
                 {rows.map((expense) => {
                   const schedule = scheduleOf(expense);
+                  const pausedSchedule = schedule ? null : storedSchedule(expense);
                   return (
                     <TableRow key={expense.id} className="cursor-pointer" onClick={() => setEditing(expense)}>
                       <TableCell className="hidden whitespace-nowrap tabular-nums sm:table-cell">{formatDate(expense.expense_date)}</TableCell>
@@ -188,6 +189,11 @@ export function ExpensesContent({ search, dateRange }: ExpensesContentProps) {
                         {schedule && (
                           <p className="truncate text-xs text-muted-foreground">
                             {describeSchedule(schedule)}{expense.next_recurrence_date && ` · ${t("próxima {{date}}", { date: formatDate(expense.next_recurrence_date) })}`}
+                          </p>
+                        )}
+                        {pausedSchedule && (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {t("Recorrência em pausa")} · {describeSchedule(pausedSchedule)}
                           </p>
                         )}
                       </TableCell>

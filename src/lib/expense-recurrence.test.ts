@@ -7,6 +7,7 @@ import {
   maxDueDay,
   monthlyEquivalent,
   pausedScheduleOf,
+  relatedSchedules,
   scheduleOf,
   shortMonthNote,
   withFrequency,
@@ -70,4 +71,16 @@ test('a paused expense keeps its schedule', () => {
   assert.deepEqual(pausedScheduleOf(paused), { frequency: 'monthly', day: 5, month: null });
   assert.equal(pausedScheduleOf({ ...paused, is_recurring: true }), null, 'running, not paused');
   assert.equal(pausedScheduleOf({ is_recurring: false, recurrence_frequency: null, recurrence_day: null }), null, 'plain expense');
+});
+
+test('relatedSchedules finds the recurrence a booked copy came from', () => {
+  const none = { recurrence_frequency: null, recurrence_day: null, recurrence_month: null };
+  const copy = { id: 'copy', description: 'Claude', is_recurring: false, ...none };
+  const paused = { id: 'orig', description: ' claude ', is_recurring: false, recurrence_frequency: 'monthly', recurrence_day: 11, recurrence_month: null };
+  const other = { id: 'x', description: 'Contabo', is_recurring: true, recurrence_frequency: 'monthly', recurrence_day: 10, recurrence_month: null };
+  const plainSameName = { id: 'old', description: 'Claude', is_recurring: false, ...none };
+  const all = [copy, paused, other, plainSameName];
+  assert.deepEqual(relatedSchedules(copy, all).map((e) => e.id), ['orig'], 'paused one counts, plain copies and other names do not');
+  assert.deepEqual(relatedSchedules(paused, all).map((e) => e.id), [], 'a plain copy has no schedule to point to');
+  assert.deepEqual(relatedSchedules(copy, [copy]).map((e) => e.id), [], 'never itself');
 });
