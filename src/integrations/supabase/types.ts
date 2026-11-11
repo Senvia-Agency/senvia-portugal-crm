@@ -3344,6 +3344,7 @@ export type Database = {
           recurrence_day: number | null
           recurrence_frequency: string | null
           recurrence_month: number | null
+          recurrence_source_id: string | null
           stripe_invoice_id: string | null
           updated_at: string | null
         }
@@ -3364,6 +3365,7 @@ export type Database = {
           recurrence_day?: number | null
           recurrence_frequency?: string | null
           recurrence_month?: number | null
+          recurrence_source_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string | null
         }
@@ -3384,6 +3386,7 @@ export type Database = {
           recurrence_day?: number | null
           recurrence_frequency?: string | null
           recurrence_month?: number | null
+          recurrence_source_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string | null
         }
@@ -3415,6 +3418,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "trial_activation_counts"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "expenses_recurrence_source_id_fkey"
+            columns: ["recurrence_source_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expenses_organization_id_fkey"

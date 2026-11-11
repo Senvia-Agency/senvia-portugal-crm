@@ -56,6 +56,9 @@ serve(async (req: Request): Promise<Response> => {
             amount: expense.amount,
             expense_date: due,
             is_recurring: false, // Generated copy is not recurring itself
+            // Ties the copy to its schedule: the edit dialog sends the user to
+            // this expense, and the database refuses a second schedule on it.
+            recurrence_source_id: expense.id,
             notes: expense.notes,
             created_by: expense.created_by,
             bank_account_id: expense.bank_account_id,
