@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight, Banknote, Building2, FileText, Inbox, Landmark, LayoutDashboard, Percent, Plus, Receipt, SlidersHorizontal, Undo2,
+  ArrowLeft, ArrowRight, Banknote, Building2, FileText, Inbox, Landmark, LayoutDashboard, Percent, Plus, Receipt, SlidersHorizontal, Undo2,
   type LucideIcon,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -103,7 +103,7 @@ export function TelecomFinanceDashboard(props: TelecomFinanceDashboardProps) {
       if (next === "resumo") params.delete("tab"); else params.set("tab", next);
       params.delete("status");
       return params;
-    }, { replace: true });
+    });
   };
 
   const detail = (type: FinanceDetailType) => (
@@ -227,6 +227,7 @@ export function TelecomFinanceDashboard(props: TelecomFinanceDashboardProps) {
 
         {tab === "comissoes" && (
           <div className="space-y-3">
+            <Button variant="back" size="sm" className="gap-1" onClick={() => openTab("resumo")}><ArrowLeft className="h-4 w-4" aria-hidden="true" />{t("Voltar ao resumo")}</Button>
             <div role="group" aria-label={t("Comissões a mostrar")} className="flex w-fit items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-sm">
               {([["equipa", "Da equipa"], ["analise", "Análise"]] as const).map(([key, label]) => (
                 <button key={key} type="button" aria-pressed={commissionView === key} onClick={() => setCommissionView(key)}

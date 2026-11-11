@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import {
-  AlertTriangle, ArrowRight, Banknote, CalendarClock, FileText, Inbox, Landmark, LayoutDashboard, Percent, Plus, Receipt, Wallet,
+  AlertTriangle, ArrowLeft, ArrowRight, Banknote, CalendarClock, FileText, Inbox, Landmark, LayoutDashboard, Percent, Plus, Receipt, Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -102,7 +102,7 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
       if (next === "resumo") params.delete("tab"); else params.set("tab", next);
       if (status) params.set("status", status); else params.delete("status");
       return params;
-    }, { replace: true });
+    });
   };
 
   // Searching from the summary means looking for a payment: go where payments are.
@@ -253,7 +253,12 @@ export function GenericFinanceDashboard(props: GenericFinanceDashboardProps) {
         {tab === "receber" && <ReceivablesContent key={statusParam ?? "default"} search={search} dateRange={dateRange} initialView={statusParam ?? undefined} />}
         {tab === "faturas" && <InvoicesContent search={search} dateRange={dateRange} />}
         {tab === "despesas" && <ExpensesContent search={search} dateRange={dateRange} />}
-        {tab === "comissoes" && <CommissionsContent search={search} dateRange={dateRange} />}
+        {tab === "comissoes" && (
+          <div className="space-y-3">
+            <Button variant="back" size="sm" className="gap-1" onClick={() => openTab("resumo")}><ArrowLeft className="h-4 w-4" aria-hidden="true" />{t("Voltar ao resumo")}</Button>
+            <CommissionsContent search={search} dateRange={dateRange} />
+          </div>
+        )}
         {tab === "contas" && <BankAccountsTab />}
         {tab === "pedidos" && <InternalRequests />}
       </div>

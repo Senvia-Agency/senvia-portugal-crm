@@ -7,7 +7,7 @@ import { startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO, format } from
 import type { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
 import { tr } from '@/i18n';
-import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod } from '@/lib/telecom-finance';
+import { isTelecomCommissionEarned, telecomTeamCommission, TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod, telecomSaleProducts } from '@/lib/telecom-finance';
 import { buildSaleTypeIds, saleMatchesCommissionFilters, type CommissionFilters } from '@/lib/commission-filters';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { extraCardPayoutFromSale } from '@/lib/telecom-card-breakdown';
@@ -746,7 +746,7 @@ export function useTeamCommissionTotal(dateRange?: DateRange, commissionFilters?
               id: s.id,
               code: s.code,
               clientName: s.client?.name || s.lead?.name || '—',
-              products: parts.filter(part => part.product !== null).map(part => part.product as string),
+              products: telecomSaleProducts(s),
               date: parts[0]?.date ?? telecomCommissionDate(s),
               deferred: true,
               telecomStatus: s.telecom_status,

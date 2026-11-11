@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod, isTelecomCommissionEarned } from './telecom-finance';
+import { telecomCommissionDate, telecomCommissionInPeriod, telecomCommissionParts, telecomCommissionPartsInPeriod, isTelecomCommissionEarned, telecomSaleProducts } from './telecom-finance';
 const sale={scheduled_install_date:'2026-09-30T09:00:00',activation_date:'2026-08-01',sale_date:'2026-07-01',commission_payment_month_offset:2,commission_expected_date:'2026-12-01',commission_month_override:'2027-01-01',comissao:230,org_commission:50,servicos_produtos:['Energia','Gás'],servicos_details:{Energia:{comissao:200,activation_date:'2026-08-01'},Gás:{comissao:30,activation_date:'2026-11-01'}}};
 describe('Telecom installation timing',()=>{
  test('installation in September counts in October despite old dates and exceptions',()=>assert.equal(telecomCommissionDate(sale),'2026-10-01'));
@@ -34,5 +34,10 @@ describe('Telecom installation timing',()=>{
  test('cancelled and uninstalled sales still do not earn commission',()=>{
   assert.equal(isTelecomCommissionEarned({status:'cancelled',telecom_status:'instalado'}),false);
   assert.equal(isTelecomCommissionEarned({status:'in_progress',telecom_status:'em_instalacao'}),false);
+ });
+ test('the sale products are listed by name, once each, without blanks',()=>{
+  assert.deepEqual(telecomSaleProducts(sale),['Energia','Gás']);
+  assert.deepEqual(telecomSaleProducts({servicos_produtos:[' Energia ','',null,'Energia']}),['Energia']);
+  assert.deepEqual(telecomSaleProducts({servicos_produtos:null}),[]);
  });
 });

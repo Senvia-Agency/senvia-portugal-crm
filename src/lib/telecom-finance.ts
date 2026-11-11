@@ -78,3 +78,9 @@ export function telecomCommissionPartsInPeriod(
 ): TelecomCommissionPart[] {
   return telecomCommissionInPeriod(sale, range) ? telecomCommissionParts(sale, splits) : [];
 }
+
+/** Names of the products on a sale, as sold: what the Organization Value rows list. */
+export function telecomSaleProducts(sale: { servicos_produtos?: readonly (string | null)[] | null }): string[] {
+  const names = (sale.servicos_produtos ?? []).map((name) => (name ?? '').trim()).filter(Boolean);
+  return [...new Set(names)];
+}
