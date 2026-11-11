@@ -148,3 +148,23 @@ function sameName(a: string, b: string): boolean {
 export function relatedSchedules<T extends RelatedColumns>(expense: RelatedColumns, all: T[]): T[] {
   return all.filter((other) => other.id !== expense.id && !!storedSchedule(other) && sameName(other.description, expense.description));
 }
+
+interface OriginColumns extends RelatedColumns {
+  recurrence_source_id?: string | null;
+}
+
+/**
+ * The expense that carries the schedule a booked copy came from, or null when
+ * the expense has a schedule of its own or none is found. It follows
+ * recurrence_source_id when the copy has one, and falls back to the same name:
+ * a running schedule first, then a paused one.
+ */
+export function recurrenceOrigin<T extends OriginColumns>(expense: OriginColumns, all: T[]): T | null {
+  if (storedSchedule(expense)) return null;
+  if (expense.recurrence_source_id) {
+    const source = all.find((other) => other.id === expense.recurrence_source_id && other.id !== expense.id);
+    if (source && storedSchedule(source)) return source;
+  }
+  const related = relatedSchedules(expense, all);
+  return related.find((other) => other.is_recurring) ?? related[0] ?? null;
+}

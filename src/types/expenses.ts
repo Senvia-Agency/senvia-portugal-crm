@@ -23,6 +23,8 @@ export interface Expense {
   recurrence_day?: number | null;
   recurrence_month?: number | null;
   next_recurrence_date?: string | null;
+  // For a booked copy: the expense that carries the schedule it came from.
+  recurrence_source_id?: string | null;
   notes: string | null;
   receipt_file_url: string | null;
   stripe_invoice_id?: string | null;

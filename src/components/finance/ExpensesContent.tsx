@@ -226,7 +226,7 @@ export function ExpensesContent({ search, dateRange }: ExpensesContentProps) {
       )}
 
       <AddExpenseModal open={addOpen} onOpenChange={setAddOpen} />
-      {editing && <EditExpenseModal expense={editing} open={!!editing} onOpenChange={(open) => !open && setEditing(null)} />}
+      {editing && <EditExpenseModal expense={editing} open={!!editing} onOpenChange={(open) => !open && setEditing(null)} onEditOrigin={setEditing} />}
 
       <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <DialogContent variant="fullScreen" className="flex flex-col gap-0 p-0">

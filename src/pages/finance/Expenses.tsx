@@ -322,6 +322,7 @@ function LegacyExpenses() {
           expense={editExpense}
           open={!!editExpense}
           onOpenChange={(open) => !open && setEditExpense(null)}
+          onEditOrigin={setEditExpense}
         />
       )}
 

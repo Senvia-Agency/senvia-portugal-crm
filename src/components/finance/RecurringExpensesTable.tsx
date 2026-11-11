@@ -170,6 +170,7 @@ export function RecurringExpensesTable({ searchTerm = '', categoryFilter = 'all'
           expense={editExpense}
           open={!!editExpense}
           onOpenChange={(open) => !open && setEditExpense(null)}
+          onEditOrigin={setEditExpense}
         />
       )}
 

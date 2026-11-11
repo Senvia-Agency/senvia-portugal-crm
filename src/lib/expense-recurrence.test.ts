@@ -7,6 +7,7 @@ import {
   maxDueDay,
   monthlyEquivalent,
   pausedScheduleOf,
+  recurrenceOrigin,
   relatedSchedules,
   scheduleOf,
   shortMonthNote,
@@ -83,4 +84,20 @@ test('relatedSchedules finds the recurrence a booked copy came from', () => {
   assert.deepEqual(relatedSchedules(copy, all).map((e) => e.id), ['orig'], 'paused one counts, plain copies and other names do not');
   assert.deepEqual(relatedSchedules(paused, all).map((e) => e.id), [], 'a plain copy has no schedule to point to');
   assert.deepEqual(relatedSchedules(copy, [copy]).map((e) => e.id), [], 'never itself');
+});
+
+test('a booked copy finds the recurrence it came from', () => {
+  const monthly = { frequency: 'monthly', day: 11 };
+  const running = { id: 'a', description: 'Claude', is_recurring: true, recurrence_frequency: monthly.frequency, recurrence_day: monthly.day };
+  const paused = { id: 'b', description: 'Claude', is_recurring: false, recurrence_frequency: monthly.frequency, recurrence_day: monthly.day };
+  const copy = { id: 'c', description: ' claude ', is_recurring: false, recurrence_frequency: null, recurrence_day: null };
+  const other = { id: 'd', description: 'Contabo VPS', is_recurring: true, recurrence_frequency: monthly.frequency, recurrence_day: 10 };
+  // Same name: the running schedule wins over the paused one.
+  assert.equal(recurrenceOrigin(copy, [copy, paused, running, other])?.id, 'a');
+  assert.equal(recurrenceOrigin(copy, [copy, paused, other])?.id, 'b');
+  // The saved source wins over the name.
+  assert.equal(recurrenceOrigin({ ...copy, description: 'Renamed', recurrence_source_id: 'd' }, [copy, running, other])?.id, 'd');
+  // A schedule's own row has no origin, and a copy with nothing alike has none.
+  assert.equal(recurrenceOrigin(running, [running, paused]), null);
+  assert.equal(recurrenceOrigin({ ...copy, description: 'Nada' }, [copy, running]), null);
 });

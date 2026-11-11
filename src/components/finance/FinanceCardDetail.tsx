@@ -653,6 +653,7 @@ function ExpensesDetailTable({ dateRange, searchTerm = "" }: { dateRange?: DateR
           expense={editExpense}
           open={!!editExpense}
           onOpenChange={(open) => !open && setEditExpense(null)}
+          onEditOrigin={setEditExpense}
         />
       )}
 
