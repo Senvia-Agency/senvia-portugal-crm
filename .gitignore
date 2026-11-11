@@ -41,3 +41,7 @@ secrets.local.md
 # Env vars: geridas na Vercel (frontend) e no Supabase (functions), NAO versionadas.
 # Evita que ferramentas externas (ex.: Lovable) revertam o projeto via .env.
 .env
+
+# Arquivos temporarios
+*.timestamp-*.mjs
+*.tmp.json
