@@ -113,7 +113,7 @@ export function ChallengeMFA({ onSuccess, onCancel }: ChallengeMFAProps) {
               </Button>
 
               <div className="text-center">
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {t("Não consegue aceder?")}{' '}
                   <button
                     type="button"

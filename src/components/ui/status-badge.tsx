@@ -34,9 +34,9 @@ const VARIANTS: Record<StatusVariant, VariantStyle> = {
   success:     { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-[#57BC6C]", Icon: CircleCheck,   label: "Concluído" },
   in_progress: { bg: "bg-sky-100 dark:bg-sky-500/15",    text: "text-[#008AF5]", Icon: CircleDashed,  label: "Em curso" },
   in_review:   { bg: "bg-yellow-50 dark:bg-yellow-500/10",  text: "text-[#F0B13D]", Icon: ScanSearch,    label: "Em revisão" },
-  expired:     { bg: "bg-zinc-100 dark:bg-muted",   text: "text-[#777777]", Icon: Clock5,        label: "Expirado" },
-  submitted:   { bg: "bg-violet-50 dark:bg-violet-500/10",  text: "text-[#6C3CF0]", Icon: Clock5,        label: "Submetido" },
-  neutral:     { bg: "bg-zinc-100 dark:bg-muted",   text: "text-[#777777]", Icon: CircleDashed,  label: "—" },
+  expired:     { bg: "bg-zinc-100 dark:bg-muted",   text: "text-[#777777] dark:text-neutral-400", Icon: Clock5,        label: "Expirado" },
+  submitted:   { bg: "bg-violet-50 dark:bg-violet-500/10",  text: "text-[#6C3CF0] dark:text-violet-400", Icon: Clock5,        label: "Submetido" },
+  neutral:     { bg: "bg-zinc-100 dark:bg-muted",   text: "text-[#777777] dark:text-neutral-400", Icon: CircleDashed,  label: "—" },
 };
 
 export interface StatusBadgeProps {

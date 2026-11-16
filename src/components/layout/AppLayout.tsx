@@ -61,7 +61,7 @@ function AppLayoutContent({ children, userName, organizationName }: AppLayoutPro
   // Mobile layout
   if (isMobile) {
     return (
-      <div data-interface={legacy ? 'classic' : 'workspace'} className={cn("app-shell min-h-dvh bg-background md:bg-[#0d1422]", mobileInbox && "flex h-dvh flex-col overflow-hidden")}>
+      <div data-interface={legacy ? 'classic' : 'workspace'} className={cn("app-shell min-h-dvh bg-background md:bg-[#0d1422] dark:md:bg-black", mobileInbox && "flex h-dvh flex-col overflow-hidden")}>
         {!immersive && <div className="hidden md:block">
           {isMobileMenuOpen && <button type="button" aria-label={t("Fechar menu")} className="fixed inset-0 z-30 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />}
           <AppSidebar userName={userName} organizationName={organizationName} legacy={legacy} forceCollapsed expanded={isMobileMenuOpen}
@@ -116,7 +116,7 @@ function AppLayoutContent({ children, userName, organizationName }: AppLayoutPro
 
   // Desktop layout
   return (
-    <div data-interface={legacy ? 'classic' : 'workspace'} className="app-shell min-h-dvh bg-[#0d1422]">
+    <div data-interface={legacy ? 'classic' : 'workspace'} className="app-shell min-h-dvh bg-[#0d1422] dark:bg-black">
       <AppSidebar userName={userName} organizationName={organizationName} legacy={legacy} />
       <div className={cn("transition-[padding] duration-200", sidebarCollapsed ? "pl-16" : "pl-64", docked && "pr-[28rem]")}>
         <WorkspaceTopbar organizationName={organizationName} userName={userName} />

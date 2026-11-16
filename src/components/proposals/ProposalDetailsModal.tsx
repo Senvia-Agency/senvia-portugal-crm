@@ -686,7 +686,7 @@ export function ProposalDetailsModal({ proposal, open, onOpenChange }: ProposalD
                       <div className="flex items-center justify-between gap-3 px-4 py-2.5"><span className="text-muted-foreground">{t("Estado")}</span><span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', PROPOSAL_STATUS_PILLS[status])}>{t(PROPOSAL_STATUS_LABELS[status])}</span></div>
                       {showEnergy && proposal.proposal_type && (
                         <div className="flex justify-between gap-3 px-4 py-2.5"><span className="text-muted-foreground">{t("Tipo")}</span>
-                          <span className="flex items-center gap-1 font-medium">{proposal.proposal_type === 'energia' ? <Zap className="h-3.5 w-3.5 text-amber-500" /> : <Wrench className="h-3.5 w-3.5 text-violet-500" />}{t(PROPOSAL_TYPE_LABELS[proposal.proposal_type as ProposalType]) || proposal.proposal_type}</span>
+                          <span className="flex items-center gap-1 font-medium">{proposal.proposal_type === 'energia' ? <Zap className="h-3.5 w-3.5 text-amber-500" /> : <Wrench className="h-3.5 w-3.5 text-violet-500 dark:text-violet-400" />}{t(PROPOSAL_TYPE_LABELS[proposal.proposal_type as ProposalType]) || proposal.proposal_type}</span>
                         </div>
                       )}
                       {isTelecom && proposal.negotiation_type && (

@@ -266,7 +266,7 @@ export function ConversationTasks({
             return (
               <div key={t.id} className="rounded-lg border border-violet-200 bg-violet-500/5 p-2 dark:border-violet-500/25">
                 <p className="flex items-start gap-1.5 text-xs leading-snug">
-                  <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-violet-500" />
+                  <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-violet-500 dark:text-violet-400" />
                   <span className="min-w-0 break-words font-medium">{t.title}</span>
                 </p>
                 {t.source_message && (

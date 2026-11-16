@@ -488,7 +488,7 @@ function WebhooksManager() {
       ) : (
         <div className="rounded-2xl border border-dashed p-10 text-center bg-muted/20">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 mx-auto mb-3">
-            <Webhook className="h-7 w-7 text-violet-500/60" />
+            <Webhook className="h-7 w-7 text-violet-500/60 dark:text-violet-400/60" />
           </div>
           <p className="text-sm font-medium text-muted-foreground">{t('Nenhum webhook configurado')}</p>
           <p className="text-xs text-muted-foreground mt-1">{t('Clica em "Adicionar Webhook" para começar')}</p>

@@ -30,7 +30,7 @@ import { resolveManualChargebackClient } from '@/lib/manual-chargeback-client';
 const STATUS_STYLES: Record<ChargebackStatus, string> = {
   pending: 'bg-amber-500/20 text-amber-600 border-amber-500/30 dark:text-amber-400',
   reconciled: 'bg-red-500/20 text-red-500 border-red-500/30',
-  dismissed: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
+  dismissed: 'bg-slate-500/20 text-slate-500 border-slate-500/30 dark:text-slate-400',
 };
 
 /**

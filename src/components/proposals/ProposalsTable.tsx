@@ -63,7 +63,7 @@ export function ProposalsTable({ proposals, isTelecom, onOpen, onCreateSale }: P
                     <TableCell className="hidden md:table-cell">
                       {proposal.proposal_type && (
                         <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
-                          {proposal.proposal_type === "energia" ? <Zap className="h-3.5 w-3.5 text-amber-500" /> : <Wrench className="h-3.5 w-3.5 text-violet-500" />}
+                          {proposal.proposal_type === "energia" ? <Zap className="h-3.5 w-3.5 text-amber-500" /> : <Wrench className="h-3.5 w-3.5 text-violet-500 dark:text-violet-400" />}
                           {t(PROPOSAL_TYPE_LABELS[proposal.proposal_type])}
                         </span>
                       )}

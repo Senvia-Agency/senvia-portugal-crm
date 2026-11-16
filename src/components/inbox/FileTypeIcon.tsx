@@ -62,7 +62,7 @@ const MAP: Record<string, FileMeta> = {
   pptx: { Icon: FileType, color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-500/10' },
 };
 
-const DEFAULT: FileMeta = { Icon: FileIcon, color: 'text-slate-500', bg: 'bg-slate-500/10' };
+const DEFAULT: FileMeta = { Icon: FileIcon, color: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-500/10' };
 
 export function getFileMeta(ext: string | null | undefined): FileMeta {
   if (!ext) return DEFAULT;

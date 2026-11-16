@@ -11,9 +11,9 @@ function ThemePreview({ value }: { readonly value: ThemeChoice }) {
     <span className="w-1/4 bg-slate-900" />
     <span className="flex flex-1 flex-col gap-1 p-1.5"><span className="h-1.5 w-2/3 rounded-full bg-slate-300" /><span className="h-4 rounded bg-white shadow-sm" /><span className="h-4 rounded bg-white shadow-sm" /></span>
   </span>;
-  const dark = <span className="flex h-full w-full overflow-hidden rounded-md border border-slate-700 bg-slate-950">
+  const dark = <span className="flex h-full w-full overflow-hidden rounded-md border border-neutral-700 bg-neutral-950">
     <span className="w-1/4 bg-black" />
-    <span className="flex flex-1 flex-col gap-1 p-1.5"><span className="h-1.5 w-2/3 rounded-full bg-slate-600" /><span className="h-4 rounded bg-slate-800" /><span className="h-4 rounded bg-slate-800" /></span>
+    <span className="flex flex-1 flex-col gap-1 p-1.5"><span className="h-1.5 w-2/3 rounded-full bg-neutral-600" /><span className="h-4 rounded bg-neutral-800" /><span className="h-4 rounded bg-neutral-800" /></span>
   </span>;
   if (value === "light") return light;
   if (value === "dark") return dark;

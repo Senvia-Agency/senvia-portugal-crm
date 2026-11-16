@@ -95,11 +95,12 @@
   --workplace-depth: 0 2px 3px hsl(245 28% 14% / .025), 0 8px 20px hsl(245 28% 14% / .04);
 }
 .dark :is(.app-shell, .workplace-portal)[data-interface='workspace'] {
-  --workplace-canvas: 240 12% 10%;
-  --workplace-tabs: 240 10% 14%;
-  --workplace-line: 240 10% 22%;
-  --workplace-ink: 240 15% 94%;
-  --workplace-muted: 240 9% 68%;
+  --workplace-shell: 0 0% 0%;
+  --workplace-canvas: 0 0% 4%;
+  --workplace-tabs: 0 0% 11%;
+  --workplace-line: 0 0% 20%;
+  --workplace-ink: 0 0% 95%;
+  --workplace-muted: 0 0% 68%;
 }
 .app-shell[data-interface='workspace'] { background: hsl(var(--workplace-shell)); }
 .app-shell[data-interface='workspace'] aside.gradient-sidebar {

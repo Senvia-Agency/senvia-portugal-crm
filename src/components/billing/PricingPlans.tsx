@@ -198,7 +198,7 @@ export function PricingPlans({
                     </span>
                     <span className="ml-1 text-gray-600 dark:text-gray-400">{t("/mês")}</span>
                   </div>
-                  <p className={cn("mt-1 text-xs text-gray-500 transition-opacity", isYearly ? "opacity-100" : "opacity-0")}>
+                  <p className={cn("mt-1 text-xs text-gray-500 transition-opacity dark:text-gray-400", isYearly ? "opacity-100" : "opacity-0")}>
                     {t("faturado anualmente · {{price}}€/ano", { price: plan.priceYearly })}
                   </p>
                 </CardHeader>

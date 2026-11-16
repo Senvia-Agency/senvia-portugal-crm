@@ -122,7 +122,7 @@ export const PROPOSAL_STATUS_COLORS: Record<ProposalStatus, string> = {
   negotiating: 'bg-amber-500/20 text-amber-500',
   accepted: 'bg-green-500/20 text-green-500',
   rejected: 'bg-red-500/20 text-red-500',
-  expired: 'bg-gray-500/20 text-gray-500',
+  expired: 'bg-gray-500/20 text-gray-500 dark:text-gray-400',
 };
 
 export const PROPOSAL_STATUSES: ProposalStatus[] = ['draft', 'sent', 'negotiating', 'accepted', 'rejected', 'expired'];
