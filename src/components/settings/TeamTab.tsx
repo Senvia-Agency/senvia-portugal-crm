@@ -409,7 +409,7 @@ export function TeamTab() {
                 <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className={`text-xs ${isAtLimit ? 'text-red-600' : 'text-amber-600'}`}>
+                <p className={`text-xs ${isAtLimit ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
                   {isAtLimit
                     ? t('Atingiu o limite de {{max}} utilizadores. Adicione mais utilizadores extra ou faça upgrade do plano.', { max: maxUsers })
                     : t(availableSlots !== 1 ? 'Restam apenas {{n}} vagas de {{max}} utilizadores.' : 'Resta apenas {{n}} vaga de {{max}} utilizadores.', { n: availableSlots, max: maxUsers })}
@@ -576,7 +576,7 @@ export function TeamTab() {
               ) : (
                 <>
                   <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-green-600">
+                    <DialogTitle className="flex items-center gap-2 text-green-600 dark:text-green-400">
                       <Check className="h-5 w-5" />
                       {t('Acesso Criado com Sucesso!')}
                     </DialogTitle>
@@ -1194,7 +1194,7 @@ export function TeamTab() {
                 <div className="flex items-start gap-2">
                   <Lightbulb className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-emerald-700">{t('Recomendação inteligente')}</p>
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{t('Recomendação inteligente')}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {t('Fazer upgrade para {{plan}} (+{{cost}}€/mês) fica mais barato que adicionar {{n}} utilizadores extra ({{n}} × 5€ = {{total}}€/mês). E ainda ganha mais funcionalidades.', { plan: upgradeRecommendation.nextPlan.name, cost: upgradeRecommendation.upgradeCost, n: upgradeRecommendation.seatsNeededToCover, total: upgradeRecommendation.extraCostForSameUsers })}
                     </p>

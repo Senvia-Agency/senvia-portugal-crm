@@ -62,7 +62,7 @@ export function EmailWorkflowActions({ message, labelClassName, buttonClassName 
   const { t } = useLanguage();
   const [workflow, setWorkflow] = useState<'task' | 'event' | null>(null);
   return <>
-    <Button size="sm" variant="ghost" className={buttonClassName} aria-label={t("Criar tarefa")} title={t("Criar tarefa")} onClick={() => setWorkflow('task')}><ListTodo className="mr-1.5 h-4 w-4 text-emerald-600" /><span className={labelClassName}>{t("Criar tarefa")}</span></Button>
+    <Button size="sm" variant="ghost" className={buttonClassName} aria-label={t("Criar tarefa")} title={t("Criar tarefa")} onClick={() => setWorkflow('task')}><ListTodo className="mr-1.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" /><span className={labelClassName}>{t("Criar tarefa")}</span></Button>
     <Button size="sm" variant="ghost" className={buttonClassName} aria-label={t("Criar evento")} title={t("Criar evento")} onClick={() => setWorkflow('event')}><CalendarPlus className="mr-1.5 h-4 w-4 text-rose-500" /><span className={labelClassName}>{t("Criar evento")}</span></Button>
     <Button size="sm" variant="ghost" className={buttonClassName} aria-label={t("Imprimir")} title={t("Imprimir")} disabled={!message.body_fetched} onClick={event => printEmail(message, event.currentTarget)}><Printer className="mr-1.5 h-4 w-4" /><span className={labelClassName}>{t("Imprimir")}</span></Button>
     {workflow === 'task' && <EmailTask message={message} onClose={() => setWorkflow(null)} />}

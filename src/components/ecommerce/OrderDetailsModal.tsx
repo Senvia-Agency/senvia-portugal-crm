@@ -231,7 +231,7 @@ export function OrderDetailsModal({ order, open, onOpenChange }: OrderDetailsMod
               <span>{formatCurrency(order.subtotal)}</span>
             </div>
             {order.discount_total > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
+              <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                 <span>{t("Desconto")} {order.discount_code && `(${order.discount_code})`}</span>
                 <span>-{formatCurrency(order.discount_total)}</span>
               </div>

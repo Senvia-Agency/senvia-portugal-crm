@@ -422,7 +422,7 @@ function SalesDetailTable({
                   <TableCell>—</TableCell>
                   {isTelecom && <TableCell>—</TableCell>}
                   <TableCell>
-                    <Badge variant="outline" className="border-blue-500/30 bg-blue-500/20 text-blue-600">
+                    <Badge variant="outline" className="border-blue-500/30 bg-blue-500/20 text-blue-600 dark:text-blue-400">
                       {t("Renovação")}
                     </Badge>
                   </TableCell>
@@ -693,7 +693,7 @@ function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: Dat
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card><CardContent className="pt-6">
           <p className="text-xs text-muted-foreground">{t("Recebido")}</p>
-          <p className="text-xl font-bold text-emerald-600">{formatCurrency(receivedTotal)}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(receivedTotal)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
           <p className="text-xs text-muted-foreground">{t("Despesas")}</p>
@@ -701,7 +701,7 @@ function BalanceDetail({ dateRange, received, receivedTotal }: { dateRange?: Dat
         </CardContent></Card>
         <Card><CardContent className="pt-6">
           <p className="text-xs text-muted-foreground">{t("Saldo")}</p>
-          <p className={cn("text-xl font-bold", balance >= 0 ? "text-emerald-600" : "text-destructive")}>
+          <p className={cn("text-xl font-bold", balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
             {formatCurrency(balance)}
           </p>
         </CardContent></Card>

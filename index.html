@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     
+    <!-- Dark theme before the first paint, so the CRM does not flash white.
+         Same key and public pages as src/components/theme/AppThemeProvider.tsx. -->
+    <script>
+      (function () {
+        try {
+          var p = location.pathname;
+          if (/^\/($|login|reset-password|f\/|c\/|confirmar-lead|invite\/|precos|privacy|data-deletion|terms|install|unsubscribe|tutoriais|tutorial\/|oauth\/)/.test(p)) return;
+          var t = localStorage.getItem('senvia-theme');
+          if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

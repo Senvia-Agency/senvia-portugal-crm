@@ -125,13 +125,13 @@ export function CpeList({ clientId }: CpeListProps) {
                           </Badge>
                         )}
                         {cpe.renewal_status === 'renewed' && (
-                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             {t("Renovado")}
                           </Badge>
                         )}
                         {cpe.renewal_status === 'switched' && (
-                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400">
                             <ArrowLeftRight className="h-3 w-3 mr-1" />
                             {t("Comercializador alterado")}
                           </Badge>

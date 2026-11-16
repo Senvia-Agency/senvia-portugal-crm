@@ -170,3 +170,12 @@
   :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] > svg:first-child { width: 38px; height: 38px; padding: 9px; border-radius: 12px; background: hsl(38 96% 64% / .2); color: hsl(24 94% 50%); }
   :is(.app-shell,.workplace-portal,.inbox-workplace)[data-interface='workspace'] .inbox-caixa-rail:not([data-email-open='true']) nav > a[data-webmail-link] > svg:last-child { display: none; }
 }
+
+/* Dark theme: tinted icon tiles and reaction chips on dark surfaces. */
+.dark .inbox-workplace[data-interface='workspace'] .inbox-compose-bar button[aria-label='Escolher emoji'] { background: hsl(43 96% 56% / .16); color: hsl(43 96% 66%); }
+.dark .inbox-workplace[data-interface='workspace'] .inbox-compose-bar button[title^='Enviar imagem'] { background: hsl(263 70% 60% / .18); color: hsl(263 85% 80%); }
+.dark .inbox-workplace[data-interface='workspace'] .inbox-caixa-rail[data-email-open='true'] nav button > svg:first-child { background: hsl(213 90% 55% / .18); color: hsl(213 94% 75%); }
+.dark .inbox-workplace[data-interface='workspace'] .inbox-caixa-rail[data-email-open='true'] nav button:nth-child(3n) > svg:first-child { background: hsl(38 92% 50% / .18); color: hsl(43 96% 66%); }
+.dark .inbox-workplace[data-interface='workspace'] .inbox-caixa-rail[data-email-open='true'] nav button:nth-child(4n) > svg:first-child { background: hsl(263 70% 60% / .18); color: hsl(263 85% 80%); }
+.dark .inbox-workplace[data-interface='workspace'] .inbox-message-bubble > span[title='Reação do contacto'],
+.dark .inbox-workplace[data-interface='workspace'] .inbox-message-bubble > span[title='Reagiste a esta mensagem'] { border-color: hsl(var(--border)); }

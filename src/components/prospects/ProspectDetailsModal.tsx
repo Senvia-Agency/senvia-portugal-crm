@@ -128,7 +128,7 @@ export function ProspectDetailsModal({ prospect, onOpenChange, stateLabel, state
             <div className="flex flex-wrap items-center gap-1.5">
               {prospect.phone && (
                 <>
-                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400">
+                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200">
                     <Link to={getInboxUrl(prospect.phone)}><MessageCircle className="h-4 w-4" />WhatsApp</Link>
                   </Button>
                   <Button variant="outline" size="sm" asChild className="h-9 rounded-full">

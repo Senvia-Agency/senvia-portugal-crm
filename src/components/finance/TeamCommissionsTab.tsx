@@ -174,7 +174,7 @@ export function TeamCommissionsTab({ financeOptions, search }: {
                 </div>
               </div>
               {totalPending > 0 && (
-                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600 text-sm">
+                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600 text-sm dark:text-amber-400">
                   {t("{{value}} por pagar", { value: formatCurrency(totalPending) })}
                 </Badge>
               )}
@@ -214,11 +214,11 @@ export function TeamCommissionsTab({ financeOptions, search }: {
                           </TableCell>
                           <TableCell>
                             {isPending ? (
-                              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600">
+                              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/20 text-amber-600 dark:text-amber-400">
                                 {t("{{value}} por pagar", { value: formatCurrency(entry.totalPending) })}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="border-green-500/30 bg-green-500/20 text-green-600">
+                              <Badge variant="outline" className="border-green-500/30 bg-green-500/20 text-green-600 dark:text-green-400">
                                 {t("Pago")}
                               </Badge>
                             )}
@@ -258,14 +258,14 @@ export function TeamCommissionsTab({ financeOptions, search }: {
                                               <RefreshCw className="h-3 w-3" /> {t("Recorrente")}
                                             </span>
                                           ) : item.kind === 'chargeback' ? (
-                                            <span className="text-red-600">{t("Chargeback")}</span>
+                                            <span className="text-red-600 dark:text-red-400">{t("Chargeback")}</span>
                                           ) : item.kind === 'organization' ? (
                                             <span className="text-muted-foreground">{t("Organização")}</span>
                                           ) : (
                                             <span className="text-muted-foreground">{t("Direta")}</span>
                                           )}
                                           {item.proportional && (
-                                            <span className="ml-1 inline-flex items-center rounded border border-blue-500/30 bg-blue-500/10 px-1 py-0.5 text-[9px] font-medium text-blue-600">
+                                            <span className="ml-1 inline-flex items-center rounded border border-blue-500/30 bg-blue-500/10 px-1 py-0.5 text-[9px] font-medium text-blue-600 dark:text-blue-400">
                                               {t("Proporcional")}
                                             </span>
                                           )}
@@ -295,8 +295,8 @@ export function TeamCommissionsTab({ financeOptions, search }: {
                                               className={cn(
                                                 'text-[10px]',
                                                 item.paid
-                                                  ? 'border-green-500/30 bg-green-500/20 text-green-600'
-                                                  : 'border-amber-500/30 bg-amber-500/20 text-amber-600',
+                                                  ? 'border-green-500/30 bg-green-500/20 text-green-600 dark:text-green-400'
+                                                  : 'border-amber-500/30 bg-amber-500/20 text-amber-600 dark:text-amber-400',
                                               )}
                                             >
                                               {item.kind === 'chargeback' ? (item.paid ? t('Aplicado') : t('Por aplicar')) : (item.paid ? t('Pago') : t('Por pagar'))}
@@ -309,7 +309,7 @@ export function TeamCommissionsTab({ financeOptions, search }: {
                                                 onClick={() => item.kind === 'organization'
                                                   ? markPaidMutation.mutate({ kind: item.kind, id: item.id, sourceSaleIds: item.sourceSaleIds ?? [] })
                                                   : markPaidMutation.mutate({ kind: item.kind, id: item.id })}
-                                                className="inline-flex h-5 w-5 items-center justify-center rounded text-green-600 hover:bg-green-500/20 disabled:opacity-40"
+                                                className="inline-flex h-5 w-5 items-center justify-center rounded text-green-600 hover:bg-green-500/20 disabled:opacity-40 dark:text-green-400"
                                               >
                                                 <Check className="h-3 w-3" />
                                               </button>

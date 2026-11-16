@@ -85,7 +85,7 @@ function ComparisonDataTable({ comparisonData }: {comparisonData: ComparisonRow[
               return (
                 <TableRow key={`merged-${idx}`} className="text-xs border-b">
                   <TableCell className="py-1.5">
-                    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                       {t("Atualizado")}
                     </span>
                   </TableCell>

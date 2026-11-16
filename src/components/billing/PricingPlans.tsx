@@ -38,7 +38,7 @@ function PricingSwitch({
   ];
   return (
     <div className="flex justify-center">
-      <div className="relative z-10 mx-auto flex w-fit rounded-full border border-gray-200 bg-neutral-50 p-1">
+      <div className="relative z-10 mx-auto flex w-fit rounded-full border border-gray-200 bg-neutral-50 p-1 dark:border-border dark:bg-muted/50">
         {options.map((opt) => {
           const active = period === opt.key;
           return (
@@ -60,7 +60,7 @@ function PricingSwitch({
               <span className="relative flex items-center gap-2">
                 {t(opt.label)}
                 {opt.key === "yearly" && (
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-black">
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-black dark:bg-blue-500/10">
                     {t("Poupe {{pct}}%", { pct: YEARLY_DISCOUNT_PCT })}
                   </span>
                 )}
@@ -113,7 +113,7 @@ export function PricingPlans({
   const isYearly = period === "yearly";
 
   return (
-    <div ref={ref} className={cn("relative overflow-hidden rounded-3xl bg-neutral-100 px-4 pt-12", className)}>
+    <div ref={ref} className={cn("relative overflow-hidden rounded-3xl bg-neutral-100 px-4 pt-12 dark:bg-muted", className)}>
       {/* Blue brush glow */}
       <div
         aria-hidden
@@ -132,7 +132,7 @@ export function PricingPlans({
             animationNum={0}
             timelineRef={ref}
             customVariants={revealVariants}
-            className="mb-4 text-3xl font-medium text-gray-900 sm:text-4xl md:text-5xl"
+            className="mb-4 text-3xl font-medium text-gray-900 sm:text-4xl md:text-5xl dark:text-foreground"
           >
             {headingParts[0]}
             <TimelineContent
@@ -140,7 +140,7 @@ export function PricingPlans({
               animationNum={1}
               timelineRef={ref}
               customVariants={revealVariants}
-              className="inline-block rounded-xl border border-dashed border-blue-500 bg-blue-100 px-2 py-1 text-blue-700"
+              className="inline-block rounded-xl border border-dashed border-blue-500 bg-blue-100 px-2 py-1 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
             >
               {t("negócio")}
             </TimelineContent>
@@ -151,7 +151,7 @@ export function PricingPlans({
             animationNum={2}
             timelineRef={ref}
             customVariants={revealVariants}
-            className="mx-auto w-[85%] text-sm text-gray-600 sm:w-[70%] sm:text-base"
+            className="mx-auto w-[85%] text-sm text-gray-600 sm:w-[70%] sm:text-base dark:text-gray-400"
           >
             {t("49 €/mês. Inclui 5 utilizadores; adicione mais por 5 €/mês cada. CRM, vendas, marketing, financeiro e email num só lugar.")}
           </TimelineContent>
@@ -159,7 +159,7 @@ export function PricingPlans({
       )}
 
       <TimelineContent as="div" animationNum={3} timelineRef={ref} customVariants={revealVariants}>
-        <p className="text-center text-sm text-gray-700">{t("Faturação mensal · Utilizadores atuais mantêm os limites contratados")}</p>
+        <p className="text-center text-sm text-gray-700 dark:text-gray-300">{t("Faturação mensal · Utilizadores atuais mantêm os limites contratados")}</p>
       </TimelineContent>
 
       <div className="relative mx-auto grid max-w-xl gap-4 py-6">
@@ -178,25 +178,25 @@ export function PricingPlans({
             >
               <Card
                 className={cn(
-                  "relative h-full border-neutral-200",
-                  isCurrent ? "bg-blue-50 ring-2 ring-blue-600" : popular ? "bg-blue-50 ring-2 ring-blue-500" : "bg-white",
+                  "relative h-full border-neutral-200 dark:border-border",
+                  isCurrent ? "bg-blue-50 ring-2 ring-blue-600 dark:bg-blue-500/10" : popular ? "bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-500/10" : "bg-white",
                 )}
               >
                 <CardHeader className="text-left">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="mb-2 text-3xl font-semibold text-gray-900">{plan.name}</h3>
+                    <h3 className="mb-2 text-3xl font-semibold text-gray-900 dark:text-foreground">{plan.name}</h3>
                     {isCurrent ? (
                       <span className="h-fit rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white">{t("Atual")}</span>
                     ) : popular ? (
                       <span className="h-fit rounded-full bg-blue-500 px-3 py-1 text-sm font-medium text-white">{t("Popular")}</span>
                     ) : null}
                   </div>
-                  <p className="mb-4 text-sm text-gray-600">{t(plan.description)}</p>
+                  <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{t(plan.description)}</p>
                   <div className="flex items-baseline">
-                    <span className="flex items-baseline text-4xl font-semibold text-gray-900">
+                    <span className="flex items-baseline text-4xl font-semibold text-gray-900 dark:text-foreground">
                       <NumberFlow value={price} className="text-4xl font-semibold" />€
                     </span>
-                    <span className="ml-1 text-gray-600">{t("/mês")}</span>
+                    <span className="ml-1 text-gray-600 dark:text-gray-400">{t("/mês")}</span>
                   </div>
                   <p className={cn("mt-1 text-xs text-gray-500 transition-opacity", isYearly ? "opacity-100" : "opacity-0")}>
                     {t("faturado anualmente · {{price}}€/ano", { price: plan.priceYearly })}
@@ -209,23 +209,23 @@ export function PricingPlans({
                   <ul className="space-y-2 py-5 font-semibold">
                     {planLimitRows(plan).map((feature, i) => (
                       <li key={i} className="flex items-center">
-                        <span className="mr-3 mt-0.5 grid place-content-center text-neutral-800">
+                        <span className="mr-3 mt-0.5 grid place-content-center text-neutral-800 dark:text-foreground">
                           <feature.icon size={20} />
                         </span>
-                        <span className="text-sm text-gray-600">{feature.text}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">{feature.text}</span>
                       </li>
                     ))}
                   </ul>
 
-                  <div className="space-y-3 border-t border-neutral-200 pt-4">
-                    <h4 className="mb-3 text-base font-medium text-gray-900">{includesHeader}</h4>
+                  <div className="space-y-3 border-t border-neutral-200 pt-4 dark:border-border">
+                    <h4 className="mb-3 text-base font-medium text-gray-900 dark:text-foreground">{includesHeader}</h4>
                     <ul className="space-y-2 font-semibold">
                       {planIncludes(plan).map((feature, i) => (
                         <li key={i} className="flex items-center">
-                          <span className="mr-3 mt-0.5 grid h-6 w-6 place-content-center rounded-full border border-blue-500 bg-green-50">
+                          <span className="mr-3 mt-0.5 grid h-6 w-6 place-content-center rounded-full border border-blue-500 bg-green-50 dark:bg-green-500/10">
                             <CheckCheck className="h-4 w-4 text-blue-500" />
                           </span>
-                          <span className="text-sm text-gray-600">{t(feature)}</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{t(feature)}</span>
                         </li>
                       ))}
                     </ul>

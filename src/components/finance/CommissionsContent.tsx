@@ -234,7 +234,7 @@ export function CommissionsContent({ search, dateRange }: CommissionsContentProp
                             {line.kind === "chargeback" ? (line.paid ? t("Aplicado") : t("Por aplicar")) : line.paid ? t("Paga") : t("Por pagar")}
                           </span>
                           {!line.paid && line.kind !== "chargeback" && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700" title={t("Marcar como paga, sem lançar despesa")}
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300" title={t("Marcar como paga, sem lançar despesa")}
                               aria-label={t("Marcar como paga a comissão de {{name}}", { name: line.label })} disabled={markPaid.isPending}
                               onClick={() => line.kind === "organization"
                                 ? markPaid.mutate({ kind: "organization", id: line.id, sourceSaleIds: line.sourceSaleIds ?? [] })

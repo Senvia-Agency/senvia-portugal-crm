@@ -319,7 +319,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                <UserPlus className="h-5 w-5 text-blue-600" />
+                <UserPlus className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Atribuição Automática')}</span>
@@ -357,7 +357,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-                <Target className="h-5 w-5 text-emerald-600" />
+                <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Etapa Inicial do Lead')}</span>
@@ -398,7 +398,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10">
-                <MessagesSquare className="h-5 w-5 text-violet-600" />
+                <MessagesSquare className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Tipo de Formulário')}</span>
@@ -581,7 +581,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <MessageSquare className="h-5 w-5 text-green-600" />
+                <MessageSquare className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Campos')}</span>
@@ -604,7 +604,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-                <CheckCircle className="h-5 w-5 text-emerald-600" />
+                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Mensagens')}</span>
@@ -681,7 +681,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
-                <Zap className="h-5 w-5 text-orange-600" />
+                <Zap className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Automação')}</span>
@@ -777,7 +777,7 @@ export function FormEditor({ form, onBack }: FormEditorProps) {
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                <Target className="h-5 w-5 text-blue-600" />
+                <Target className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="text-left">
                 <span className="font-medium">{t('Meta Pixels')}</span>

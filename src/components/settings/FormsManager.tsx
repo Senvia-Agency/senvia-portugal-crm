@@ -186,7 +186,7 @@ export function FormsManager() {
                         form.form_settings.mode === 'conversational' ? "bg-violet-500/10" : "bg-primary/10"
                       )}>
                         {form.form_settings.mode === 'conversational'
-                          ? <MessagesSquare className="h-4 w-4 text-violet-600" />
+                          ? <MessagesSquare className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                           : <FileText className="h-4 w-4 text-primary" />}
                       </div>
                       <div className="min-w-0">

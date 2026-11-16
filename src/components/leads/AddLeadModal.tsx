@@ -335,7 +335,7 @@ export function AddLeadModal({ open, onOpenChange, initialData, onCreated }: Add
                       <span className="text-sm text-amber-800 dark:text-amber-300 flex-1">
                         {t("Cliente existente:")} <strong>{matchedClient.name}</strong>
                       </span>
-                      <button type="button" onClick={clearMatchedClient} className="text-amber-600 dark:text-amber-400 hover:text-amber-800">
+                      <button type="button" onClick={clearMatchedClient} className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200">
                         <X className="h-4 w-4" />
                       </button>
                     </div>

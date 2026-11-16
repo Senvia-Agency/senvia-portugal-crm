@@ -40,7 +40,7 @@ function SaleRow({ sale }: { sale: OrganizationCommissionSale }) {
         <p className="truncate text-xs text-muted-foreground">{sale.products.join(" · ") || t("Produto não identificado")}</p>
         <p className="text-xs text-muted-foreground">{date}{sale.code ? ` · ${sale.code}` : ""}</p>
       </div>
-      <span className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-emerald-700">{formatCurrency(sale.amount)}</span>
+      <span className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatCurrency(sale.amount)}</span>
     </li>
   );
 }
@@ -67,18 +67,18 @@ export function TelecomBalanceDetail({ dateRange, commissionFilters }: TelecomBa
             <span className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary"><Scale className="size-5" /></span>
             <div><p className="text-sm font-medium">{t("Saldo")}</p><p className="text-xs text-muted-foreground">{t("Ganhos menos gastos no período")}</p></div>
           </div>
-          <p className={`text-2xl font-semibold tabular-nums ${balance >= 0 ? "text-emerald-700" : "text-destructive"}`}>{formatCurrency(balance)}</p>
+          <p className={`text-2xl font-semibold tabular-nums ${balance >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-destructive"}`}>{formatCurrency(balance)}</p>
         </CardContent>
       </Card>
 
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-2">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-emerald-200/70 bg-card">
-          <header className="flex items-start justify-between gap-3 border-b bg-emerald-50/60 px-4 py-4">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-emerald-200/70 bg-card dark:border-emerald-500/25">
+          <header className="flex items-start justify-between gap-3 border-b bg-emerald-50/60 px-4 py-4 dark:bg-emerald-500/10">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-md bg-emerald-100 text-emerald-700"><ArrowUpRight className="size-5" /></span>
+              <span className="flex size-9 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"><ArrowUpRight className="size-5" /></span>
               <div><h3 className="font-semibold">{t("Ganhos")}</h3><p className="text-xs text-muted-foreground">{t("Valor da organização · {{n}} vendas", { n: organizationSales.length })}</p></div>
             </div>
-            <span className="shrink-0 text-lg font-semibold tabular-nums text-emerald-700">{formatCurrency(organizationTotal)}</span>
+            <span className="shrink-0 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{formatCurrency(organizationTotal)}</span>
           </header>
           {organizationSales.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-muted-foreground">{t("Sem ganhos no período.")}</p>
@@ -89,10 +89,10 @@ export function TelecomBalanceDetail({ dateRange, commissionFilters }: TelecomBa
           )}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-lg border border-rose-200/70 bg-card">
-          <header className="flex items-start justify-between gap-3 border-b bg-rose-50/50 px-4 py-4">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-rose-200/70 bg-card dark:border-rose-500/25">
+          <header className="flex items-start justify-between gap-3 border-b bg-rose-50/50 px-4 py-4 dark:bg-rose-500/10">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-md bg-rose-100 text-rose-700"><ArrowDownRight className="size-5" /></span>
+              <span className="flex size-9 items-center justify-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"><ArrowDownRight className="size-5" /></span>
               <div><h3 className="font-semibold">{t("Gastos")}</h3><p className="text-xs text-muted-foreground">{t("Despesas · {{n}} registos", { n: expensesInPeriod.length })}</p></div>
             </div>
             <span className="shrink-0 text-lg font-semibold tabular-nums text-destructive">{formatCurrency(expensesTotal)}</span>

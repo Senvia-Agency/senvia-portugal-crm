@@ -114,7 +114,7 @@ export function ContactNotes({
                       { onError: (e) => toast({ title: t("Falha ao apagar"), description: (e as Error).message, variant: "destructive" }) },
                     );
                   }}
-                  className="shrink-0 rounded p-0.5 text-amber-600/70 opacity-70 transition-opacity hover:bg-red-500/10 hover:text-red-600 hover:opacity-100"
+                  className="shrink-0 rounded p-0.5 text-amber-600/70 opacity-70 transition-opacity hover:bg-red-500/10 hover:text-red-600 hover:opacity-100 dark:text-amber-400/70 dark:hover:text-red-400"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>

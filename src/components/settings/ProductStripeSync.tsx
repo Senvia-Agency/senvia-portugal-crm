@@ -19,13 +19,13 @@ export function ProductStripeBadge({ mapping }: { mapping: ProductStripeMappingS
   if (!mapping || mapping.status === 'not_synced' || mapping.status === 'disabled') return null;
   if (mapping.status === 'error') {
     return (
-      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px]">
+      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px] dark:text-red-400">
         {t('Erro Stripe')}
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">
+    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] dark:text-green-400">
       Stripe
     </Badge>
   );
@@ -100,7 +100,7 @@ export function ProductStripeSync({ productId, isRecurring }: ProductStripeSyncP
       {mapping.status === 'synced' && (
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
             {mapping.syncedAt ? t('Sincronizado em {{date}}', { date: new Date(mapping.syncedAt).toLocaleDateString(intlLocale()) }) : t('Sincronizado')}
           </div>
           <Button

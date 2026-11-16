@@ -79,13 +79,13 @@ export function TelecomLifecyclePanel() {
     const semData = sumOperationalSaleUnits(inPeriod.filter(isTelecomUndatedInstall));
 
     const metrics: Metric[] = [
-      { key: 'instalados', hint: t('Fechadas'), value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700', href: linkTo('instalados') },
-      { key: 'ativos', hint: t('Operacionais'), value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600', href: linkTo('ativos') },
-      { key: 'por_instalar', hint: t('Em instalação com data marcada'), value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600', href: linkTo('por_instalar') },
-      { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: dateLocale() }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600', href: linkTo('proximo_mes') },
+      { key: 'instalados', hint: t('Fechadas'), value: count('instalados'), icon: CheckCircle2, tone: 'text-emerald-700 dark:text-emerald-300', href: linkTo('instalados') },
+      { key: 'ativos', hint: t('Operacionais'), value: count('ativos'), icon: CheckCircle2, tone: 'text-green-600 dark:text-green-400', href: linkTo('ativos') },
+      { key: 'por_instalar', hint: t('Em instalação com data marcada'), value: count('por_instalar'), icon: Wrench, tone: 'text-blue-600 dark:text-blue-400', href: linkTo('por_instalar') },
+      { key: 'proximo_mes', hint: format(nextMonthStart, 'MMMM yyyy', { locale: dateLocale() }), value: count('proximo_mes'), icon: CalendarClock, tone: 'text-violet-600 dark:text-violet-400', href: linkTo('proximo_mes') },
       { key: 'anulados', hint: t('Antes da instalação — sem CB'), value: count('anulados'), icon: XCircle, tone: 'text-slate-500', href: linkTo('anulados') },
       { key: 'cancelados', hint: t('Após instalação — geram CB'), value: count('cancelados'), icon: XCircle, tone: 'text-red-500', href: linkTo('cancelados') },
-      { key: 'por_assinar', hint: t('Ativos, pendentes e em instalação'), value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600', href: linkTo('por_assinar') },
+      { key: 'por_assinar', hint: t('Ativos, pendentes e em instalação'), value: count('por_assinar'), icon: FileSignature, tone: 'text-amber-600 dark:text-amber-400', href: linkTo('por_assinar') },
       { key: 'total', hint: t('Ativos + instalados + pendentes + em instalação + anulados + {{month}}', { month: format(nextMonthStart, 'MMMM', { locale: dateLocale() }) }), value: count('total'), icon: Layers, tone: 'text-foreground', href: linkTo('total') },
     ];
 
@@ -153,7 +153,7 @@ export function TelecomLifecyclePanel() {
                 <Building2 className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                 {t("Valor da Organização")}
               </p>
-              <p className="mt-1 text-xl font-semibold text-amber-600">{formatCurrency(orgMargin)}</p>
+              <p className="mt-1 text-xl font-semibold text-amber-600 dark:text-amber-400">{formatCurrency(orgMargin)}</p>
             </div>
             <div>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

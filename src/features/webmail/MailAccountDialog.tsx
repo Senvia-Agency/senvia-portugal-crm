@@ -150,7 +150,7 @@ export function MailAccountDialog({ account, folders, admin, onClose, onEditConn
             {tab === 'connection' && <div className="space-y-5">
               <div className="rounded-2xl border p-4 text-sm">
                 <p className="font-medium">{t('Estado')}</p>
-                <p className={cn('mt-1', health.state === 'ok' ? 'text-emerald-600' : health.state === 'connecting' ? 'text-muted-foreground' : 'text-amber-600')}>
+                <p className={cn('mt-1', health.state === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : health.state === 'connecting' ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-400')}>
                   {health.state === 'ok' ? (health.since ? t('Ligada · última sincronização {{when}}.', { when: new Date(health.since).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' }) }) : t('Ligada.'))
                     : health.state === 'connecting' ? t('A ligar ao servidor de correio. As pastas aparecem em poucos minutos.')
                     : health.state === 'stale' ? t('Sem sincronizar desde {{when}}. Confirme o servidor e a palavra-passe.', { when: new Date(health.since!).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' }) })

@@ -71,9 +71,9 @@ function DraftRow({ draft, active, onClick }: { draft: EmailDraft; active: boole
 
 // Stable per-sender avatar colour so each contact is recognisable at a glance.
 const AVATAR_COLORS = [
-  'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700', 'bg-emerald-100 text-emerald-700',
-  'bg-sky-100 text-sky-700', 'bg-violet-100 text-violet-700', 'bg-fuchsia-100 text-fuchsia-700',
-  'bg-teal-100 text-teal-700', 'bg-orange-100 text-orange-700',
+  'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300', 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300', 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-300',
+  'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300', 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
 ];
 function avatarColor(name: string): string {
   let h = 0;
@@ -567,7 +567,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                   onClick={() => setStarredOnly((s) => !s)}
                   className={cn(
                     'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
-                    starredOnly ? 'border-amber-400 bg-amber-400/10 text-amber-600' : 'border-input text-muted-foreground hover:bg-accent',
+                    starredOnly ? 'border-amber-400 bg-amber-400/10 text-amber-600 dark:text-amber-400' : 'border-input text-muted-foreground hover:bg-accent',
                   )}
                 >
                   {t('Com estrela')}
@@ -663,7 +663,7 @@ export function EmailListReader({ channelId, folderId, onOpenRail, compact = fal
                       type="checkbox"
                       checked={selected}
                       onChange={() => {}}
-                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 text-primary focus:ring-0 focus:ring-offset-0"
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 text-primary focus:ring-0 focus:ring-offset-0 dark:border-border"
                     />
                   </div>
                   {/* Sender avatar (coloured initials) */}

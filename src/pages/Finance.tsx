@@ -258,7 +258,7 @@ export default function Finance() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-xl font-bold text-emerald-600 md:text-2xl">
+              <div className="text-xl font-bold text-emerald-600 md:text-2xl dark:text-emerald-400">
                 {formatCurrency(myConfirmedTotal)}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -437,7 +437,7 @@ export default function Finance() {
                     {isLoading ? (
                       <Skeleton className="h-8 w-24" />
                     ) : (
-                      <div className="text-xl font-bold text-amber-600 md:text-2xl">{formatCurrency(stats.telecomToInstall)}</div>
+                      <div className="text-xl font-bold text-amber-600 md:text-2xl dark:text-amber-400">{formatCurrency(stats.telecomToInstall)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
                       {t(stats.telecomToInstallCount === 1 ? "{{n}} venda em instalação com data marcada" : "{{n}} vendas em instalação com data marcada", { n: formatOperationalUnits(stats.telecomToInstallCount) })}
@@ -460,7 +460,7 @@ export default function Finance() {
                     {isLoading ? (
                       <Skeleton className="h-8 w-24" />
                     ) : (
-                      <div className="text-xl font-bold text-emerald-600 md:text-2xl">{formatCurrency(stats.telecomInstalled)}</div>
+                      <div className="text-xl font-bold text-emerald-600 md:text-2xl dark:text-emerald-400">{formatCurrency(stats.telecomInstalled)}</div>
                     )}
                     <p className="text-xs text-muted-foreground">
                       {t("{{n}} unidades ativas ou instaladas · comissão ganha", { n: formatOperationalUnits(stats.telecomInstalledCount) })}
@@ -507,7 +507,7 @@ export default function Finance() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
-                  <div className="text-xl font-bold text-emerald-600 md:text-2xl">{formatCurrency(stats.totalReceived)}</div>
+                  <div className="text-xl font-bold text-emerald-600 md:text-2xl dark:text-emerald-400">{formatCurrency(stats.totalReceived)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">{hasFilters ? t("No período") : t("Total recebido")}</p>
               </CardContent>
@@ -530,7 +530,7 @@ export default function Finance() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
-                  <div className="text-xl font-bold text-amber-600 md:text-2xl">{formatCurrency(stats.totalPending)}</div>
+                  <div className="text-xl font-bold text-amber-600 md:text-2xl dark:text-amber-400">{formatCurrency(stats.totalPending)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">{t("Total por receber")}</p>
               </CardContent>
@@ -553,7 +553,7 @@ export default function Finance() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
-                  <div className="text-xl font-bold text-orange-600 md:text-2xl">{formatCurrency(stats.totalOverdue)}</div>
+                  <div className="text-xl font-bold text-orange-600 md:text-2xl dark:text-orange-400">{formatCurrency(stats.totalOverdue)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">{t("{{n}} pagamento(s)", { n: stats.overdueCount })}</p>
               </CardContent>
@@ -596,7 +596,7 @@ export default function Finance() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
-                  <div className={`text-xl font-bold md:text-2xl ${balanceShown >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  <div className={`text-xl font-bold md:text-2xl ${balanceShown >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
                     {formatCurrency(balanceShown)}
                   </div>
                 )}
@@ -622,7 +622,7 @@ export default function Finance() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
-                  <div className="text-xl font-bold text-blue-600 md:text-2xl">{formatCurrency(stats.dueSoon)}</div>
+                  <div className="text-xl font-bold text-blue-600 md:text-2xl dark:text-blue-400">{formatCurrency(stats.dueSoon)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">{t("{{n}} pagamento(s)", { n: stats.dueSoonCount })}</p>
               </CardContent>
@@ -641,7 +641,7 @@ export default function Finance() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-xl font-bold text-emerald-600 md:text-2xl">
+                <div className="text-xl font-bold text-emerald-600 md:text-2xl dark:text-emerald-400">
                   {formatCurrency(myConfirmedTotal)}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -705,7 +705,7 @@ export default function Finance() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-xl font-bold text-amber-600 md:text-2xl">
+                  <div className="text-xl font-bold text-amber-600 md:text-2xl dark:text-amber-400">
                     {formatCurrency(orgMarginTotal)}
                   </div>
                   {/* Same earned-sale basis as gross and team commission. */}

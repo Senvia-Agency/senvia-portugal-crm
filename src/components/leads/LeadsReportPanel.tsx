@@ -59,7 +59,7 @@ export function LeadsReportPanel() {
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
               <Target className="h-3.5 w-3.5" /> {t("Ganhas")}
             </div>
-            <p className="text-2xl font-bold text-green-600">{report.totalWon}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{report.totalWon}</p>
           </CardContent>
         </Card>
         <Card>

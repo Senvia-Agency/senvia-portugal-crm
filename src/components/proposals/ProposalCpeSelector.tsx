@@ -235,7 +235,7 @@ export function ProposalCpeSelector({ clientId, cpes, onCpesChange }: ProposalCp
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-amber-600" />
+                  <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="font-medium text-sm">{t("CPE/CUI #{{n}}", { n: index + 1 })}</span>
                 </div>
                 <Button

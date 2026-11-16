@@ -361,7 +361,7 @@ function EmailFullScreenEditor({
         <aside className="w-64 shrink-0 border-r bg-muted/10 flex flex-col overflow-y-auto">
           <div className="p-5 border-b space-y-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 border border-blue-500/20">
-              <Mail className="h-7 w-7 text-blue-600" />
+              <Mail className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0">
               <p className="font-bold text-sm truncate">{displayName}</p>
@@ -565,7 +565,7 @@ export function EmailManager() {
             <div key={ch.id} className="rounded-2xl border overflow-hidden bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col">
               <div className="px-4 pt-4 pb-3 flex items-start gap-3 bg-blue-500/10">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 dark:bg-black/30 shadow-sm shrink-0">
-                  <Mail className="h-5 w-5 text-blue-600" />
+                  <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm truncate">{ch.label ?? t('Email')}</p>

@@ -164,7 +164,7 @@ export function ClientDetailsDrawer({
                 <AutomationRecordActions subjectType="client" subjectIds={[client.id]} />
               {client.phone && (
                 <>
-                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400">
+                  <Button variant="outline" size="sm" asChild className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200">
                     <Link to={getInboxUrl(client.phone)}><MessageCircle className="h-4 w-4" />{t("WhatsApp")}</Link>
                   </Button>
                   <Button variant="outline" size="sm" asChild className="h-9 rounded-full">

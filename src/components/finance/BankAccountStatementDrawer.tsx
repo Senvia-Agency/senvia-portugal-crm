@@ -46,7 +46,7 @@ export function BankAccountStatementDrawer({ account, open, onOpenChange }: Prop
         <div id="bank-statement-print">
           <div className="mt-4 p-4 rounded-lg bg-muted/50 border print:bg-transparent print:border-border">
             <p className="text-sm text-muted-foreground">{t("Saldo Atual")}</p>
-            <p className={`text-2xl font-bold ${(balance ?? 0) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+            <p className={`text-2xl font-bold ${(balance ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
               {formatCurrency(balance ?? 0)}
             </p>
           </div>
@@ -70,7 +70,7 @@ export function BankAccountStatementDrawer({ account, open, onOpenChange }: Prop
                     <p className="text-xs text-muted-foreground">{formatDate(tx.transaction_date)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-semibold ${isPositive ? 'text-emerald-600' : 'text-destructive'}`}>
+                    <p className={`text-sm font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
                       {isPositive ? '+' : ''}{formatCurrency(tx.amount)}
                     </p>
                     <p className="text-xs text-muted-foreground">{formatCurrency(tx.running_balance)}</p>

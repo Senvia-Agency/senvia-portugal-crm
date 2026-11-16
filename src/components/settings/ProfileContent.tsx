@@ -6,6 +6,7 @@ import { User, Loader2, Save } from "lucide-react";
 import { AvatarCard } from "./AvatarCard";
 import { WorkScheduleCard } from "./WorkScheduleCard";
 import { LanguageCard } from "./LanguageCard";
+import { AppearanceCard } from "./AppearanceCard";
 import { useLanguage } from "@/i18n";
 
 // Personal account data (extracted from the former GeneralContent). Lives under
@@ -90,6 +91,7 @@ export const ProfileContent = ({
         </CardContent>
       </Card>
       <LanguageCard />
+      <AppearanceCard />
       <WorkScheduleCard />
     </div>
   );

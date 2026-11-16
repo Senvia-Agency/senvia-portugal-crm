@@ -37,7 +37,7 @@ export function ReferralBanner() {
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             {available > 0 && <span className="rounded-full bg-white/20 px-3 py-1 font-semibold">{t(available === 1 ? "{{n}} mês grátis disponível" : "{{n}} meses grátis disponíveis", { n: available })}</span>}
             {totals.pending > 0 && <span className="rounded-full bg-white/15 px-3 py-1">{t("{{n}} a aguardar pagamento", { n: totals.pending })}</span>}
-            <Button asChild size="sm" variant="secondary" className="h-8 bg-white text-violet-700 hover:bg-white/90">
+            <Button asChild size="sm" variant="secondary" className="h-8 bg-white text-violet-700 hover:bg-white/90 dark:text-violet-300">
               <Link to="/indicacoes">{t("Ver indicações")} <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
             </Button>
             <Link to="/indicacoes#avaliacao" className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/20 px-3 text-xs font-semibold hover:bg-white/30">

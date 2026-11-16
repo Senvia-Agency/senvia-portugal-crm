@@ -92,7 +92,7 @@ export const TELECOM_STATUS_COLORS: Record<TelecomStatus, string> = {
   pendente: 'bg-amber-500/20 text-amber-500 border-amber-500/30',
   em_instalacao: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
   ativo: 'bg-green-500/20 text-green-500 border-green-500/30',
-  instalado: 'bg-emerald-600/20 text-emerald-600 border-emerald-600/30',
+  instalado: 'bg-emerald-600/20 text-emerald-600 border-emerald-600/30 dark:text-emerald-400',
   anulado: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
   cancelado: 'bg-red-500/20 text-red-500 border-red-500/30',
 };

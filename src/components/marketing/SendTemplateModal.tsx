@@ -356,14 +356,14 @@ export function SendTemplateModal({ template, open, onOpenChange }: SendTemplate
         {step === "success" && (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-green-600">
+              <DialogTitle className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <Check className="h-5 w-5" />
                 {t("Emails Enviados")}
               </DialogTitle>
             </DialogHeader>
 
             <div className="py-8 text-center space-y-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4 dark:bg-green-500/15 dark:text-green-400">
                 <Check className="h-8 w-8" />
               </div>
               <p className="text-lg font-medium">

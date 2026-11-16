@@ -1,5 +1,7 @@
 import { Building2, Check, Compass, Languages, LogOut, Settings, Sparkles, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from 'next-themes';
+import { THEME_OPTIONS, toThemeChoice } from '@/components/theme/theme-options';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -22,13 +24,16 @@ export function WorkplaceAccountMenu({ userName, organizationName }: { readonly 
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
+  const { theme, setTheme } = useTheme();
+  const themeChoice = toThemeChoice(theme);
+  const ThemeIcon = THEME_OPTIONS.find(o => o.value === themeChoice)!.icon;
   const name = profile?.full_name || userName || t('Utilizador');
   // Only people in more than one company get to switch, as the sidebar switcher did.
   const canSwitch = canUseFeature('multi_org') && organizations.length > 1;
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <button type="button" data-otto-target="guide-account" className="workplace-account-trigger" aria-label={t('Abrir menu de {{name}}', { name })}>
-        <Avatar className="h-9 w-9"><AvatarImage src={profile?.avatar_url ?? undefined} alt="" /><AvatarFallback className="bg-blue-100 text-xs font-semibold text-blue-800">{name.trim().charAt(0).toUpperCase()}</AvatarFallback></Avatar>
+        <Avatar className="h-9 w-9"><AvatarImage src={profile?.avatar_url ?? undefined} alt="" /><AvatarFallback className="bg-blue-100 text-xs font-semibold text-blue-800 dark:bg-blue-500/15 dark:text-blue-200">{name.trim().charAt(0).toUpperCase()}</AvatarFallback></Avatar>
       </button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-64">
@@ -61,6 +66,16 @@ export function WorkplaceAccountMenu({ userName, organizationName }: { readonly 
           {LANGUAGES.map(l => (
             <DropdownMenuItem key={l.code} className="flex items-center justify-between gap-2" onSelect={() => setLanguage(l.code)}>
               {l.label}{language === l.code && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger><ThemeIcon className="mr-2 h-4 w-4" />{t('Aparência')}<span className="ml-auto pl-2 text-xs text-muted-foreground">{t(THEME_OPTIONS.find(o => o.value === themeChoice)!.label)}</span></DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-56">
+          {THEME_OPTIONS.map(o => (
+            <DropdownMenuItem key={o.value} className="flex items-center justify-between gap-2" onSelect={() => setTheme(o.value)}>
+              <span className="flex items-center"><o.icon className="mr-2 h-4 w-4" />{t(o.label)}</span>{themeChoice === o.value && <Check className="h-4 w-4 shrink-0 text-primary" />}
             </DropdownMenuItem>
           ))}
         </DropdownMenuSubContent>

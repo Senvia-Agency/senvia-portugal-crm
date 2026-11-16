@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AppThemeProvider } from "@/components/theme/AppThemeProvider";
 import { ProtectedLayoutRoute } from "@/components/auth/ProtectedLayoutRoute";
 import { SuperAdminRoute } from "@/components/auth/SuperAdminRoute";
 const PWAUpdateBanner = lazy(() => import("@/components/pwa/PWAUpdateBanner").then(m => ({ default: m.PWAUpdateBanner })));
@@ -99,9 +100,10 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
         <Router>
+          <AppThemeProvider>
+          <Toaster />
+          <Sonner />
           <AuthProvider>
             <Suspense fallback={null}><PWAUpdateBanner /></Suspense>
             <Suspense fallback={null}><PushReactivationPrompt /></Suspense>
@@ -224,6 +226,7 @@ const App = ({ Router = BrowserRouter }: { Router?: React.ComponentType<{ future
               </Routes>
             </Suspense>
           </AuthProvider>
+          </AppThemeProvider>
         </Router>
       </TooltipProvider>
     </QueryClientProvider>

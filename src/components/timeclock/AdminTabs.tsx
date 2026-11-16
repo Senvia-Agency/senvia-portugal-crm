@@ -117,7 +117,7 @@ export function SheetTab({ members }: { members: MemberOption[] }) {
               <span className="text-sm text-muted-foreground">
                 {formatDuration(totals.workedMs)} · {t(totals.days === 1 ? "{{n}} dia" : "{{n}} dias", { n: totals.days })}
                 {totals.incomplete > 0 && <> · <span className="text-destructive">{t(totals.incomplete === 1 ? "{{n}} incompleto" : "{{n}} incompletos", { n: totals.incomplete })}</span></>}
-                {totals.pending > 0 && <> · <span className="text-amber-700">{t("{{n}} por aprovar", { n: totals.pending })}</span></>}
+                {totals.pending > 0 && <> · <span className="text-amber-700 dark:text-amber-300">{t("{{n}} por aprovar", { n: totals.pending })}</span></>}
               </span>
               <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setDialog({ entry: null, userId: member.user_id })}>
                 <Plus className="mr-1 h-3.5 w-3.5" />{t("Registo", { context: "entry" })}

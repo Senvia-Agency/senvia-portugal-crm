@@ -168,7 +168,7 @@ export function LeadCard({
       )}
 
       <div className="mt-1.5 flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" className={cn(actionClass, "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400")}
+        <Button variant="ghost" size="icon" className={cn(actionClass, "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300")}
           aria-label="WhatsApp" title="WhatsApp" onClick={(e) => { e.stopPropagation(); navigate(getInboxUrl(lead.phone)); }}>
           <MessageCircle className="h-4 w-4" />
         </Button>

@@ -55,8 +55,8 @@ export default function RhAbsenceCard({ absence, showUser, isAdmin, onApprove, o
               return (
                 <div key={period.id} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${bgClass}`}>
                   <div className="flex items-center gap-2">
-                    {isApproved && <Check className="h-3 w-3 text-green-600" />}
-                    {isRejected && <X className="h-3 w-3 text-red-600" />}
+                    {isApproved && <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}
+                    {isRejected && <X className="h-3 w-3 text-red-600 dark:text-red-400" />}
                     <span>
                       {period.start_date === period.end_date
                         ? format(new Date(period.start_date), "dd MMM yyyy", { locale: pt })

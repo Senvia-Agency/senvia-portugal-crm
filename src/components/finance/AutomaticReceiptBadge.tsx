@@ -15,7 +15,7 @@ export function AutomaticReceiptBadge({ job, className }: { job: AutomaticReceip
   const state = automaticReceiptState(job.processing_status);
   if (state === "cancelled") return null;
 
-  let tone = "border-amber-300/70 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200";
+  let tone = "border-amber-300/70 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-500/40";
   let Icon = Loader2;
   let label = t("Recibo automático a emitir");
   let detail: string | null = null;

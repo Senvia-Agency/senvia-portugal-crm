@@ -674,7 +674,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                         {isTelecom && (sale as any).fidelizacao_end && (() => {
                           const end = new Date((sale as any).fidelizacao_end);
                           const days = Math.ceil((end.getTime() - Date.now()) / 86400000);
-                          const tone = days < 0 ? "text-destructive" : days <= 30 ? "text-amber-600" : "";
+                          const tone = days < 0 ? "text-destructive" : days <= 30 ? "text-amber-600 dark:text-amber-400" : "";
                           return (
                             <div>
                               <p className="text-xs text-muted-foreground">{t("Fim da fidelização")}</p>
@@ -721,7 +721,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             <p className="font-medium">{billingName || t("Nome em falta")}</p>
                             <p className="text-muted-foreground">{t("NIF:")} {billingNif || t("Não definido")}</p>
                             {billingCompany && !hasCompanyFiscalAddress && (
-                              <p className="text-amber-600">{t("Preenche a morada escolhida para a empresa na ficha do cliente para emitir.")}</p>
+                              <p className="text-amber-600 dark:text-amber-400">{t("Preenche a morada escolhida para a empresa na ficha do cliente para emitir.")}</p>
                             )}
                           </div>
                         )}
@@ -910,7 +910,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                         {detail?.tecnologia && (
                                           <Badge
                                             variant="outline"
-                                            className="bg-sky-500/10 text-sky-600 border-sky-500/30 text-[11px] font-medium"
+                                            className="bg-sky-500/10 text-sky-600 border-sky-500/30 text-[11px] font-medium dark:text-sky-400"
                                           >
                                             {t(TELECOM_TECHNOLOGY_LABELS[detail.tecnologia])}
                                           </Badge>
@@ -994,7 +994,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                               {isAdmin && !!sale.org_commission && (
                                 <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
                                   <span className="text-xs text-muted-foreground">{t("Comissão da organização")}</span>
-                                  <span className="text-xs font-medium text-amber-600">
+                                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
                                     {formatCurrency(sale.org_commission)}
                                   </span>
                                 </div>

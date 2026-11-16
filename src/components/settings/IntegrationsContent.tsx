@@ -212,17 +212,17 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
     // Caixas de Entrada has no on/off toggle: show how many channels are connected.
     if (key === 'inboxes') {
       if (connectedChannels > 0) {
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t(connectedChannels === 1 ? '{{n}} ligada' : '{{n}} ligadas', { n: connectedChannels })}</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] dark:text-green-400">{t(connectedChannels === 1 ? '{{n}} ligada' : '{{n}} ligadas', { n: connectedChannels })}</Badge>;
       }
       return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Nenhuma ligada')}</Badge>;
     }
     // Stripe não tem interruptor: ou há uma conta ligada, ou não há.
     if (key === 'stripe') {
       if (stripeConnection.status === 'restricted') {
-        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]">{t('Com restrições')}</Badge>;
+        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] dark:text-amber-400">{t('Com restrições')}</Badge>;
       }
       if (stripeConnection.connected) {
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t('Ligado')}</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] dark:text-green-400">{t('Ligado')}</Badge>;
       }
       return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Não ligado')}</Badge>;
     }
@@ -230,9 +230,9 @@ export const IntegrationsContent = (props: IntegrationsContentProps) => {
       return <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px]">{t('Desativado')}</Badge>;
     }
     if (configured) {
-      return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">{t('Configurado')}</Badge>;
+      return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] dark:text-green-400">{t('Configurado')}</Badge>;
     }
-    return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px]">{t('Não configurado')}</Badge>;
+    return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 text-[10px] dark:text-red-400">{t('Não configurado')}</Badge>;
   };
 
   const activeIntegration = integrations.find(i => i.key === active);
@@ -342,14 +342,14 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
       <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
         <div className="relative px-6 py-5 flex items-center gap-4 bg-violet-500/10">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 dark:bg-black/30 shrink-0 shadow-sm">
-            <Webhook className="h-6 w-6 text-violet-600" />
+            <Webhook className="h-6 w-6 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="flex-1 min-w-0">
             <DialogTitle className="text-base font-bold">{wh.name}</DialogTitle>
             <DialogDescription className="text-xs mt-0.5 font-mono truncate">{wh.url}</DialogDescription>
           </div>
           <span className={cn("flex items-center gap-1 text-[10px] font-semibold rounded-full px-2.5 py-1 border shrink-0",
-            wh.is_active ? "text-green-700 bg-green-500/20 border-green-500/30" : "text-muted-foreground bg-muted border-border")}>
+            wh.is_active ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-300" : "text-muted-foreground bg-muted border-border")}>
             <span className={cn("h-1.5 w-1.5 rounded-full", wh.is_active ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50")} />
             {wh.is_active ? t('Ativo') : t('Inativo')}
           </span>
@@ -360,7 +360,7 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
             <div className="flex gap-2">
               <Input readOnly value={wh.url} className="text-xs font-mono bg-muted text-muted-foreground h-9" />
               <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="shrink-0 h-9">
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -368,7 +368,7 @@ function EditOutboundWebhookModal({ wh, open, onOpenChange, toggleWebhook, delet
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
-                  <Zap className="h-4 w-4 text-violet-600" />
+                  <Zap className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium">{t('Webhook ativo')}</p>
@@ -454,14 +454,14 @@ function WebhooksManager() {
             <div key={wh.id} className={cn("rounded-2xl border overflow-hidden bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col", !wh.is_active && "opacity-70")}>
               <div className="px-4 pt-4 pb-3 flex items-start gap-3 bg-violet-500/10">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 dark:bg-black/30 shrink-0 shadow-sm">
-                  <Webhook className="h-5 w-5 text-violet-600" />
+                  <Webhook className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm truncate">{wh.name}</p>
                   <p className="text-xs text-muted-foreground font-mono truncate">{wh.url}</p>
                 </div>
                 {wh.is_active ? (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0">
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0 dark:text-green-300">
                     <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ativo')}
                   </span>
                 ) : (
@@ -615,14 +615,14 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
       <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
         <div className="relative px-6 py-5 flex items-center gap-4 bg-teal-500/10">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 dark:bg-black/30 shrink-0 shadow-sm">
-            <Link2 className="h-6 w-6 text-teal-600" />
+            <Link2 className="h-6 w-6 text-teal-600 dark:text-teal-400" />
           </div>
           <div className="flex-1 min-w-0">
             <DialogTitle className="text-base font-bold">{webhook.name}</DialogTitle>
             <DialogDescription className="text-xs mt-0.5">{assigneeSummary(webhook, members)}</DialogDescription>
           </div>
           <span className={cn("flex items-center gap-1 text-[10px] font-semibold rounded-full px-2.5 py-1 border shrink-0",
-            webhook.is_active ? "text-green-700 bg-green-500/20 border-green-500/30" : "text-muted-foreground bg-muted border-border")}>
+            webhook.is_active ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-300" : "text-muted-foreground bg-muted border-border")}>
             <span className={cn("h-1.5 w-1.5 rounded-full", webhook.is_active ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50")} />
             {webhook.is_active ? t('Ativo') : t('Inativo')}
           </span>
@@ -641,7 +641,7 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
             <div className="flex gap-2">
               <Input readOnly value={url} className="text-xs font-mono bg-muted text-muted-foreground h-9" />
               <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="shrink-0 h-9">
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -649,7 +649,7 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10">
-                  <Zap className="h-4 w-4 text-teal-600" />
+                  <Zap className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div><p className="text-sm font-medium">{t('Webhook ativo')}</p><p className="text-[11px] text-muted-foreground">{t('Recebe leads quando ativo')}</p></div>
               </div>
@@ -658,7 +658,7 @@ function IntakeWebhookEditModal({ webhook, members, open, onOpenChange }: {
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Mail className="h-4 w-4 text-amber-600" />
+                  <Mail className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div><p className="text-sm font-medium">{t('Avisar administradores')}</p><p className="text-[11px] text-muted-foreground">{t('Notifica todos os admins por push/email')}</p></div>
               </div>
@@ -746,14 +746,14 @@ function InboundWebhookSection() {
               <div key={wh.id} className={cn("rounded-2xl border overflow-hidden bg-card shadow-sm hover:shadow-md transition-shadow flex flex-col", !wh.is_active && "opacity-70")}>
                 <div className="px-4 pt-4 pb-3 flex items-start gap-3 bg-teal-500/10">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 dark:bg-black/30 shrink-0 shadow-sm">
-                    <Link2 className="h-5 w-5 text-teal-600" />
+                    <Link2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{wh.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{assigneeSummary(wh, memberOptions)}</p>
                   </div>
                   {wh.is_active ? (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-500/20 border border-green-500/30 rounded-full px-2 py-0.5 shrink-0 dark:text-green-300">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> {t('Ativo')}
                     </span>
                   ) : (
@@ -763,9 +763,9 @@ function InboundWebhookSection() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 px-4 py-2.5 border-t border-b text-xs text-muted-foreground bg-muted/10">
-                  {wh.rotate_enabled && <span className="flex items-center gap-1 text-blue-600"><RefreshCw className="h-3 w-3" /> {t('Rotação')}</span>}
-                  {wh.notify_all_admins && <span className="flex items-center gap-1 text-amber-600"><Mail className="h-3 w-3" /> {t('Admins')}</span>}
-                  {needsAttention && <span className="flex items-center gap-1 text-amber-600">{t('⚠️ Configurar')}</span>}
+                  {wh.rotate_enabled && <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400"><RefreshCw className="h-3 w-3" /> {t('Rotação')}</span>}
+                  {wh.notify_all_admins && <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400"><Mail className="h-3 w-3" /> {t('Admins')}</span>}
+                  {needsAttention && <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">{t('⚠️ Configurar')}</span>}
                 </div>
                 <div className="flex items-center gap-2 px-4 py-3 mt-auto">
                   <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8" onClick={() => setEditWh(wh)}>
@@ -831,7 +831,7 @@ function InboundWebhookSection() {
         <p className="text-xs text-amber-600 dark:text-amber-400">{t('⚠️ Não partilhes estes URLs publicamente.')}</p>
         <Link
           to="/tutoriais/make"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:underline"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:underline dark:text-teal-400"
         >
           <GraduationCap className="h-3.5 w-3.5" /> {t('Ver tutorial passo a passo (Facebook Lead Ads + Make)')}
         </Link>
@@ -852,7 +852,7 @@ type ChannelIcon = React.ComponentType<{ className?: string }>;
 // MESSAGING_CHANNELS_ENABLED for false — ver o comentário em constants.ts.
 const CHANNEL_CATALOG: { type: string; label: string; icon: ChannelIcon; color: string; tint: string; available: boolean }[] = [
   { type: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, color: 'text-[#25D366]', tint: 'bg-[#25D366]/10', available: MESSAGING_CHANNELS.whatsapp },
-  { type: 'email', label: 'Email', icon: Mail, color: 'text-blue-600', tint: 'bg-blue-500/10', available: true },
+  { type: 'email', label: 'Email', icon: Mail, color: 'text-blue-600 dark:text-blue-400', tint: 'bg-blue-500/10', available: true },
   { type: 'instagram', label: 'Instagram', icon: InstagramIcon, color: 'text-[#E4405F]', tint: 'bg-[#E4405F]/10', available: MESSAGING_CHANNELS.instagram },
   { type: 'facebook', label: 'Messenger', icon: MessengerIcon, color: 'text-[#0084FF]', tint: 'bg-[#0084FF]/10', available: MESSAGING_CHANNELS.facebook },
 ];
@@ -1011,7 +1011,7 @@ function EditCaixaModal({
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-                  <RefreshCw className="h-4 w-4 text-blue-600" />
+                  <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium">{t('Rotação automática')}</p>
@@ -1030,7 +1030,7 @@ function EditCaixaModal({
               <div className="flex items-center justify-between gap-4 px-4 py-3">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
-                    <UsersRound className="h-4 w-4 text-green-600" />
+                    <UsersRound className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">{t('Mensagens de grupo')}</p>
@@ -1325,7 +1325,7 @@ function InboxesManager() {
                     {attendants.length > 0 ? t(attendants.length !== 1 ? '{{n}} atendentes' : '{{n}} atendente', { n: attendants.length }) : t('Todos')}
                   </span>
                   {ch.rotate_enabled && (
-                    <span className="flex items-center gap-1 text-blue-600">
+                    <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                       <RefreshCw className="h-3 w-3" /> Rotação
                     </span>
                   )}
@@ -1334,7 +1334,7 @@ function InboxesManager() {
                       isso aparecia nas caixas de Instagram e Messenger — onde
                       grupos nem existem, e o interruptor nem é mostrado. */}
                   {groupsOn && ch.channel_type === 'whatsapp' && (
-                    <span className="flex items-center gap-1 text-green-600">
+                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                       <UsersRound className="h-3 w-3" /> {t('Grupos')}
                     </span>
                   )}
@@ -1816,8 +1816,8 @@ function VendusForm({ chavesGuardadas, vendusApiKey, setVendusApiKey, showVendus
         {vendusOptionsLoading ? t('A validar a chave...') : t('Validar chave')}
       </Button>
       {vendusOptionsLoaded && (vendusRegisterReady
-        ? <p className="text-xs text-green-600">{t('Chave validada e caixa API pronta para faturação.')}</p>
-        : <p className="text-xs text-amber-700">{vendusReadinessError}</p>)}
+        ? <p className="text-xs text-green-600 dark:text-green-400">{t('Chave validada e caixa API pronta para faturação.')}</p>
+        : <p className="text-xs text-amber-700 dark:text-amber-300">{vendusReadinessError}</p>)}
       <Button onClick={handleSaveVendus} disabled={updateOrganizationIsPending || vendusOptionsLoading || !vendusOptionsLoaded || (!vendusApiKey.trim() && !chavesGuardadas?.vendus)}>
         {updateOrganizationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         {t('Guardar')}

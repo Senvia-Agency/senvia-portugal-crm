@@ -16,7 +16,7 @@ import { useLanguage } from "@/i18n";
 function Sinal({ ok }: { ok: boolean | null }) {
   if (ok === null) return <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />;
   return ok
-    ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+    ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
     : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />;
 }
 

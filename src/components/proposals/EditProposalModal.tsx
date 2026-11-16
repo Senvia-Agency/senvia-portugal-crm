@@ -864,7 +864,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                                                 {formatCurrency(subtotal)}
                                               </span>
                                             )}
-                                            <span className={hasDiscount ? 'text-green-600' : ''}>
+                                            <span className={hasDiscount ? 'text-green-600 dark:text-green-400' : ''}>
                                               {formatCurrency(discountedTotal)}
                                             </span>
                                           </div>

@@ -180,3 +180,8 @@
 @media (max-width:640px) {
   .workplace-portal[data-interface='workspace'] .work-task-edit-dialog .work-main-field .work-task-description-input { min-height:180px; max-height:45dvh; }
 }
+
+/* Dark theme: priority pills keep their hue on a dark surface. */
+.dark .work-priority--normal, .dark .work-priority-choice[aria-pressed='true'] { background: hsl(221 83% 53% / .2); color: hsl(213 94% 78%); }
+.dark .work-priority--high, .dark .work-priority-choice--high[aria-pressed='true'] { background: hsl(24 90% 50% / .18); color: hsl(27 96% 72%); }
+.dark .work-priority--low, .dark .work-priority-choice--low[aria-pressed='true'] { background: hsl(158 64% 40% / .2); color: hsl(156 72% 67%); }

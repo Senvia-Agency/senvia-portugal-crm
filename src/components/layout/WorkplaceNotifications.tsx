@@ -41,7 +41,7 @@ export function WorkplaceNotifications() {
       {closed.enabled && closed.list.length > 0 && (
         <div className="border-t">
           <h3 className="flex items-center gap-2 px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <PartyPopper className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />{t("Vendas fechadas")}
+            <PartyPopper className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />{t("Vendas fechadas")}
           </h3>
           <ul className="max-h-72 overflow-y-auto pb-2">
             {closed.list.map(sale => (

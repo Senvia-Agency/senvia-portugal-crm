@@ -17,8 +17,8 @@ import { readMessage } from './webmail-api';
 import type { MailboxActions } from './useWebmail';
 import type { MailAccount, WebmailFolder } from './webmail-model';
 
-const AVATAR_TONES = ['bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700', 'bg-emerald-100 text-emerald-700', 'bg-sky-100 text-sky-700',
-  'bg-violet-100 text-violet-700', 'bg-fuchsia-100 text-fuchsia-700', 'bg-teal-100 text-teal-700', 'bg-orange-100 text-orange-700'];
+const AVATAR_TONES = ['bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300', 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+  'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300', 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-300', 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300', 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'];
 /** Plain text of a draft body (entities decoded), without the signature. */
 function draftPreview(html: string | null) {
   if (!html) return '';
@@ -221,7 +221,7 @@ export function MailList(props: MailListProps) {
           const account = accounts.find(item => item.id === draft.channel_id);
           return <button key={draft.id} type="button" className="webmail-row" onClick={() => props.onOpenDraft(draft)}>
             {unified && account && <span className="webmail-row-bar" style={{ background: account.color }} title={account.name} />}
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><FileEdit className="h-3.5 w-3.5" /></span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"><FileEdit className="h-3.5 w-3.5" /></span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-sm font-medium text-destructive/90">{t('Rascunho')} · <span className="text-foreground/80">{t('Para:')} {to}</span></span><span className="shrink-0 text-[11px] text-muted-foreground">{fmtListDate(draft.updated_at)}</span></span>
               <span className="block truncate text-[13px]">

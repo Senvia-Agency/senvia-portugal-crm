@@ -171,7 +171,7 @@ export default function WebMail() {
     }} />;
 
   return <div className="webmail-page">
-    {preferencesError && <p role="status" className="m-3 mb-0 shrink-0 rounded-2xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+    {preferencesError && <p role="status" className="m-3 mb-0 shrink-0 rounded-2xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-500/40">
       {preferencesError} {t('Até lá, o email funciona, mas nomes, cores, ordem, avisos, assinaturas pessoais e listas de contactos não são guardados.')}
     </p>}
     <div className="webmail" style={{ '--webmail-sidebar': `${width}px` } as CSSProperties} data-open={openId ? 'message' : 'list'} data-selecting={selecting}>

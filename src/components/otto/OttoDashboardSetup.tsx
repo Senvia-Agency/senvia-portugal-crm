@@ -79,7 +79,7 @@ export function OttoDashboardSetup() {
 
       {progress.done > 0 && (
         <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
           {t(progress.done === 1 ? "{{n}} passo concluído." : "{{n}} passos concluídos.", { n: progress.done })}
         </p>
       )}

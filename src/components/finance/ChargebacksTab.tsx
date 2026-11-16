@@ -28,7 +28,7 @@ import { isBdsOrganization } from '@/lib/bds-finance';
 import { resolveManualChargebackClient } from '@/lib/manual-chargeback-client';
 
 const STATUS_STYLES: Record<ChargebackStatus, string> = {
-  pending: 'bg-amber-500/20 text-amber-600 border-amber-500/30',
+  pending: 'bg-amber-500/20 text-amber-600 border-amber-500/30 dark:text-amber-400',
   reconciled: 'bg-red-500/20 text-red-500 border-red-500/30',
   dismissed: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
 };
@@ -223,7 +223,7 @@ export function ChargebacksTab() {
                                   title={t("Confirmar — a operadora cobrou mesmo")}
                                   onClick={() => { setConfirmTarget(cb); setApplicationMonth(''); }}
                                 >
-                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                                 </Button>
                                 <Button
                                   type="button"

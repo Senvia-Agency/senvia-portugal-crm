@@ -243,7 +243,7 @@ export function ExpensesContent({ search, dateRange }: ExpensesContentProps) {
               <div className="mx-auto grid max-w-xl grid-cols-2 gap-3 rounded-xl border bg-card p-4 text-sm shadow-sm">
                 <div className="col-span-2"><p className="text-xs text-muted-foreground">{t("Descrição")}</p><p className="font-medium">{deleting.description}</p></div>
                 <div><p className="text-xs text-muted-foreground">{t("Data")}</p><p className="font-medium">{formatDate(deleting.expense_date)}</p></div>
-                <div><p className="text-xs text-muted-foreground">{t("Valor")}</p><p className="text-lg font-semibold tabular-nums text-rose-600">−{formatCurrency(deleting.amount)}</p></div>
+                <div><p className="text-xs text-muted-foreground">{t("Valor")}</p><p className="text-lg font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{formatCurrency(deleting.amount)}</p></div>
               </div>
             )}
           </div>

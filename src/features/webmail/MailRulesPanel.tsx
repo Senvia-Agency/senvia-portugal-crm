@@ -91,7 +91,7 @@ export function MailRulesPanel({ account, folders }: { account: MailAccount; fol
                 {rule.match_count > 0 ? `${t(rule.match_count === 1 ? 'Atuou {{n}} vez' : 'Atuou {{n}} vezes', { n: rule.match_count })}${rule.last_matched_at ? ` · ${t('última {{when}}', { when: when(rule.last_matched_at) })}` : ''}` : t('Ainda não atuou')}
                 {rule.stop_processing && ` · ${t('para aqui')}`}
               </p>
-              {missing && <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-600">
+              {missing && <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{t('A pasta desta regra já não existe: edite-a para escolher outra.')}
               </p>}
             </div>

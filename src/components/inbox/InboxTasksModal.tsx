@@ -115,7 +115,7 @@ export function InboxTasksModal({
                       <span className="w-full truncate text-sm font-medium">{t.title}</span>
                       <span className="flex w-full items-center gap-2 text-[11px] text-muted-foreground">
                         {t.contact_name && <span className="truncate">{t.contact_name}</span>}
-                        <span className={cn("ml-auto flex shrink-0 items-center gap-1", overdue && "font-semibold text-red-600")}>
+                        <span className={cn("ml-auto flex shrink-0 items-center gap-1", overdue && "font-semibold text-red-600 dark:text-red-400")}>
                           <Clock className="h-3 w-3" />
                           {dueLabel(t.due_at)}
                         </span>
@@ -153,7 +153,7 @@ export function InboxTasksModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                   <div className="rounded-lg border p-3">
                     <p className="text-[11px] text-muted-foreground">{tt("Prazo")}</p>
-                    <p className={cn("font-medium mt-0.5", isTaskOverdue(selected) && "text-red-600")}>
+                    <p className={cn("font-medium mt-0.5", isTaskOverdue(selected) && "text-red-600 dark:text-red-400")}>
                       {dueLabel(selected.due_at)}
                     </p>
                   </div>

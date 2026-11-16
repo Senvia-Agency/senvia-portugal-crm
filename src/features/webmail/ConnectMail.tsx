@@ -118,7 +118,7 @@ export function ConnectMailDialog({ provider, onClose, onConnected }: { provider
               <Label htmlFor="connect-email">{t('Endereço de email')}</Label>
               <Input id="connect-email" type="email" autoComplete="off" value={form.email} onChange={event => set({ email: event.target.value })} placeholder={t('nome@empresa.pt')} />
             </div>
-            {microsoft ? <p role="status" className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {microsoft ? <p role="status" className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-500/40">
               {t('Este endereço é da Microsoft (Outlook ou Microsoft 365), que já não aceita ligar com palavra-passe. A ligação com a conta Microsoft chega na próxima fase do WebMail.')}
             </p> : <>
               <div className="space-y-1.5">

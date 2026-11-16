@@ -215,7 +215,7 @@ export function EventDetailsModal({ open, onOpenChange, event, onEdit }: EventDe
                 <button type="button" className={cn(pill, 'bg-muted hover:bg-muted/70')} onClick={onEdit}>
                   <Edit className="h-4 w-4" /> {t('Editar')}
                 </button>
-                <button type="button" className={cn(pill, 'ml-auto text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10')} onClick={handleDeleteClick} disabled={deleteEvent.isPending}>
+                <button type="button" className={cn(pill, 'ml-auto text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 dark:text-rose-400')} onClick={handleDeleteClick} disabled={deleteEvent.isPending}>
                   {deleteEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} {t('Eliminar')}
                 </button>
               </div>

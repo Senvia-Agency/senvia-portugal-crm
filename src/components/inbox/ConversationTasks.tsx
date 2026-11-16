@@ -236,7 +236,7 @@ export function ConversationTasks({
           className={cn(
             "ml-auto flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium normal-case tracking-normal transition-colors",
             aiEnabled
-              ? "bg-violet-500/10 text-violet-600 hover:bg-violet-500/20"
+              ? "bg-violet-500/10 text-violet-600 hover:bg-violet-500/20 dark:text-violet-400"
               : "bg-muted text-muted-foreground/60 hover:text-muted-foreground",
           )}
         >
@@ -264,7 +264,7 @@ export function ConversationTasks({
           {suggestions.map((t) => {
             const due = t.due_at ? formatDue(t.due_at) : null;
             return (
-              <div key={t.id} className="rounded-lg border border-violet-200 bg-violet-500/5 p-2">
+              <div key={t.id} className="rounded-lg border border-violet-200 bg-violet-500/5 p-2 dark:border-violet-500/25">
                 <p className="flex items-start gap-1.5 text-xs leading-snug">
                   <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-violet-500" />
                   <span className="min-w-0 break-words font-medium">{t.title}</span>
@@ -274,7 +274,7 @@ export function ConversationTasks({
                 )}
                 {due && (
                   <div className="mt-1.5 pl-[18px]">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
                       <CalendarClock className="h-2.5 w-2.5" />
                       {due.label}
                     </span>
@@ -331,8 +331,8 @@ export function ConversationTasks({
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                        due.tone === "overdue" && "bg-red-100 text-red-700",
-                        due.tone === "today" && "bg-amber-100 text-amber-700",
+                        due.tone === "overdue" && "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+                        due.tone === "today" && "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
                         due.tone === "later" && "bg-muted text-muted-foreground",
                       )}
                     >
@@ -532,7 +532,7 @@ export function ConversationTasks({
               <Button
                 variant="ghost"
                 size="sm"
-                className="px-2 text-emerald-600 hover:text-emerald-700"
+                className="px-2 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
                 onClick={() => {
                   if (editing) toggleTask.mutate({ id: editing.id, done: !editing.done_at });
                   setEditing(null);

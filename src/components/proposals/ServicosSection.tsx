@@ -578,7 +578,7 @@ function CatalogProducts({
                 // The product pays commission, just not to THIS seller: there is
                 // no line with his name or his profile on it. "0,00 €" here read
                 // as a broken calculation; it is a missing row in the catalog.
-                <p className="text-xs text-amber-600">
+                <p className="text-xs text-amber-600 dark:text-amber-400">
                   {viewerIsSeller
                     ? t("Não tens linha de comissão neste produto — um admin acrescenta-a em Definições → Produtos.")
                     : t("O vendedor não tem linha de comissão neste produto — um admin acrescenta-a em Definições → Produtos.")}

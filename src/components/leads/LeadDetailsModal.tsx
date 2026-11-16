@@ -201,7 +201,7 @@ function CopyFieldButton({ value, label }: { value: string; label: string }) {
       aria-label={t("Copiar {{field}}", { field: t(label).toLowerCase() })}
       title={t("Copiar {{field}}", { field: t(label).toLowerCase() })}
     >
-      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+      {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-4 w-4" />}
     </Button>
   );
 }
@@ -473,7 +473,7 @@ export function LeadDetailsModal({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
                 <AutomationRecordActions subjectType="lead" subjectIds={[lead.id]} />
-              <Button variant="outline" size="sm" className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400"
+              <Button variant="outline" size="sm" className="h-9 rounded-full border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
                 onClick={() => navigate(getInboxUrl(lead.phone))}>
                 <MessageCircle className="h-4 w-4" />WhatsApp
               </Button>
@@ -531,7 +531,7 @@ export function LeadDetailsModal({
 
         {inboxContact && (
           <div className="shrink-0 flex items-center gap-3 border-b bg-green-500/5 px-4 sm:px-6 py-2.5">
-            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0">WhatsApp</span>
+            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0 dark:text-green-300">WhatsApp</span>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
               <button type="button" title={t("Clica para copiar o nome")}
                 onClick={() => navigator.clipboard.writeText(inboxContact.name)}

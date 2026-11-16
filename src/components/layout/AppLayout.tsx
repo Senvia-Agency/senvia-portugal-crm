@@ -120,7 +120,7 @@ function AppLayoutContent({ children, userName, organizationName }: AppLayoutPro
       <AppSidebar userName={userName} organizationName={organizationName} legacy={legacy} />
       <div className={cn("transition-[padding] duration-200", sidebarCollapsed ? "pl-16" : "pl-64", docked && "pr-[28rem]")}>
         <WorkspaceTopbar organizationName={organizationName} userName={userName} />
-        <main className="workspace-main min-h-[calc(100dvh-4rem)] overflow-hidden rounded-tl-[26px] bg-[#f6f8fc] shadow-[-8px_-6px_28px_rgba(0,0,0,.08)]">
+        <main className="workspace-main min-h-[calc(100dvh-4rem)] overflow-hidden rounded-tl-[26px] bg-[#f6f8fc] dark:bg-background shadow-[-8px_-6px_28px_rgba(0,0,0,.08)]">
           {showTrialBanner && <TrialBanner daysRemaining={subscriptionStatus!.days_remaining!} />}
           {showOverdueBanner && <PaymentOverdueBanner daysUntilBlock={subscriptionStatus!.days_until_block ?? 0} blockAt={subscriptionStatus!.block_at} />}
           <SuperAdminVisitBanner />

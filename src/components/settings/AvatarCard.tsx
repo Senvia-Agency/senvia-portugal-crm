@@ -83,7 +83,7 @@ export function AvatarCard() {
       <CardContent className="flex flex-wrap items-center gap-4 p-5">
         <Avatar className="h-20 w-20">
           <AvatarImage src={profile?.avatar_url ?? undefined} alt="" className="object-cover" />
-          <AvatarFallback className="bg-blue-100 text-2xl font-semibold text-blue-800">{name.trim().charAt(0).toUpperCase() || "?"}</AvatarFallback>
+          <AvatarFallback className="bg-blue-100 text-2xl font-semibold text-blue-800 dark:bg-blue-500/15 dark:text-blue-200">{name.trim().charAt(0).toUpperCase() || "?"}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{name || t("Sem nome")}</p>

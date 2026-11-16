@@ -139,22 +139,22 @@ function emailTone(status: FiscalEmailStatus): string {
 }
 
 function serviceTone(status: ServiceStatus): string {
-  if (status === 'active') return 'bg-green-500/10 text-green-600 border-green-500/20';
+  if (status === 'active') return 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400';
   if (status === 'cancelled' || status === 'inactive') return 'bg-muted/50 text-muted-foreground';
-  return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+  return 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400';
 }
 
 function billingTone(status: BillingStatus): string {
-  if (status === 'current') return 'bg-green-500/10 text-green-600 border-green-500/20';
+  if (status === 'current') return 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400';
   if (status === 'not_started') return 'bg-muted/50 text-muted-foreground';
-  return 'bg-red-500/10 text-red-600 border-red-500/20';
+  return 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400';
 }
 
 function CycleIcon({ status }: { status: CycleStatus }) {
-  if (status === 'paid') return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+  if (status === 'paid') return <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />;
   if (status === 'failed') return <XCircle className="h-4 w-4 text-destructive" />;
   if (status === 'void') return <XCircle className="h-4 w-4 text-muted-foreground" />;
-  return <Clock className="h-4 w-4 text-amber-600" />;
+  return <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />;
 }
 
 function monthLabel(isoDate: string): string {
@@ -363,7 +363,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
                 </Button>
               )}
               {document.pdf_path && (
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700" title={t("Enviar por WhatsApp")} aria-label={t("Enviar {{reference}} por WhatsApp", { reference })}
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300" title={t("Enviar por WhatsApp")} aria-label={t("Enviar {{reference}} por WhatsApp", { reference })}
                   onClick={() => void handleShareWhatsApp(document, reference)} disabled={sharingDocumentId === document.id}>
                   {sharingDocumentId === document.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
                 </Button>
@@ -403,7 +403,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
             alta evita a leitura errada de que "ativo" significa "pago". */}
         {recurrence.billing_status === 'past_due' && recurrence.service_status === 'active' && (
           <div className="flex gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
             <p className="text-xs text-muted-foreground">
               {t("Há cobranças em atraso, mas o serviço continua ativo. Suspender o serviço é uma decisão sua — não acontece automaticamente por um pagamento falhado.")}
             </p>
@@ -450,11 +450,11 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div>
             <p className="text-xs text-muted-foreground">{t("Liquidado")}</p>
-            <p className="font-medium text-green-600">{formatCurrency(totalPaid)}</p>
+            <p className="font-medium text-green-600 dark:text-green-400">{formatCurrency(totalPaid)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">{t("Por liquidar")}</p>
-            <p className={`font-medium ${totalOutstanding > 0 ? 'text-amber-600' : ''}`}>
+            <p className={`font-medium ${totalOutstanding > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
               {formatCurrency(totalOutstanding)}
             </p>
           </div>
@@ -504,7 +504,7 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
               <div>
                 <p className="text-sm font-medium">
                   {t("Faturação fiscal recorrente")}
-                  {fiscalDirty && <span className="ml-2 text-xs font-normal text-amber-600">{t("Alterações por guardar")}</span>}
+                  {fiscalDirty && <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">{t("Alterações por guardar")}</span>}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {t("Define o documento e o envio de email para cada ciclo desta venda.")}

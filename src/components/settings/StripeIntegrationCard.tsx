@@ -92,8 +92,8 @@ export function StripeIntegrationCard() {
                   variant="outline"
                   className={
                     restricted
-                      ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                      : 'bg-green-500/10 text-green-600 border-green-500/20'
+                      ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400'
+                      : 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400'
                   }
                 >
                   {restricted ? t('Com restrições') : t('Ativa')}
@@ -109,7 +109,7 @@ export function StripeIntegrationCard() {
 
           {restricted && (
             <div className="flex gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
               <p className="text-sm text-muted-foreground">
                 {t('O Stripe ainda não permite cobranças nesta conta. Complete a verificação no painel do Stripe — normalmente faltam dados da empresa ou a conta bancária.')}
               </p>
@@ -122,7 +122,7 @@ export function StripeIntegrationCard() {
 
           {connection.connected && !restricted && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
               {t('Pronta a receber pagamentos de subscrições.')}
             </div>
           )}

@@ -57,7 +57,7 @@ export function TasksWidget() {
             <ClipboardList className="h-4 w-4 text-primary" />
             {translate("As minhas tarefas")}
             {overdue > 0 && (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300">
                 {translate(overdue > 1 ? "{{n}} atrasadas" : "{{n}} atrasada", { n: overdue })}
               </span>
             )}
@@ -89,7 +89,7 @@ export function TasksWidget() {
                   )}
                 </span>
                 {t.due_at && (
-                  <span className={cn("flex shrink-0 items-center gap-1 text-xs", late ? "font-semibold text-red-600" : "text-muted-foreground")}>
+                  <span className={cn("flex shrink-0 items-center gap-1 text-xs", late ? "font-semibold text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                     <CalendarClock className="h-3 w-3" />
                     {late ? translate("Atrasada") : dueLabel(t.due_at)}
                   </span>

@@ -175,7 +175,7 @@ export function DraftScheduleModal({
           {/* Total das parcelas vs restante */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{t("Total das parcelas")}</span>
-            <span className={cn("font-semibold", diff !== 0 && "text-amber-600")}>
+            <span className={cn("font-semibold", diff !== 0 && "text-amber-600 dark:text-amber-400")}>
               {formatCurrency(total)}
               {diff !== 0 && (
                 <span className="ml-1 text-xs font-normal">

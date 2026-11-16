@@ -1447,6 +1447,11 @@ export const ptBR: Record<string, string> = {
   "Fechado_ticket": "Fechado",
   "Resolvido_ticket": "Resolvido",
   "Em progresso_ticket": "Em andamento",
+  "Modo claro ou escuro para si, guardado neste dispositivo.": "Modo claro ou escuro para você, salvo neste dispositivo.",
+  "Igual ao dispositivo": "Igual ao dispositivo",
+  "Fundo claro, como até agora.": "Fundo claro, como até agora.",
+  "Fundo escuro, mais confortável à noite.": "Fundo escuro, mais confortável à noite.",
+  "Segue o modo claro ou escuro do computador ou telemóvel.": "Segue o modo claro ou escuro do computador ou celular.",
 };
 
 export const en: Record<string, string> = {
@@ -2897,4 +2902,9 @@ export const en: Record<string, string> = {
   "Fechado_ticket": "Closed",
   "Resolvido_ticket": "Resolved",
   "Em progresso_ticket": "In progress",
+  "Modo claro ou escuro para si, guardado neste dispositivo.": "Light or dark mode for you, saved on this device.",
+  "Igual ao dispositivo": "Same as device",
+  "Fundo claro, como até agora.": "Light background, as before.",
+  "Fundo escuro, mais confortável à noite.": "Dark background, easier on the eyes at night.",
+  "Segue o modo claro ou escuro do computador ou telemóvel.": "Follows the light or dark mode of your computer or phone.",
 };

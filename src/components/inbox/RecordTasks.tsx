@@ -47,7 +47,7 @@ export function RecordTasks({ phone }: { phone: string | null | undefined }) {
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm leading-snug">{t.title}</p>
                 {t.due_at && (
-                  <p className={cn("mt-0.5 flex items-center gap-1 text-xs", late ? "font-medium text-red-600" : "text-muted-foreground")}>
+                  <p className={cn("mt-0.5 flex items-center gap-1 text-xs", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                     <CalendarClock className="h-3 w-3" />
                     {new Date(t.due_at).toLocaleString(intlLocale(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                     {late ? tt(" — atrasada") : ""}

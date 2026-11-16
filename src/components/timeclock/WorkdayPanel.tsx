@@ -149,7 +149,7 @@ function TodayTimeline({ entries }: { entries: TimeClockEntry[] }) {
             <div className="flex items-center gap-2">
               <span className="w-12 font-mono tabular-nums">{formatClock(e.punched_at)}</span>
               <span className="min-w-0 flex-1 truncate">{t(ACTION_LABELS[e.action])}</span>
-              {e.status !== "valid" && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">{t(STATUS_LABELS[e.status])}</span>}
+              {e.status !== "valid" && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">{t(STATUS_LABELS[e.status])}</span>}
               {e.status !== "voided" && (
                 <button type="button" title={t("Corrigir a hora deste registo")} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setEditing(editing === e.id ? null : e.id)}>

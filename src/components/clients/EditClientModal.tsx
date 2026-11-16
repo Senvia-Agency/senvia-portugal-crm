@@ -212,7 +212,7 @@ export function EditClientModal({ client, open, onOpenChange, inboxContact }: Ed
 
         {inboxContact && (
           <div className="shrink-0 flex items-center gap-3 border-b bg-green-500/5 px-4 sm:px-6 py-2.5">
-            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0">{t("WhatsApp")}</span>
+            <span className="text-[11px] font-medium text-green-700 uppercase tracking-wide shrink-0 dark:text-green-300">{t("WhatsApp")}</span>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
               <button type="button" title={t("Clica para copiar o nome")}
                 onClick={() => navigator.clipboard.writeText(inboxContact.name)}

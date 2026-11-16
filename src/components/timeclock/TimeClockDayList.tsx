@@ -59,7 +59,7 @@ export function TimeClockDayList({ days, onOpen }: { days: DaySummary[]; onOpen?
                 </>
               );
               const cls = cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
-                e.status === "pending" && "border-amber-300 bg-amber-50 text-amber-900",
+                e.status === "pending" && "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100",
                 e.status === "voided" && "line-through opacity-50");
               const title = [t(STATUS_LABELS[e.status]), e.employee_note, e.admin_note].filter(Boolean).join(" · ");
               return onOpen

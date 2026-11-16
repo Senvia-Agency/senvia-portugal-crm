@@ -139,12 +139,12 @@ export function InventoryTable() {
                         {t("Esgotado")}
                       </Badge>
                     ) : isLowStock ? (
-                      <Badge className="gap-1 bg-amber-500/10 text-amber-600 border-amber-500/20" variant="outline">
+                      <Badge className="gap-1 bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" variant="outline">
                         <AlertTriangle className="h-3 w-3" />
                         {t("Stock Baixo")}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="bg-green-500/10 text-green-600">
+                      <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400">
                         OK
                       </Badge>
                     )}
@@ -236,7 +236,7 @@ export function InventoryTable() {
               <div className="text-center text-sm text-muted-foreground">
                 {t("Stock atual: {{n}}", { n: adjustProduct.stock_quantity ?? 0 })}
                 {newQuantity !== (adjustProduct.stock_quantity ?? 0) && (
-                  <span className={newQuantity > (adjustProduct.stock_quantity ?? 0) ? "text-green-600" : "text-red-600"}>
+                  <span className={newQuantity > (adjustProduct.stock_quantity ?? 0) ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                     {" "}→ {newQuantity} ({newQuantity > (adjustProduct.stock_quantity ?? 0) ? "+" : ""}{newQuantity - (adjustProduct.stock_quantity ?? 0)})
                   </span>
                 )}

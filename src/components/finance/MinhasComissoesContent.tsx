@@ -135,7 +135,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Clock className="h-4 w-4 text-yellow-600" /> {t("Pendentes")}
+              <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" /> {t("Pendentes")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -147,7 +147,7 @@ export function MinhasComissoesContent({ dateRange, userId }: { dateRange?: Date
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-green-600" /> {t("Confirmadas")}
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> {t("Confirmadas")}
             </CardTitle>
           </CardHeader>
           <CardContent>

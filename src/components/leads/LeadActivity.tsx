@@ -99,7 +99,7 @@ export function LeadActivity({ lead }: { lead: Lead }) {
             : CalendarClock;
           return <li key={`${item.kind}-${item.id}`} className="group relative">
             <span className={cn("absolute -left-[37px] top-0 flex h-6 w-6 items-center justify-center rounded-full border bg-background",
-              item.kind === "note" && "border-amber-300 text-amber-600 dark:border-amber-500/40",
+              item.kind === "note" && "border-amber-300 text-amber-600 dark:border-amber-500/40 dark:text-amber-400",
               item.kind === "event" && (future ? "border-primary/40 text-primary" : "text-muted-foreground"),
               item.kind === "created" && "text-muted-foreground")} aria-hidden="true">
               <Icon className="h-3 w-3" />
