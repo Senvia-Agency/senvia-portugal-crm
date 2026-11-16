@@ -24,9 +24,9 @@ export function ReferralShare({ link, compact = false, className }: { link: stri
   };
   const open = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
   const channels = [
-    { label: "WhatsApp", icon: MessageCircle, className: "text-[#128C7E] hover:bg-[#25D366]/10", url: `https://wa.me/?text=${encodeURIComponent(text)}` },
+    { label: "WhatsApp", icon: MessageCircle, className: "text-[#128C7E] hover:bg-[#25D366]/10 dark:text-[#25D366]", url: `https://wa.me/?text=${encodeURIComponent(text)}` },
     { label: "Email", icon: Mail, className: "text-primary hover:bg-primary/10", url: `mailto:?subject=${encodeURIComponent("Experimenta o Senvia OS")}&body=${encodeURIComponent(text)}` },
-    { label: "LinkedIn", icon: Linkedin, className: "text-[#0A66C2] hover:bg-[#0A66C2]/10", url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}` },
+    { label: "LinkedIn", icon: Linkedin, className: "text-[#0A66C2] hover:bg-[#0A66C2]/10 dark:text-[#70B5F9]", url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}` },
   ];
 
   return (
