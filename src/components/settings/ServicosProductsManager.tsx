@@ -18,6 +18,12 @@ import { intlLocale, tr, useLanguage } from '@/i18n';
 
 /** Short summary for the compact row — what the commission column shows. */
 function commissionSummary(product: CatalogProduct, operator: Operator | null): string {
+  const weekly = product.commission_payout === 'weekly' ? ` · ${tr('semanal')}` : '';
+  if (product.manual_commission) return `${tr(product.manual_commission_template?.length ? 'Manual, com modelo' : 'Manual')}${weekly}`;
+  return `${rulesSummary(product, operator)}${weekly}`;
+}
+
+function rulesSummary(product: CatalogProduct, operator: Operator | null): string {
   // A fixed commission_basis wins regardless of kind — an energia operator
   // can opt out of Matriz de Comissões (see ProductCommissionFields).
   const isTiered = !!operator && !!operator.commission_basis;

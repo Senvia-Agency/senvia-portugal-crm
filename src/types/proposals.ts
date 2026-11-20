@@ -1,3 +1,4 @@
+import type { CommissionPayout, FormulaToken } from '@/lib/manual-commission';
 import { commissionUnits } from '@/lib/sale-units';
 
 // Proposal Types for Senvia OS
@@ -197,6 +198,13 @@ export interface ServicosProductDetail {
   // that regardless of it changing the commission).
   extra_cards_portability?: number;
   extra_cards_new?: number;
+  // Manual-commission line: the sum the seller built. Null/absent = to be
+  // entered later (the line pays 0 until then). The database recomputes
+  // `comissao` from it and logs every change in sale_manual_commission_changes.
+  manual_commission_formula?: FormulaToken[] | null;
+  // Set by the database from the catalog when the sale is saved.
+  manual_commission?: boolean;
+  commission_payout?: CommissionPayout;
 }
 
 export type ServicosDetails = Record<string, ServicosProductDetail>;
@@ -468,6 +476,15 @@ export interface CatalogProduct {
   // carries `quantidade`), which defaults to 1 so it keeps counting the way
   // it always did unless configured otherwise.
   included_cards?: number;
+  // Manual commission (BDS, docs/comissao-manual-contrato.md): the seller builds
+  // the commission sum on the sale and none of the rules above apply.
+  manual_commission?: boolean;
+  // Optional model of the sum (e.g. [Valor] × 0,15): fixed numbers stay, the
+  // seller fills the boxes ('slot') on each sale. The database enforces it.
+  manual_commission_template?: FormulaToken[] | null;
+  // When the seller is paid for this product. Weekly: the Friday closing the
+  // sale's week, and the sale cannot mix weekly and monthly products.
+  commission_payout?: CommissionPayout;
 }
 
 /**

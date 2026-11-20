@@ -68,7 +68,7 @@ import {
 import type { Proposal, ServicosProductDetail, ServicosDetails } from "@/types/proposals";
 import { NEGOTIATION_TYPE_LABELS, getCatalogCommission, productNeedsTechnologyChoice, productTechnologies } from "@/types/proposals";
 import { useServicosProducts } from "@/hooks/useServicosProducts";
-import { ServicosSection } from "@/components/proposals/ServicosSection";
+import { ServicosSection, type ManualCommissionState } from "@/components/proposals/ServicosSection";
 import { SellerSelect } from "@/components/sales/SellerSelect";
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from "@/components/shared/DocumentsCheckboxField";
 import { usePermissions } from '@/hooks/usePermissions';
@@ -235,6 +235,8 @@ export function CreateSaleModal({
   // client pays the operator, so the sale's own value is money nobody here
   // ever sees.
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>({ invalid: [], payoutMixed: false });
+  const [manualAttempted, setManualAttempted] = useState(false);
   const [notes, setNotes] = useState("");
   
   // Track which proposal we've already initialized items for
@@ -798,6 +800,19 @@ export function CreateSaleModal({
     });
     if (semTecnologia.length > 0) {
       toast.error(t("Escolhe a tecnologia (Fibra ou Satélite) em: {{products}}.", { products: semTecnologia.join(", ") }));
+      return;
+    }
+    // Manual-commission sums: a half-typed one would be saved as "to enter
+    // later" without anyone noticing, and the database refuses weekly and
+    // monthly services in the same sale.
+    if (manualCommissionState.payoutMixed) {
+      setManualAttempted(true);
+      toast.error(t("Um serviço com comissão semanal tem de ficar numa venda à parte."));
+      return;
+    }
+    if (manualCommissionState.invalid.length > 0) {
+      setManualAttempted(true);
+      toast.error(t("Complete a conta da comissão em: {{products}}.", { products: manualCommissionState.invalid.join(", ") }));
       return;
     }
     // Date sanity for energy/telecom contracts.
@@ -1539,6 +1554,8 @@ export function CreateSaleModal({
                         isNewFormat={isNewFormat}
                         sellerUserId={sellerId ?? user?.id ?? null}
                         onSellerCommissionChange={setSellerCommissionTotal}
+                        onManualCommissionStateChange={setManualCommissionState}
+                        attempted={manualAttempted}
                         catalog={catalog}
                         operators={catalogOperators}
                         configs={servicosConfigs}

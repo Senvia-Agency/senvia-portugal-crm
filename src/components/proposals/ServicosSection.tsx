@@ -39,6 +39,24 @@ import {
   cardConfigFor,
 } from '@/types/proposals';
 import { useLanguage, tr, intlLocale } from "@/i18n";
+import { ManualCommissionEditor } from "@/components/sales/ManualCommissionEditor";
+import {
+  draftFromSale,
+  draftFromTemplate,
+  draftToFormula,
+  evaluateFormula,
+  formulaToText,
+  isDraftEmpty,
+  type DraftToken,
+} from "@/lib/manual-commission";
+
+/** What the sale form needs to know before saving the manual-commission lines. */
+export interface ManualCommissionState {
+  /** Products whose sum was started but is not valid yet. */
+  readonly invalid: string[];
+  /** Weekly and monthly products in the same sale (the database refuses it). */
+  readonly payoutMixed: boolean;
+}
 
 interface OperatorRef {
   id: string;
@@ -69,6 +87,10 @@ interface ServicosSectionProps {
   /** Reports the seller's commission total up (catalog format only), so the
    *  sale's summary can show it instead of a price the client never pays. */
   onSellerCommissionChange?: (total: number) => void;
+  /** Reports whether the manual-commission sums can be saved (catalog format only). */
+  onManualCommissionStateChange?: (state: ManualCommissionState) => void;
+  /** Manual sums already entered on a saved sale: corrected only from the sale, with a reason. */
+  lockedManualProducts?: readonly string[];
   isAutoCalculated?: (product: string) => boolean;
   totalKwp?: number;
   totalComissao?: number;
@@ -90,6 +112,8 @@ export function ServicosSection({
   onUpdateDetail,
   onSetProductDetail,
   onSellerCommissionChange,
+  onManualCommissionStateChange,
+  lockedManualProducts,
   isAutoCalculated,
   totalKwp,
   totalComissao,
@@ -128,6 +152,8 @@ export function ServicosSection({
           onToggleProduct={onToggleProduct}
           onSetProductDetail={onSetProductDetail}
           onSellerCommissionChange={onSellerCommissionChange}
+          onManualCommissionStateChange={onManualCommissionStateChange}
+          lockedManualProducts={lockedManualProducts}
           attempted={attempted}
         />
       ) : (
@@ -158,6 +184,8 @@ function CatalogProducts({
   onToggleProduct,
   onSetProductDetail,
   onSellerCommissionChange,
+  onManualCommissionStateChange,
+  lockedManualProducts = [],
   attempted,
 }: {
   catalog: CatalogProduct[];
@@ -170,6 +198,8 @@ function CatalogProducts({
   /** Reports the seller's total up, so the sale's summary can show the
    *  commission instead of a price the client never pays. */
   onSellerCommissionChange?: (total: number) => void;
+  onManualCommissionStateChange?: (state: ManualCommissionState) => void;
+  lockedManualProducts?: readonly string[];
   attempted?: boolean;
 }) {
   const { t } = useLanguage();
@@ -189,8 +219,28 @@ function CatalogProducts({
   // The operator gross and the org's margin are the company's numbers, not a
   // salesperson's. He sees what he earns; only an admin sees the rest.
 
-  const lineCommission = (product: CatalogProduct, qty: number, extraCards?: ExtraCards, tech?: TelecomTechnology) =>
-    getSaleLineCommission(product, qty, extraCards, sellerId, sellerProfileId, tech);
+  const lineCommission = (product: CatalogProduct, qty: number, extraCards?: ExtraCards, tech?: TelecomTechnology, detail?: ServicosProductDetail) => {
+    if (product.manual_commission) {
+      // The seller's own sum is the whole commission. The organization's part
+      // on these lines is still to be decided (docs/comissao-manual-contrato.md).
+      const result = detail?.manual_commission_formula ? evaluateFormula(draftFromSale(detail.manual_commission_formula, null)) : null;
+      const amount = result?.ok ? result.amount : 0;
+      return { gross: amount, seller: amount, org: 0 };
+    }
+    return getSaleLineCommission(product, qty, extraCards, sellerId, sellerProfileId, tech);
+  };
+
+  // The sum being typed, per manual product. Only a complete, valid sum goes
+  // into the sale's details; the draft keeps half-typed numbers on screen.
+  const [manualDrafts, setManualDrafts] = useState<Record<string, DraftToken[]>>({});
+  const manualDraftFor = (name: string, product: CatalogProduct, detail?: ServicosProductDetail): DraftToken[] =>
+    manualDrafts[name] ?? draftFromSale(detail?.manual_commission_formula, product.manual_commission_template);
+  const setManualDraft = (name: string, product: CatalogProduct, detail: ServicosProductDetail, draft: DraftToken[]) => {
+    setManualDrafts(prev => ({ ...prev, [name]: draft }));
+    const formula = draftToFormula(draft);
+    const result = formula ? evaluateFormula(draftFromSale(formula, null)) : null;
+    onSetProductDetail(name, { ...detail, manual_commission_formula: formula, comissao: result?.ok ? result.amount : 0 });
+  };
 
   const operatorById = new Map(operators.map((o) => [o.id, o.name]));
 
@@ -241,6 +291,7 @@ function CatalogProducts({
           ? { total: detail.total_cards }
           : { portabilidade: detail?.extra_cards_portability, novos: detail?.extra_cards_new },
         detail?.tecnologia,
+        detail,
       );
       return {
         totalSellerComissao: acc.totalSellerComissao + line.seller,
@@ -254,6 +305,20 @@ function CatalogProducts({
   useEffect(() => {
     onSellerCommissionChange?.(totalSellerComissao);
   }, [totalSellerComissao, onSellerCommissionChange]);
+
+  const manualInvalid = servicosProdutos.filter((name) => {
+    const detail = servicosDetails[name];
+    const product = resolveProduct(name, detail?.operator_id);
+    if (!product?.manual_commission) return false;
+    const draft = manualDraftFor(name, product, detail);
+    return !isDraftEmpty(draft) && !evaluateFormula(draft).ok;
+  });
+  const payouts = new Set(servicosProdutos.map((name) => resolveProduct(name, servicosDetails[name]?.operator_id)?.commission_payout === 'weekly' ? 'weekly' : 'monthly'));
+  const payoutMixed = payouts.size > 1;
+  const manualInvalidKey = manualInvalid.join('|');
+  useEffect(() => {
+    onManualCommissionStateChange?.({ invalid: manualInvalidKey ? manualInvalidKey.split('|') : [], payoutMixed });
+  }, [manualInvalidKey, payoutMixed, onManualCommissionStateChange]);
 
   // Build combobox options: for the chosen operator, every product tied to it
   // plus every operator-agnostic one — deduplicated by name (the specific
@@ -300,6 +365,19 @@ function CatalogProducts({
       // The operator comes with the product. A product with none (the
       // Níveis sold under any brand) gets one on its own line, below.
       const frozenOperatorId = catProduct.operator_id;
+      if (catProduct.manual_commission) {
+        setManualDrafts(prev => ({ ...prev, [value]: draftFromTemplate(catProduct.manual_commission_template) }));
+        onSetProductDetail(value, {
+          price: priceVal,
+          quantidade: 1,
+          comissao: 0,
+          manual_commission_formula: null,
+          operator_id: frozenOperatorId,
+          operator_name: frozenOperatorId ? operatorById.get(frozenOperatorId) : undefined,
+          tecnologia,
+        });
+        return;
+      }
       onSetProductDetail(value, {
         price: priceVal,
         commission_pct: catProduct.commission_pct,
@@ -410,8 +488,9 @@ function CatalogProducts({
           const lineTypeNames = (catProduct.type_ids ?? [])
             .filter((id) => !(id === 'fibra' || id === 'satelite') || !tecnologia || id === tecnologia)
             .map((id) => typeById.get(id)?.name ?? id);
-          const line = lineCommission(catProduct, quantidade, extraCards, tecnologia);
-          const hasCommission = line.gross > 0 || isTiered || catProduct.has_commission;
+          const isManual = !!catProduct.manual_commission;
+          const line = lineCommission(catProduct, quantidade, extraCards, tecnologia, detail);
+          const hasCommission = !isManual && (line.gross > 0 || isTiered || catProduct.has_commission);
           // What the SELLER takes on this line — the same number the box at
           // the foot of the card totals up. It used to read 0 for anyone who
           // was not the seller, so an admin saw "0,00 €" per line above a
@@ -496,6 +575,7 @@ function CatalogProducts({
                     min={0}
                     value={price}
                     onCommit={(newPrice) => {
+                      if (isManual) { onSetProductDetail(productName, { ...detail, price: newPrice }); return; }
                       const comissao = lineCommission({ ...catProduct, price: newPrice }, quantidade, extraCards, tecnologia).gross;
                       onSetProductDetail(productName, { ...detail, price: newPrice, comissao });
                     }}
@@ -513,10 +593,10 @@ function CatalogProducts({
                     value={quantidade}
                     onCommit={(n) => {
                       const newQty = normalizeOperationalUnits(n);
-                      const comissao = lineCommission(catProduct, newQty, extraCards, tecnologia).gross;
                       const newPrice = isTiered
                         ? getCatalogPriceForQuantity(catProduct, newQty) * newQty
                         : unitPrice * newQty;
+                      const comissao = isManual ? (detail.comissao ?? 0) : lineCommission(catProduct, newQty, extraCards, tecnologia).gross;
                       onSetProductDetail(productName, { ...detail, quantidade: newQty, comissao, price: newPrice });
                     }}
                     className="h-8"
@@ -550,7 +630,35 @@ function CatalogProducts({
                   {t("Escolhe a tecnologia — a comissão desta linha depende dela.")}
                 </p>
               )}
-              {supportsExtraCards && (
+              {isManual && (
+                <div className="space-y-2 rounded-md border border-dashed border-primary/30 bg-background/60 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label className="text-xs font-medium text-foreground">{t("Conta da comissão")}</Label>
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+                      {catProduct.commission_payout === "weekly" ? t("Paga à semana, fecha à sexta") : t("Paga ao mês")}
+                    </Badge>
+                  </div>
+                  {lockedManualProducts.includes(productName) ? (
+                    <div className="space-y-1">
+                      <p className="text-sm tabular-nums">
+                        <span className="text-muted-foreground">{formulaToText(draftFromSale(detail.manual_commission_formula, null), intlLocale())} = </span>
+                        <span className="font-semibold text-foreground">{(detail.comissao ?? 0).toLocaleString(intlLocale(), { style: 'currency', currency: 'EUR' })}</span>
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">{t("Para mudar esta conta, abra a venda e use «Corrigir conta». Assim fica o motivo no histórico.")}</p>
+                    </div>
+                  ) : (
+                  <ManualCommissionEditor
+                    mode="sale"
+                    tokens={manualDraftFor(productName, catProduct, detail)}
+                    lockedShape={!!catProduct.manual_commission_template?.length}
+                    allowEmpty
+                    showErrors={attempted}
+                    onChange={(draft) => setManualDraft(productName, catProduct, detail, draft)}
+                  />
+                  )}
+                </div>
+              )}
+              {!isManual && supportsExtraCards && (
                 <div className="space-y-1 max-w-[200px]">
                   <Label className="text-xs text-muted-foreground">{t("Número de Cartões")}</Label>
                   <NumberInput
@@ -600,6 +708,12 @@ function CatalogProducts({
           );
         })}
       </div>
+
+      {payoutMixed && (
+        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+          {t("Um serviço com comissão semanal tem de ficar numa venda à parte. Tire os serviços mensais ou faça duas vendas.")}
+        </p>
+      )}
 
       {servicosProdutos.length > 0 && (
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">

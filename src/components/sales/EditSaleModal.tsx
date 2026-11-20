@@ -64,7 +64,8 @@ import { useCpes } from "@/hooks/useCpes";
 import { NEGOTIATION_TYPE_LABELS, NEGOTIATION_TYPES, MODELO_SERVICO_LABELS, getCatalogCommission, productNeedsTechnologyChoice, productTechnologies } from "@/types/proposals";
 import type { ServicosDetails } from "@/types/proposals";
 import { useServicosProducts } from '@/hooks/useServicosProducts';
-import { ServicosSection } from '@/components/proposals/ServicosSection';
+import { ServicosSection, type ManualCommissionState } from '@/components/proposals/ServicosSection';
+import { manualCommissionErrorMessage } from '@/lib/manual-commission';
 import { SellerSelect } from '@/components/sales/SellerSelect';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
 import { useCommissionMatrix, getVolumeTier } from "@/hooks/useCommissionMatrix";
@@ -172,6 +173,8 @@ export function EditSaleModal({
   // summary shows: the client pays the operator, so the sale's own value is
   // not money anyone in this org ever sees.
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>({ invalid: [], payoutMixed: false });
+  const [manualAttempted, setManualAttempted] = useState(false);
   const [telecomStatus, setTelecomStatus] = useState<TelecomStatus | "">("");
   // Reassigning the sale: null keeps it with whoever created it.
   const [sellerId, setSellerId] = useState<string | null>(null);
@@ -484,6 +487,19 @@ export function EditSaleModal({
       toast.error(t("Escolhe a tecnologia (Fibra ou Satélite) em: {{products}}.", { products: semTecnologia.join(", ") }));
       return;
     }
+    // Manual-commission sums: a half-typed one would be saved as "to enter
+    // later" without anyone noticing, and the database refuses weekly and
+    // monthly services in the same sale.
+    if (manualCommissionState.payoutMixed) {
+      setManualAttempted(true);
+      toast.error(t("Um serviço com comissão semanal tem de ficar numa venda à parte."));
+      return;
+    }
+    if (manualCommissionState.invalid.length > 0) {
+      setManualAttempted(true);
+      toast.error(t("Complete a conta da comissão em: {{products}}.", { products: manualCommissionState.invalid.join(", ") }));
+      return;
+    }
     // Date sanity for energy/telecom contracts.
     for (const cpe of editableCpes) {
       if (cpe.contrato_inicio && cpe.contrato_fim && cpe.contrato_inicio > cpe.contrato_fim) {
@@ -658,7 +674,8 @@ export function EditSaleModal({
       onSuccess?.();
     } catch (error) {
       console.error("Error updating sale:", error);
-      toast.error(t("Erro ao atualizar venda"));
+      // useUpdateSale already shows the database message for a refused manual sum.
+      if (!manualCommissionErrorMessage(error)) toast.error(t("Erro ao atualizar venda"));
     } finally {
       setIsSubmitting(false);
     }
@@ -952,6 +969,9 @@ export function EditSaleModal({
                           operators={catalogOperators}
                           sellerUserId={sellerId ?? sale.created_by}
                           onSellerCommissionChange={setSellerCommissionTotal}
+                        onManualCommissionStateChange={setManualCommissionState}
+                        lockedManualProducts={Object.entries(sale?.servicos_details ?? {}).filter(([, d]) => !!d?.manual_commission_formula?.length).map(([name]) => name)}
+                        attempted={manualAttempted}
                           configs={SERVICOS_PRODUCT_CONFIGS}
                           onToggleProduct={(name) => {
                             if (servicosProdutos.includes(name)) {

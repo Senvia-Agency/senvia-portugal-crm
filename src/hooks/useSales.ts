@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeamFilter } from "@/hooks/useTeamFilter";
 import { toast } from "sonner";
+import { manualCommissionErrorMessage } from "@/lib/manual-commission";
 import { invalidateSaleFinance } from '@/lib/sale-finance-cache';
 import {
   TELECOM_TO_SALE_STATUS,
@@ -402,8 +403,8 @@ export function useCreateSale() {
       toast.success(tr("Venda criada com sucesso!"));
       void invalidateSaleFinance(queryClient);
     },
-    onError: () => {
-      toast.error(tr("Erro ao criar venda"));
+    onError: (error) => {
+      toast.error(manualCommissionErrorMessage(error) ?? tr("Erro ao criar venda"));
     },
   });
 }
@@ -507,8 +508,8 @@ export function useUpdateSale() {
       queryClient.invalidateQueries({ queryKey: ["commissions-live"] });
       void invalidateSaleFinance(queryClient);
     },
-    onError: () => {
-      toast.error(tr("Erro ao atualizar venda"));
+    onError: (error) => {
+      toast.error(manualCommissionErrorMessage(error) ?? tr("Erro ao atualizar venda"));
     },
   });
 }

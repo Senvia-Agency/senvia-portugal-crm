@@ -1,5 +1,6 @@
 import type { TelecomStatus } from '@/types/sales';
-import { addMonths, endOfDay, format, parseISO, startOfMonth } from 'date-fns';
+import { addMonths, endOfDay, format, parseISO, startOfDay, startOfMonth } from 'date-fns';
+import { weeklyPayoutDate } from './manual-commission';
 import type { DateRange } from 'react-day-picker';
 
 export const TELECOM_EARNED_STATUSES: TelecomStatus[] = ['ativo', 'instalado'];
@@ -20,9 +21,27 @@ interface CommissionTiming {
   commission_expected_date?: string | null;
   activation_date?: string | null;
   sale_date?: string | null;
+  servicos_details?: unknown;
+}
+
+/**
+ * A sale whose every product pays weekly (commission_payout set by the
+ * database from the catalog). Those are paid on the Friday closing the week,
+ * not in the month after installation. docs/comissao-manual-contrato.md.
+ */
+export function isWeeklyCommissionSale(sale: Pick<CommissionTiming, 'servicos_details'>): boolean {
+  const details = sale.servicos_details;
+  if (!details || typeof details !== 'object') return false;
+  const lines = Object.values(details as Record<string, { commission_payout?: string } | null>);
+  return lines.length > 0 && lines.every((line) => line?.commission_payout === 'weekly');
 }
 
 export function telecomCommissionDate(sale: CommissionTiming): string | null {
+  if (isWeeklyCommissionSale(sale)) {
+    // The database stores the Friday; recompute it only for a sale saved before.
+    const base = sale.commission_expected_date ?? sale.activation_date ?? sale.sale_date;
+    return base ? weeklyPayoutDate(base) : null;
+  }
   if (!sale.scheduled_install_date) return null;
   const installation = parseISO(sale.scheduled_install_date);
   if (Number.isNaN(installation.getTime())) return null;
@@ -38,6 +57,11 @@ export function telecomCommissionInPeriod(sale: CommissionTiming, range?: DateRa
   if (!date) return false;
   const value = parseISO(date);
   if (!range?.from) return value <= endOfDay(today);
+  // A weekly commission has a real day (a Friday): compare by day, so a
+  // week picked in the calendar finds exactly its own Friday.
+  if (isWeeklyCommissionSale(sale)) {
+    return value >= startOfDay(range.from) && (!range.to || value <= endOfDay(range.to));
+  }
   return value >= startOfMonth(range.from) && (!range.to || value <= startOfMonth(range.to));
 }
 

@@ -97,7 +97,7 @@ export function useLiveCommissions(selectedMonth: string, effectiveUserIds?: str
       // Get delivered sales filtered by activation_date
       let salesQuery = supabase
         .from('sales')
-        .select('id, code, lead_id, client_id, activation_date, scheduled_install_date, status, proposal_id')
+        .select('id, code, lead_id, client_id, activation_date, scheduled_install_date, status, proposal_id, sale_date, servicos_details')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
       if (!isTelecom) salesQuery = salesQuery.gte('activation_date', monthStart).lte('activation_date', monthEnd);

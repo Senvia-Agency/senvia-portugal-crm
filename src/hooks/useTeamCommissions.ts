@@ -57,7 +57,7 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
 
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date, scheduled_install_date')
+        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date, scheduled_install_date, servicos_details')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
 

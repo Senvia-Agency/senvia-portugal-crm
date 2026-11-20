@@ -56,6 +56,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ManualCommissionLine } from "@/components/sales/ManualCommissionLine";
+import { ManualCommissionCorrectDialog } from "@/components/sales/ManualCommissionCorrectDialog";
+import { useServicosProducts } from "@/hooks/useServicosProducts";
+import { useManualCommissionChanges } from "@/hooks/useManualCommissionChanges";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useUpdateSale } from "@/hooks/useSales";
@@ -258,12 +262,18 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   // this model is his alone. Unlike myCommissionTotal it doesn't depend on who
   // is looking, so an admin checking the sale sees the seller's real number.
   const sellerCommissionTotal = commissionSplits.reduce((sum, s) => sum + (s.amount || 0), 0);
+  // Manual-commission lines (BDS): the sum and who changed it.
+  const hasManualLines = Object.values(sale?.servicos_details ?? {}).some((d) => !!d?.manual_commission || !!d?.manual_commission_formula);
+  const { data: manualChanges = [], isLoading: manualChangesLoading } = useManualCommissionChanges(sale?.id, hasManualLines);
+  const { catalog: servicosCatalog } = useServicosProducts();
+  const [correctingProduct, setCorrectingProduct] = useState<string | null>(null);
   // Resolved straight from profiles — not from the active team roster, which
   // would blank out whoever made this sale if they were later deactivated.
   const { data: beneficiaryNames } = useProfileNames([
     sale?.seller_id,
     sale?.created_by,
     ...commissionSplits.map((s) => s.user_id),
+    ...manualChanges.map((c) => c.changed_by),
   ]);
   const splitBeneficiaryName = (userId: string) => beneficiaryNames?.[userId] || 'Desconhecido';
 
@@ -915,6 +925,18 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                                             {t(TELECOM_TECHNOLOGY_LABELS[detail.tecnologia])}
                                           </Badge>
                                         )}
+                                        {(detail?.manual_commission || detail?.manual_commission_formula) && (
+                                          <ManualCommissionLine
+                                            formula={detail.manual_commission_formula}
+                                            amount={detail.comissao}
+                                            weekly={detail.commission_payout === 'weekly'}
+                                            payoutDate={detail.commission_payout === 'weekly' ? sale.commission_expected_date ?? null : null}
+                                            changes={manualChanges.filter((c) => c.product_name === s)}
+                                            changesLoading={manualChangesLoading}
+                                            nameOf={splitBeneficiaryName}
+                                            onCorrect={sale.status !== 'cancelled' && !isLocked ? () => setCorrectingProduct(s) : undefined}
+                                          />
+                                        )}
                                         {!isTelecom && detail?.activation_date && (
                                           <Badge variant="outline" className="text-[11px]">
                                             {t("Ativação:")} {format(new Date(`${detail.activation_date}T12:00:00`), 'dd/MM/yyyy')}
@@ -1514,6 +1536,17 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
             documentReference={sale.invoice_reference || `${sale.invoicexpress_type || 'FT'} #${sale.invoicexpress_id}`}
           />}
         </>
+      )}
+      {sale && correctingProduct && (
+        <ManualCommissionCorrectDialog
+          open={!!correctingProduct}
+          onOpenChange={(o) => { if (!o) setCorrectingProduct(null); }}
+          saleId={sale.id}
+          product={correctingProduct}
+          formula={sale.servicos_details?.[correctingProduct]?.manual_commission_formula}
+          template={servicosCatalog?.find((c) => c.name === correctingProduct)?.manual_commission_template}
+          currentAmount={Number(sale.servicos_details?.[correctingProduct]?.comissao ?? 0)}
+        />
       )}
     </>
   );

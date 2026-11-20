@@ -1,3 +1,4 @@
+import { ManualCommissionSettings } from './ManualCommissionSettings';
 import { Radio, Cable, Plus, Banknote, Tag, Wallet, CreditCard, Tags } from 'lucide-react';
 import { TonedField, tonedInputClass } from './FieldTone';
 import { Toggle } from '@/components/ui/toggle';
@@ -556,6 +557,8 @@ export function ProductCommissionFields({
           the dialog above its scroll box — see ProductHeaderFields. */}
       {/* One sentence, not two: on a tiered product the defaults note
           already says what the figures above are for. */}
+      <ManualCommissionSettings product={product} onCommit={onCommit} />
+      {product.manual_commission ? null : <>
       {!isTiered && <OperatorPaysHint />}
       {isTiered && (
         <p className="text-xs text-muted-foreground -mt-3">
@@ -575,6 +578,7 @@ export function ProductCommissionFields({
         onChange={onChange}
         onCommit={onCommit}
       />
+      </>}
     </>
   );
 }

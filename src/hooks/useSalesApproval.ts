@@ -37,7 +37,7 @@ export function usePendingApprovalSales() {
 
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('id, code, total_value, comissao, status, sale_date, activation_date, scheduled_install_date, created_at, client_id, lead_id, notes')
+        .select('id, code, total_value, comissao, status, sale_date, activation_date, scheduled_install_date, created_at, client_id, lead_id, notes, servicos_details')
         .eq('organization_id', organizationId)
         .in('status', ['pending', 'in_progress'])
         .order('created_at', { ascending: false });

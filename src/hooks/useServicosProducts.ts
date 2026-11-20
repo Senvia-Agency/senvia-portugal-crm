@@ -38,6 +38,9 @@ interface CatalogConfigFromDB {
   tiered_commission?: boolean;
   tier_basis?: CatalogProduct['tier_basis'];
   tier_scope?: CatalogProduct['tier_scope'];
+  manual_commission?: CatalogProduct['manual_commission'];
+  manual_commission_template?: CatalogProduct['manual_commission_template'];
+  commission_payout?: CatalogProduct['commission_payout'];
 }
 
 function isCatalogFormat(item: any): item is CatalogConfigFromDB {
@@ -93,6 +96,9 @@ export function useServicosProducts() {
         tiered_commission: c.tiered_commission,
         tier_basis: c.tier_basis,
         tier_scope: c.tier_scope,
+        manual_commission: c.manual_commission,
+        manual_commission_template: c.manual_commission_template,
+        commission_payout: c.commission_payout,
       }));
       return {
         products: catalog.map((c) => c.name),
