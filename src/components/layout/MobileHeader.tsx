@@ -2,7 +2,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { WhatsNewButton } from '@/components/announcements/WhatsNewButton';
-import { InterfaceVersionSwitch } from './InterfaceVersionSwitch';
 import { useInterfaceStore } from '@/stores/useInterfaceStore';
 import { WorkplaceNotifications } from './WorkplaceNotifications';
 import { WorkplaceTimePreview } from './WorkplaceTimePreview';
@@ -25,8 +24,8 @@ export function MobileHeader({ onMenuToggle, organizationName = 'Senvia OS' }: M
       <img alt={organization?.name || 'SENVIA'} width={96} height={28} className="h-7 w-24 object-contain"
         src={organization?.logo_url || (legacy ? '/lovable-uploads/7d06b8aa-41ca-4a96-a4b1-699608629148.png' : '/senvia-logo-white.png')} />
       <div className="workplace-mobile-controls flex shrink-0 items-center justify-end gap-1">
-        {legacy ? <><InterfaceVersionSwitch /><WhatsNewButton variant="header" /></> : <>
-          <InterfaceVersionSwitch compact /><WorkplaceNotifications /><WorkplaceTimePreview /><WorkplaceAccountMenu userName={profile?.full_name} organizationName={organizationName} />
+        {legacy ? <WhatsNewButton variant="header" /> : <>
+          <WorkplaceNotifications /><WorkplaceTimePreview /><WorkplaceAccountMenu userName={profile?.full_name} organizationName={organizationName} />
         </>}
       </div>
     </div>

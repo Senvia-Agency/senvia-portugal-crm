@@ -5,7 +5,7 @@ import { THEME_OPTIONS, toThemeChoice } from '@/components/theme/theme-options';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
   DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -20,7 +20,6 @@ export function WorkplaceAccountMenu({ userName, organizationName }: { readonly 
   const { data: organizations = [] } = useUserOrganizations();
   const { canUseFeature } = useSubscription();
   const legacy = useInterfaceStore(state => state.legacy);
-  const setLegacy = useInterfaceStore(state => state.setLegacy);
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
@@ -80,7 +79,6 @@ export function WorkplaceAccountMenu({ userName, organizationName }: { readonly 
           ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
-      <DropdownMenuCheckboxItem checked={legacy} onCheckedChange={setLegacy}>{t('Versão antiga')}</DropdownMenuCheckboxItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => { void signOut().then(() => navigate('/')); }}><LogOut className="mr-2 h-4 w-4" />{t('Terminar sessão')}</DropdownMenuItem>
     </DropdownMenuContent>

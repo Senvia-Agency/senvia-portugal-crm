@@ -5,7 +5,6 @@ import { useModules } from '@/hooks/useModules';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useAuth } from '@/contexts/AuthContext';
-import { InterfaceVersionSwitch } from './InterfaceVersionSwitch';
 import { WorkplaceAccountMenu } from './WorkplaceAccountMenu';
 import { WorkplaceNotifications } from './WorkplaceNotifications';
 import { WorkplaceTimePreview } from './WorkplaceTimePreview';
@@ -48,7 +47,7 @@ export function WorkspaceTopbar({ organizationName, userName }: { organizationNa
         <span className="min-w-0 flex-1 truncate">{t("Procurar módulos e páginas...")}</span>
         <kbd className="hidden rounded-md border border-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#8c9bb6] lg:block">Ctrl K</kbd>
       </button>
-      <div className="workplace-header-actions flex shrink-0 items-center gap-2"><NewsTopbarButton /><InterfaceVersionSwitch />
+      <div className="workplace-header-actions flex shrink-0 items-center gap-2"><NewsTopbarButton />
         {isSuperAdmin && <button type="button" className="workplace-admin-link" onClick={() => navigate('/system-admin')} aria-label={t("Abrir administração")}><Shield className="h-4 w-4" aria-hidden="true" /><span>Admin</span></button>}
         <ReferralTopbarButton />
         <OttoTopbarButton />
