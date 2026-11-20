@@ -63,6 +63,7 @@ Todos com `ERRCODE 22023` e `HINT = 'manual_commission'`. A mensagem já vem em 
 | Número inválido ou fora dos limites | `A conta da comissão de "<serviço>" tem um número inválido.` |
 | Divisão por zero | `A conta da comissão de "<serviço>" divide por zero.` |
 | Resultado negativo | `A comissão de "<serviço>" não pode ser negativa.` |
+| Resultado acima de 1 000 000 000 € | `A comissão de "<serviço>" é demasiado alta.` |
 | Conta não segue o modelo do serviço | `A conta da comissão de "<serviço>" tem de seguir o modelo do serviço; só os campos a preencher podem mudar.` |
 | Serviço semanal junto com serviço mensal na mesma venda | `Um serviço com comissão semanal tem de ficar numa venda à parte.` |
 

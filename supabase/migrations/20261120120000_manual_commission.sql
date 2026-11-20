@@ -90,6 +90,11 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
       MESSAGE = format('A comissão de "%s" não pode ser negativa.', p_product);
   END IF;
+  -- Cabe em numeric(12,2) do histórico e é muito acima de qualquer comissão real.
+  IF _total > 1000000000 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
+      MESSAGE = format('A comissão de "%s" é demasiado alta.', p_product);
+  END IF;
   RETURN _total;
 END;
 $function$;
@@ -329,6 +334,7 @@ DECLARE
   _reason  text := btrim(COALESCE(p_reason, ''));
   _details jsonb;
   _result  numeric;
+  _rows    integer;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', HINT = 'manual_commission',
@@ -367,9 +373,10 @@ BEGIN
      SET servicos_details = jsonb_set(servicos_details, ARRAY[p_product, 'manual_commission_formula'], p_formula)
    WHERE id = p_sale_id
   RETURNING public._safe_numeric(servicos_details->p_product->>'comissao') INTO _result;
+  GET DIAGNOSTICS _rows = ROW_COUNT;
   PERFORM set_config('senvia.manual_commission_reason', '', true);
 
-  IF NOT FOUND THEN
+  IF _rows = 0 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', HINT = 'manual_commission',
       MESSAGE = 'Venda não encontrada ou sem permissão para a editar.';
   END IF;
@@ -395,7 +402,9 @@ DECLARE
   all_lines integer;
 BEGIN
   -- Venda só com serviços de comissão semanal: paga na sexta que fecha a semana.
-  SELECT count(*) FILTER (WHERE line.value->>'commission_payout' = 'weekly'), count(*)
+  -- Só as linhas que são serviços (objetos) contam, como no gatilho sales_manual_commission_trg.
+  SELECT count(*) FILTER (WHERE line.value->>'commission_payout' = 'weekly'),
+         count(*) FILTER (WHERE jsonb_typeof(line.value) = 'object')
     INTO weekly_lines, all_lines
   FROM jsonb_each(CASE WHEN jsonb_typeof(NEW.servicos_details) = 'object'
     THEN NEW.servicos_details ELSE '{}'::jsonb END) line;
