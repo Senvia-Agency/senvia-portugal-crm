@@ -97,8 +97,9 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>(EMPTY_MANUAL_COMMISSION_STATE);
-  // Each opening starts clean: a sum abandoned last time must not block this proposal.
-  useEffect(() => { setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE); }, [open]);
+  // Closing clears it, so a sum abandoned last time never blocks the next proposal.
+  // Not on opening: the services list reports first and that report must stay.
+  useEffect(() => { if (!open) setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE); }, [open]);
 
   // Proposta criada já como "Aceite" → abre o modal de venda
   const navigate = useNavigate();

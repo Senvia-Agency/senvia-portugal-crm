@@ -238,8 +238,10 @@ export function CreateSaleModal({
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
   const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>(EMPTY_MANUAL_COMMISSION_STATE);
   const [manualAttempted, setManualAttempted] = useState(false);
-  // Each opening starts clean: a sum abandoned last time must not block this sale.
+  // Closing clears it, so a sum abandoned last time never blocks the next sale.
+  // Not on opening: the services list reports first and that report must stay.
   useEffect(() => {
+    if (open) return;
     setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE);
     setManualAttempted(false);
   }, [open]);
