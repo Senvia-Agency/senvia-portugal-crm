@@ -19,7 +19,7 @@ import { saleMatchesCommissionFilters, type CommissionFilters } from "@/lib/comm
 import { useSaleTypeIds } from "@/hooks/useSaleTypeIds";
 import { useTeamCommissionTotal } from "@/hooks/useCommercialCommissions";
 import { PAYMENT_METHOD_LABELS, TELECOM_STATUS_LABELS, TELECOM_STATUS_COLORS, type TelecomStatus } from "@/types/sales";
-import { TELECOM_EARNED_STATUSES, telecomCommissionDate, telecomCommissionInPeriod } from "@/lib/telecom-finance";
+import { TELECOM_EARNED_STATUSES, isWeeklyCommissionSale, telecomCommissionDate, telecomCommissionInPeriod } from "@/lib/telecom-finance";
 import { isTelecomAwaitingScheduledInstall } from "@/lib/telecom-sale-views";
 import { sumOperationalSaleUnits } from "@/lib/sale-units";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -401,7 +401,7 @@ function SalesDetailTable({
             <>
               {shown.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && telecomCommissionDate(s)
+                  <TableCell className="whitespace-nowrap">{dateBasis === 'activation' && telecomCommissionDate(s) && !isWeeklyCommissionSale(s)
                     ? format(parseISO(telecomCommissionDate(s)!), 'MMM yyyy', { locale: dateLocale() })
                     : fmtDate(dateBasis === 'activation' ? telecomCommissionDate(s) : s.sale_date)}</TableCell>
                   <TableCell>{s.client?.name || s.lead?.name || "—"}</TableCell>

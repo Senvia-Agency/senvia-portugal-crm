@@ -48,8 +48,17 @@ export const FORMULA_ERROR_MESSAGES: Record<FormulaError, string> = {
 
 export type FormulaResult = { ok: true; amount: number; error?: undefined } | { ok: false; error: FormulaError; amount?: undefined };
 
-const round2 = (n: number) => Math.round((n + Math.sign(n) * Number.EPSILON) * 100) / 100;
-const decimals = (n: number) => (String(n).split('.')[1] ?? '').length;
+/**
+ * round(x, 2) as PostgreSQL does on numeric: half away from zero. toPrecision
+ * first clears binary noise, so 72,1 × 0,35 = 25,235 rounds to 25,24 like the
+ * database and not to 25,23.
+ */
+const round2 = (n: number) => {
+  const cents = Number((Math.abs(n) * 100).toPrecision(12));
+  return (Math.sign(n) * Math.round(cents)) / 100;
+};
+/** At most 4 decimal places, as the database accepts (1e-7 too). */
+const hasAtMost4Decimals = (n: number) => Number(n.toFixed(4)) === n;
 
 /** × ÷ before + −, left to right, no parentheses — as evaluate_manual_commission. */
 export function evaluateFormula(tokens: readonly DraftToken[]): FormulaResult {
@@ -66,7 +75,7 @@ export function evaluateFormula(tokens: readonly DraftToken[]): FormulaResult {
   for (const token of tokens) {
     if (token.t === 'num') {
       if (token.v == null) return { ok: false, error: 'blank' };
-      if (!Number.isFinite(token.v) || Math.abs(token.v) > MAX_FORMULA_ABS || decimals(token.v) > 4) return { ok: false, error: 'invalid_number' };
+      if (!Number.isFinite(token.v) || Math.abs(token.v) > MAX_FORMULA_ABS || !hasAtMost4Decimals(token.v)) return { ok: false, error: 'invalid_number' };
       if (term == null) term = token.v;
       else if (mulOp === '*') term *= token.v;
       else {
@@ -104,7 +113,11 @@ export function parseFormulaNumber(raw: string): number | null {
   if (!text) return null;
   const negative = text.startsWith('-');
   const body = negative ? text.slice(1) : text;
-  const normalized = body.includes(',') ? body.replace(/\./g, '').replace(',', '.') : body;
+  // A comma is the decimal mark. Without one, dots in groups of three are
+  // thousands ("1.500" = 1500, "1.234.567"); any other dot is a decimal point.
+  const normalized = body.includes(',')
+    ? body.replace(/\./g, '').replace(',', '.')
+    : /^\d{1,3}(\.\d{3})+$/.test(body) ? body.replace(/\./g, '') : body;
   if (!/^\d*\.?\d+$|^\d+\.$/.test(normalized)) return null;
   const n = Number(normalized);
   return Number.isFinite(n) ? (negative ? -n : n) : null;
@@ -116,12 +129,31 @@ export function draftFromTemplate(template: readonly FormulaToken[] | null | und
   return template.map(token => token.t === 'slot' ? { t: 'num', v: null, label: token.label, slot: true } : { ...token });
 }
 
+/** The saved sum has the model's shape (same operators, same fixed numbers). */
+export function followsTemplate(formula: readonly FormulaToken[] | null | undefined, template: readonly FormulaToken[] | null | undefined): boolean {
+  if (!template?.length) return true;
+  if (!formula?.length || formula.length !== template.length) return false;
+  return template.every((t, i) => {
+    const f = formula[i];
+    if (t.t === 'slot') return f.t === 'num';
+    if (t.t === 'num') return f.t === 'num' && f.v === t.v;
+    return f.t === 'op' && f.v === t.v;
+  });
+}
+
 /**
  * Saved sale sum → draft, marking which numbers are the model's boxes so only
  * those stay editable. Without a model every number is free.
  */
 export function draftFromSale(formula: readonly FormulaToken[] | null | undefined, template: readonly FormulaToken[] | null | undefined): DraftToken[] {
+  // No sum yet, or the service's model changed since: start from the model,
+  // keeping the numbers already typed in the boxes where they still fit.
   if (!formula?.length) return draftFromTemplate(template);
+  if (!followsTemplate(formula, template)) {
+    const filled = formula.filter((t): t is Extract<FormulaToken, { t: 'num' }> => t.t === 'num');
+    let i = 0;
+    return draftFromTemplate(template).map(token => token.t === 'num' && token.slot ? { ...token, v: filled[i++]?.v ?? null } : token);
+  }
   return formula.map((token, i) => {
     if (token.t !== 'num') return token.t === 'op' ? { ...token } : { t: 'num', v: null, label: token.label, slot: true };
     return { ...token, slot: template?.length ? template[i]?.t === 'slot' : undefined };

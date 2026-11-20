@@ -36,18 +36,26 @@ export function ManualCommissionSettings({ product, onCommit }: {
   commitRef.current = onCommit;
   const templateKey = template ? JSON.stringify(template) : null;
   const pending = useRef<number | null>(null);
+  const pendingValue = useRef<string | null>(null);
   const lastSaved = useRef(JSON.stringify(savedTemplate ?? null));
-  useEffect(() => {
-    if (!manual || !templateOn || !templateKey) return;
-    const next = templateKey;
-    if (next === lastSaved.current) return;
+  const flush = () => {
     if (pending.current) window.clearTimeout(pending.current);
-    pending.current = window.setTimeout(() => {
+    pending.current = null;
+    const next = pendingValue.current;
+    pendingValue.current = null;
+    if (next && next !== lastSaved.current) {
       lastSaved.current = next;
       commitRef.current({ manual_commission_template: JSON.parse(next) });
-    }, 700);
-    return () => { if (pending.current) window.clearTimeout(pending.current); };
+    }
+  };
+  useEffect(() => {
+    if (!manual || !templateOn || !templateKey || templateKey === lastSaved.current) return;
+    pendingValue.current = templateKey;
+    if (pending.current) window.clearTimeout(pending.current);
+    pending.current = window.setTimeout(flush, 700);
   }, [manual, templateOn, templateKey]);
+  // Closing the product right after typing still saves the model.
+  useEffect(() => () => flush(), []);
 
   return (
     <section className="space-y-4 rounded-xl border p-4">
@@ -77,7 +85,13 @@ export function ManualCommissionSettings({ product, onCommit }: {
             <Switch id={`template-${product.name}`} checked={templateOn}
               onCheckedChange={(on) => {
                 setTemplateOn(on);
-                if (!on) { lastSaved.current = 'null'; onCommit({ manual_commission_template: null }); }
+                if (!on) {
+                  if (pending.current) window.clearTimeout(pending.current);
+                  pending.current = null;
+                  pendingValue.current = null;
+                  lastSaved.current = 'null';
+                  onCommit({ manual_commission_template: null });
+                }
               }} />
           </div>
           {templateOn && (
