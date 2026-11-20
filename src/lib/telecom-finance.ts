@@ -38,10 +38,13 @@ export function isWeeklyCommissionSale(sale: Pick<CommissionTiming, 'servicos_de
 }
 
 export function telecomCommissionDate(sale: CommissionTiming): string | null {
-  // A payment month chosen by hand wins over the weekly Friday, as in the database.
-  if (isWeeklyCommissionSale(sale) && !sale.commission_month_override) {
-    // The database stores the Friday; recompute it only for a sale saved before.
-    const base = sale.commission_expected_date ?? sale.activation_date ?? sale.sale_date;
+  if (isWeeklyCommissionSale(sale)) {
+    // The database stores the payout day: the Friday, or the first day of a
+    // month chosen by hand (set_sale_commission_payment_month). Use it as is.
+    if (sale.commission_expected_date) return sale.commission_expected_date.slice(0, 10);
+    if (sale.commission_month_override) return `${sale.commission_month_override.slice(0, 7)}-01`;
+    // Only a sale the database has not dated yet: the Friday of its week.
+    const base = sale.activation_date ?? sale.sale_date;
     return base ? weeklyPayoutDate(base) : null;
   }
   if (!sale.scheduled_install_date) return null;
@@ -61,7 +64,7 @@ export function telecomCommissionInPeriod(sale: CommissionTiming, range?: DateRa
   if (!range?.from) return value <= endOfDay(today);
   // A weekly commission has a real day (a Friday): compare by day, so a
   // week picked in the calendar finds exactly its own Friday.
-  if (isWeeklyCommissionSale(sale) && !sale.commission_month_override) {
+  if (isWeeklyCommissionSale(sale)) {
     return value >= startOfDay(range.from) && (!range.to || value <= endOfDay(range.to));
   }
   return value >= startOfMonth(range.from) && (!range.to || value <= startOfMonth(range.to));

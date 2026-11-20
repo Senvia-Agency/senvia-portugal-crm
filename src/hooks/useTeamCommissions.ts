@@ -5,6 +5,11 @@ import { fetchSplitsBySale } from '@/hooks/useCommissionSplits';
 import { useTeamMembers } from '@/hooks/useTeam';
 import { telecomCommissionDate } from '@/lib/telecom-finance';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import type { Tables } from '@/integrations/supabase/types';
+
+/** Not in the generated types yet: when the commission is paid (see set_sale_commission_payment_month). */
+type CommissionDates = { commission_expected_date: string | null; commission_month_override: string | null };
+type TeamCommissionSaleRow = Pick<Tables<'sales'>, 'id' | 'code' | 'comissao' | 'total_value' | 'client_id' | 'lead_id' | 'created_by' | 'sale_date' | 'activation_date' | 'scheduled_install_date' | 'servicos_details'> & CommissionDates;
 
 export interface TeamCommissionSale {
   saleId: string;
@@ -57,9 +62,10 @@ export function useTeamCommissions(selectedMonth: string, effectiveUserIds?: str
 
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date, scheduled_install_date, servicos_details')
+        .select('id, code, comissao, total_value, client_id, lead_id, created_by, sale_date, activation_date, scheduled_install_date, servicos_details, commission_expected_date, commission_month_override')
         .eq('organization_id', organizationId)
-        .in('status', ['delivered', 'fulfilled']);
+        .in('status', ['delivered', 'fulfilled'])
+        .overrideTypes<TeamCommissionSaleRow[], { merge: false }>();
 
       if (error) throw error;
       if (!sales || sales.length === 0) return empty;

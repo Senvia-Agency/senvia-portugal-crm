@@ -11,6 +11,11 @@ import {
 } from '@/hooks/useCommissionMatrix';
 import { telecomCommissionInPeriod } from '@/lib/telecom-finance';
 import { format, endOfMonth } from 'date-fns';
+import type { Tables } from '@/integrations/supabase/types';
+
+/** Not in the generated types yet: when the commission is paid (see set_sale_commission_payment_month). */
+type CommissionDates = { commission_expected_date: string | null; commission_month_override: string | null };
+type LiveCommissionSaleRow = Pick<Tables<'sales'>, 'id' | 'code' | 'lead_id' | 'client_id' | 'activation_date' | 'scheduled_install_date' | 'status' | 'proposal_id' | 'sale_date' | 'servicos_details'> & CommissionDates;
 
 const NEGOTIATION_TYPE_LABELS: Record<string, string> = {
   angariacao: 'Angariação',
@@ -97,11 +102,11 @@ export function useLiveCommissions(selectedMonth: string, effectiveUserIds?: str
       // Get delivered sales filtered by activation_date
       let salesQuery = supabase
         .from('sales')
-        .select('id, code, lead_id, client_id, activation_date, scheduled_install_date, status, proposal_id, sale_date, servicos_details')
+        .select('id, code, lead_id, client_id, activation_date, scheduled_install_date, status, proposal_id, sale_date, servicos_details, commission_expected_date, commission_month_override')
         .eq('organization_id', organizationId)
         .in('status', ['delivered', 'fulfilled']);
       if (!isTelecom) salesQuery = salesQuery.gte('activation_date', monthStart).lte('activation_date', monthEnd);
-      const { data: salesRaw, error: salesError } = await salesQuery;
+      const { data: salesRaw, error: salesError } = await salesQuery.overrideTypes<LiveCommissionSaleRow[], { merge: false }>();
       const sales = isTelecom ? salesRaw?.filter(s => telecomCommissionInPeriod(s, {
         from: new Date(`${monthStart}T00:00:00`), to: new Date(`${monthEnd}T00:00:00`),
       })) : salesRaw;
