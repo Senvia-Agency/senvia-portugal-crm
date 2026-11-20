@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OperatorField, PriceField, OperatorPaysField, OperatorPaysHint, ProductTypesField, CommissionSection, useProductOperatorContext } from './ProductCommissionFields';
+import { ManualCommissionSettings } from './ManualCommissionSettings';
 import { TonedField, tonedInputClass } from './FieldTone';
 import type { Operator } from '@/hooks/useOperators';
 import type { CatalogProduct } from '@/types/proposals';
@@ -132,6 +133,9 @@ export function CreateTelecomProductModal({
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-6">
+            {/* Same card as when editing a product: rules or manual, model, weekly. */}
+            <ManualCommissionSettings product={draft} onCommit={patch} immediate />
+            {!draft.manual_commission && <>
             <OperatorPaysHint />
 
             <CommissionSection
@@ -147,6 +151,7 @@ export function CreateTelecomProductModal({
               onChange={patch}
               onCommit={patch}
             />
+            </>}
           </div>
 
           <div className="shrink-0 border-t px-4 sm:px-6 py-3 flex justify-end gap-2">

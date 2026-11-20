@@ -19,9 +19,11 @@ const DEFAULT_TEMPLATE: DraftToken[] = [
  * seller builds on the sale (optionally from a model), and monthly or weekly.
  * docs/comissao-manual-contrato.md.
  */
-export function ManualCommissionSettings({ product, onCommit }: {
+export function ManualCommissionSettings({ product, onCommit, immediate }: {
   readonly product: CatalogProduct;
   readonly onCommit: (updates: Partial<CatalogProduct>) => void;
+  /** A draft held in memory (new product): pass the model on at once, no save delay. */
+  readonly immediate?: boolean;
 }) {
   const { t } = useLanguage();
   const manual = !!product.manual_commission;
@@ -52,8 +54,8 @@ export function ManualCommissionSettings({ product, onCommit }: {
     if (!manual || !templateOn || !templateKey || templateKey === lastSaved.current) return;
     pendingValue.current = templateKey;
     if (pending.current) window.clearTimeout(pending.current);
-    pending.current = window.setTimeout(flush, 700);
-  }, [manual, templateOn, templateKey]);
+    pending.current = window.setTimeout(flush, immediate ? 0 : 700);
+  }, [manual, templateOn, templateKey, immediate]);
   // Closing the product right after typing still saves the model.
   useEffect(() => () => flush(), []);
 
