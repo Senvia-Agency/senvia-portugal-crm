@@ -88,17 +88,46 @@ Tabela nova `public.sale_manual_commission_changes` (só leitura para a tela):
 | `old_formula` / `new_formula` | jsonb (ou `null`) |
 | `old_amount` / `new_amount` | numeric(12,2) (ou `null`) |
 | `changed_by` | uuid (`auth.uid()` de quem gravou; `null` se veio do sistema) |
+| `reason` | text: o motivo, quando a mudança veio da correção (secção 7); `null` na criação e na edição normal da venda |
 | `changed_at` | timestamptz |
 
 - Uma linha por serviço manual sempre que a conta muda, incluindo a primeira vez que é preenchida.
 - Leitura: membros da organização e super admin, com a mesma regra de 2 passos das outras tabelas. Ninguém escreve, edita ou apaga pela API.
 - Para a tela: `supabase.from('sale_manual_commission_changes').select('*').eq('sale_id', id).order('changed_at', { ascending: false })`. O nome de quem mudou vem de `profiles.full_name` por `changed_by`.
 
-## 7. Quem pode editar a conta depois
+## 7. Corrigir a conta depois: `update_sale_manual_commission`
 
-Não mudou: quem já pode editar a venda pode editar a conta, com os mesmos bloqueios de venda concluída ou entregue. Cada mudança fica no histórico.
+```ts
+const { data: novaComissao, error } = await supabase.rpc('update_sale_manual_commission', {
+  p_sale_id: venda.id,
+  p_product: 'Nome do serviço',
+  p_formula: tokens,          // mesma forma da secção 2, já sem caixas vazias
+  p_reason: 'Valor do contrato corrigido',
+});
+```
+
+- Devolve a comissão nova da linha (numeric, 2 casas). A venda, a divisão e `org_commission` ficam atualizadas na mesma transação.
+- **Motivo obrigatório:** de 3 a 500 caracteres depois de tirar os espaços. Fica em `reason` no histórico.
+- **Quem pode:** quem já pode editar a venda. A função corre com as permissões de quem chama (RLS de `sales`), sem permissões especiais.
+- Duas correções ao mesmo tempo na mesma venda ficam uma depois da outra (bloqueio da linha).
+- A edição normal da venda (EditSaleModal) também pode mudar a conta e fica no histórico sem motivo. Para exigir motivo em toda a correção, a tela usa só esta função.
+
+Erros novos (mesmo `HINT = 'manual_commission'`):
+
+| Caso | Código | Mensagem |
+|---|---|---|
+| Sem sessão | 42501 | `Inicie sessão para corrigir a comissão.` |
+| Motivo vazio ou curto | 22023 | `Indique o motivo da correção.` |
+| Motivo longo | 22023 | `O motivo da correção pode ter no máximo 500 caracteres.` |
+| Conta vazia | 22023 | `A conta da comissão de "<serviço>" está incompleta ou mal formada.` |
+| Venda de outra empresa, inexistente ou sem permissão | 42501 | `Venda não encontrada ou sem permissão para a editar.` |
+| Serviço não é manual nesta venda | 22023 | `"<serviço>" não tem comissão manual nesta venda.` |
+
+Mais os erros da secção 4 (conta mal formada, divisão por zero, negativo, fora do modelo).
 
 ## 8. O que fica de fora
+
+- Prazo de edição pelo vendedor (por exemplo, só até à sexta do fecho) e destaque de correções em vendas já pagas: ideia da Marge, ainda não confirmada pelo Thiago. Hoje vale a regra de edição da venda.
 
 - Parte da BDS nas vendas manuais (decisão do Thiago).
 - Ecrã de fecho semanal no Financeiro: as comissões semanais aparecem nas listas atuais, pela data prevista.

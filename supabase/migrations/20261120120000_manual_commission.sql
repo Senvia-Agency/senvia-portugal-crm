@@ -7,7 +7,7 @@
 --
 -- Reverter: DROP TRIGGER sales_manual_commission_trg / sales_manual_commission_history_trg,
 -- DROP das funções novas (evaluate_manual_commission, manual_commission_follows_template,
--- enforce_manual_commission, log_manual_commission_change) e, se não houver vendas manuais,
+-- enforce_manual_commission, log_manual_commission_change, update_sale_manual_commission) e, se não houver vendas manuais,
 -- da tabela sale_manual_commission_changes. As duas funções substituídas voltam ao que
 -- eram tirando o bloco marcado "Comissão manual" / "comissão semanal" de cada uma.
 
@@ -238,6 +238,7 @@ CREATE TABLE IF NOT EXISTS public.sale_manual_commission_changes (
   old_amount      numeric(12,2),
   new_amount      numeric(12,2),
   changed_by      uuid,
+  reason          text,
   changed_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -289,12 +290,13 @@ BEGIN
     _old_f := NULLIF(_old_l->'manual_commission_formula', 'null'::jsonb);
     CONTINUE WHEN _new_f IS NOT DISTINCT FROM _old_f;
     INSERT INTO public.sale_manual_commission_changes
-      (organization_id, sale_id, product_name, old_formula, new_formula, old_amount, new_amount, changed_by)
+      (organization_id, sale_id, product_name, old_formula, new_formula, old_amount, new_amount, changed_by, reason)
     VALUES
       (NEW.organization_id, NEW.id, _key, _old_f, _new_f,
        CASE WHEN _old_l IS NOT NULL THEN public._safe_numeric(_old_l->>'comissao') END,
        CASE WHEN _new_l IS NOT NULL THEN public._safe_numeric(_new_l->>'comissao') END,
-       auth.uid());
+       auth.uid(),
+       NULLIF(current_setting('senvia.manual_commission_reason', true), ''));
   END LOOP;
   RETURN NEW;
 END;
@@ -306,6 +308,77 @@ DROP TRIGGER IF EXISTS sales_manual_commission_history_trg ON public.sales;
 CREATE TRIGGER sales_manual_commission_history_trg
   AFTER INSERT OR UPDATE OF servicos_details ON public.sales
   FOR EACH ROW EXECUTE FUNCTION public.log_manual_commission_change();
+
+-- 4b. Corrigir a conta de uma venda, com motivo obrigatório ----------------------
+-- SECURITY INVOKER: a atualização passa pelas mesmas regras de acesso (RLS) que a
+-- edição normal da venda. Validação, cálculo, divisão e histórico ficam a cargo
+-- dos gatilhos; aqui só se exige o motivo e se confirma que a linha é manual.
+
+CREATE OR REPLACE FUNCTION public.update_sale_manual_commission(
+  p_sale_id uuid,
+  p_product text,
+  p_formula jsonb,
+  p_reason  text
+)
+RETURNS numeric
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _reason  text := btrim(COALESCE(p_reason, ''));
+  _details jsonb;
+  _result  numeric;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', HINT = 'manual_commission',
+      MESSAGE = 'Inicie sessão para corrigir a comissão.';
+  END IF;
+  IF char_length(_reason) < 3 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
+      MESSAGE = 'Indique o motivo da correção.';
+  END IF;
+  IF char_length(_reason) > 500 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
+      MESSAGE = 'O motivo da correção pode ter no máximo 500 caracteres.';
+  END IF;
+  IF p_formula IS NULL OR jsonb_typeof(p_formula) = 'null' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
+      MESSAGE = format('A conta da comissão de "%s" está incompleta ou mal formada.', p_product);
+  END IF;
+
+  -- FOR UPDATE: duas correções ao mesmo tempo ficam uma depois da outra.
+  SELECT servicos_details INTO _details
+  FROM public.sales WHERE id = p_sale_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', HINT = 'manual_commission',
+      MESSAGE = 'Venda não encontrada ou sem permissão para a editar.';
+  END IF;
+  IF jsonb_typeof(_details) <> 'object'
+     OR jsonb_typeof(_details->p_product) <> 'object'
+     OR COALESCE(_details->p_product->>'manual_commission', 'false') <> 'true' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', HINT = 'manual_commission',
+      MESSAGE = format('"%s" não tem comissão manual nesta venda.', p_product);
+  END IF;
+
+  PERFORM set_config('senvia.manual_commission_reason', _reason, true);
+  UPDATE public.sales
+     SET servicos_details = jsonb_set(servicos_details, ARRAY[p_product, 'manual_commission_formula'], p_formula)
+   WHERE id = p_sale_id
+  RETURNING public._safe_numeric(servicos_details->p_product->>'comissao') INTO _result;
+  PERFORM set_config('senvia.manual_commission_reason', '', true);
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', HINT = 'manual_commission',
+      MESSAGE = 'Venda não encontrada ou sem permissão para a editar.';
+  END IF;
+  RETURN _result;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.update_sale_manual_commission(uuid, text, jsonb, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_sale_manual_commission(uuid, text, jsonb, text) TO authenticated;
 
 -- 5. Data de pagamento semanal ---------------------------------------------------
 -- Cópia da versão em produção (20/11/2026) com o ramo "weekly" no início.
