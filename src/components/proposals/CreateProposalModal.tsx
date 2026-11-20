@@ -40,7 +40,7 @@ import {
   getCatalogCommission,
 } from '@/types/proposals';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
-import { ServicosSection } from '@/components/proposals/ServicosSection';
+import { ServicosSection, type ManualCommissionState } from '@/components/proposals/ServicosSection';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
 import { useLanguage } from "@/i18n";
 
@@ -95,6 +95,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
   
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>({ invalid: [], payoutMixed: false });
 
   // Proposta criada já como "Aceite" → abre o modal de venda
   const navigate = useNavigate();
@@ -257,7 +258,10 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
     return selectedProducts.length > 0;
   }, [isTelecom, selectedProducts]);
 
-  const isFormValid = isServicosValid && isEnergiaValid && isGenericValid && !!selectedClientId;
+  // A half-typed manual-commission sum would be dropped silently; weekly and
+  // monthly services cannot share a sale, so neither can they share a proposal.
+  const isManualCommissionValid = manualCommissionState.invalid.length === 0 && !manualCommissionState.payoutMixed;
+  const isFormValid = isServicosValid && isEnergiaValid && isGenericValid && !!selectedClientId && isManualCommissionValid;
 
   const handleAddProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -570,6 +574,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
                           servicosProdutos={servicosProdutos}
                           servicosDetails={servicosDetails}
                           attempted={attempted}
+                          onManualCommissionStateChange={setManualCommissionState}
                           isNewFormat={isNewFormat}
                           configs={SERVICOS_PRODUCT_CONFIGS}
                           catalog={catalog}

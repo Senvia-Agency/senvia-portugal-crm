@@ -515,6 +515,8 @@ export interface ExtraCards {
  * per-person amounts on the sale.
  */
 export function getCatalogCommission(product: CatalogProduct): number {
+  // Manual commission: the seller's own sum on the sale is the whole value.
+  if (product.manual_commission) return 0;
   if (product.splits && product.splits.length > 0) {
     const fixedSum = product.splits.filter(s => s.type === 'fixed').reduce((sum, s) => sum + (s.value || 0), 0);
     const pctSum = product.splits.filter(s => s.type === 'pct').reduce((sum, s) => sum + (s.value || 0), 0);
@@ -750,6 +752,8 @@ export function getSaleLineCommission(
   sellerProfileId?: string | null,
   tech?: TelecomTechnology,
 ): SaleLineCommission {
+  // Manual commission: no catalog rule pays anything; the line's sum does.
+  if (product.manual_commission) return { gross: 0, seller: 0, org: 0 };
   const qty = commissionUnits(quantity);
   const tiers = product.quantity_tiers;
   const tier = tiers && tiers.length > 0

@@ -87,6 +87,8 @@ export function extraCardPayoutFromSale(
   for (const productName of productNames) {
     const product = catalogByName.get(productName);
     const detail = saleCardDetails(details?.[productName]);
+    // A manual-commission service pays only the sum the seller built: no card money.
+    if (product?.manual_commission) continue;
     if (!product) {
       if (detail?.total_cards != null || detail?.extra_cards_portability != null || detail?.extra_cards_new != null || saleTotalCards !== undefined) return null;
       continue;
