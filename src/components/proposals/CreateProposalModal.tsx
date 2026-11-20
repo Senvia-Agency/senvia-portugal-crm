@@ -40,7 +40,8 @@ import {
   getCatalogCommission,
 } from '@/types/proposals';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
-import { ServicosSection, type ManualCommissionState } from '@/components/proposals/ServicosSection';
+import { ServicosSection } from '@/components/proposals/ServicosSection';
+import { EMPTY_MANUAL_COMMISSION_STATE, manualCommissionBlock, type ManualCommissionState } from '@/lib/manual-commission';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
 import { useLanguage } from "@/i18n";
 
@@ -95,7 +96,9 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
   
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
-  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>({ invalid: [], payoutMixed: false });
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>(EMPTY_MANUAL_COMMISSION_STATE);
+  // Each opening starts clean: a sum abandoned last time must not block this proposal.
+  useEffect(() => { setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE); }, [open]);
 
   // Proposta criada já como "Aceite" → abre o modal de venda
   const navigate = useNavigate();
@@ -236,6 +239,9 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
   const isServicosValid = useMemo(() => {
     if (!isTelecom || proposalType !== 'servicos') return true;
     if (servicosProdutos.length === 0) return false;
+    // Catalog format: each line already carries its catalog data; the legacy
+    // per-field check below would reject every catalog product.
+    if (isNewFormat) return true;
     return servicosProdutos.every(produto => {
       const config = SERVICOS_PRODUCT_CONFIGS.find(c => c.name === produto);
       const detail = servicosDetails[produto] || {};
@@ -243,7 +249,7 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
         detail[field] !== undefined && detail[field] > 0
       ) ?? false;
     });
-  }, [isTelecom, proposalType, servicosProdutos, servicosDetails]);
+  }, [isTelecom, proposalType, servicosProdutos, servicosDetails, isNewFormat, SERVICOS_PRODUCT_CONFIGS]);
 
   const isEnergiaValid = useMemo(() => {
     if (!isTelecom || proposalType !== 'energia') return true;
@@ -260,7 +266,10 @@ export function CreateProposalModal({ client, open, onOpenChange, onSuccess, pre
 
   // A half-typed manual-commission sum would be dropped silently; weekly and
   // monthly services cannot share a sale, so neither can they share a proposal.
-  const isManualCommissionValid = manualCommissionState.invalid.length === 0 && !manualCommissionState.payoutMixed;
+  const manualBlock = isTelecom && proposalType === 'servicos'
+    ? manualCommissionBlock(manualCommissionState, servicosProdutos)
+    : EMPTY_MANUAL_COMMISSION_STATE;
+  const isManualCommissionValid = manualBlock.invalid.length === 0 && !manualBlock.payoutMixed;
   const isFormValid = isServicosValid && isEnergiaValid && isGenericValid && !!selectedClientId && isManualCommissionValid;
 
   const handleAddProduct = (productId: string) => {

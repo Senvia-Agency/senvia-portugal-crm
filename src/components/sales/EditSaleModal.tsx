@@ -64,7 +64,8 @@ import { useCpes } from "@/hooks/useCpes";
 import { NEGOTIATION_TYPE_LABELS, NEGOTIATION_TYPES, MODELO_SERVICO_LABELS, getCatalogCommission, productNeedsTechnologyChoice, productTechnologies } from "@/types/proposals";
 import type { ServicosDetails } from "@/types/proposals";
 import { useServicosProducts } from '@/hooks/useServicosProducts';
-import { ServicosSection, type ManualCommissionState } from '@/components/proposals/ServicosSection';
+import { ServicosSection } from '@/components/proposals/ServicosSection';
+import { EMPTY_MANUAL_COMMISSION_STATE, manualCommissionBlock, type ManualCommissionState } from '@/lib/manual-commission';
 import { manualCommissionErrorMessage } from '@/lib/manual-commission';
 import { SellerSelect } from '@/components/sales/SellerSelect';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
@@ -173,8 +174,13 @@ export function EditSaleModal({
   // summary shows: the client pays the operator, so the sale's own value is
   // not money anyone in this org ever sees.
   const [sellerCommissionTotal, setSellerCommissionTotal] = useState(0);
-  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>({ invalid: [], payoutMixed: false });
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>(EMPTY_MANUAL_COMMISSION_STATE);
   const [manualAttempted, setManualAttempted] = useState(false);
+  // Each opening starts clean: a sum abandoned last time must not block this sale.
+  useEffect(() => {
+    setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE);
+    setManualAttempted(false);
+  }, [open]);
   const [telecomStatus, setTelecomStatus] = useState<TelecomStatus | "">("");
   // Reassigning the sale: null keeps it with whoever created it.
   const [sellerId, setSellerId] = useState<string | null>(null);
@@ -490,14 +496,15 @@ export function EditSaleModal({
     // Manual-commission sums: a half-typed one would be saved as "to enter
     // later" without anyone noticing, and the database refuses weekly and
     // monthly services in the same sale.
-    if (manualCommissionState.payoutMixed) {
+    const manualBlock = manualCommissionBlock(manualCommissionState, servicosProdutos);
+    if (manualBlock.payoutMixed) {
       setManualAttempted(true);
       toast.error(t("Um serviço com comissão semanal tem de ficar numa venda à parte."));
       return;
     }
-    if (manualCommissionState.invalid.length > 0) {
+    if (manualBlock.invalid.length > 0) {
       setManualAttempted(true);
-      toast.error(t("Complete a conta da comissão em: {{products}}.", { products: manualCommissionState.invalid.join(", ") }));
+      toast.error(t("Complete a conta da comissão em: {{products}}.", { products: manualBlock.invalid.join(", ") }));
       return;
     }
     // Date sanity for energy/telecom contracts.

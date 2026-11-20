@@ -191,3 +191,22 @@ export function weeklyPayoutDate(date: string): string {
   const day = parseISO(date.slice(0, 10));
   return format(addDays(day, (5 - getDay(day) + 7) % 7), 'yyyy-MM-dd');
 }
+
+/** What the sale or proposal form needs to know before saving the manual-commission lines. */
+export interface ManualCommissionState {
+  /** Products whose sum was started but is not valid yet. */
+  readonly invalid: string[];
+  /** Weekly and monthly products in the same sale (the database refuses it). */
+  readonly payoutMixed: boolean;
+}
+
+/** Nothing to block: no manual service, or the section is not on screen. */
+export const EMPTY_MANUAL_COMMISSION_STATE: ManualCommissionState = { invalid: [], payoutMixed: false };
+
+/**
+ * Products of the state that are really on this sale or proposal. A state
+ * reported by a section that was closed or changed must never block the next one.
+ */
+export function manualCommissionBlock(state: ManualCommissionState, products: readonly string[]): ManualCommissionState {
+  return { invalid: state.invalid.filter((name) => products.includes(name)), payoutMixed: state.payoutMixed };
+}

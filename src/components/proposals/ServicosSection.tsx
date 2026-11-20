@@ -47,16 +47,13 @@ import {
   evaluateFormula,
   formulaToText,
   isDraftEmpty,
+  EMPTY_MANUAL_COMMISSION_STATE,
   type DraftToken,
+  type ManualCommissionState,
 } from "@/lib/manual-commission";
 
 /** What the sale form needs to know before saving the manual-commission lines. */
-export interface ManualCommissionState {
-  /** Products whose sum was started but is not valid yet. */
-  readonly invalid: string[];
-  /** Weekly and monthly products in the same sale (the database refuses it). */
-  readonly payoutMixed: boolean;
-}
+
 
 interface OperatorRef {
   id: string;
@@ -319,6 +316,9 @@ function CatalogProducts({
   useEffect(() => {
     onManualCommissionStateChange?.({ invalid: manualInvalidKey ? manualInvalidKey.split('|') : [], payoutMixed });
   }, [manualInvalidKey, payoutMixed, onManualCommissionStateChange]);
+  // Closing the window or switching the proposal type unmounts this list:
+  // whatever it reported goes with it.
+  useEffect(() => () => onManualCommissionStateChange?.(EMPTY_MANUAL_COMMISSION_STATE), [onManualCommissionStateChange]);
 
   // Build combobox options: for the chosen operator, every product tied to it
   // plus every operator-agnostic one — deduplicated by name (the specific

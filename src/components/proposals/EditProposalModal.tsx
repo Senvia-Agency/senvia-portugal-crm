@@ -37,6 +37,7 @@ import {
 } from '@/types/proposals';
 import { useServicosProducts } from '@/hooks/useServicosProducts';
 import { ServicosSection } from '@/components/proposals/ServicosSection';
+import { EMPTY_MANUAL_COMMISSION_STATE, manualCommissionBlock, type ManualCommissionState } from '@/lib/manual-commission';
 import { DocumentsCheckboxField, ContractSignedCheckboxField } from '@/components/shared/DocumentsCheckboxField';
 import { useLanguage, intlLocale } from "@/i18n";
 
@@ -54,7 +55,7 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
   const { data: existingCpes = [], isSuccess: cpesLoaded, isFetching: cpesFetching, isError: cpesError } = useProposalCpes(proposal.id);
   const { data: existingProducts = [], isSuccess: productsLoaded, isFetching: productsFetching, isError: productsError } = useProposalProducts(proposal.id);
   const { organization } = useAuth();
-  const { configs: SERVICOS_PRODUCT_CONFIGS, catalog, isNewFormat } = useServicosProducts();
+  const { configs: SERVICOS_PRODUCT_CONFIGS, catalog, isNewFormat, operators: catalogOperators } = useServicosProducts();
   const { calculateCommission, isAutoCalculated, calculateEnergyCommission, hasEnergyConfig } = useCommissionMatrix();
   const updateProposal = useUpdateProposal();
   const updateProposalCpes = useUpdateProposalCpes();
@@ -96,6 +97,9 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
   
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [manualCommissionState, setManualCommissionState] = useState<ManualCommissionState>(EMPTY_MANUAL_COMMISSION_STATE);
+  // Each opening starts clean: a sum abandoned last time must not block this proposal.
+  useEffect(() => { setManualCommissionState(EMPTY_MANUAL_COMMISSION_STATE); }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -333,6 +337,9 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
   const isServicosValid = useMemo(() => {
     if (!isTelecom || proposalType !== 'servicos') return true;
     if (servicosProdutos.length === 0) return false;
+    // Catalog format: each line already carries its catalog data; the legacy
+    // per-field check below would reject every catalog product.
+    if (isNewFormat) return true;
     return servicosProdutos.every(produto => {
       const config = SERVICOS_PRODUCT_CONFIGS.find(c => c.name === produto);
       const detail = servicosDetails[produto] || {};
@@ -340,11 +347,18 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
         detail[field] !== undefined && detail[field] > 0
       ) ?? false;
     });
-  }, [isTelecom, proposalType, servicosProdutos, servicosDetails]);
+  }, [isTelecom, proposalType, servicosProdutos, servicosDetails, isNewFormat, SERVICOS_PRODUCT_CONFIGS]);
+
+  // Same rule as the new proposal: a half-typed manual sum, or weekly and
+  // monthly services together, cannot be saved.
+  const manualBlock = isTelecom && proposalType === 'servicos'
+    ? manualCommissionBlock(manualCommissionState, servicosProdutos)
+    : EMPTY_MANUAL_COMMISSION_STATE;
+  const isManualCommissionValid = manualBlock.invalid.length === 0 && !manualBlock.payoutMixed;
 
   const hasGenericValue = isTelecom || selectedProducts.length > 0
     || (legacyWithoutProducts && Number.isFinite(parsedManualTotal) && parsedManualTotal > 0);
-  const isFormValid = relatedDataReady && isServicosValid && hasGenericValue && !!selectedClientId;
+  const isFormValid = relatedDataReady && isServicosValid && hasGenericValue && !!selectedClientId && isManualCommissionValid;
 
   const handleAddProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -635,8 +649,35 @@ export function EditProposalModal({ proposal, open, onOpenChange, onSuccess }: E
                     </Card>
                   )}
 
-                  {/* Campos específicos de Serviços - Apenas Telecom */}
-                  {isTelecom && proposalType === 'servicos' && (
+                  {/* Catalog-format services (BDS): the same section as the new proposal,
+                      with the manual-commission sum. */}
+                  {isTelecom && proposalType === 'servicos' && isNewFormat && catalog && (
+                    <Card>
+                      <CardContent className="p-4">
+                        <ServicosSection
+                          modeloServico={modeloServico}
+                          onModeloServicoChange={setModeloServico}
+                          servicosProdutos={servicosProdutos}
+                          servicosDetails={servicosDetails}
+                          attempted={attempted}
+                          onManualCommissionStateChange={setManualCommissionState}
+                          isNewFormat={isNewFormat}
+                          configs={SERVICOS_PRODUCT_CONFIGS}
+                          catalog={catalog}
+                          operators={catalogOperators}
+                          onToggleProduct={handleServicosProdutoToggle}
+                          onUpdateDetail={handleUpdateProductDetail}
+                          onSetProductDetail={handleSetProductDetail}
+                          isAutoCalculated={isAutoCalculated}
+                          totalKwp={totalKwp}
+                          totalComissao={totalComissao}
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Campos específicos de Serviços - Apenas Telecom (formato antigo) */}
+                  {isTelecom && proposalType === 'servicos' && !(isNewFormat && catalog) && (
                     <Card>
                       <CardContent className="p-4">
                         <div className="space-y-4 p-4 rounded-lg border bg-secondary/30 border-border">
