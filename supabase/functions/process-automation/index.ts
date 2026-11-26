@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isLeadTrigger, leadAutomationBlocked, leadIdForTrigger } from "../_shared/legacy-automation-lead-consent.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,6 +99,18 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     console.log(`Processing automation: ${trigger_type} for org ${organization_id}`);
+
+    // Lead com a automação desligada: nenhum template automático (o motor de fluxos já o respeitava).
+    const leadId = leadIdForTrigger(trigger_type, record);
+    const leadFlag = (id: string) => supabase.from("leads").select("automation_enabled")
+      .eq("id", id).eq("organization_id", organization_id).maybeSingle();
+    if (isLeadTrigger(trigger_type) && await leadAutomationBlocked(leadFlag, leadId, record)) {
+      console.log(`Lead ${leadId ?? "?"} com automação desligada, nada enviado (${trigger_type})`);
+      return new Response(
+        JSON.stringify({ message: "Lead automation disabled, skipping", triggered: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Check if organization has Brevo configured - automations only work with Brevo
     const { data: orgData, error: orgError } = await supabase
@@ -218,6 +231,8 @@ serve(async (req: Request): Promise<Response> => {
           variables: {
             ...variables,
             client_id: clientId || '',
+            // a fila volta a confirmar, no envio, que a lead ainda autoriza automações
+            ...(leadId ? { lead_id: leadId } : {}),
           },
           template_id: template.id,
           scheduled_for: scheduledFor.toISOString(),

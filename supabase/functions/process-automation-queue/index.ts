@@ -1,4 +1,5 @@
 import { automationContactSuppressed } from '../_shared/automation-contact-optout.ts';
+import { leadAutomationBlocked } from '../_shared/legacy-automation-lead-consent.ts';
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -45,6 +46,14 @@ serve(async (req: Request): Promise<Response> => {
       try {
         const variables = (item.variables as Record<string, unknown>) || {};
         if (await automationContactSuppressed(supabase, item.organization_id, String(variables.telefone ?? variables.phone ?? ""), item.recipient_email)) {
+          const { error: cancelError } = await supabase.from("automation_queue").update({ status: "cancelled" }).eq("id", item.id).in("status", ["pending", "processing"]);
+          if (cancelError) throw cancelError;
+          continue;
+        }
+        const leadId = typeof variables.lead_id === "string" && variables.lead_id ? variables.lead_id : null;
+        const leadFlag = (id: string) => supabase.from("leads").select("automation_enabled")
+          .eq("id", id).eq("organization_id", item.organization_id).maybeSingle();
+        if (await leadAutomationBlocked(leadFlag, leadId)) {
           const { error: cancelError } = await supabase.from("automation_queue").update({ status: "cancelled" }).eq("id", item.id).in("status", ["pending", "processing"]);
           if (cancelError) throw cancelError;
           continue;
