@@ -103,15 +103,18 @@ export function useEmailActions(channelId: string | null, folderId: string | nul
       body_html: draft.bodyHtml || null,
       in_reply_to: draft.inReplyTo ?? null,
       reply_message_id: draft.replyMessageId ?? null,
-      attachments: (draft.attachments || []) as unknown as Record<string, unknown>[],
       updated_at: new Date().toISOString(),
     };
+    const attachments = (draft.attachments || []) as unknown as Record<string, unknown>[];
     if (draft.id) {
-      const { data, error } = await db.from('email_drafts').update(row).eq('id', draft.id).select('id').single();
+      // attachments undefined = unchanged since the last save: the row keeps its
+      // own, and the save stays small (a forward can carry several MB of base64).
+      const update = draft.attachments === undefined ? row : { ...row, attachments };
+      const { data, error } = await db.from('email_drafts').update(update).eq('id', draft.id).select('id').single();
       if (error) throw error;
       return data as { id: string };
     }
-    const { data, error } = await db.from('email_drafts').insert(row).select('id').single();
+    const { data, error } = await db.from('email_drafts').insert({ ...row, attachments }).select('id').single();
     if (error) throw error;
     return data as { id: string };
   };

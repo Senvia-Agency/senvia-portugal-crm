@@ -34,6 +34,9 @@ import { resolveEmailSignatureHtml, resolveEmailSignatureSource } from '@/lib/em
 
 import { useInboxWorkspace } from '@/components/inbox/workspace/InboxWorkspaceContext';
 
+/** Attachments above this size go with the send but are not kept in the draft. */
+const DRAFT_ATTACHMENT_MAX = 1024 * 1024;
+
 interface Attached { filename: string; contentType: string; b64: string; size: number; }
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
 
@@ -505,11 +508,26 @@ export function EmailComposer({
   // Auto-save draft (debounced 4 s).
   const draftIdRef = useRef(draftId);
   useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
+  // Draft attachments. A forward or a big file can be several MB of base64, and
+  // the database (small plan, 8 s limit per statement) cancels a big draft save
+  // that runs next to the send. So the draft keeps only attachments up to 1 MB
+  // each, and re-sends them only when they changed; bigger ones stay on screen
+  // and go with the send, and the composer says they are not in the draft.
+  const draftAttachmentKey = (list: readonly { filename: string; b64: string }[]) =>
+    list.map((a) => `${a.filename}:${a.b64.length}`).join('|');
+  const keptForDraft = <T extends { b64: string; size?: number }>(list: readonly T[]) =>
+    list.filter((a) => (a.size || Math.floor(a.b64.length * 3 / 4)) <= DRAFT_ATTACHMENT_MAX);
+  const savedAttachmentKey = useRef<string | null>(initialDraft?.attachments ? draftAttachmentKey(keptForDraft(initialDraft.attachments)) : null);
   // Serialize saves so autosave and a manual save cannot insert two drafts.
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistDraft = (payload: Parameters<typeof actions.saveDraft>[0]) => {
     const operation = draftOperation.current.catch(() => undefined).then(async () => {
       if (closingRef.current) return { id: draftIdRef.current! };
-      const result = await actions.saveDraft({ ...payload, id: draftIdRef.current });
+      const kept = keptForDraft(payload.attachments ?? []);
+      const key = draftAttachmentKey(kept);
+      const unchanged = !!draftIdRef.current && key === savedAttachmentKey.current;
+      const result = await actions.saveDraft({ ...payload, id: draftIdRef.current, attachments: unchanged ? undefined : kept });
+      savedAttachmentKey.current = key;
       draftIdRef.current = result.id;
       setDraftId(result.id);
       setSavedAt(new Date());
@@ -523,8 +541,9 @@ export function EmailComposer({
     // In the WebMail the signature and the quoted message are filled in automatically: they alone never make a draft.
     const hasContent = to.length > 0 || cc.length > 0 || bcc.length > 0 || subject.trim()
       || (webmail ? writtenText() || attachments.length > 0 : html.replace(/<[^>]+>/g, '').trim());
-    if (!hasContent) return;
+    if (!hasContent || closingRef.current) return;
     const t = setTimeout(async () => {
+      autosaveTimer.current = null;
       try {
         const result = await persistDraft({
           id: draftIdRef.current,
@@ -544,6 +563,7 @@ export function EmailComposer({
         console.warn('[Email draft] Server save failed', error instanceof Error ? error.name : 'unknown');
       }
     }, 4000);
+    autosaveTimer.current = t;
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [to, cc, bcc, subject, bodyVersion, attachments.length, showCc, showBcc]);
@@ -684,6 +704,14 @@ export function EmailComposer({
     if (sendLock.current || loadingAttachments) return;
     sendLock.current = true;
     setSending(true);
+    // One write only: no draft save may run next to the send (both carry the
+    // attachments, and two big writes together hit the database time limit),
+    // and none may come back after it, which would revive a sent message.
+    closingRef.current = true;
+    const hadPendingSave = !!autosaveTimer.current;
+    if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
+    await draftOperation.current.catch(() => undefined);
+    let sent = false;
     try {
       const html = sanitizeEmailHtml(editorRef.current?.innerHTML || '');
       const text = editorRef.current?.innerText || '';
@@ -697,8 +725,7 @@ export function EmailComposer({
         references: refs,
         attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, b64: a.b64 })),
       });
-      closingRef.current = true;
-      await draftOperation.current.catch(() => undefined);
+      sent = true;
       const idToDelete = draftIdRef.current ?? initialDraft?.id ?? null;
       if (idToDelete) { try { await actions.deleteDraft(idToDelete); } catch { /* non-critical */ } }
       clearRecovery();
@@ -712,7 +739,15 @@ export function EmailComposer({
       onClose();
     } catch (e) {
       toast({ title: t('Falha ao enviar'), description: (e as Error).message, variant: 'destructive' });
-    } finally { sendLock.current = false; setSending(false); }
+    } finally {
+      // A failed send keeps the message open: drafts save again from the next change.
+      if (!sent) {
+        closingRef.current = false;
+        // The save cancelled for the send runs now, so the last edits reach the draft.
+        if (hadPendingSave) void persistDraft(currentDraft()).catch(() => undefined);
+      }
+      sendLock.current = false; setSending(false);
+    }
   };
 
   const currentDraft = () => ({
@@ -729,7 +764,8 @@ export function EmailComposer({
     if (hasContent) {
       try {
         await persistDraft(currentDraft());
-        toast({ title: t('Rascunho guardado') });
+        const left = attachments.filter((a) => !keptForDraft([a]).length).map((a) => a.filename);
+        toast({ title: t('Rascunho guardado'), description: left.length ? t('Sem os anexos acima de 1 MB: {{names}}. Junta-os de novo antes de enviar.', { names: left.join(', ') }) : undefined });
       } catch (e) {
         toast({ title: t('Não foi possível guardar o rascunho'), description: (e as Error).message, variant: 'destructive' });
         return;
@@ -952,6 +988,9 @@ export function EmailComposer({
                   <button type="button" onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
                 </span>
               ))}
+              {attachments.some((a) => !keptForDraft([a]).length) && (
+                <p className="w-full text-[11px] text-muted-foreground">{t('Os anexos acima de 1 MB seguem no envio, mas não ficam no rascunho.')}</p>
+              )}
             </div>
           )}
 
