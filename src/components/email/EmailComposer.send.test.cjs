@@ -116,3 +116,12 @@ test('nothing is saved once the composer is closing or sending', async () => {
   assert.equal(saves.length, 0);
   assert.equal(result.id, 'draft-9');
 });
+
+test('removing a big attachment from an old draft is saved', async () => {
+  // A draft saved before this fix still holds a big attachment in its row.
+  const { ctx, saves } = draftHarness(`${small.filename}:${small.b64.length}|${big.filename}:${big.b64.length}`, 'draft-old');
+  await ctx.api.persistDraft({ to: [], subject: 's', bodyHtml: '', attachments: [small, big] });
+  assert.equal(saves[0].attachments, undefined, 'nothing changed: the row keeps its attachments');
+  await ctx.api.persistDraft({ to: [], subject: 's', bodyHtml: '', attachments: [small] });
+  assert.deepEqual(saves[1].attachments.map((a) => a.filename), ['a.pdf'], 'the big one leaves the row');
+});

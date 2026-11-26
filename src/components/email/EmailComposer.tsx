@@ -517,14 +517,17 @@ export function EmailComposer({
     list.map((a) => `${a.filename}:${a.b64.length}`).join('|');
   const keptForDraft = <T extends { b64: string; size?: number }>(list: readonly T[]) =>
     list.filter((a) => (a.size || Math.floor(a.b64.length * 3 / 4)) <= DRAFT_ATTACHMENT_MAX);
-  const savedAttachmentKey = useRef<string | null>(initialDraft?.attachments ? draftAttachmentKey(keptForDraft(initialDraft.attachments)) : null);
+  // The key covers every attachment on screen, so removing a big one from an old
+  // draft still rewrites the row; only the kept ones are written.
+  const savedAttachmentKey = useRef<string | null>(initialDraft?.attachments ? draftAttachmentKey(initialDraft.attachments) : null);
   // Serialize saves so autosave and a manual save cannot insert two drafts.
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistDraft = (payload: Parameters<typeof actions.saveDraft>[0]) => {
     const operation = draftOperation.current.catch(() => undefined).then(async () => {
       if (closingRef.current) return { id: draftIdRef.current! };
-      const kept = keptForDraft(payload.attachments ?? []);
-      const key = draftAttachmentKey(kept);
+      const all = payload.attachments ?? [];
+      const kept = keptForDraft(all);
+      const key = draftAttachmentKey(all);
       const unchanged = !!draftIdRef.current && key === savedAttachmentKey.current;
       const result = await actions.saveDraft({ ...payload, id: draftIdRef.current, attachments: unchanged ? undefined : kept });
       savedAttachmentKey.current = key;
@@ -564,7 +567,7 @@ export function EmailComposer({
       }
     }, 4000);
     autosaveTimer.current = t;
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); if (autosaveTimer.current === t) autosaveTimer.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [to, cc, bcc, subject, bodyVersion, attachments.length, showCc, showBcc]);
 
