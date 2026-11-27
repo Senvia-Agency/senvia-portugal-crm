@@ -96,6 +96,7 @@ const NO_TELECOM_STATUS = "__none__";
 import { SalePaymentsList, useSaleFiscalDocuments } from "./SalePaymentsList";
 import { RecurringSalePanel } from "./RecurringSalePanel";
 import { useSalePayments, calculatePaymentSummary } from "@/hooks/useSalePayments";
+import { overduePayments, sumAmounts } from "@/lib/sale-overdue";
 import { SendInvoiceEmailModal } from "./SendInvoiceEmailModal";
 import { InvoiceDetailsModal } from "./InvoiceDetailsModal";
 import type { InvoiceDetailsData } from "@/hooks/useInvoiceDetails";
@@ -179,6 +180,16 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
   const hasPaidPayments = salePayments.some(p => p.status === 'paid');
   const paymentObligation = sale?.gross_value ?? sale?.total_value ?? 0;
   const paymentSummary = calculatePaymentSummary(salePayments, paymentObligation);
+  // Late = pending and past its date, as in Financeiro > A receber. On a monthly
+  // sale the total paid covers every month, so "Em falta" against one month was
+  // always 0; what is missing there is what is late.
+  const latePayments = overduePayments(salePayments);
+  const lateTotal = sumAmounts(latePayments);
+  const lateSince = latePayments.map((p) => p.payment_date.slice(0, 10)).sort()[0] ?? null;
+  const isRecurringSale = !!sale?.recurrence;
+  const missingTotal = isRecurringSale ? lateTotal : Math.max(paymentSummary.remaining, lateTotal);
+  const scheduledTotal = Math.max(0, paymentSummary.totalScheduled - lateTotal);
+  const lateHint = lateSince ? t("Em atraso desde {{date}}", { date: format(new Date(`${lateSince}T12:00:00`), 'dd/MM/yyyy') }) : undefined;
 
   const hasInvoiceXpress = checkIxActive(organization);
   const billingCompany = (sale?.billing_target ?? sale?.client?.billing_target) === 'company';
@@ -568,8 +579,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                 value={formatCurrency(isTelecom ? sellerCommissionTotal : sale.total_value)} tone="text-primary" />
               {hasInvoiceXpress && <HeaderFigure label={t("Com IVA")} value={formatCurrency(sale.gross_value ?? vatCalc.totalWithVat)} hint={t("IVA {{value}}", { value: formatCurrency(vatCalc.totalVat) })} />}
               {!isTelecom && salePayments.length > 0 && <>
-                <HeaderFigure label={t("Pago")} value={formatCurrency(paymentSummary.totalPaid)} tone="text-emerald-600 dark:text-emerald-400" hint={t("{{n}}% da venda", { n: Math.round(paymentSummary.percentage) })} />
-                <HeaderFigure label={t("Em falta")} value={formatCurrency(paymentSummary.remaining)} tone={paymentSummary.remaining > 0 ? 'text-amber-600 dark:text-amber-400' : undefined} />
+                <HeaderFigure label={t("Pago")} value={formatCurrency(paymentSummary.totalPaid)} tone="text-emerald-600 dark:text-emerald-400" hint={isRecurringSale ? undefined : t("{{n}}% da venda", { n: Math.round(paymentSummary.percentage) })} />
+                <HeaderFigure label={t("Em falta")} value={formatCurrency(missingTotal)} tone={missingTotal > 0 ? 'text-amber-600 dark:text-amber-400' : undefined} hint={lateHint} />
               </>}
               {sale.recurrence && <HeaderFigure label={t("Mensalidade")} value={`${formatCurrency(sale.recurrence.amount)}${t("/mês")}`} />}
             </div>
@@ -1246,6 +1257,8 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 space-y-4">
+                          {/* A monthly sale has no end to progress towards. */}
+                          {!isRecurringSale && (
                           <div className="space-y-2">
                             <div className="flex justify-between text-xs text-muted-foreground">
                               <span>{t("Progresso")}</span>
@@ -1253,6 +1266,7 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             </div>
                             <Progress value={paymentSummary.percentage} className="h-2" />
                           </div>
+                          )}
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-xs text-muted-foreground">{t("Total Pago")}</p>
@@ -1260,13 +1274,14 @@ export function SaleDetailsModal({ sale, open, onOpenChange, onEdit }: SaleDetai
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">{t("Em Falta")}</p>
-                              <p className="text-sm font-semibold text-amber-500">{formatCurrency(paymentSummary.remaining)}</p>
+                              <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">{formatCurrency(missingTotal)}</p>
+                              {lateHint && <p className="text-[11px] text-muted-foreground">{lateHint}</p>}
                             </div>
                           </div>
-                          {paymentSummary.totalScheduled > 0 && (
+                          {scheduledTotal > 0 && (
                             <div>
                               <p className="text-xs text-muted-foreground">{t("Agendado")}</p>
-                              <p className="text-sm font-semibold">{formatCurrency(paymentSummary.totalScheduled)}</p>
+                              <p className="text-sm font-semibold">{formatCurrency(scheduledTotal)}</p>
                             </div>
                           )}
                         </CardContent>

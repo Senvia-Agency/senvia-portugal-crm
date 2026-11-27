@@ -49,6 +49,8 @@ import {
   type ServiceStatus,
 } from '@/hooks/useSaleRecurrence';
 import { firstMonthState, type FirstMonthState } from '@/lib/fiscal-automation';
+import { useSalePayments } from '@/hooks/useSalePayments';
+import { overdueOutsideCycles, sumAmounts } from '@/lib/sale-overdue';
 import { useLanguage, intlLocale } from "@/i18n";
 
 // Serviço e cobrança são apresentados como dois crachás separados, e não como um
@@ -172,6 +174,7 @@ const DOCUMENT_LABEL: Record<string, string> = {
 export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const { t } = useLanguage();
   const { data: recurrence, isLoading } = useSaleRecurrence(saleId);
+  const { data: salePayments = [] } = useSalePayments(saleId);
   const { createCheckout, isCreating } = useSaleCheckout();
   const cancelRecurrence = useCancelSaleRecurrence();
   const reactivateRecurrence = useReactivateSaleRecurrence();
@@ -218,7 +221,11 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
   const paid = cycles.filter((c) => c.status === 'paid');
   const outstanding = cycles.filter((c) => c.status === 'pending' || c.status === 'failed');
   const totalPaid = paid.reduce((sum, c) => sum + Number(c.amount), 0);
-  const totalOutstanding = outstanding.reduce((sum, c) => sum + Number(c.amount), 0);
+  // A month Stripe refused is a late payment line of the sale, not a cycle: it is
+  // owed all the same (same rule as Financeiro > A receber).
+  const latePayments = overdueOutsideCycles(salePayments, cycles);
+  const totalOutstanding = outstanding.reduce((sum, c) => sum + Number(c.amount), 0) + sumAmounts(latePayments);
+  const billingStatus: BillingStatus = latePayments.length > 0 && recurrence.billing_status === 'current' ? 'past_due' : recurrence.billing_status;
   // The first month is the sale itself, issued like the cycles when the sale was created
   // with automatic issuance.
   const firstMonth = recurrence.fiscal_include_sale
@@ -393,15 +400,15 @@ export function RecurringSalePanel({ saleId }: { saleId: string }) {
             <Badge variant="outline" className={serviceTone(recurrence.service_status)}>
               {t(SERVICE_LABEL[recurrence.service_status])}
             </Badge>
-            <Badge variant="outline" className={billingTone(recurrence.billing_status)}>
-              {t(BILLING_LABEL[recurrence.billing_status])}
+            <Badge variant="outline" className={billingTone(billingStatus)}>
+              {t(BILLING_LABEL[billingStatus])}
             </Badge>
           </div>
         </div>
 
         {/* Um cliente em atraso continua com o serviço ligado. Dizê-lo em voz
             alta evita a leitura errada de que "ativo" significa "pago". */}
-        {recurrence.billing_status === 'past_due' && recurrence.service_status === 'active' && (
+        {billingStatus === 'past_due' && recurrence.service_status === 'active' && (
           <div className="flex gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
             <p className="text-xs text-muted-foreground">

@@ -1086,6 +1086,7 @@ export const ptBR: Record<string, string> = {
   "Multiplicar": "Multiplicar",
   "Dividir": "Dividir",
   "Manual, com modelo": "Manual, com modelo",
+  "Em atraso desde {{date}}": "Em atraso desde {{date}}",
 };
 
 export const en: Record<string, string> = {
@@ -2175,4 +2176,5 @@ export const en: Record<string, string> = {
   "Multiplicar": "Multiply",
   "Dividir": "Divide",
   "Manual, com modelo": "Manual, with model",
+  "Em atraso desde {{date}}": "Overdue since {{date}}",
 };
