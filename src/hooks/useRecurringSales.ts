@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { tr } from "@/i18n";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import type { RecurringStatus } from "@/types/sales";
+import type { PaymentMethod, RecurringStatus } from "@/types/sales";
 import { operationalUnitsForSale } from "@/lib/sale-units";
 
 interface RecurringCycleSummary {
@@ -27,6 +27,8 @@ interface RecurringSaleWithClient {
   readonly last_renewal_date: string | null;
   readonly organization_id: string;
   readonly operational_units: number;
+  /** 'stripe': Stripe charges the card itself, so a month is never marked paid by hand. */
+  readonly billing_provider: "manual" | "stripe";
   readonly current_cycle: RecurringCycleSummary | null;
   readonly client?: {
     readonly id: string;
@@ -69,6 +71,7 @@ export function useRecurringSales() {
           amount,
           next_cycle_date,
           last_cycle_date,
+          billing_provider,
           sales!inner(
             id,
             code,
@@ -115,6 +118,7 @@ export function useRecurringSales() {
           last_renewal_date: recurrence.last_cycle_date,
           organization_id: recurrence.organization_id,
           operational_units: operationalUnitsForSale(sale),
+          billing_provider: recurrence.billing_provider === "stripe" ? "stripe" : "manual",
           current_cycle: currentCycle,
           client: sale.client,
         }];
@@ -166,6 +170,77 @@ export function useRenewSale() {
     },
     onError: () => {
       toast.error(tr("Erro ao registar renovação"));
+    },
+  });
+}
+
+interface MarkRecurrencePaidInput {
+  readonly recurrenceId: string;
+  readonly saleId: string;
+  /** The month to settle: the recurrence's next cycle date. */
+  readonly periodStart: string;
+  readonly paymentDate: string;
+  readonly paymentMethod: PaymentMethod;
+}
+
+/**
+ * Marks the next month of a manual recurrence as paid, before or after its date.
+ *
+ * Same path as the daily generator: create_recurring_cycle opens the month (and
+ * moves the next date on), and the database adds its pending payment
+ * (create_manual_renewal_payment). That payment becomes paid here, and the cycle
+ * follows it (sync_recurring_cycle_from_payment). If the month was already open,
+ * its existing payment is used, so nothing is recorded twice.
+ */
+export function useMarkRecurrencePaid() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ recurrenceId, saleId, periodStart, paymentDate, paymentMethod }: MarkRecurrencePaidInput) => {
+      const { data: cycle, error: cycleError } = await supabase.rpc("create_recurring_cycle", {
+        p_recurrence_id: recurrenceId,
+        p_period_start: periodStart,
+      });
+      if (cycleError) throw cycleError;
+      const opened = cycle as unknown as { id: string; organization_id: string; amount: number; due_date: string; period_start: string; period_end: string; status: string };
+      if (opened.status === "paid") throw new Error("already_paid");
+
+      const { data: existing, error: findError } = await supabase
+        .from("sale_payments")
+        .select("id, status")
+        .eq("recurring_cycle_id", opened.id);
+      if (findError) throw findError;
+      if (existing?.some((payment) => payment.status === "paid")) throw new Error("already_paid");
+
+      const pending = existing?.find((payment) => payment.status === "pending");
+      if (pending) {
+        const { error } = await supabase
+          .from("sale_payments")
+          .update({ status: "paid", payment_date: paymentDate, payment_method: paymentMethod })
+          .eq("id", pending.id)
+          .eq("status", "pending");
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("sale_payments").insert({
+          organization_id: opened.organization_id,
+          sale_id: saleId,
+          amount: opened.amount,
+          payment_date: paymentDate,
+          payment_method: paymentMethod,
+          status: "paid",
+          notes: "Renovação mensal",
+          recurring_cycle_id: opened.id,
+          billing_period_start: opened.period_start,
+          billing_period_end: opened.period_end,
+        });
+        if (error) throw error;
+      }
+      return opened;
+    },
+    onSuccess: () => {
+      for (const key of ["recurring-sales", "sale-recurrence", "recurring-cycles", "sale-payments", "all-payments", "finance-stats", "dashboard-stats", "sales"]) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }

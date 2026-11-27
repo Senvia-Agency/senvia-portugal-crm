@@ -752,6 +752,13 @@ export const ptBR: Record<string, string> = {
   "Erro ao processar pedido": "Erro ao processar solicitação",
   "Pedido eliminado": "Solicitação excluída",
   "Erro ao eliminar pedido": "Erro ao excluir solicitação",
+  "Mensalidade de {{month}} marcada como paga": "Mensalidade de {{month}} marcada como paga",
+  "Esta mensalidade já estava paga.": "Esta mensalidade já estava paga.",
+  "Não foi possível marcar como paga. Tente novamente.": "Não foi possível marcar como paga. Tente novamente.",
+  "Marcar como paga a mensalidade de {{name}}": "Marcar como paga a mensalidade de {{name}}",
+  "Cobrada pelo Stripe: o pagamento entra sozinho.": "Cobrada pelo Stripe: o pagamento entra sozinho.",
+  "Marcar mensalidade como paga": "Marcar mensalidade como paga",
+  "Fica paga já, mesmo antes da data. A próxima mensalidade passa para o mês seguinte.": "Fica paga já, mesmo antes da data. A próxima mensalidade passa para o mês seguinte.",
 };
 
 export const en: Record<string, string> = {
@@ -1507,4 +1514,11 @@ export const en: Record<string, string> = {
   "Erro ao processar pedido": "Error processing request",
   "Pedido eliminado": "Request deleted",
   "Erro ao eliminar pedido": "Error deleting request",
+  "Mensalidade de {{month}} marcada como paga": "{{month}} instalment marked as paid",
+  "Esta mensalidade já estava paga.": "This instalment was already paid.",
+  "Não foi possível marcar como paga. Tente novamente.": "Could not mark it as paid. Try again.",
+  "Marcar como paga a mensalidade de {{name}}": "Mark {{name}}'s instalment as paid",
+  "Cobrada pelo Stripe: o pagamento entra sozinho.": "Charged by Stripe: the payment comes in by itself.",
+  "Marcar mensalidade como paga": "Mark instalment as paid",
+  "Fica paga já, mesmo antes da data. A próxima mensalidade passa para o mês seguinte.": "It is paid now, even before its date. The next instalment moves to the following month.",
 };
