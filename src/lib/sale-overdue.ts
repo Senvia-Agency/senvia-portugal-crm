@@ -11,6 +11,8 @@ export interface PaymentLine {
   status: string;
   payment_date: string;
   stripe_invoice_id?: string | null;
+  /** Set by the server when the refused month opened its cycle: the cycle counts it. */
+  recurring_cycle_id?: string | null;
 }
 
 export interface CycleLine {
@@ -39,11 +41,12 @@ export function sumAmounts(lines: readonly { amount: number | string }[]): numbe
 
 /**
  * Late payments that the recurrence's own cycles do not already show as unpaid
- * (same Stripe invoice), so a debt is never counted twice on the card.
+ * (linked to a cycle, or same Stripe invoice), so a debt is never counted twice:
+ * once the server opens the cycle, the cycles are the only source.
  */
 export function overdueOutsideCycles<T extends PaymentLine>(payments: readonly T[], cycles: readonly CycleLine[], today = lisbonToday()): T[] {
   const openInvoices = new Set(
     cycles.filter((c) => (c.status === 'pending' || c.status === 'failed') && c.stripe_invoice_id).map((c) => c.stripe_invoice_id as string),
   );
-  return overduePayments(payments, today).filter((p) => !p.stripe_invoice_id || !openInvoices.has(p.stripe_invoice_id));
+  return overduePayments(payments, today).filter((p) => !p.recurring_cycle_id && (!p.stripe_invoice_id || !openInvoices.has(p.stripe_invoice_id)));
 }

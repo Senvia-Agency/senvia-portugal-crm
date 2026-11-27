@@ -21,6 +21,8 @@ export interface PaymentWithSale {
    *  non-Stripe / manual payments. */
   billing_period_start?: string | null;
   billing_period_end?: string | null;
+  /** Stripe invoice this payment belongs to. On a plan sale, a pending one is a month Stripe refused. */
+  stripe_invoice_id?: string | null;
   created_at: string;
   updated_at: string;
   sale: {

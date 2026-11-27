@@ -11,6 +11,7 @@ import { useSaleTypeIds } from '@/hooks/useSaleTypeIds';
 import { sumOperationalSaleUnits } from '@/lib/sale-units';
 import { isTelecomCommissionEarned, TELECOM_EARNED_STATUSES, telecomCommissionPartsInPeriod } from '@/lib/telecom-finance';
 import { isTelecomAwaitingScheduledInstall } from '@/lib/telecom-sale-views';
+import { countsInFinance } from '@/lib/plan-payments';
 
 interface UseFinanceStatsOptions {
   dateRange?: DateRange;
@@ -18,7 +19,6 @@ interface UseFinanceStatsOptions {
   commissionFilters?: CommissionFilters;
 }
 
-const isStripePlanPayment = (payment: PaymentWithSale) => Boolean(payment.sale.client_org_id);
 
 export function useFinanceStats(options?: UseFinanceStatsOptions) {
   const { organization } = useAuth();
@@ -93,6 +93,7 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
         credit_note_id: null,
         credit_note_reference: null,
         status: payment.status as PaymentRecordStatus,
+        stripe_invoice_id: payment.stripe_invoice_id ?? null,
         notes: payment.notes,
         created_at: payment.created_at,
         updated_at: payment.updated_at,
@@ -205,10 +206,10 @@ export function useFinanceStats(options?: UseFinanceStatsOptions) {
 
     const now = new Date();
     const next7Days = addDays(now, 7);
-    const eligibleFilteredPayments = filteredPayments.filter((payment) => !isStripePlanPayment(payment) || payment.status === 'paid');
+    const eligibleFilteredPayments = filteredPayments.filter(countsInFinance);
     // Pending and overdue are an outstanding balance, not a period metric, so
     // they ignore the date filter and always reflect the full history.
-    const eligibleGlobalPayments = (payments || []).filter((payment) => !isStripePlanPayment(payment) || payment.status === 'paid');
+    const eligibleGlobalPayments = (payments || []).filter(countsInFinance);
 
     // Faturado = vendas criadas no período + cada renovação de venda recorrente
     // no período (usando o recurring_value/preço do plano). Exclui o pagamento do

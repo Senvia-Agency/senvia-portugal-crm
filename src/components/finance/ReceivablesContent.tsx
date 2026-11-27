@@ -32,6 +32,7 @@ import { ExportMenu, type ExportKind } from "@/components/shared/ExportMenu";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type PaymentMethod } from "@/types/sales";
 import type { PaymentWithSale } from "@/types/finance";
 import { useLanguage } from "@/i18n";
+import { countsInFinance } from "@/lib/plan-payments";
 
 /** Which payments the list shows. "open" = everything still to receive, late or not. */
 export type ReceivableView = "open" | "overdue" | "paid" | "all";
@@ -88,9 +89,10 @@ export function ReceivablesContent({ search, dateRange, initialView }: Receivabl
 
   const inRangeAndSearch = useMemo(() => (payments ?? []).filter((payment) => {
     // Same rule as the summary figures: a cancelled sale has nothing to receive, and
-    // Stripe collects plan payments by itself, so only their confirmed ones show.
+    // Stripe collects plan payments by itself, so only their confirmed ones show,
+    // plus a month Stripe refused (see countsInFinance).
     if (payment.sale.status === "cancelled") return false;
-    if (payment.sale.client_org_id && payment.status !== "paid") return false;
+    if (!countsInFinance(payment)) return false;
     if (dateRange?.from) {
       const day = parseISO(payment.payment_date);
       if (day < startOfDay(dateRange.from)) return false;

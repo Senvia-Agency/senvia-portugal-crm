@@ -65,6 +65,7 @@ export function useAllPayments() {
         notes: payment.notes,
         billing_period_start: (payment as any).billing_period_start ?? null,
         billing_period_end: (payment as any).billing_period_end ?? null,
+        stripe_invoice_id: payment.stripe_invoice_id ?? null,
         created_at: payment.created_at,
         updated_at: payment.updated_at,
         sale: {

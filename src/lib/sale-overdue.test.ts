@@ -25,4 +25,8 @@ describe('sale overdue', () => {
     assert.equal(overdueOutsideCycles(payments, [{ status: 'paid', stripe_invoice_id: 'in_nov' }], '2026-11-27').length, 1);
     assert.equal(overdueOutsideCycles(payments, [], '2026-11-27').length, 1);
   });
+  test('a late payment linked to a cycle is counted by the cycle only', () => {
+    const linked = [{ amount: 54, status: 'pending', payment_date: '2026-11-25', stripe_invoice_id: 'in_nov', recurring_cycle_id: 'c-nov' }];
+    assert.equal(overdueOutsideCycles(linked, [], '2026-11-27').length, 0);
+  });
 });

@@ -49,6 +49,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { dateLocale, tr, useLanguage } from "@/i18n";
+import { countsInFinance } from "@/lib/plan-payments";
 
 export type FinanceDetailType =
   | "faturado" | "received" | "pending" | "overdue" | "dueSoon" | "expenses" | "balance" | "myCommissions" | "commissions"
@@ -71,7 +72,6 @@ interface FinanceCardDetailProps {
 }
 
 /** Stripe plan/subscription payments are excluded from pending/overdue, matching the card totals. */
-const isPlanPayment = (p: PaymentWithSale) => Boolean(p.sale?.client_org_id);
 
 const TITLES: Record<FinanceDetailType, string> = {
   faturado: "Total Faturado",   // telecom overrides this to "Total de Comissão"
@@ -737,13 +737,13 @@ export function FinanceCardDetail({ type, dateRange, payments, allPayments, dueS
   // Pending/overdue always show the full history (ignore the period filter) —
   // they represent the outstanding balance, not a period metric.
   const pending = useMemo(
-    () => allPayments.filter((p) => p.status === "pending" && !isPlanPayment(p)),
+    () => allPayments.filter((p) => p.status === "pending" && countsInFinance(p)),
     [allPayments],
   );
   const overdue = useMemo(() => {
     const cutoff = startOfDay(new Date());
     return allPayments.filter(
-      (p) => p.status === "pending" && !isPlanPayment(p) && parseISO(p.payment_date) < cutoff,
+      (p) => p.status === "pending" && countsInFinance(p) && parseISO(p.payment_date) < cutoff,
     );
   }, [allPayments]);
   const receivedTotal = useMemo(() => received.reduce((s, p) => s + p.amount, 0), [received]);
