@@ -240,7 +240,7 @@ serve(async (req) => {
       // match is kept for rows written before the column existed.
       const { data: existingPayment } = await supabase
         .from("sale_payments")
-        .select("id, sale_id, billing_period_start, billing_period_end")
+        .select("id, sale_id, status, billing_period_start, billing_period_end")
         .eq("organization_id", SENVIA_AGENCY_ORG_ID)
         .or(`stripe_invoice_id.eq.${invoice.id},notes.ilike.%${invoice.id}%`)
         .limit(1);
@@ -256,6 +256,15 @@ serve(async (req) => {
           stripe_net_amount: net,
           updated_at: new Date().toISOString(),
         };
+        // Linha criada por uma cobrança recusada (pendente): a fatura foi paga,
+        // por isso passa a recebida aqui se o webhook não o fez.
+        const wasPending = existingPayment[0].status === "pending";
+        if (wasPending) {
+          paymentUpdate.status = "paid";
+          paymentUpdate.payment_date = paidAt;
+          paymentUpdate.payment_method = "card";
+          paymentUpdate.notes = `Stripe subscription · ${invoice.id}`;
+        }
         if (!existingPayment[0].billing_period_start && invoice.period_start) {
           paymentUpdate.billing_period_start = new Date(invoice.period_start * 1000).toISOString().split("T")[0];
         }
@@ -334,6 +343,11 @@ serve(async (req) => {
                 recurringAmount,
                 promotePendingSale: true,
               });
+              if (wasPending && cycleId) {
+                const { error: cycleLinkError } = await supabase.from("sale_payments")
+                  .update({ recurring_cycle_id: cycleId }).eq("id", existingPayment[0].id).is("recurring_cycle_id", null);
+                if (cycleLinkError) logError("overdue payment cycle link error", { invoice: invoice.id, error: cycleLinkError.message });
+              }
               logStep("repaired existing payment renewal state", { invoice: invoice.id, saleId, cycleId });
             }
           } catch (error) {

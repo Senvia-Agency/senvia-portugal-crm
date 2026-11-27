@@ -7,6 +7,7 @@ import { deterministicUuid, organizationAdminContact, planLabel, PAYMENT_GRACE_D
 import { rateLimit } from "../_shared/security.ts";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
+import { findPendingStripePayment, recordOverdueStripeInvoice, settlePendingStripePayment } from "../_shared/stripe-overdue-payment.ts";
 
 const SENVIA_AGENCY_ORG_ID = "06fe9e1d-9670-45b0-8717-c5a6e90be380";
 
@@ -328,6 +329,10 @@ serve(async (req) => {
         const email = invoice.customer_email;
         logStep("Payment failed", { customer: invoice.customer, email });
         await recordPaymentFailed(supabase, orgId);
+        // A mensalidade recusada passa a aparecer em Financeiro > A receber da
+        // Senvia, na venda desta empresa. Falha aqui = 500 e o Stripe reenvia;
+        // as automações ainda não correram, por isso não se repetem.
+        await recordOverdueSubscriptionInvoice(supabase, orgId, invoice);
         if (email) {
           const orgName = await getOrgName(supabase, orgId);
           await dispatchAutomation(supabase, "stripe_payment_failed", { email, plan: "unknown", nome: orgName });
@@ -431,7 +436,11 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
       .from("sale_payments")
       .select("id, sale_id")
       .eq("stripe_invoice_id", invoice.id)
+      .neq("status", "pending")
       .limit(1);
+    // A cobrança recusada antes deixou esta fatura como pendente: é ESSA linha
+    // que passa a recebida, mais abaixo, em vez de se criar uma segunda.
+    const pendingPaymentId = await findPendingStripePayment(supabase, invoice.id);
     if (alreadyPaid && alreadyPaid.length > 0) {
       // A previous delivery may have recorded the money before recurrence
       // synchronization completed. Repair the renewal state before treating
@@ -778,9 +787,7 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
     const stripeInvoiceId = invoice.id;
     const planLabel = plan ? PLAN_LIST_NAMES[plan] || plan : "subscription";
     const feeNote = stripeFee > 0 ? ` · bruto ${amount.toFixed(2)}€, taxa ${stripeFee.toFixed(2)}€` : "";
-    const { error: paymentErr } = await supabase
-      .from("sale_payments")
-      .insert({
+    const paidFields = {
         organization_id: SENVIA_AGENCY_ORG_ID,
         sale_id: sale.id,
         // O BRUTO é o que o cliente pagou e o que abate à dívida da venda.
@@ -799,7 +806,27 @@ async function handleInvoicePaid(supabase: any, stripe: Stripe, invoice: Stripe.
         billing_period_start: periodStart,
         billing_period_end: periodEnd,
         notes: `Stripe ${planLabel} · ${stripeInvoiceId}${feeNote}`,
+      };
+    if (pendingPaymentId) {
+      const settled = await settlePendingStripePayment(supabase, pendingPaymentId, paidFields);
+      if (!settled) {
+        logStep("invoice.paid: overdue payment already settled by a concurrent run", { invoice: stripeInvoiceId });
+        return;
+      }
+      await recordStripeFeeExpense(supabase, {
+        organizationId: SENVIA_AGENCY_ORG_ID,
+        invoiceId: stripeInvoiceId,
+        fee: stripeFee,
+        gross: amount,
+        net: netAmount,
+        expenseDate: paymentDate,
       });
+      logStep("invoice.paid: overdue payment marked as paid", { saleId: sale.id, paymentId: pendingPaymentId, amount });
+      return;
+    }
+    const { error: paymentErr } = await supabase
+      .from("sale_payments")
+      .insert(paidFields);
 
     if (paymentErr) {
       // 23505 = unique violation on stripe_invoice_id: a concurrent redelivery
@@ -988,6 +1015,33 @@ async function updateOrgPlan(supabase: any, orgId: string, plan: string | null) 
   } else {
     logStep("Plan updated successfully", { orgId, plan });
   }
+}
+
+/** Fatura de subscrição recusada → pagamento pendente na venda da empresa cliente. */
+async function recordOverdueSubscriptionInvoice(supabase: any, orgId: string, invoice: Stripe.Invoice) {
+  if (!orgId) return;
+  const { data: sales, error } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("organization_id", SENVIA_AGENCY_ORG_ID)
+    .eq("client_org_id", orgId)
+    .in("status", ["pending", "in_progress", "fulfilled", "delivered"])
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) throw new Error(`sales query failed: ${error.message}`);
+  const saleId = sales?.[0]?.id as string | undefined;
+  if (!saleId) {
+    // Sem venda ligada não há onde mostrar a dívida; a empresa continua
+    // marcada como em atraso (payment_failed_at) e bloqueia após a tolerância.
+    logStep("invoice.payment_failed: no agency sale for client org", { orgId, invoice: invoice.id });
+    return;
+  }
+  const result = await recordOverdueStripeInvoice(supabase, {
+    agencyOrgId: SENVIA_AGENCY_ORG_ID,
+    saleId,
+    invoice: invoice as any,
+  });
+  logStep("invoice.payment_failed: overdue payment", { invoice: invoice.id, saleId, result });
 }
 
 async function recordPaymentFailed(supabase: any, orgId: string) {
