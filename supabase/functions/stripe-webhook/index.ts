@@ -7,7 +7,7 @@ import { deterministicUuid, organizationAdminContact, planLabel, PAYMENT_GRACE_D
 import { rateLimit } from "../_shared/security.ts";
 import { recordStripeFeeExpense } from "../_shared/stripe-fee-expense.ts";
 import { syncPaidStripeSale } from "../_shared/stripe-sale-recurrence.ts";
-import { findPendingStripePayment, recordOverdueStripeInvoice, settlePendingStripePayment } from "../_shared/stripe-overdue-payment.ts";
+import { findPendingStripePayment, openOverdueStripeCycle, recordOverdueStripeInvoice, settlePendingStripePayment } from "../_shared/stripe-overdue-payment.ts";
 
 const SENVIA_AGENCY_ORG_ID = "06fe9e1d-9670-45b0-8717-c5a6e90be380";
 
@@ -1046,7 +1046,15 @@ async function recordOverdueSubscriptionInvoice(supabase: any, orgId: string, in
     saleId,
     invoice: invoice as any,
   });
-  logStep("invoice.payment_failed: overdue payment", { invoice: invoice.id, saleId, result });
+  // O ciclo em falta é o que o painel da venda mostra em "Por liquidar" e põe a
+  // recorrência "Em atraso". Corre também quando a linha já existia ('exists'),
+  // para que uma nova tentativa falhada complete o que faltar.
+  const cycle = await openOverdueStripeCycle(supabase, {
+    agencyOrgId: SENVIA_AGENCY_ORG_ID,
+    saleId,
+    invoice: invoice as any,
+  });
+  logStep("invoice.payment_failed: overdue payment", { invoice: invoice.id, saleId, result, cycle });
 }
 
 async function recordPaymentFailed(supabase: any, orgId: string) {
