@@ -330,9 +330,14 @@ serve(async (req) => {
         logStep("Payment failed", { customer: invoice.customer, email });
         await recordPaymentFailed(supabase, orgId);
         // A mensalidade recusada passa a aparecer em Financeiro > A receber da
-        // Senvia, na venda desta empresa. Falha aqui = 500 e o Stripe reenvia;
-        // as automações ainda não correram, por isso não se repetem.
-        await recordOverdueSubscriptionInvoice(supabase, orgId, invoice);
+        // Senvia, na venda desta empresa. Um erro aqui fica só no log: o aviso
+        // ao cliente (abaixo) nunca pode depender desta linha. A próxima
+        // tentativa falhada do Stripe volta a tentar gravá-la.
+        try {
+          await recordOverdueSubscriptionInvoice(supabase, orgId, invoice);
+        } catch (e) {
+          logError("invoice.payment_failed: overdue payment not recorded", { invoice: invoice.id, error: (e as Error).message });
+        }
         if (email) {
           const orgName = await getOrgName(supabase, orgId);
           await dispatchAutomation(supabase, "stripe_payment_failed", { email, plan: "unknown", nome: orgName });
